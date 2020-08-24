@@ -336,7 +336,7 @@ struct miopen_apply
         });
     }
 
-    void add_generic_op(std::string op_name, std::string gpu_name)
+    void add_generic_op(const std::string& op_name, const std::string& gpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto output                       = insert_allocation(ins, ins->get_shape());
@@ -347,7 +347,7 @@ struct miopen_apply
         });
     }
 
-    void add_extend_op(std::string op_name, std::string gpu_name)
+    void add_extend_op(const std::string& op_name, const std::string& gpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op                         = ins->get_operator();

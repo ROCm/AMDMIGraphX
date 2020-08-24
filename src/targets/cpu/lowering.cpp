@@ -440,7 +440,7 @@ struct avg_pool
 {
     static std::string name() { return "average"; }
 
-    template<class T>
+    template <class T>
     static double start()
     {
         return 0.0;

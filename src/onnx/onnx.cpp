@@ -229,7 +229,7 @@ struct onnx_parser
     }
 
     template <class F>
-    void add_mem_op(std::string name, F f)
+    void add_mem_op(const std::string& name, F f)
     {
         add_op(name, [=](auto&&... xs) {
             return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
@@ -237,14 +237,14 @@ struct onnx_parser
     }
 
     template <class F>
-    void add_mem_op(std::string onnx_name, std::string op_name, F f)
+    void add_mem_op(const std::string& onnx_name, const std::string& op_name, F f)
     {
         add_op(onnx_name, [=](auto&&... xs) {
             return std::mem_fn(f)(*this, onnx_name, op_name, std::forward<decltype(xs)>(xs)...);
         });
     }
 
-    void add_binary_op(std::string onnx_name, std::string op_name)
+    void add_binary_op(const std::string& onnx_name, const std::string& op_name)
     {
         add_op(onnx_name, [this, op_name](node_info info, std::vector<instruction_ref> args) {
             if(args.size() != 2)
@@ -318,7 +318,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, std::string name)
+    add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, const std::string& name)
     {
         if(arg0->get_shape().lens() != arg1->get_shape().lens())
         {
@@ -343,7 +343,7 @@ struct onnx_parser
         }
     }
 
-    void add_generic_op(std::string onnx_name, std::string op_name, bool contiguous = false)
+    void add_generic_op(const std::string& onnx_name, const std::string& op_name, bool contiguous = false)
     {
         add_op(
             onnx_name,
@@ -359,7 +359,7 @@ struct onnx_parser
             });
     }
 
-    void add_variadic_op(std::string onnx_name, std::string op_name)
+    void add_variadic_op(const std::string& onnx_name, const std::string& op_name)
     {
         add_op(onnx_name, [this, op_name](const node_info&, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),

@@ -575,7 +575,6 @@ struct onnx_parser
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            op.padding_mode    = op::padding_mode_t::same;
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
             paddings.resize(2 * kdims);
 
@@ -644,9 +643,13 @@ struct onnx_parser
         if(contains(info.attributes, "auto_pad"))
         {
             auto weight_lens = weights->get_shape().lens();
-
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
             cal_auto_padding_size(info, op, k_lens, op.dilation, in_lens, padding);
+            auto auto_pad = info.attributes["auto_pad"].s();
+            if(auto_pad.find("SAME") != std::string::npos)
+            {
+                op.padding_mode = op::padding_mode_t::same;
+            }
         }
         check_asym_padding(l0, padding, op);
 

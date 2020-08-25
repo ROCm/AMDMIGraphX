@@ -24,14 +24,12 @@ struct pooling
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};
     bool ceil_mode                   = false;
-    padding_mode_t padding_mode      = default_;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.mode, "mode"),
                     f(self.padding, "padding"),
-                    f(self.padding_mode, "padding_mode"),
                     f(self.stride, "stride"),
                     f(self.lengths, "lengths"),
                     f(self.ceil_mode, "ceil_mode"));

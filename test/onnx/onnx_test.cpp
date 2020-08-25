@@ -207,7 +207,7 @@ TEST_CASE(averagepool_same_lower_test)
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = p.add_instruction(
         migraphx::op::pooling{
-            "average", {1, 1}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
+            "average", {1, 1}, {1, 1}, {2, 2}},
         input);
     auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {0, 0}, {5, 5}}, ins);
     p.add_return({ret});
@@ -224,7 +224,7 @@ TEST_CASE(averagepool_sl_cip_test)
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads}, input);
     auto ret                  = p.add_instruction(
         migraphx::op::pooling{
-            "average", {0, 0}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
+            "average", {0, 0}, {1, 1}, {2, 2}},
         ins_pad);
     p.add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
@@ -238,7 +238,7 @@ TEST_CASE(averagepool_same_upper_test)
     auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = p.add_instruction(
         migraphx::op::pooling{
-            "average", {1, 1}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
+            "average", {1, 1}, {1, 1}, {2, 2}},
         input);
     auto ret = p.add_instruction(migraphx::op::slice{{2, 3}, {1, 1}, {6, 6}}, ins);
     p.add_return({ret});
@@ -1306,7 +1306,7 @@ TEST_CASE(maxpool_same_upper_test)
     auto ins_pad              = p.add_instruction(migraphx::op::pad{pads, val}, input);
     p.add_instruction(
         migraphx::op::pooling{
-            "max", {0, 0}, {1, 1}, {2, 2}, false, migraphx::op::padding_mode_t::same},
+            "max", {0, 0}, {1, 1}, {2, 2}},
         ins_pad);
 
     auto prog = optimize_onnx("maxpool_same_upper_test.onnx");

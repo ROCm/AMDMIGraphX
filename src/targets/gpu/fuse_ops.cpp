@@ -233,6 +233,8 @@ MIGRAPHX_REGISTER_OP(hip_add_tanh)
 
 struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&) {}
 };
 MIGRAPHX_REGISTER_OP(hip_layernorm)
 
@@ -325,6 +327,15 @@ struct find_layernorm
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
+
+        // We dont fuse for non-standard layouts
+        if(not x_ins->get_shape().standard())
+            return;
+
+        auto relements = x_ins->get_shape().lens().back();
+
+        if(relements > 1024 or (relements % 4 != 0 and relements > 256))
+            return;
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }

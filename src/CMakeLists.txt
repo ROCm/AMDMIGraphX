@@ -33,6 +33,7 @@ add_library(migraphx
     simplify_algebra.cpp
     simplify_reshapes.cpp
     value.cpp
+    verify_args.cpp
     json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp

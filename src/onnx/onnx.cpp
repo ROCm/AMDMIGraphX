@@ -898,8 +898,6 @@ struct onnx_parser
     {
         std::string mode = ends_with(name, "MaxPool") ? "max" : "average";
         operation op     = make_op("pooling", {{"mode", mode}});
-        // operation op = op::pooling{ends_with(name, "MaxPool") ? "max" : "average"};
-        // op::pooling op{ends_with(name, "MaxPool") ? "max" : "average"};
         value values = op.to_value();
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();

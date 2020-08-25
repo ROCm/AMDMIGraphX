@@ -343,7 +343,9 @@ struct onnx_parser
         }
     }
 
-    void add_generic_op(const std::string& onnx_name, const std::string& op_name, bool contiguous = false)
+    void add_generic_op(const std::string& onnx_name,
+                        const std::string& op_name,
+                        bool contiguous = false)
     {
         add_op(
             onnx_name,

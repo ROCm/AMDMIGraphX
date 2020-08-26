@@ -25,11 +25,6 @@ namespace detail {
 template <>
 struct npy_format_descriptor<half>
 {
-    static pybind11::dtype dtype()
-    {
-        handle ptr = npy_api::get().PyArray_DescrFromType_(npy_api::NPY_FLOAT_);
-        return reinterpret_borrow<pybind11::dtype>(ptr);
-    }
     static std::string format()
     {
         // following: https://docs.python.org/3/library/struct.html#format-characters
@@ -42,45 +37,21 @@ struct npy_format_descriptor<half>
 } // namespace pybind11
 
 template <class F>
-struct throw_half
-{
-    F f;
-
-    template <class A>
-    void operator()(A a) const
-    {
-        f(a);
-    }
-};
-
-template <class F>
-struct skip_half
-{
-    F f;
-
-    template <class A>
-    void operator()(A a) const
-    {
-        f(a);
-    }
-};
-
-template <class F>
 void visit_type(const migraphx::shape& s, F f)
 {
-    s.visit_type(throw_half<F>{f});
+    s.visit_type(f);
 }
 
 template <class T, class F>
 void visit(const migraphx::raw_data<T>& x, F f)
 {
-    x.visit(throw_half<F>{f});
+    x.visit(f);
 }
 
 template <class F>
 void visit_types(F f)
 {
-    migraphx::shape::visit_types(skip_half<F>{f});
+    migraphx::shape::visit_types(f);
 }
 
 template <class T>
@@ -121,9 +92,6 @@ migraphx::shape to_shape(const py::buffer_info& info)
     migraphx::shape::type_t t;
     std::size_t n = 0;
     visit_types([&](auto as) {
-        std::cout << "info.format = " << info.format << std::endl;
-        std::cout << "format_dscp = " << py::format_descriptor<decltype(as())>::format()
-                  << std::endl;
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
            (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))

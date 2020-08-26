@@ -55,6 +55,7 @@ def test_neg_int64():
     r = p.run(params)
     print(r)
 
+
 def test_fp16_imagescaler():
     p = migraphx.parse_onnx("imagescaler_half_test.onnx")
     print(p)
@@ -72,6 +73,7 @@ def test_fp16_imagescaler():
 
     r = p.run(params)[-1]
     print(r)
+
 
 test_conv_relu()
 test_sub_uint64()

@@ -1,6 +1,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -15,7 +16,31 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
+
+using half = half_float::half;
 namespace py = pybind11;
+
+namespace pybind11 {
+namespace detail {
+
+template <>
+struct npy_format_descriptor<half> {
+  static pybind11::dtype dtype() {
+    handle ptr = npy_api::get().PyArray_DescrFromType_(npy_api::NPY_FLOAT_);
+    return reinterpret_borrow<pybind11::dtype>(ptr);
+  }
+  static std::string format() {
+    // following: https://docs.python.org/3/library/struct.html#format-characters
+    return "e";
+  }
+  static constexpr auto name() {
+    return _("half");
+  }
+};
+
+}
+}
+
 
 template <class F>
 struct throw_half
@@ -26,16 +51,6 @@ struct throw_half
     void operator()(A a) const
     {
         f(a);
-    }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
-    }
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
     }
 };
 
@@ -49,10 +64,6 @@ struct skip_half
     {
         f(a);
     }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const {}
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const {}
 };
 
 template <class F>
@@ -111,6 +122,8 @@ migraphx::shape to_shape(const py::buffer_info& info)
     migraphx::shape::type_t t;
     std::size_t n = 0;
     visit_types([&](auto as) {
+        std::cout << "info.format = " << info.format << std::endl;
+        std::cout << "format_dscp = " << py::format_descriptor<decltype(as())>::format() << std::endl;
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
            (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))

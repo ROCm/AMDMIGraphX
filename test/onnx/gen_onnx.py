@@ -2791,14 +2791,16 @@ def sum_type_test():
     node = onnx.helper.make_node(
         'Sum',
         inputs=[
-            'o_bool', 'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64', 'double'
+            'o_bool', 'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64',
+            'double'
         ],
         outputs=['out'],
     )
 
     y = helper.make_tensor_value_info('out', TensorProto.DOUBLE, [2])
 
-    return ([n_bool, n_int8, n_uint8, n_uint16, n_uint32, n_uint64, node], [], [y],
+    return ([n_bool, n_int8, n_uint8, n_uint16, n_uint32, n_uint64,
+             node], [], [y],
             [t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double])
 
 

@@ -2003,7 +2003,7 @@ TEST_CASE(transpose_gather_test)
 
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }
 
 TEST_CASE(undefined_test)

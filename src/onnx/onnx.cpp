@@ -2574,20 +2574,22 @@ struct onnx_parser
 
         switch(t.data_type())
         {
+        case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
         case onnx::TensorProto::INT8: return create_literal(shape::int8_type, dims, t.int32_data());
-        case onnx::TensorProto::UINT16:
-            return create_literal(shape::uint16_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT8:
+            return create_literal(shape::uint8_type, dims, t.int32_data());
         case onnx::TensorProto::INT16:
             return create_literal(shape::int16_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT16:
+            return create_literal(shape::uint16_type, dims, t.int32_data());
         case onnx::TensorProto::INT32:
             return create_literal(shape::int32_type, dims, t.int32_data());
-        case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT32:
+            return create_literal(shape::uint32_type, dims, t.uint64_data());
         case onnx::TensorProto::INT64:
             return create_literal(shape::int64_type, dims, t.int64_data());
-        case onnx::TensorProto::DOUBLE:
-            return create_literal(shape::double_type, dims, t.double_data());
-        case onnx::TensorProto::FLOAT:
-            return create_literal(shape::float_type, dims, t.float_data());
+        case onnx::TensorProto::UINT64:
+            return create_literal(shape::uint64_type, dims, t.uint64_data());
         case onnx::TensorProto::FLOAT16:
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
@@ -2598,12 +2600,10 @@ struct onnx_parser
                            [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
             return create_literal(shape::half_type, dims, data_half);
         }
-        case onnx::TensorProto::UINT8:
-            return create_literal(shape::uint8_type, dims, t.int32_data());
-        case onnx::TensorProto::UINT32:
-            return create_literal(shape::uint32_type, dims, t.int32_data());
-        case onnx::TensorProto::UINT64:
-            return create_literal(shape::uint64_type, dims, t.uint64_data());
+        case onnx::TensorProto::DOUBLE:
+            return create_literal(shape::double_type, dims, t.double_data());
+        case onnx::TensorProto::FLOAT:
+            return create_literal(shape::float_type, dims, t.float_data());
         case onnx::TensorProto::UNDEFINED:
         case onnx::TensorProto::STRING:
         case onnx::TensorProto::COMPLEX64:

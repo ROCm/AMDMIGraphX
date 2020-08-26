@@ -1953,6 +1953,21 @@ TEST_CASE(sub_scalar_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(sum_int_test)
+{
+    migraphx::program p;
+    auto input0 = p.add_parameter("0", migraphx::shape{migraphx::shape::int16_type, {3}});
+    auto input1 = p.add_parameter("1", migraphx::shape{migraphx::shape::uint16_type, {3}});
+    auto input2 = p.add_parameter("2", migraphx::shape{migraphx::shape::uint32_type, {3}});
+    auto cin0 = p.add_instruction(migraphx::op::convert{migraphx::shape::uint32_type}, input0);
+    auto cin1 = p.add_instruction(migraphx::op::convert{migraphx::shape::uint32_type}, input1);
+    auto l0     = p.add_instruction(migraphx::op::add{}, cin0, cin1);
+    p.add_instruction(migraphx::op::add{}, l0, input2);
+
+    auto prog = optimize_onnx("sum_int_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(sum_test)
 {
     migraphx::program p;
@@ -1963,6 +1978,31 @@ TEST_CASE(sum_test)
     p.add_instruction(migraphx::op::add{}, l0, input2);
 
     auto prog = optimize_onnx("sum_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(sum_type_test)
+{
+    migraphx::program p;
+    auto l_int8 = p.add_literal({migraphx::shape{migraphx::shape::int8_type, {2}}, {1, 1}});
+    auto l_uint8 = p.add_literal({migraphx::shape{migraphx::shape::uint8_type, {2}}, {1, 1}});
+    auto l_uint16 = p.add_literal({migraphx::shape{migraphx::shape::uint16_type, {2}}, {1, 1}});
+    auto l_uint32 = p.add_literal({migraphx::shape{migraphx::shape::uint32_type, {2}}, {1, 1}});
+    auto l_uint64 = p.add_literal({migraphx::shape{migraphx::shape::uint64_type, {2}}, {1, 1}});
+    auto l_double = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1, 1}});
+    auto o_int8 = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_int8);
+    auto o_uint8 = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint8);
+    auto o_uint16 = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint16);
+    auto o_uint32 = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint32);
+    auto o_uint64 = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint64);
+    auto s1 = p.add_instruction(migraphx::op::add{}, o_int8, o_uint8);
+    auto s2 = p.add_instruction(migraphx::op::add{}, s1, o_uint16);
+    auto s3 = p.add_instruction(migraphx::op::add{}, s2, o_uint32);
+    auto s4 = p.add_instruction(migraphx::op::add{}, s3, o_uint64);
+    auto s5 = p.add_instruction(migraphx::op::add{}, s4, l_double);
+    p.add_return({s5});
+
+    auto prog = migraphx::parse_onnx("sum_type_test.onnx");
     EXPECT(p == prog);
 }
 

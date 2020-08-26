@@ -181,11 +181,11 @@ struct context
     void from_value(const value& v)
     {
         auto v_events        = v.at("events");
-        std::size_t n_events = v_events.to<std::pair<std::string, std::size_t>>().second;
+        std::size_t n_events = v_events.without_key().to<std::size_t>();
         this->create_events(n_events - 1);
 
         auto v_streams        = v.at("streams");
-        std::size_t n_streams = v_streams.to<std::pair<std::string, std::size_t>>().second;
+        std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }

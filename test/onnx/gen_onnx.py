@@ -2721,6 +2721,12 @@ def sum_test():
 
 @onnx_test
 def sum_type_test():
+    valb = np.array([1, 0])
+    t_bool = helper.make_tensor(name="bool",
+                                data_type=TensorProto.BOOL,
+                                dims=valb.shape,
+                                vals=valb.astype(np.bool))
+
     val = np.array([1, 1])
     t_int8 = helper.make_tensor(name="int8",
                                 data_type=TensorProto.INT8,
@@ -2752,6 +2758,11 @@ def sum_type_test():
                                   dims=val.shape,
                                   vals=val.astype(np.float64))
 
+    n_bool = onnx.helper.make_node('Cast',
+                                   inputs=['bool'],
+                                   outputs=['o_bool'],
+                                   to=11)
+
     n_int8 = onnx.helper.make_node('Cast',
                                    inputs=['int8'],
                                    outputs=['o_int8'],
@@ -2780,15 +2791,15 @@ def sum_type_test():
     node = onnx.helper.make_node(
         'Sum',
         inputs=[
-            'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64', 'double'
+            'o_bool', 'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64', 'double'
         ],
         outputs=['out'],
     )
 
     y = helper.make_tensor_value_info('out', TensorProto.DOUBLE, [2])
 
-    return ([n_int8, n_uint8, n_uint16, n_uint32, n_uint64, node], [], [y],
-            [t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double])
+    return ([n_bool, n_int8, n_uint8, n_uint16, n_uint32, n_uint64, node], [], [y],
+            [t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double])
 
 
 @onnx_test

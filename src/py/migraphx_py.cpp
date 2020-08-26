@@ -16,31 +16,30 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
-
-using half = half_float::half;
+using half   = half_float::half;
 namespace py = pybind11;
 
 namespace pybind11 {
 namespace detail {
 
 template <>
-struct npy_format_descriptor<half> {
-  static pybind11::dtype dtype() {
-    handle ptr = npy_api::get().PyArray_DescrFromType_(npy_api::NPY_FLOAT_);
-    return reinterpret_borrow<pybind11::dtype>(ptr);
-  }
-  static std::string format() {
-    // following: https://docs.python.org/3/library/struct.html#format-characters
-    return "e";
-  }
-  static constexpr auto name() {
-    return _("half");
-  }
+struct npy_format_descriptor<half>
+{
+    static pybind11::dtype dtype()
+    {
+        handle ptr = npy_api::get().PyArray_DescrFromType_(npy_api::NPY_FLOAT_);
+        return reinterpret_borrow<pybind11::dtype>(ptr);
+    }
+    static std::string format()
+    {
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        return "e";
+    }
+    static constexpr auto name() { return _("half"); }
 };
 
-}
-}
-
+} // namespace detail
+} // namespace pybind11
 
 template <class F>
 struct throw_half
@@ -123,7 +122,8 @@ migraphx::shape to_shape(const py::buffer_info& info)
     std::size_t n = 0;
     visit_types([&](auto as) {
         std::cout << "info.format = " << info.format << std::endl;
-        std::cout << "format_dscp = " << py::format_descriptor<decltype(as())>::format() << std::endl;
+        std::cout << "format_dscp = " << py::format_descriptor<decltype(as())>::format()
+                  << std::endl;
         if(info.format == py::format_descriptor<decltype(as())>::format() or
            (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
            (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))

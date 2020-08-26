@@ -563,4 +563,132 @@ TEST_CASE(print)
     EXPECT(ss.str() == "{1, {one: 1, two: 2}, {1, 2}, null}");
 }
 
+TEST_CASE(value_clear)
+{
+    migraphx::value values = {1, 2, 3};
+    EXPECT(values.is_array());
+    EXPECT(values.size() == 3);
+    values.clear();
+    EXPECT(values.empty());
+
+    values.push_back(3);
+    EXPECT(values.size() == 1);
+    EXPECT(values.at(0).to<int>() == 3);
+}
+
+TEST_CASE(value_clear_non_array)
+{
+    migraphx::value values = 1.0;
+    EXPECT(test::throws([&] { values.clear(); }));
+}
+
+TEST_CASE(value_clear_object)
+{
+    migraphx::value values = {{"a", 1}, {"b", 2}};
+    EXPECT(values.is_object());
+    EXPECT(values.size() == 2);
+    values.clear();
+    EXPECT(values.empty());
+
+    values["c"] = 3;
+    EXPECT(values.size() == 1);
+    EXPECT(values.at("c").to<int>() == 3);
+}
+
+TEST_CASE(value_clear_empty_array)
+{
+    migraphx::value values = migraphx::value::array{};
+    EXPECT(values.empty());
+    values.clear();
+    EXPECT(values.empty());
+}
+
+TEST_CASE(value_clear_empty_object)
+{
+    migraphx::value values = migraphx::value::object{};
+    EXPECT(values.empty());
+    values.clear();
+    EXPECT(values.empty());
+}
+
+TEST_CASE(value_resize)
+{
+    migraphx::value values = {1, 2, 3};
+    EXPECT(values.is_array());
+    EXPECT(values.size() == 3);
+    values.resize(5);
+    EXPECT(values.size() == 5);
+
+    EXPECT(values.at(3).is_null());
+    EXPECT(values.at(4).is_null());
+}
+
+TEST_CASE(value_resize_with_value)
+{
+    migraphx::value values = {1, 2, 3};
+    EXPECT(values.is_array());
+    EXPECT(values.size() == 3);
+    values.resize(5, 7);
+    EXPECT(values.size() == 5);
+
+    EXPECT(values.at(3).to<int>() == 7);
+    EXPECT(values.at(4).to<int>() == 7);
+}
+
+TEST_CASE(value_resize_empty_array)
+{
+    migraphx::value values = migraphx::value::array{};
+    EXPECT(values.is_array());
+    EXPECT(values.empty());
+    values.resize(3);
+    EXPECT(values.size() == 3);
+
+    EXPECT(values.at(0).is_null());
+    EXPECT(values.at(1).is_null());
+    EXPECT(values.at(2).is_null());
+}
+
+TEST_CASE(value_resize_object)
+{
+    migraphx::value values = migraphx::value::object{};
+    EXPECT(values.is_object());
+    EXPECT(test::throws([&] { values.resize(4); }));
+}
+
+TEST_CASE(value_resize_n_object)
+{
+    migraphx::value values = migraphx::value::object{};
+    EXPECT(values.is_object());
+    EXPECT(test::throws([&] { values.resize(4, ""); }));
+}
+
+TEST_CASE(value_assign_construct_from_vector)
+{
+    std::vector<int> v     = {1, 2, 3};
+    migraphx::value values = v;
+    EXPECT(values.to_vector<int>() == v);
+}
+
+TEST_CASE(value_construct_from_vector)
+{
+    std::vector<int> v = {1, 2, 3};
+    migraphx::value values(v);
+    EXPECT(values.to_vector<int>() == v);
+}
+
+TEST_CASE(value_assign_from_vector)
+{
+    std::vector<int> v = {1, 2, 3};
+    migraphx::value values{};
+    values = v;
+    EXPECT(values.to_vector<int>() == v);
+}
+
+TEST_CASE(value_init_from_vector)
+{
+    std::vector<int> v     = {1, 2, 3};
+    migraphx::value values = {{"a", v}};
+    EXPECT(values.at("a").to_vector<int>() == v);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

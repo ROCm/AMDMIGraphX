@@ -1991,7 +1991,7 @@ TEST_CASE(sum_type_test)
     auto l_uint32 = p.add_literal({migraphx::shape{migraphx::shape::uint32_type, {2}}, {1, 1}});
     auto l_uint64 = p.add_literal({migraphx::shape{migraphx::shape::uint64_type, {2}}, {1, 1}});
     auto l_double = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1, 1}});
-    auto l_raw = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1.5, 2.0}});
+    auto l_raw    = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1.5, 2.0}});
     auto o_bool   = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_bool);
     auto o_int8   = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_int8);
     auto o_uint8  = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint8);

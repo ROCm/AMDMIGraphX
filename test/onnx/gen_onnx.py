@@ -2760,10 +2760,10 @@ def sum_type_test():
 
     valr = np.array([1.5, 2.0])
     t_raw = helper.make_tensor(name="raw",
-                                data_type=TensorProto.DOUBLE,
-                                dims=valr.shape,
-                                vals=valr.tobytes(),
-                                raw = True)
+                               data_type=TensorProto.DOUBLE,
+                               dims=valr.shape,
+                               vals=valr.tobytes(),
+                               raw=True)
 
     n_bool = onnx.helper.make_node('Cast',
                                    inputs=['bool'],
@@ -2807,8 +2807,10 @@ def sum_type_test():
     y = helper.make_tensor_value_info('out', TensorProto.DOUBLE, [2])
 
     return ([n_bool, n_int8, n_uint8, n_uint16, n_uint32, n_uint64,
-             node], [], [y],
-            [t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double, t_raw])
+             node], [], [y], [
+                 t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64,
+                 t_double, t_raw
+             ])
 
 
 @onnx_test

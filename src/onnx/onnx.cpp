@@ -710,7 +710,7 @@ struct onnx_parser
             auto auto_pad = info.attributes["auto_pad"].s();
             if(auto_pad.find("SAME") != std::string::npos)
             {
-                values["padding_mode"]  = to_value(op::padding_mode_t::same);
+                values["padding_mode"] = to_value(op::padding_mode_t::same);
             }
         }
         check_asym_padding(l0, padding, values);

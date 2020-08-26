@@ -1325,8 +1325,9 @@ struct onnx_parser
         auto scale = args[1];
         auto bias  = args[2];
         auto dims  = x->get_shape().lens();
-        assert(dims >= 2);
-        auto kdims = dims.size() - 2;
+        auto ndims = dims.size();
+        assert(ndims >= 2);
+        auto kdims = ndims - 2;
 
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);

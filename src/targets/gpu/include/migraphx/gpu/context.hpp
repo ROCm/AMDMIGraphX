@@ -180,16 +180,12 @@ struct context
 
     void from_value(const value& v)
     {
-        assert(v.contains("events"));
         auto v_events = v.at("events");
-        assert(v_events.is_uint64());
-        std::size_t n_events = v_events.get_uint64();
+        std::size_t n_events = v_events.to<std::pair<std::string, std::size_t>>().second;
         this->create_events(n_events - 1);
 
-        assert(v.contains("streams"));
         auto v_streams = v.at("streams");
-        assert(v_streams.is_uint64());
-        std::size_t n_streams = v_streams.get_uint64();
+        std::size_t n_streams = v_streams.to<std::pair<std::string, std::size_t>>().second;
 
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }

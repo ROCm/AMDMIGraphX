@@ -1991,6 +1991,7 @@ TEST_CASE(sum_type_test)
     auto l_uint32 = p.add_literal({migraphx::shape{migraphx::shape::uint32_type, {2}}, {1, 1}});
     auto l_uint64 = p.add_literal({migraphx::shape{migraphx::shape::uint64_type, {2}}, {1, 1}});
     auto l_double = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1, 1}});
+    auto l_raw = p.add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1.5, 2.0}});
     auto o_bool   = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_bool);
     auto o_int8   = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_int8);
     auto o_uint8  = p.add_instruction(migraphx::op::convert{migraphx::shape::double_type}, l_uint8);
@@ -2006,7 +2007,8 @@ TEST_CASE(sum_type_test)
     auto s3 = p.add_instruction(migraphx::op::add{}, s2, o_uint32);
     auto s4 = p.add_instruction(migraphx::op::add{}, s3, o_uint64);
     auto s5 = p.add_instruction(migraphx::op::add{}, s4, l_double);
-    p.add_return({s5});
+    auto s6 = p.add_instruction(migraphx::op::add{}, s5, l_raw);
+    p.add_return({s6});
 
     auto prog = migraphx::parse_onnx("sum_type_test.onnx");
 

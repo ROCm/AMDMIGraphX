@@ -47,7 +47,7 @@ value to_value_impl(rank<1>, const std::pair<T, U>& x)
 template <class T>
 auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
 {
-    value result;
+    value result = value::array{};
     for(auto&& y : x)
     {
         auto e = to_value(y);
@@ -59,7 +59,7 @@ auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 value to_value_impl(rank<3>, const T& x)
 {
-    value result;
+    value result = value::object{};
     reflect_each(x, [&](auto&& y, std::string name) { result.emplace(name, to_value(y)); });
     return result;
 }

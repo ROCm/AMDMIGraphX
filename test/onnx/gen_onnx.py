@@ -2690,19 +2690,9 @@ def sum_int_test():
     c = helper.make_tensor_value_info('2', TensorProto.UINT32, [3])
     y = helper.make_tensor_value_info('3', TensorProto.UINT32, [3])
 
-    cnode1 = onnx.helper.make_node(
-        'Cast',
-        inputs=['0'],
-        outputs=['c0'],
-        to = 12
-    )
+    cnode1 = onnx.helper.make_node('Cast', inputs=['0'], outputs=['c0'], to=12)
 
-    cnode2 = onnx.helper.make_node(
-        'Cast',
-        inputs=['1'],
-        outputs=['c1'],
-        to = 12
-    )
+    cnode2 = onnx.helper.make_node('Cast', inputs=['1'], outputs=['c1'], to=12)
 
     node = onnx.helper.make_node(
         'Sum',
@@ -2730,83 +2720,75 @@ def sum_test():
 
 
 @onnx_test
-
 def sum_type_test():
     val = np.array([1, 1])
     t_int8 = helper.make_tensor(name="int8",
-                                     data_type=TensorProto.INT8,
-                                     dims=val.shape,
-                                     vals=val.astype(np.int8))
+                                data_type=TensorProto.INT8,
+                                dims=val.shape,
+                                vals=val.astype(np.int8))
 
     t_uint8 = helper.make_tensor(name="uint8",
-                                     data_type=TensorProto.UINT8,
-                                     dims=val.shape,
-                                     vals=val.astype(np.uint8))
+                                 data_type=TensorProto.UINT8,
+                                 dims=val.shape,
+                                 vals=val.astype(np.uint8))
 
     t_uint16 = helper.make_tensor(name="uint16",
-                                     data_type=TensorProto.UINT16,
-                                     dims=val.shape,
-                                     vals=val.astype(np.uint16))
+                                  data_type=TensorProto.UINT16,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint16))
 
     t_uint32 = helper.make_tensor(name="uint32",
-                                     data_type=TensorProto.UINT32,
-                                     dims=val.shape,
-                                     vals=val.astype(np.uint32))
+                                  data_type=TensorProto.UINT32,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint32))
 
     t_uint64 = helper.make_tensor(name="uint64",
-                                     data_type=TensorProto.UINT64,
-                                     dims=val.shape,
-                                     vals=val.astype(np.uint64))
+                                  data_type=TensorProto.UINT64,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint64))
 
     t_double = helper.make_tensor(name="double",
-                                     data_type=TensorProto.DOUBLE,
-                                     dims=val.shape,
-                                     vals=val.astype(np.float64))
+                                  data_type=TensorProto.DOUBLE,
+                                  dims=val.shape,
+                                  vals=val.astype(np.float64))
 
-    n_int8 = onnx.helper.make_node(
-        'Cast',
-        inputs=['int8'],
-        outputs=['o_int8'],
-        to = 11
-    )
+    n_int8 = onnx.helper.make_node('Cast',
+                                   inputs=['int8'],
+                                   outputs=['o_int8'],
+                                   to=11)
 
-    n_uint8 = onnx.helper.make_node(
-        'Cast',
-        inputs=['uint8'],
-        outputs=['o_uint8'],
-        to = 11
-    )
+    n_uint8 = onnx.helper.make_node('Cast',
+                                    inputs=['uint8'],
+                                    outputs=['o_uint8'],
+                                    to=11)
 
-    n_uint16 = onnx.helper.make_node(
-        'Cast',
-        inputs=['uint16'],
-        outputs=['o_uint16'],
-        to = 11
-    )
+    n_uint16 = onnx.helper.make_node('Cast',
+                                     inputs=['uint16'],
+                                     outputs=['o_uint16'],
+                                     to=11)
 
-    n_uint32 = onnx.helper.make_node(
-        'Cast',
-        inputs=['uint32'],
-        outputs=['o_uint32'],
-        to = 11
-    )
+    n_uint32 = onnx.helper.make_node('Cast',
+                                     inputs=['uint32'],
+                                     outputs=['o_uint32'],
+                                     to=11)
 
-    n_uint64 = onnx.helper.make_node(
-        'Cast',
-        inputs=['uint64'],
-        outputs=['o_uint64'],
-        to = 11
-    )
+    n_uint64 = onnx.helper.make_node('Cast',
+                                     inputs=['uint64'],
+                                     outputs=['o_uint64'],
+                                     to=11)
 
     node = onnx.helper.make_node(
         'Sum',
-        inputs=['o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64', 'double'],
+        inputs=[
+            'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64', 'double'
+        ],
         outputs=['out'],
     )
 
     y = helper.make_tensor_value_info('out', TensorProto.DOUBLE, [2])
 
-    return ([n_int8, n_uint8, n_uint16, n_uint32, n_uint64, node], [], [y], [t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double])
+    return ([n_int8, n_uint8, n_uint16, n_uint32, n_uint64, node], [], [y],
+            [t_int8, t_uint8, t_uint16, t_uint32, t_uint64, t_double])
 
 
 @onnx_test

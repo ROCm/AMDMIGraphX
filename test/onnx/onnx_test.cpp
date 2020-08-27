@@ -774,6 +774,40 @@ TEST_CASE(embedding_bag_offset_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
 }
 
+TEST_CASE(equal_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    auto input1 = p.add_literal(migraphx::literal(s, data));
+    auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto eq     = p.add_instruction(migraphx::op::equal{}, input1, input2);
+    auto ret    = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("equal_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(equal_bool_test)
+{
+    migraphx::program p;
+    migraphx::shape sf{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape sb{migraphx::shape::bool_type, {2, 3}};
+
+    auto input1 = p.add_parameter("x1", sf);
+    auto input2 = p.add_parameter("x2", sb);
+    auto cin1   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, input1);
+    auto ret    = p.add_instruction(migraphx::op::equal{}, cin1, input2);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("equal_bool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(erf_test)
 {
     migraphx::program p;

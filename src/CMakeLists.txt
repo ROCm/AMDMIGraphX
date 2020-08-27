@@ -72,6 +72,7 @@ register_migraphx_ops(
     div
     dot
     elu
+    equal
     erf
     exp
     flatten

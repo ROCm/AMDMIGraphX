@@ -37,6 +37,12 @@ constexpr T normalize(unsigned long z)
     return z % max;
 }
 
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>
+constexpr bool normalize(unsigned long z)
+{
+    return static_cast<bool>(z % 2);
+}
+
 template <class T>
 struct xorshf96_generator
 {

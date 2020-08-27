@@ -6,7 +6,7 @@ AMD's graph optimization engine.
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP) for running on the GPU
-* [Protobuf](https://github.com/google/protobuf) for reading [onxx](https://github.com/onnx/onnx) files
+* [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
 

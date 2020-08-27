@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,11 +26,26 @@ struct context
 
 #else
 
+template <class T>
+value to_value_context(const T&)
+{
+    return value{};
+}
+
+template <class T>
+void from_value_context(T&, const value&){}
+
 <%
-interface('context',
-    virtual('finish', returns='void', const=True)
-)
-%>
+ interface('context',
+           virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
+           virtual('from_value', v = 'const value&', default = 'from_value_context'),
+           virtual('finish', returns = 'void', const = True)) %>
+
+    inline void migraphx_to_value(value& v, const context& ctx)
+{
+    v = ctx.to_value();
+}
+inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif
 

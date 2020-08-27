@@ -13,7 +13,7 @@ std::vector<char> read_buffer(const std::string& filename)
     is.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
-    if (!is.read(buffer.data(), size))
+    if(!is.read(buffer.data(), size))
     {
         MIGRAPHX_THROW("Error reading file: " + filename);
     }
@@ -41,11 +41,11 @@ program load_buffer(const std::vector<char>& buffer, const file_options& options
 program load_buffer(const char* buffer, std::size_t size, const file_options& options)
 {
     program p;
-    if (options.format == "msgpack")
+    if(options.format == "msgpack")
     {
         p.from_value(from_msgpack(buffer, size));
     }
-    else if (options.format == "json")
+    else if(options.format == "json")
     {
         p.from_value(from_json_string(buffer, size));
     }
@@ -64,14 +64,14 @@ std::vector<char> save_buffer(const program& p, const file_options& options)
 {
     value v = p.to_value();
     std::vector<char> buffer;
-    if (options.format == "msgpack")
+    if(options.format == "msgpack")
     {
         buffer = to_msgpack(v);
     }
-    else if (options.format == "json")
+    else if(options.format == "json")
     {
         std::string s = to_json_string(v);
-        buffer = std::vector<char>(s.begin(), s.end());
+        buffer        = std::vector<char>(s.begin(), s.end());
     }
     else
     {

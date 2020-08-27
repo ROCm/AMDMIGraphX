@@ -82,12 +82,26 @@ py::buffer_info to_buffer_info(T& x)
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
-        b = py::buffer_info(x.data(),
-                            as.size(),
-                            py::format_descriptor<decltype(as())>::format(),
-                            s.lens().size(),
-                            s.lens(),
-                            strides);
+        // migraphx use int8_t data to store bool type, we need to
+        // explicitly specify the data type as bool for python
+        if(s.type() == migraphx::shape::bool_type)
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<bool>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
+        else
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<decltype(as())>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
     });
     return b;
 }

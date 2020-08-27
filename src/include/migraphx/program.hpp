@@ -118,6 +118,9 @@ struct program
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
+    value to_value() const;
+    void from_value(const value& v);
+
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;

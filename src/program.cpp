@@ -8,6 +8,7 @@
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -544,6 +545,64 @@ std::vector<argument> program::eval(parameter_map params) const
         return generic_eval(
             *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
     }
+}
+
+const int program_file_version = 1;
+
+value program::to_value() const
+{
+    value result;
+    result["version"] = program_file_version;
+    value nodes;
+    print_program(*this, [&](auto ins, const auto& names) {
+        value node;
+        node["output"] = names.at(ins);
+        node["name"] = ins->name();
+        node["shape"] = migraphx::to_value(ins->get_shape());
+        if (ins->name() == "@literal")
+            node["literal"] = migraphx::to_value(ins->get_literal());
+        node["operator"] = ins->get_operator().to_value();
+        std::vector<std::string> inputs;
+        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
+            return names.at(i);
+        });
+        node["inputs"] = inputs;
+        nodes.push_back(node);
+    });
+    result["nodes"] = nodes;
+    return result;
+}
+void program::from_value(const value& v)
+{
+    auto version = v.at("version").to<int>();
+    if (version != program_file_version)
+        std::cout << "Warning: Version mismatch" << std::endl;
+    std::unordered_map<std::string, instruction_ref> instructions;
+    for(const value& node:v.at("nodes"))
+    {
+        instruction_ref output;
+        auto name = node.at("name").to<std::string>();
+        auto fields = node.at("operator");
+        if (name == "@param") 
+        {
+            output = this->add_parameter(fields["parameter"].to<std::string>(), migraphx::from_value<shape>(node.at("shape")));
+        }
+        else if (name == "@literal")
+        {
+            output = this->add_literal(migraphx::from_value<literal>(node.at("literal")));
+        }
+        else
+        {
+            auto op = make_op(name, fields);
+            std::vector<instruction_ref> inputs;
+            std::transform(node.at("inputs").begin(), node.at("inputs").end(), std::back_inserter(inputs), [&](const value& i) {
+                return instructions[i.to<std::string>()];
+            });
+            output = this->add_instruction(op, inputs);
+        }
+        instructions[node.at("output").to<std::string>()] = output;
+    }
+    this->finalize();
 }
 
 double common_average(const std::vector<double>& v)

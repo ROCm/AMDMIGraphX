@@ -20,6 +20,7 @@ add_library(migraphx
     env.cpp
     generate.cpp
     instruction.cpp
+    load_save.cpp
     make_op.cpp
     msgpack.cpp
     program.cpp

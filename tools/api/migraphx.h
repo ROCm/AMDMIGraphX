@@ -6,6 +6,7 @@
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
+    m(bool_type, bool) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \

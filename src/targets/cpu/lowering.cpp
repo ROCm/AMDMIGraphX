@@ -528,7 +528,7 @@ struct cpu_op
     value to_value() const
     {
         value v;
-        v["name"] = op.name();
+        v["name"]     = op.name();
         v["operator"] = op.to_value();
         return v;
     }

@@ -248,7 +248,7 @@ struct compiler
     {
         auto p = l.load();
         // Dont compile if its already been compiled
-        if (p.is_compiled())
+        if(p.is_compiled())
             return p;
         auto t = get_target(gpu);
         if(quantize == q_fp16)

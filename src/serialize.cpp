@@ -1,6 +1,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

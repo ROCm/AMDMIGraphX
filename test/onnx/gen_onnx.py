@@ -1112,6 +1112,44 @@ def embedding_bag_offset_test():
 
 
 @onnx_test
+def equal_test():
+    ax1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    x1 = helper.make_tensor("x1",
+                            data_type=TensorProto.FLOAT,
+                            dims=(2, 3),
+                            vals=ax1.astype(np.float32))
+
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'Equal',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x2], [y], [x1])
+
+
+@onnx_test
+def equal_bool_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.BOOL, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node1 = onnx.helper.make_node('Cast', inputs=['x1'], outputs=['bx1'], to=9)
+
+    node2 = onnx.helper.make_node(
+        'Equal',
+        inputs=['bx1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node1, node2], [x1, x2], [y])
+
+
+@onnx_test
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])

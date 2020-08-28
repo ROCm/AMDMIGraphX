@@ -22,6 +22,7 @@
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/elu.hpp>
+#include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
@@ -107,6 +108,7 @@ struct miopen_apply
         add_generic_op("cos");
         add_generic_op("cosh");
         add_generic_op("div");
+        add_generic_op("equal");
         add_generic_op("erf");
         add_generic_op("exp");
         add_generic_op("floor");

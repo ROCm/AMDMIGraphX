@@ -135,6 +135,7 @@ struct onnx_parser
         add_mem_op("ConvInteger", "quant_convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Equal", &onnx_parser::parse_equal);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
@@ -2398,6 +2399,17 @@ struct onnx_parser
         return prog.add_literal(literal(out_s, out_data));
     }
 
+    instruction_ref
+    parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto l = add_broadcastable_binary_op(args[0], args[1], "equal");
+        if(l->get_shape().type() != shape::bool_type)
+        {
+            l = prog.add_instruction(op::convert{shape::bool_type}, l);
+        }
+        return l;
+    }
+
     void parse_from(std::istream& is)
     {
         onnx::ModelProto model;
@@ -2656,12 +2668,13 @@ struct onnx_parser
         case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
         case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
         case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
+        case onnx::TensorProto::BOOL: shape_type = shape::bool_type; break;
         case onnx::TensorProto::STRING:
-        case onnx::TensorProto::BOOL:
         case onnx::TensorProto::UNDEFINED:
         case onnx::TensorProto::COMPLEX64:
         case onnx::TensorProto::COMPLEX128:
-            break; // throw std::runtime_error("Unsupported type");
+            MIGRAPHX_THROW("PARSE_TYPE: unsupported type" +
+                           std::to_string(t.tensor_type().elem_type()));
         }
 
         if(!input_dims.empty())
@@ -2706,6 +2719,7 @@ struct onnx_parser
         case 5: return shape::int16_type;
         case 6: return shape::int32_type;
         case 7: return shape::int64_type;
+        case 9: return shape::bool_type;
         case 10: return shape::half_type;
         case 11: return shape::double_type;
         case 12: return shape::uint32_type;

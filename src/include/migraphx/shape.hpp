@@ -23,6 +23,7 @@ struct shape
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
+    m(bool_type, bool) \
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
@@ -124,43 +125,43 @@ struct shape
     template <class T>
     struct as
     {
-        using type = T;
+        using type = std::conditional_t<std::is_same<T, bool>{}, int8_t, T>;
 
         template <class U>
-        T operator()(U u) const
+        type operator()(U u) const
         {
-            return T(u);
+            return type(u);
         }
 
         template <class U>
-        T* operator()(U* u) const
+        type* operator()(U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
         template <class U>
-        const T* operator()(const U* u) const
+        const type* operator()(const U* u) const
         {
-            return static_cast<T*>(u);
+            return static_cast<type*>(u);
         }
 
-        T operator()() const { return {}; }
+        type operator()() const { return {}; }
 
-        std::size_t size(std::size_t n = 1) const { return sizeof(T) * n; }
+        std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
         template <class U>
-        T* from(U* buffer, std::size_t n = 0) const
+        type* from(U* buffer, std::size_t n = 0) const
         {
-            return reinterpret_cast<T*>(buffer) + n;
+            return reinterpret_cast<type*>(buffer) + n;
         }
 
         template <class U>
-        const T* from(const U* buffer, std::size_t n = 0) const
+        const type* from(const U* buffer, std::size_t n = 0) const
         {
-            return reinterpret_cast<const T*>(buffer) + n;
+            return reinterpret_cast<const type*>(buffer) + n;
         }
 
-        type_t type_enum() const { return get_type<T>{}; }
+        type_t type_enum() const { return get_type<type>{}; }
     };
 
     template <class Visitor>

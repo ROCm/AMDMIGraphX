@@ -1513,12 +1513,11 @@ def instance_norm_val_test():
 
     return ([node], [], [y], [x_tensor, scale_tensor, bias_tensor])
 
+
 @onnx_test
 def instance_norm_val_3d_test():
-    x = np.array([[[[[0, 1], [2, 3]],
-                        [[4, 5], [6, 7]]],
-                        [[[0, 1], [2, 3]],
-                        [[4, 5], [6, 7]]]]])
+    x = np.array([[[[[0, 1], [2, 3]], [[4, 5], [6, 7]]],
+                   [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]]])
     scale = np.array([1, 2])
     bias = np.array([0, 1])
 

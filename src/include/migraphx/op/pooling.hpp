@@ -63,7 +63,7 @@ struct pooling
 
         for(size_t i = 0; i < kdims; i++)
         {
-            auto dim_size = input_lens[i + 2] + 2 * padding[i] - lengths[i];
+            std::ptrdiff_t dim_size = input_lens[i + 2] + 2 * padding[i] - lengths[i];
             assert(dim_size >= 0);
             std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
                                           : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);

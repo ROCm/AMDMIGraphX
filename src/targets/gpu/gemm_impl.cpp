@@ -16,6 +16,7 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::uint8_type: return rocblas_datatype_u8_r;
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
+    case shape::bool_type:
     case shape::uint16_type:
     case shape::int16_type:
     case shape::int64_type:

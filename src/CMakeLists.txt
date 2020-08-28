@@ -20,6 +20,7 @@ add_library(migraphx
     env.cpp
     generate.cpp
     instruction.cpp
+    make_op.cpp
     msgpack.cpp
     program.cpp
     quantization.cpp
@@ -71,6 +72,7 @@ register_migraphx_ops(
     div
     dot
     elu
+    equal
     erf
     exp
     flatten

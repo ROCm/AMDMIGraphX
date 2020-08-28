@@ -32,6 +32,7 @@ add_library(migraphx
     serialize.cpp
     pass_manager.cpp
     register_op.cpp
+    register_target.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     value.cpp

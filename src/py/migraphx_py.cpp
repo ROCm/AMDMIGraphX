@@ -9,9 +9,9 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/register_target.hpp>
 
 #ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #endif
 
@@ -82,26 +82,12 @@ py::buffer_info to_buffer_info(T& x)
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
-        // migraphx use int8_t data to store bool type, we need to
-        // explicitly specify the data type as bool for python
-        if(s.type() == migraphx::shape::bool_type)
-        {
-            b = py::buffer_info(x.data(),
-                                as.size(),
-                                py::format_descriptor<bool>::format(),
-                                s.lens().size(),
-                                s.lens(),
-                                strides);
-        }
-        else
-        {
-            b = py::buffer_info(x.data(),
-                                as.size(),
-                                py::format_descriptor<decltype(as())>::format(),
-                                s.lens().size(),
-                                s.lens(),
-                                strides);
-        }
+        b = py::buffer_info(x.data(),
+                            as.size(),
+                            py::format_descriptor<decltype(as())>::format(),
+                            s.lens().size(),
+                            s.lens(),
+                            strides);
     });
     return b;
 }
@@ -245,16 +231,7 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 
-    m.def("get_target", [](const std::string& name) -> migraphx::target {
-        if(name == "cpu")
-            return migraphx::cpu::target{};
-#ifdef HAVE_GPU
-        if(name == "gpu")
-            return migraphx::gpu::target{};
-#endif
-        throw std::runtime_error("Target not found: " + name);
-    });
-
+    m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,

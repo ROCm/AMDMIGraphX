@@ -9,6 +9,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/register_target.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -25,6 +26,7 @@ struct program_impl
     std::list<instruction> instructions;
     std::vector<std::string> input_names;
     context ctx;
+    std::string target_name;
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -417,9 +419,16 @@ instruction_ref program::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
+bool program::is_compiled() const
+{
+    return not this->impl->target_name.empty();
+}
+
 void program::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
+    assert(not this->is_compiled());
+    this->impl->target_name = t.name();
     this->impl->ctx = t.get_context();
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
         options.trace = tracer{std::cout};
@@ -553,6 +562,9 @@ value program::to_value() const
 {
     value result;
     result["version"] = program_file_version;
+    result["target"] = this->impl->target_name;
+    if (not this->impl->target_name.empty())
+        result["context"] = this->impl->ctx.to_value();
     value nodes;
     print_program(*this, [&](auto ins, const auto& names) {
         value node;
@@ -578,6 +590,14 @@ void program::from_value(const value& v)
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
         std::cout << "Warning: Version mismatch" << std::endl;
+    this->impl->target_name = v.at("target").to<std::string>();
+    if (not this->impl->target_name.empty())
+    {
+        target t = make_target(this->impl->target_name);
+        this->impl->ctx = t.get_context();
+        this->impl->ctx.from_value(v.at("context"));
+    }
+
     std::unordered_map<std::string, instruction_ref> instructions;
     for(const value& node : v.at("nodes"))
     {

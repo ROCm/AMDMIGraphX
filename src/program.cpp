@@ -601,7 +601,10 @@ void program::from_value(const value& v)
                            node.at("inputs").end(),
                            std::back_inserter(inputs),
                            [&](const value& i) { return instructions[i.to<std::string>()]; });
-            output = this->add_instruction(op, inputs);
+            if (name == "@return")
+                output = this->add_return(inputs);
+            else
+                output = this->add_instruction(op, inputs);
         }
         instructions[node.at("output").to<std::string>()] = output;
     }

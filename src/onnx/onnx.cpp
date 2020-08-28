@@ -2543,6 +2543,29 @@ struct onnx_parser
         return result;
     }
 
+    static shape::type_t get_type(int dtype)
+    {
+        switch(dtype)
+        {
+        case 1: return shape::float_type;
+        case 2: return shape::uint8_type;
+        case 3: return shape::int8_type;
+        case 4: return shape::uint16_type;
+        case 5: return shape::int16_type;
+        case 6: return shape::int32_type;
+        case 7: return shape::int64_type;
+        case 9: return shape::bool_type;
+        case 10: return shape::half_type;
+        case 11: return shape::double_type;
+        case 12: return shape::uint32_type;
+        case 13: return shape::uint64_type;
+        default:
+        {
+            MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+        }
+        }
+    }
+
     template <class T>
     static literal from_repeated(shape::type_t t, const T& r)
     {
@@ -2568,7 +2591,7 @@ struct onnx_parser
         case onnx::AttributeProto::SPARSE_TENSORS:
         case onnx::AttributeProto::GRAPHS: return {};
         }
-        MIGRAPHX_THROW("Invalid attribute type");
+        MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
     }
 
     static literal parse_tensor(const onnx::TensorProto& t)
@@ -2577,43 +2600,28 @@ struct onnx_parser
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
-            switch(t.data_type())
-            {
-            case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, s.data());
-            case onnx::TensorProto::FLOAT16:
-                return create_literal(shape::half_type, dims, s.data());
-            case onnx::TensorProto::DOUBLE:
-                return create_literal(shape::double_type, dims, s.data());
-            case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, s.data());
-            case onnx::TensorProto::INT8:
-            case onnx::TensorProto::UINT16:
-            case onnx::TensorProto::INT16: return create_literal(shape::int16_type, dims, s.data());
-            case onnx::TensorProto::INT32:
-            case onnx::TensorProto::BOOL: return create_literal(shape::int32_type, dims, s.data());
-            case onnx::TensorProto::UINT8:
-            case onnx::TensorProto::STRING:
-            case onnx::TensorProto::UNDEFINED:
-            case onnx::TensorProto::UINT32:
-            case onnx::TensorProto::UINT64:
-            case onnx::TensorProto::COMPLEX64:
-            case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
-            }
-            MIGRAPHX_THROW("Invalid tensor type");
+            auto type            = get_type(t.data_type());
+            return create_literal(type, dims, s.data());
         }
+
         switch(t.data_type())
         {
-        case onnx::TensorProto::INT8:
-        case onnx::TensorProto::UINT16:
+        case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+        case onnx::TensorProto::INT8: return create_literal(shape::int8_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT8:
+            return create_literal(shape::uint8_type, dims, t.int32_data());
         case onnx::TensorProto::INT16:
+            return create_literal(shape::int16_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT16:
+            return create_literal(shape::uint16_type, dims, t.int32_data());
         case onnx::TensorProto::INT32:
-        case onnx::TensorProto::BOOL:
             return create_literal(shape::int32_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT32:
+            return create_literal(shape::uint32_type, dims, t.uint64_data());
         case onnx::TensorProto::INT64:
             return create_literal(shape::int64_type, dims, t.int64_data());
-        case onnx::TensorProto::DOUBLE:
-            return create_literal(shape::double_type, dims, t.double_data());
-        case onnx::TensorProto::FLOAT:
-            return create_literal(shape::float_type, dims, t.float_data());
+        case onnx::TensorProto::UINT64:
+            return create_literal(shape::uint64_type, dims, t.uint64_data());
         case onnx::TensorProto::FLOAT16:
         {
             std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
@@ -2624,15 +2632,16 @@ struct onnx_parser
                            [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
             return create_literal(shape::half_type, dims, data_half);
         }
+        case onnx::TensorProto::DOUBLE:
+            return create_literal(shape::double_type, dims, t.double_data());
+        case onnx::TensorProto::FLOAT:
+            return create_literal(shape::float_type, dims, t.float_data());
         case onnx::TensorProto::UNDEFINED:
-        case onnx::TensorProto::UINT8:
         case onnx::TensorProto::STRING:
-        case onnx::TensorProto::UINT32:
-        case onnx::TensorProto::UINT64:
         case onnx::TensorProto::COMPLEX64:
         case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
         }
-        MIGRAPHX_THROW("Invalid tensor type");
+        MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
     }
 
     static literal
@@ -2654,29 +2663,7 @@ struct onnx_parser
 
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
     {
-        shape::type_t shape_type{};
-        switch(t.tensor_type().elem_type())
-        {
-        case onnx::TensorProto::FLOAT: shape_type = shape::float_type; break;
-        case onnx::TensorProto::INT8: shape_type = shape::int8_type; break;
-        case onnx::TensorProto::UINT16: shape_type = shape::uint16_type; break;
-        case onnx::TensorProto::INT16: shape_type = shape::int16_type; break;
-        case onnx::TensorProto::INT32: shape_type = shape::int32_type; break;
-        case onnx::TensorProto::INT64: shape_type = shape::int64_type; break;
-        case onnx::TensorProto::FLOAT16: shape_type = shape::half_type; break;
-        case onnx::TensorProto::DOUBLE: shape_type = shape::double_type; break;
-        case onnx::TensorProto::UINT32: shape_type = shape::uint32_type; break;
-        case onnx::TensorProto::UINT64: shape_type = shape::uint64_type; break;
-        case onnx::TensorProto::UINT8: shape_type = shape::uint8_type; break;
-        case onnx::TensorProto::BOOL: shape_type = shape::bool_type; break;
-        case onnx::TensorProto::STRING:
-        case onnx::TensorProto::UNDEFINED:
-        case onnx::TensorProto::COMPLEX64:
-        case onnx::TensorProto::COMPLEX128:
-            MIGRAPHX_THROW("PARSE_TYPE: unsupported type" +
-                           std::to_string(t.tensor_type().elem_type()));
-        }
-
+        shape::type_t shape_type = get_type(t.tensor_type().elem_type());
         if(!input_dims.empty())
         {
             return {shape_type, input_dims};
@@ -2706,29 +2693,6 @@ struct onnx_parser
             return {shape_type};
 
         return {shape_type, dims};
-    }
-
-    shape::type_t get_type(int dtype)
-    {
-        switch(dtype)
-        {
-        case 1: return shape::float_type;
-        case 2: return shape::uint8_type;
-        case 3: return shape::int8_type;
-        case 4: return shape::uint16_type;
-        case 5: return shape::int16_type;
-        case 6: return shape::int32_type;
-        case 7: return shape::int64_type;
-        case 9: return shape::bool_type;
-        case 10: return shape::half_type;
-        case 11: return shape::double_type;
-        case 12: return shape::uint32_type;
-        case 13: return shape::uint64_type;
-        default:
-        {
-            MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
-        }
-        }
     }
 
     void check_arg_empty(const argument& arg, const std::string& msg)

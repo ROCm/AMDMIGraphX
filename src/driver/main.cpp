@@ -38,7 +38,7 @@ struct loader
     unsigned trim               = 0;
     bool optimize               = false;
     bool skip_unknown_operators = false;
-    bool brief    = false;
+    bool brief                  = false;
     std::string output_type;
     std::string output;
 
@@ -64,10 +64,19 @@ struct loader
            ap.help("Print out a graphviz representation."),
            ap.set_value("graphviz"));
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
-        ap(output_type, {"--cpp"}, ap.help("Print out the program as cpp program."), ap.set_value("cpp"));
+        ap(output_type,
+           {"--cpp"},
+           ap.help("Print out the program as cpp program."),
+           ap.set_value("cpp"));
         ap(output_type, {"--json"}, ap.help("Print out program as json."), ap.set_value("json"));
-        ap(output_type, {"--text"}, ap.help("Print out program in text format."), ap.set_value("text"));
-        ap(output_type, {"--binary"}, ap.help("Print out program in binary format."), ap.set_value("binary"));
+        ap(output_type,
+           {"--text"},
+           ap.help("Print out program in text format."),
+           ap.set_value("text"));
+        ap(output_type,
+           {"--binary"},
+           ap.help("Print out program in binary format."),
+           ap.set_value("binary"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
@@ -104,7 +113,7 @@ struct loader
             {
                 file_options options;
                 options.format = "json";
-                p = migraphx::load(file, options);
+                p              = migraphx::load(file, options);
             }
             else if(file_type == "migraphx")
             {
@@ -161,9 +170,9 @@ struct loader
         }
 
         std::string type = output_type;
-        if (type.empty())
+        if(type.empty())
         {
-            if (output.empty())
+            if(output.empty())
                 type = "text";
             else
                 type = "binary";
@@ -258,10 +267,7 @@ struct compiler
 struct read : command<read>
 {
     loader l;
-    void parse(argument_parser& ap)
-    {
-        l.parse(ap);
-    }
+    void parse(argument_parser& ap) { l.parse(ap); }
 
     void run()
     {

@@ -448,7 +448,7 @@ struct avg_pool
 
     static double apply(double x, double y) { return x + y; }
 
-    static double final(double x, std::size_t y) { return (y == 0) ? x : (x / y); }
+    static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
 };
 
 template <class Op>

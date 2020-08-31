@@ -32,6 +32,16 @@ def compile_options_type_wrap(p):
         p.add_param('migraphx_compile_options *')
         p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
 
+@api.cwrap('migraphx::file_options')
+def file_options_type_wrap(p):
+    if p.returns:
+        p.add_param('migraphx_file_options *')
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.write = ['*${name} = migraphx::to_file_options(${result})']
+    else:
+        p.add_param('migraphx_file_options *')
+        p.read = '${name} == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*${name})'
+
 
 @api.cwrap('migraphx::onnx_options')
 def onnx_options_type_wrap(p):
@@ -174,6 +184,18 @@ def program(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
+
+api.add_function('migraphx_load',
+                 api.params(name='const char*',
+                            options='migraphx::file_options'),
+                 fname='migraphx::load',
+                 returns='migraphx::program')
+
+api.add_function('migraphx_save',
+                 api .params(p='migraphx::program&',
+                            name='const char*',
+                            options='migraphx::file_options'),
+                 fname='migraphx::save')
 
 
 @auto_handle

@@ -7,6 +7,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/load_save.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -85,6 +86,13 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    return result;
+}
+
+migraphx::file_options to_file_options(const migraphx_file_options& options)
+{
+    migraphx::file_options result{};
+    result.format = options.format;
     return result;
 }
 
@@ -671,6 +679,29 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((program->object), (x->object));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options* options)
+{
+    return migraphx::try_([&] {
+        *out = allocate<migraphx_program_t>(migraphx::load(
+            (name),
+            (options == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*options))));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options* options)
+{
+    return migraphx::try_([&] {
+        if(p == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
+        migraphx::save(
+            (p->object),
+            (name),
+            (options == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*options)));
     });
 }
 

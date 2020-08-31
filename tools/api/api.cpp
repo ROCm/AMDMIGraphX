@@ -7,6 +7,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/load_save.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/target.hpp>
@@ -85,6 +86,13 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    return result;
+}
+
+migraphx::file_options to_file_options(const migraphx_file_options& options)
+{
+    migraphx::file_options result{};
+    result.format = options.format;
     return result;
 }
 

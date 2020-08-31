@@ -233,26 +233,26 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 
-    m.def("load", [](const std::string& name, const std::string& format) {
-      migraphx::file_options options;
-      options.format = format;
-      return migraphx::load(name, options);
-    },
-    "Load MIGraphX program",
-    py::arg("filename"),
-    py::arg("format") = "msgpack"
-    );
+    m.def("load",
+          [](const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::load(name, options);
+          },
+          "Load MIGraphX program",
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
 
-    m.def("save", [](const migraphx::program& p, const std::string& name, const std::string& format) {
-      migraphx::file_options options;
-      options.format = format;
-      return migraphx::save(p, name, options);
-    },
-    "Save MIGraphX program",
-    py::arg("p"),
-    py::arg("filename"),
-    py::arg("format") ="msgpack"
-    );
+    m.def("save",
+          [](const migraphx::program& p, const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::save(p, name, options);
+          },
+          "Save MIGraphX program",
+          py::arg("p"),
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
 
     m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);

@@ -657,6 +657,15 @@ extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t progr
     });
 }
 
+extern "C" migraphx_status migraphx_program_sort(migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        (program->object).sort();
+    });
+}
+
 extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                                 migraphx_program_t program,
                                                 migraphx_program_parameters_t params)

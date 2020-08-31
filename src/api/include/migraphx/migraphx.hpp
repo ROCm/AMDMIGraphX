@@ -494,6 +494,12 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
     void print() const { call(&migraphx_program_print, this->get_handle_ptr()); }
 
+    program sort()
+    {
+        call(&migraphx_program_sort, this->get_handle_ptr());
+        return *this;
+    }
+
     friend bool operator==(const program& px, const program& py)
     {
         bool pout;

@@ -630,7 +630,6 @@ struct onnx_parser
         auto auto_pad = info.attributes["auto_pad"].s();
         if(auto_pad.find("SAME") != std::string::npos)
         {
-            v["padding_mode"]  = to_value(op::padding_mode_t::same);
             bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
             paddings.resize(2 * kdims);
 
@@ -702,7 +701,6 @@ struct onnx_parser
         if(contains(info.attributes, "auto_pad"))
         {
             auto weight_lens = weights->get_shape().lens();
-
             std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
             cal_auto_padding_size(info,
                                   values,
@@ -710,6 +708,11 @@ struct onnx_parser
                                   values["dilation"].to_vector<std::size_t>(),
                                   in_lens,
                                   padding);
+            auto auto_pad = info.attributes["auto_pad"].s();
+            if(auto_pad.find("SAME") != std::string::npos)
+            {
+                values["padding_mode"] = to_value(op::padding_mode_t::same);
+            }
         }
         check_asym_padding(l0, padding, values);
 
@@ -913,10 +916,7 @@ struct onnx_parser
         // does not support ceil_mode
         if(contains(info.attributes, "ceil_mode"))
         {
-            if(info.attributes.at("ceil_mode").i() == 1)
-            {
-                MIGRAPHX_THROW("PARSE_POOLING: pool does not support ceil_mode");
-            }
+            values["ceil_mode"] = static_cast<bool>(info.attributes.at("ceil_mode").i());
         }
 
         // count include padding, if count include pad is 1, we always use

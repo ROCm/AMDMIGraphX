@@ -442,7 +442,6 @@ struct onnx_parser
         bool min_used = false;
         bool max_used = false;
 
-
         if(args.size() == 3 and args[2]->name() != "undefined")
         {
             max_arg  = args[2];
@@ -475,12 +474,12 @@ struct onnx_parser
         {
             max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
         }
-        
+
         if(min_used and max_used)
         {
             return prog.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
         }
-        else if (max_used)
+        else if(max_used)
         {
             return prog.add_instruction(make_op("min"), args[0], max_arg);
         }

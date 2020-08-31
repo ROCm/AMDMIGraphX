@@ -91,11 +91,6 @@ struct miopen_apply
 
         create_output_names();
 
-        add_miopen_simple_op<miopen_abs>("abs", make_abs);
-
-        add_miopen_extend_op<miopen_leaky_relu, op::leaky_relu>("leaky_relu", make_leaky_relu);
-        add_miopen_extend_op<miopen_elu, op::elu>("elu", make_elu);
-
         add_generic_op("acos");
         add_generic_op("acosh");
         add_generic_op("add");
@@ -132,13 +127,17 @@ struct miopen_apply
         add_generic_op("tan");
         add_generic_op("tanh");
 
+        add_extend_op("abs");
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("clip");
         add_extend_op("concat");
         add_extend_op("convert");
+        add_extend_op("elu");
         add_extend_op("gather");
+        add_extend_op("leaky_relu");
         add_extend_op("logsoftmax");
+        add_extend_op("lrn");
         add_extend_op("pad");
         add_extend_op("reduce_max");
         add_extend_op("reduce_mean");
@@ -152,7 +151,6 @@ struct miopen_apply
 
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
-        add_lrn_op();
         add_convolution_op();
         add_deconvolution_op();
         add_quant_convolution_op();
@@ -327,17 +325,6 @@ struct miopen_apply
         });
     }
 
-    void add_lrn_op()
-    {
-        apply_map.emplace("lrn", [=](instruction_ref ins) {
-            auto&& op   = any_cast<op::lrn>(ins->get_operator());
-            auto ldesc  = make_lrn(op);
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(
-                ins, miopen_lrn{std::move(ldesc)}, ins->inputs().at(0), output);
-        });
-    }
-
     void add_generic_op(const std::string& name) { add_generic_op(name, "gpu::" + name); }
 
     void add_generic_op(const std::string& op_name, const std::string& gpu_name)
@@ -362,28 +349,6 @@ struct miopen_apply
             refs.push_back(output);
 
             return prog->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
-        });
-    }
-
-    template <class T, class Op, class F>
-    void add_miopen_extend_op(std::string name, F f)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op = any_cast<Op>(ins->get_operator());
-            auto ad   = f(op.alpha);
-
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
-        });
-    }
-
-    template <class T, class F>
-    void add_miopen_simple_op(std::string name, F f)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto ad     = f();
-            auto output = insert_allocation(ins, ins->get_shape());
-            return prog->replace_instruction(ins, T{std::move(ad)}, ins->inputs().at(0), output);
         });
     }
 

@@ -1,5 +1,6 @@
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -29,6 +30,11 @@ argument miopen_leaky_relu::compute(context& ctx,
                             args[1].implicit());
 
     return args[1];
+}
+
+void miopen_leaky_relu::finalize(context&, const shape&, const std::vector<shape>&)
+{
+    ad = make_leaky_relu(op.alpha);
 }
 
 } // namespace gpu

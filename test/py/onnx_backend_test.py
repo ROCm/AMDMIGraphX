@@ -204,7 +204,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_softmax_default_axis_cpu')
 
         # error cases
-        backend_test.exclude(r'test_averagepool_2d_ceil_cpu')
         backend_test.exclude(r'test_clip_default_inbounds_cpu')
         backend_test.exclude(r'test_clip_default_int8_inbounds_cpu')
         backend_test.exclude(r'test_clip_default_int8_max_cpu')
@@ -224,7 +223,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_gather_elements_0_cpu')
         backend_test.exclude(r'test_gather_elements_1_cpu')
         backend_test.exclude(r'test_gather_elements_negative_indices_cpu')
-        backend_test.exclude(r'test_gather_negative_indices_cpu')
         backend_test.exclude(r'test_gathernd_example_float32_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_batch_dim1_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_cpu')
@@ -246,7 +244,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_max_float16_cpu')
         backend_test.exclude(r'test_max_int64_cpu')
         backend_test.exclude(r'test_max_uint64_cpu')
-        backend_test.exclude(r'test_maxpool_2d_ceil_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_mean_example_cpu')
         backend_test.exclude(r'test_mean_one_input_cpu')
@@ -273,9 +270,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_thresholdedrelu_default_cpu')
         backend_test.exclude(r'test_thresholdedrelu_example_cpu')
         backend_test.exclude(r'test_Embedding_cpu')
-        backend_test.exclude(r'test_Embedding_sparse_cpu')
         backend_test.exclude(r'test_Softplus_cpu')
-        backend_test.exclude(r'test_operator_non_float_params_cpu')
         backend_test.exclude(r'test_operator_selu_cpu')
         backend_test.exclude(r'test_expand_shape_model1_cpu')
         backend_test.exclude(r'test_expand_shape_model2_cpu')

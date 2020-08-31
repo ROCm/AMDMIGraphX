@@ -1436,9 +1436,9 @@ def implicit_pow_bcast_test():
 
 @onnx_test
 def implicit_sub_bcast_test():
-    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
-    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+    arg0 = helper.make_tensor_value_info('0', TensorProto.UINT64, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.UINT64, [4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.UINT64,
                                             [2, 3, 4, 5])
 
     node = onnx.helper.make_node(
@@ -1802,8 +1802,8 @@ def min_test():
 
 @onnx_test
 def neg_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3])
+    x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
 
     node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
 
@@ -2684,6 +2684,26 @@ def sub_scalar_test():
 
 
 @onnx_test
+def sum_int_test():
+    a = helper.make_tensor_value_info('0', TensorProto.INT16, [3])
+    b = helper.make_tensor_value_info('1', TensorProto.UINT16, [3])
+    c = helper.make_tensor_value_info('2', TensorProto.UINT32, [3])
+    y = helper.make_tensor_value_info('3', TensorProto.UINT32, [3])
+
+    cnode1 = onnx.helper.make_node('Cast', inputs=['0'], outputs=['c0'], to=12)
+
+    cnode2 = onnx.helper.make_node('Cast', inputs=['1'], outputs=['c1'], to=12)
+
+    node = onnx.helper.make_node(
+        'Sum',
+        inputs=['c0', 'c1', '2'],
+        outputs=['3'],
+    )
+
+    return ([cnode1, cnode2, node], [a, b, c], [y])
+
+
+@onnx_test
 def sum_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -2697,6 +2717,100 @@ def sum_test():
     )
 
     return ([node], [a, b, c], [y])
+
+
+@onnx_test
+def sum_type_test():
+    valb = np.array([1, 0])
+    t_bool = helper.make_tensor(name="bool",
+                                data_type=TensorProto.BOOL,
+                                dims=valb.shape,
+                                vals=valb.astype(np.bool))
+
+    val = np.array([1, 1])
+    t_int8 = helper.make_tensor(name="int8",
+                                data_type=TensorProto.INT8,
+                                dims=val.shape,
+                                vals=val.astype(np.int8))
+
+    t_uint8 = helper.make_tensor(name="uint8",
+                                 data_type=TensorProto.UINT8,
+                                 dims=val.shape,
+                                 vals=val.astype(np.uint8))
+
+    t_uint16 = helper.make_tensor(name="uint16",
+                                  data_type=TensorProto.UINT16,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint16))
+
+    t_uint32 = helper.make_tensor(name="uint32",
+                                  data_type=TensorProto.UINT32,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint32))
+
+    t_uint64 = helper.make_tensor(name="uint64",
+                                  data_type=TensorProto.UINT64,
+                                  dims=val.shape,
+                                  vals=val.astype(np.uint64))
+
+    t_double = helper.make_tensor(name="double",
+                                  data_type=TensorProto.DOUBLE,
+                                  dims=val.shape,
+                                  vals=val.astype(np.float64))
+
+    valr = np.array([1.5, 2.0])
+    t_raw = helper.make_tensor(name="raw",
+                               data_type=TensorProto.DOUBLE,
+                               dims=valr.shape,
+                               vals=valr.tobytes(),
+                               raw=True)
+
+    n_bool = onnx.helper.make_node('Cast',
+                                   inputs=['bool'],
+                                   outputs=['o_bool'],
+                                   to=11)
+
+    n_int8 = onnx.helper.make_node('Cast',
+                                   inputs=['int8'],
+                                   outputs=['o_int8'],
+                                   to=11)
+
+    n_uint8 = onnx.helper.make_node('Cast',
+                                    inputs=['uint8'],
+                                    outputs=['o_uint8'],
+                                    to=11)
+
+    n_uint16 = onnx.helper.make_node('Cast',
+                                     inputs=['uint16'],
+                                     outputs=['o_uint16'],
+                                     to=11)
+
+    n_uint32 = onnx.helper.make_node('Cast',
+                                     inputs=['uint32'],
+                                     outputs=['o_uint32'],
+                                     to=11)
+
+    n_uint64 = onnx.helper.make_node('Cast',
+                                     inputs=['uint64'],
+                                     outputs=['o_uint64'],
+                                     to=11)
+
+    node = onnx.helper.make_node(
+        'Sum',
+        inputs=[
+            'o_bool', 'o_int8', 'o_uint8', 'o_uint16', 'o_uint32', 'o_uint64',
+            'double', 'raw'
+        ],
+        outputs=['out'],
+    )
+
+    y = helper.make_tensor_value_info('out', TensorProto.DOUBLE, [2])
+
+    return ([n_bool, n_int8, n_uint8, n_uint16, n_uint32, n_uint64,
+             node], [], [y], [
+                 t_bool, t_int8, t_uint8, t_uint16, t_uint32, t_uint64,
+                 t_double, t_raw
+             ])
 
 
 @onnx_test

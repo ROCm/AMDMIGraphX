@@ -746,7 +746,6 @@ struct tf_parser
             const std::string& pad_mode = attributes.at("padding").s();
             if(pad_mode.find("SAME") != std::string::npos)
             {
-                op.padding_mode = op::padding_mode_t::same;
                 auto input_dims = l0->get_shape().lens();
                 std::vector<int64_t> pads(input_dims.size());
                 calculate_padding(0, pads, input_dims[2], op.stride[0], 1, op.lengths[0]);
@@ -763,10 +762,6 @@ struct tf_parser
                     op.padding[0] = pads[0];
                     op.padding[1] = pads[1];
                 }
-            }
-            else if(pad_mode.find("VALID") != std::string::npos)
-            {
-                op.padding_mode = op::padding_mode_t::valid;
             }
         }
         return prog.add_instruction(op, l0);

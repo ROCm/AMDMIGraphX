@@ -1,5 +1,6 @@
 import migraphx, tempfile
 
+
 def test_conv_relu(format):
     p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p1)
@@ -15,6 +16,7 @@ def test_conv_relu(format):
 
         assert s1 == s2
         assert p1.sort() == p2.sort()
+
 
 test_conv_relu('msgpack')
 test_conv_relu('json')

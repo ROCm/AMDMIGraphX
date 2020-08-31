@@ -1338,8 +1338,8 @@ struct onnx_parser
     parse_instancenorm(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
-        // mean = reduce_mean({H, W}, x)
-        // variance = reduce_mean({H, W}, (x - mean)^2)
+        // mean = reduce_mean({D1, D2, ... Dk}, x)
+        // variance = reduce_mean({D1, D2, ... Dk}, (x - mean)^2)
 
         float epsilon = 1e-5f;
         if(contains(info.attributes, "epsilon"))
@@ -1350,11 +1350,17 @@ struct onnx_parser
         auto scale = args[1];
         auto bias  = args[2];
         auto dims  = x->get_shape().lens();
+        auto ndims = dims.size();
+        assert(ndims >= 2);
+        auto kdims = ndims - 2;
 
-        auto mean            = prog.add_instruction(make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+        std::vector<int64_t> axes(kdims);
+        std::iota(axes.begin(), axes.end(), 2);
+
+        auto mean            = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
         auto l0              = prog.add_instruction(make_op("sqdiff"), x, mean_bcast);
-        auto variance        = prog.add_instruction(make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
+        auto variance        = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = prog.add_instruction(make_op("sub"), x, mean_bcast);
         auto epsilon_literal = prog.add_literal(epsilon);
         auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);

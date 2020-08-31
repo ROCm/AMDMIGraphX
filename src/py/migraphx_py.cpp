@@ -9,6 +9,7 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 
 #ifdef HAVE_GPU
@@ -178,6 +179,7 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("t"),
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
+        .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
@@ -230,6 +232,27 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
+
+    m.def("load", [](const std::string& name, const std::string& format) {
+      migraphx::file_options options;
+      options.format = format;
+      return migraphx::load(name, options);
+    },
+    "Load MIGraphX program",
+    py::arg("filename"),
+    py::arg("format") = "msgpack"
+    );
+
+    m.def("save", [](const migraphx::program& p, const std::string& name, const std::string& format) {
+      migraphx::file_options options;
+      options.format = format;
+      return migraphx::save(p, name, options);
+    },
+    "Save MIGraphX program",
+    py::arg("p"),
+    py::arg("filename"),
+    py::arg("format") ="msgpack"
+    );
 
     m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);

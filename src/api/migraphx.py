@@ -32,6 +32,7 @@ def compile_options_type_wrap(p):
         p.add_param('migraphx_compile_options *')
         p.read = '${name} == nullptr ? migraphx::compile_options{} : migraphx::to_compile_options(*${name})'
 
+
 @api.cwrap('migraphx::file_options')
 def file_options_type_wrap(p):
     if p.returns:
@@ -185,6 +186,7 @@ def program(h):
              returns='bool',
              const=True)
 
+
 api.add_function('migraphx_load',
                  api.params(name='const char*',
                             options='migraphx::file_options'),
@@ -192,7 +194,7 @@ api.add_function('migraphx_load',
                  returns='migraphx::program')
 
 api.add_function('migraphx_save',
-                 api .params(p='migraphx::program&',
+                 api.params(p='migraphx::program&',
                             name='const char*',
                             options='migraphx::file_options'),
                  fname='migraphx::save')

@@ -1211,6 +1211,19 @@ struct test_global_max_pooling : verify_program<test_global_max_pooling>
     }
 };
 
+struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{"max", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, true};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
 struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
 {
     migraphx::program create_program() const
@@ -1230,7 +1243,20 @@ struct test_avg_pooling_3d : verify_program<test_avg_pooling_3d>
         migraphx::program p;
         auto input =
             p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
+        auto op = migraphx::op::pooling{"average", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}};
+        p.add_instruction(op, input);
+        return p;
+    }
+};
+
+struct test_avg_pooling_ceil_3d : verify_program<test_avg_pooling_ceil_3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto input =
+            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{"average", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, true};
         p.add_instruction(op, input);
         return p;
     }
@@ -2438,9 +2464,8 @@ struct test_pooling_autopad : verify_program<test_pooling_autopad>
         migraphx::shape s0{migraphx::shape::float_type, {1, 3, 63, 63}};
         auto l0 = p.add_parameter("x", s0);
         migraphx::op::pooling op{"max"};
-        op.padding_mode = migraphx::op::padding_mode_t::same;
-        op.lengths      = {2, 2};
-        op.stride       = {2, 2};
+        op.lengths = {2, 2};
+        op.stride  = {2, 2};
         p.add_instruction(op, l0);
         return p;
     }

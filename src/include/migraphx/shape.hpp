@@ -164,48 +164,6 @@ struct shape
         type_t type_enum() const { return get_type<type>{}; }
     };
 
-    template <>
-    struct as<bool>
-    {
-        using type = int8_t;
-
-        template <class U>
-        int8_t operator()(U u) const
-        {
-            return int8_t(u);
-        }
-
-        template <class U>
-        int8_t* operator()(U* u) const
-        {
-            return static_cast<int8_t*>(u);
-        }
-
-        template <class U>
-        const int8_t* operator()(const U* u) const
-        {
-            return static_cast<int8_t*>(u);
-        }
-
-        int8_t operator()() const { return {}; }
-
-        std::size_t size(std::size_t n = 1) const { return sizeof(int8_t) * n; }
-
-        template <class U>
-        int8_t* from(U* buffer, std::size_t n = 0) const
-        {
-            return reinterpret_cast<int8_t*>(buffer) + n;
-        }
-
-        template <class U>
-        const int8_t* from(const U* buffer, std::size_t n = 0) const
-        {
-            return reinterpret_cast<const int8_t*>(buffer) + n;
-        }
-
-        type_t type_enum() const { return get_type<int8_t>{}; }
-    };
-
     template <class Visitor>
     void visit_type(Visitor v) const
     {

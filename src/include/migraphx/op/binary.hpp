@@ -35,29 +35,24 @@ struct binary : op_name<Derived>
         auto s2 = args[1].get_shape();
         if(s1 == s2 and s1.packed())
         {
-            shape in_shape{s1.type(), s1.lens()};
-            shape out_shape{output_shape.type(), s1.lens()};
-            argument std_result{out_shape, result.data()};
-            argument std_arg0{in_shape, args[0].data()};
-            argument std_arg1{in_shape, args[1].data()};
-            std_result.visit([&](auto output) {
-                visit_all(std_arg0, std_arg1)([&](auto input1, auto input2) {
-                    std::transform(input1.begin(),
-                                   input1.end(),
-                                   input2.begin(),
-                                   output.begin(),
-                                   static_cast<const Derived&>(*this).apply());
-                });
+            shape std_shape{s1.type(), s1.lens()};
+            argument std_result{std_shape, result.data()};
+            argument std_arg0{std_shape, args[0].data()};
+            argument std_arg1{std_shape, args[1].data()};
+            visit_all(std_result, std_arg0, std_arg1)([&](auto output, auto input1, auto input2) {
+                std::transform(input1.begin(),
+                               input1.end(),
+                               input2.begin(),
+                               output.begin(),
+                               static_cast<const Derived&>(*this).apply());
             });
         }
         else
         {
-            result.visit([&](auto output) {
-                visit_all(args[0], args[1])([&](auto input1, auto input2) {
-                    shape_for_each(output.get_shape(), [&](const auto& idx) {
-                        output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
-                            input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
-                    });
+            visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
+                shape_for_each(output.get_shape(), [&](const auto& idx) {
+                    output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
+                        input1(idx.begin(), idx.end()), input2(idx.begin(), idx.end()));
                 });
             });
         }

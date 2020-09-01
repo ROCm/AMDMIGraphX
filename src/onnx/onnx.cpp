@@ -2548,7 +2548,7 @@ struct onnx_parser
 
     void parse_undefined(const std::string& name)
     {
-        if (!contains(instructions, name))
+        if(!contains(instructions, name))
         {
             auto ins           = prog.add_instruction(op::undefined{});
             instructions[name] = ins;

@@ -385,7 +385,9 @@ def clip_test_op11_max_only():
 
     max_val = helper.make_tensor('max', TensorProto.FLOAT, [], [0.0])
 
-    node = onnx.helper.make_node('Clip', inputs=['0', '', 'max'], outputs=['1'])
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', '', 'max'],
+                                 outputs=['1'])
 
     return ([node], [x], [y], [max_val])
 

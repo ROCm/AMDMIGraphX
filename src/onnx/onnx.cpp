@@ -442,14 +442,13 @@ struct onnx_parser
         bool min_used = false;
         bool max_used = false;
 
-        if(args.size() == 3)
+        if(args.size() == 3 and args[2]->name() != "undefined")
         {
-            min_arg  = args[1];
             max_arg  = args[2];
-            min_used = true;
             max_used = true;
         }
-        else if(args.size() == 2)
+
+        if(args.size() >= 2 and args[1]->name() != "undefined")
         {
             min_arg  = args[1];
             min_used = true;
@@ -467,17 +466,31 @@ struct onnx_parser
         }
 
         if(min_used)
+        {
             min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+        }
 
         if(max_used)
+        {
             max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+        }
 
         if(min_used and max_used)
+        {
             return prog.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
-        if(min_used)
+        }
+        else if(max_used)
+        {
+            return prog.add_instruction(make_op("min"), args[0], max_arg);
+        }
+        else if(min_used)
+        {
             return prog.add_instruction(make_op("max"), args[0], min_arg);
-
-        return prog.add_instruction(make_op("identity"), args[0]);
+        }
+        else
+        {
+            return prog.add_instruction(make_op("identity"), args[0]);
+        }
     }
 
     instruction_ref parse_arg_op(const std::string&,
@@ -2535,8 +2548,11 @@ struct onnx_parser
 
     void parse_undefined(const std::string& name)
     {
-        auto ins           = prog.add_instruction(op::undefined{});
-        instructions[name] = ins;
+        if(!contains(instructions, name))
+        {
+            auto ins           = prog.add_instruction(op::undefined{});
+            instructions[name] = ins;
+        }
     }
 
     static attribute_map get_attributes(const onnx::NodeProto& node)

@@ -204,10 +204,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_softmax_default_axis_cpu')
 
         # error cases
-        backend_test.exclude(r'test_clip_default_inbounds_cpu')
-        backend_test.exclude(r'test_clip_default_int8_inbounds_cpu')
-        backend_test.exclude(r'test_clip_default_int8_max_cpu')
-        backend_test.exclude(r'test_clip_default_max_cpu')
         backend_test.exclude(r'test_constant_pad_cpu')
         backend_test.exclude(r'test_constantofshape_float_ones_cpu')
         backend_test.exclude(r'test_constantofshape_int_shape_zero_cpu')

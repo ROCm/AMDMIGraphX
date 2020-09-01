@@ -2548,8 +2548,11 @@ struct onnx_parser
 
     void parse_undefined(const std::string& name)
     {
-        auto ins           = prog.add_instruction(op::undefined{});
-        instructions[name] = ins;
+        if (!contains(instructions, name))
+        {
+            auto ins           = prog.add_instruction(op::undefined{});
+            instructions[name] = ins;
+        }
     }
 
     static attribute_map get_attributes(const onnx::NodeProto& node)

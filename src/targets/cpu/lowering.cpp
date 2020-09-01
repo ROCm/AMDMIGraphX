@@ -2,7 +2,7 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -24,6 +24,7 @@
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
 #include <migraphx/cpu/gemm.hpp>
+#include <migraphx/register_op.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -122,6 +123,7 @@ struct cpu_batch_norm_inference
         return output;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_batch_norm_inference)
 
 struct cpu_lrn
 {
@@ -166,6 +168,7 @@ struct cpu_lrn
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_lrn)
 
 template <class V, class T, class... Ts>
 void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
@@ -183,8 +186,12 @@ auto visit_quantize(T&& x, Ts&&... xs)
 }
 
 template <class Op>
-struct cpu_convolution
+struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
 {
+    cpu_convolution() = default;
+
+    cpu_convolution(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -256,8 +263,12 @@ struct cpu_convolution
 };
 
 template <class Op>
-struct cpu_deconvolution
+struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
 {
+    cpu_deconvolution() = default;
+
+    cpu_deconvolution(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -405,11 +416,16 @@ struct cpu_im2col
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_im2col)
 
 struct max_pool
 {
     static std::string name() { return "max"; }
-    static double start() { return std::numeric_limits<double>::lowest(); }
+    template <class T>
+    static T start()
+    {
+        return std::numeric_limits<T>::lowest();
+    }
 
     static double apply(double x, double y)
     {
@@ -417,22 +433,31 @@ struct max_pool
         return (m);
     }
 
-    static double final(double x, double) { return (x); }
+    static double final(double x, std::size_t) { return (x); }
 };
 
 struct avg_pool
 {
     static std::string name() { return "average"; }
-    static double start() { return 0.0; }
+
+    template <class T>
+    static double start()
+    {
+        return 0.0;
+    }
 
     static double apply(double x, double y) { return x + y; }
 
-    static double final(double x, double y) { return x / y; }
+    static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
 };
 
 template <class Op>
-struct cpu_pooling
+struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 {
+    cpu_pooling() = default;
+
+    cpu_pooling(op::pooling pop) : op(std::move(pop)) {}
+
     op::pooling op;
 
     template <class Self, class F>
@@ -470,7 +495,7 @@ struct cpu_pooling
 
                 shape win_shape{output_shape.type(), win_size};
                 auto pool_size = win_shape.elements();
-                double acc     = Op::start();
+                double acc     = Op::template start<type>();
                 shape_for_each(win_shape, [&](auto idx_w) {
                     auto idx = idx_o;
                     std::transform(idx_w.begin(),
@@ -501,21 +526,19 @@ struct cpu_op
     {
         return migraphx::reflect(self.op, f);
     }
-    std::string name() const { return "cpu::" + op.name(); }
+    std::string name() const { return "cpu::op"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
         return op.compute(output_shape, args);
     }
-    friend bool operator==(const cpu_op& x, const cpu_op& y) { return x.op == y.op; }
-    friend bool operator==(const cpu_op& x, const operation& y)
+    friend std::ostream& operator<<(std::ostream& os, const cpu_op& x)
     {
-        if(x.name() != y.name())
-            return false;
-        return x == any_cast<cpu_op>(y);
+        os << "cpu::" << x.op;
+        return os;
     }
-    friend bool operator==(const operation& x, const cpu_op& y) { return y == x; }
 };
+MIGRAPHX_REGISTER_OP(cpu_op)
 
 struct cpu_pad
 {
@@ -552,6 +575,7 @@ struct cpu_pad
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_pad)
 
 struct cpu_gemm
 {
@@ -603,6 +627,7 @@ struct cpu_gemm
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_gemm)
 
 struct cpu_quant_gemm
 {
@@ -669,6 +694,7 @@ struct cpu_quant_gemm
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_gemm)
 
 struct leaky_relu_op
 {
@@ -693,8 +719,15 @@ struct elu_op
 };
 
 template <typename Op>
-struct cpu_unary
+struct cpu_unary : auto_register_op<cpu_unary<Op>>
 {
+    cpu_unary() = default;
+
+    template <class T>
+    cpu_unary(T pop) : op(Op{std::move(pop)})
+    {
+    }
+
     Op op;
 
     template <class Self, class F>
@@ -723,8 +756,12 @@ struct cpu_unary
 };
 
 template <class Op>
-struct cpu_softmax
+struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
 {
+    cpu_softmax() = default;
+
+    cpu_softmax(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -828,6 +865,7 @@ struct cpu_rnn_var_sl_last_output
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
 struct cpu_apply
 {

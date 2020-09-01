@@ -1,8 +1,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_BATCHNORM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_BATCHNORM_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/reflect.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

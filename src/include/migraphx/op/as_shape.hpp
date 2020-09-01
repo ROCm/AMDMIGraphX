@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_AS_SHAPE_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>

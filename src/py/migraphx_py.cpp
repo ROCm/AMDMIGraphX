@@ -1,6 +1,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -15,62 +16,42 @@
 #include <migraphx/gpu/hip.hpp>
 #endif
 
+using half   = half_float::half;
 namespace py = pybind11;
 
-template <class F>
-struct throw_half
+namespace pybind11 {
+namespace detail {
+
+template <>
+struct npy_format_descriptor<half>
 {
-    F f;
-
-    template <class A>
-    void operator()(A a) const
+    static std::string format()
     {
-        f(a);
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        return "e";
     }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
-    }
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
-    }
+    static constexpr auto name() { return _("half"); }
 };
 
-template <class F>
-struct skip_half
-{
-    F f;
-
-    template <class A>
-    void operator()(A a) const
-    {
-        f(a);
-    }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const {}
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const {}
-};
+} // namespace detail
+} // namespace pybind11
 
 template <class F>
 void visit_type(const migraphx::shape& s, F f)
 {
-    s.visit_type(throw_half<F>{f});
+    s.visit_type(f);
 }
 
 template <class T, class F>
 void visit(const migraphx::raw_data<T>& x, F f)
 {
-    x.visit(throw_half<F>{f});
+    x.visit(f);
 }
 
 template <class F>
 void visit_types(F f)
 {
-    migraphx::shape::visit_types(skip_half<F>{f});
+    migraphx::shape::visit_types(f);
 }
 
 template <class T>
@@ -82,12 +63,26 @@ py::buffer_info to_buffer_info(T& x)
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
-        b = py::buffer_info(x.data(),
-                            as.size(),
-                            py::format_descriptor<decltype(as())>::format(),
-                            s.lens().size(),
-                            s.lens(),
-                            strides);
+        // migraphx use int8_t data to store bool type, we need to
+        // explicitly specify the data type as bool for python
+        if(s.type() == migraphx::shape::bool_type)
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<bool>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
+        else
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<decltype(as())>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
     });
     return b;
 }
@@ -97,7 +92,9 @@ migraphx::shape to_shape(const py::buffer_info& info)
     migraphx::shape::type_t t;
     std::size_t n = 0;
     visit_types([&](auto as) {
-        if(info.format == py::format_descriptor<decltype(as())>::format())
+        if(info.format == py::format_descriptor<decltype(as())>::format() or
+           (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
+           (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))
         {
             t = as.type_enum();
             n = sizeof(as());
@@ -106,7 +103,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
 
     if(n == 0)
     {
-        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type" + info.format);
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type " + info.format);
     }
 
     auto strides = info.strides;

@@ -23,7 +23,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.7)
+rocm_setup_version(VERSION 0.8)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )

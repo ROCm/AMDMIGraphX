@@ -34,6 +34,11 @@ constexpr void visit_tensor_size(index_int n, F f)
         f(std::integral_constant<index_int, 4>{});
         break;
     }
+    case 5:
+    {
+        f(std::integral_constant<index_int, 5>{});
+        break;
+    }
     default: throw std::runtime_error("Tensor dims " + std::to_string(n) + " out of range");
     }
 }

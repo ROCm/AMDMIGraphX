@@ -18,6 +18,7 @@
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
@@ -45,17 +46,20 @@ struct fusion
         return result;
     }
 
+    fusion() = default;
+
     fusion(const shape& input)
-    // : fp(make_fusion_plan(input))
     {
         assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
+        assert(fp);
         keep_alive(std::move(t));
     }
 
     op_t operator[](std::size_t i) const
     {
+        assert(fp);
         op_t result;
         auto status = miopenFusionPlanGetOp(fp.get(), i, &result);
         if(status != miopenStatusSuccess)
@@ -63,10 +67,15 @@ struct fusion
         return result;
     }
 
-    auto get() const { return fp.get(); }
+    auto get() const
+    {
+        assert(fp);
+        return fp.get();
+    }
 
     op_t create_bias(const shape& bias)
     {
+        assert(fp);
         op_t result;
         auto b      = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
         auto t      = keep_alive(make_tensor(b));
@@ -78,6 +87,7 @@ struct fusion
 
     op_t create_relu()
     {
+        assert(fp);
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
         if(status != miopenStatusSuccess)
@@ -87,6 +97,7 @@ struct fusion
 
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
+        assert(fp);
         op_t result;
         auto cd     = keep_alive(make_conv(op));
         auto t      = keep_alive(make_tensor(weights));
@@ -98,6 +109,7 @@ struct fusion
 
     shape get_workspace(context&)
     {
+        // assert(fp);
         // TODO: Use zero workspace for now
         std::size_t ws_size = 0;
         // int algo_count = 1;
@@ -110,6 +122,7 @@ struct fusion
 
     void compile(context& ctx)
     {
+        assert(fp);
         auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Compiling fusion plan failed");
@@ -120,6 +133,7 @@ struct fusion
                      const argument& x,
                      const argument& y) const
     {
+        assert(fp);
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
         auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
@@ -175,66 +189,84 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 struct hip_triadd : ternary_device<hip_triadd, &device::add>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd)
 
 struct hip_triadd_clip : quinary_device<hip_triadd_clip, &device::add_clip>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_clip)
 
 struct hip_add_clip : quaternary_device<hip_add_clip, &device::add_clip>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_clip)
 
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_relu)
 
 struct hip_triadd_sigmoid : ternary_device<hip_triadd_sigmoid, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_sigmoid)
 
 struct hip_triadd_tanh : ternary_device<hip_triadd_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_tanh)
 
 struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_relu)
 
 struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_sigmoid)
 
 struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_tanh)
 
 struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 {
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&) {}
 };
+MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu)
 
 struct hip_add_gelu : binary_device<hip_add_gelu, &device::add_gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu)
 
 struct hip_gelu_new : unary_device<hip_gelu_new, &device::gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu_new)
 
 struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu_new)
 
 struct hip_mul_add : ternary_device<hip_mul_add, &device::mul_add>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add)
 
 struct hip_mul_add_relu : ternary_device<hip_mul_add_relu, &device::mul_add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add_relu)
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
@@ -295,6 +327,15 @@ struct find_layernorm
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
+
+        // We dont fuse for non-standard layouts
+        if(not x_ins->get_shape().standard())
+            return;
+
+        auto relements = x_ins->get_shape().lens().back();
+
+        if(relements > 1024 or (relements % 4 != 0 and relements > 256))
+            return;
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
     }
@@ -421,7 +462,7 @@ struct find_add_clip
     {
         return match::name(std::unordered_set<std::string>{"gpu::clip", "gpu::clipped_relu"})(
             match::arg(0)(match::any_of(match::name("gpu::add"),
-                                        match::name("hip::triadd"),
+                                        match::name("gpu::triadd"),
                                         match::any_of[match::inputs()](match::standard_shape()))
                               .bind("add")));
     }
@@ -440,7 +481,7 @@ struct find_add_clip
         add_args.insert(add_args.end(), std::next(ins_args.begin()), ins_args.end());
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, hip_add_clip{}, add_args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, hip_triadd_clip{}, add_args);
     }
 };
@@ -455,7 +496,7 @@ struct find_add_unary
         return match::name(op_name)(match::arg(0)(
             match::used_once(),
             match::any_of(match::name("gpu::add"),
-                          match::name("hip::triadd"),
+                          match::name("gpu::triadd"),
                           match::any_of(match::name("@literal"),
                                         match::any_of[match::inputs()](match::standard_shape())))
                 .bind("add")));
@@ -473,7 +514,7 @@ struct find_add_unary
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, binary_add_op, args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, ternary_add_op, args);
     }
 };
@@ -539,7 +580,7 @@ struct find_mul_add_relu
     auto matcher() const
     {
         return match::name("gpu::relu")(
-            match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
+            match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -557,21 +598,14 @@ struct find_mul_add_relu
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
-        : op(std::move(c)), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
     }
 
     std::string name() const { return "gpu::conv_bias"; }
@@ -591,37 +625,34 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
-    fusion::op_t relu;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
+    fusion::op_t relu = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias_relu(op::convolution c,
-                          const shape& input,
-                          const shape& weights,
-                          const shape& b)
-        : op(std::move(c)), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
-        relu = f.create_relu();
     }
 
     std::string name() const { return "gpu::conv_bias_relu"; }
@@ -641,13 +672,22 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        relu = f.create_relu();
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias_relu)
 
 template <class... Ms>
 auto conv_bias(Ms... ms)
@@ -670,7 +710,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     auto alloc_ins   = ins->inputs().back();
     auto old_ws_ins  = conv_ins->inputs().at(2);
 
-    Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
+    Op cb{conv_op};
     // TODO: Insert ws allocation
     auto ws = cb.get_workspace(ctx);
     (void)ws;

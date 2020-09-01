@@ -37,10 +37,10 @@ constexpr T normalize(unsigned long z)
     return z % max;
 }
 
-template <>
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>
 constexpr bool normalize(unsigned long z)
 {
-    return z & 0x1;
+    return static_cast<bool>(z % 2);
 }
 
 template <class T>

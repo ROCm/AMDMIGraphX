@@ -52,8 +52,9 @@ inline std::string make_source_context(const std::string& file, int line, const 
 /**
  * @brief Throw an exception with context information
  */
-#define MIGRAPHX_THROW(...) \
-    throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__, __func__), __VA_ARGS__)
+#define MIGRAPHX_THROW(...)                                                                     \
+    throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__, __func__), \
+                                   __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

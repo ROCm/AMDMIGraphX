@@ -225,7 +225,7 @@ load
     Load a MIGraphX program
 
     :param str filename: Path to file.
-    :param bool format: Format of file. Valid options are msgpack or json.
+    :param str format: Format of file. Valid options are msgpack or json.
 
     :rtype: program
 
@@ -238,5 +238,5 @@ save
 
     :param program p: Program to save.
     :param str filename: Path to file.
-    :param bool format: Format of file. Valid options are msgpack or json.
+    :param str format: Format of file. Valid options are msgpack or json.
 

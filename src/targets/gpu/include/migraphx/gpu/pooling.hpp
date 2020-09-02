@@ -25,7 +25,7 @@ struct miopen_pooling
 
     std::string name() const { return "gpu::pooling"; }
     shape compute_shape(const std::vector<shape>& inputs) const;
-    void finalize(context&, const shape&, std::vector<shape>);
+    void finalize(context&, const shape&, const std::vector<shape>&);
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

@@ -56,7 +56,7 @@ argument miopen_pooling::compute(context& ctx,
     return args[1];
 }
 
-void miopen_pooling::finalize(context&, const shape&, std::vector<shape>)
+void miopen_pooling::finalize(context&, const shape&, const std::vector<shape>&)
 {
     if(pd == nullptr)
         pd = make_pooling(op);

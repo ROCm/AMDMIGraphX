@@ -785,7 +785,7 @@ struct find_commutative_broadcast
         return match::name("gpu::add", "gpu::mul")(match::arg(1)(match::broadcast_shape()));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto args = ins->inputs();

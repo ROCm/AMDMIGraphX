@@ -265,11 +265,11 @@ def create_backend_test(testname=None, target_device=None):
 
 #        backend_test.exclude(r'test_bvlc_alexnet_cpu')
 #        backend_test.exclude(r'test_densenet121_cpu')
-#        backend_test.exclude(r'test_inception_v1_cpu')
+        backend_test.exclude(r'test_inception_v1_cpu')
 #        backend_test.exclude(r'test_inception_v2_cpu')
-#        backend_test.exclude(r'test_resnet50_cpu')
+        backend_test.exclude(r'test_resnet50_cpu')
 #        backend_test.exclude(r'test_shufflenet_cpu')
-#        backend_test.exclude(r'test_squeezenet_cpu')
+        backend_test.exclude(r'test_squeezenet_cpu')
 #        backend_test.exclude(r'test_vgg19_cpu')
 #        backend_test.exclude(r'test_zfnet512_cpu')
 

@@ -268,7 +268,6 @@ TEST_CASE(race_double_wait1)
     pm.add_instruction_stream(2, wait_event{1});
     auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
     pm.add_instruction_stream(2, record_event{2});
-    // pm.add_instruction_stream(0, wait_event{1});
     auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
     pm.add_instruction_stream(0, record_event{3});
     pm.add_instruction_stream(1, wait_event{3});

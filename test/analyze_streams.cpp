@@ -60,31 +60,16 @@ struct test_stream_model
 {
     std::size_t nstreams = 0;
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
-    std::size_t get_nstream() const
-    {
-        return nstreams;
-    }
-    std::size_t get_stream(migraphx::instruction_ref ins) const
-    {
-        return ins2stream.at(ins);
-    }
+    std::size_t get_nstream() const { return nstreams; }
+    std::size_t get_stream(migraphx::instruction_ref ins) const { return ins2stream.at(ins); }
     std::size_t get_event_id(migraphx::instruction_ref ins) const
     {
         auto v = ins->get_operator().to_value();
         return v["event"].to<std::size_t>();
     }
-    bool has_stream(migraphx::instruction_ref ins) const
-    {
-        return ins2stream.count(ins) > 0;
-    }
-    bool is_record(migraphx::instruction_ref ins) const
-    {
-        return ins->name() == "record_event";
-    }
-    bool is_wait(migraphx::instruction_ref ins) const
-    {
-        return ins->name() == "wait_event";
-    }
+    bool has_stream(migraphx::instruction_ref ins) const { return ins2stream.count(ins) > 0; }
+    bool is_record(migraphx::instruction_ref ins) const { return ins->name() == "record_event"; }
+    bool is_wait(migraphx::instruction_ref ins) const { return ins->name() == "wait_event"; }
 };
 
 struct program_model
@@ -93,31 +78,28 @@ struct program_model
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
     std::size_t nstreams = 0;
 
-    template<class... Ts>
+    template <class... Ts>
     migraphx::instruction_ref add_literal(Ts... xs)
     {
         return p.add_literal(xs...);
     }
 
-    template<class... Ts>
+    template <class... Ts>
     migraphx::instruction_ref add_instruction(Ts... xs)
     {
         return p.add_instruction(xs...);
     }
 
-    template<class... Ts>
+    template <class... Ts>
     migraphx::instruction_ref add_instruction_stream(std::size_t n, Ts... xs)
     {
-        nstreams = std::max(nstreams, n);
-        auto ins = p.add_instruction(xs...);
+        nstreams        = std::max(nstreams, n);
+        auto ins        = p.add_instruction(xs...);
         ins2stream[ins] = n;
         return ins;
     }
 
-    test_stream_model get_stream_model() const
-    {
-        return {nstreams, ins2stream};
-    }
+    test_stream_model get_stream_model() const { return {nstreams, ins2stream}; }
 
     std::vector<migraphx::stream_race> analyze() const
     {
@@ -128,7 +110,7 @@ struct program_model
 TEST_CASE(simple_race)
 {
     program_model pm;
-    auto one = pm.add_literal(1);
+    auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
     auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
@@ -142,7 +124,7 @@ TEST_CASE(simple_race)
 TEST_CASE(simple_race_record_wait_wrong_stream)
 {
     program_model pm;
-    auto one = pm.add_literal(1);
+    auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
     pm.add_instruction_stream(0, record_event{1});
@@ -158,7 +140,7 @@ TEST_CASE(simple_race_record_wait_wrong_stream)
 TEST_CASE(simple_race_record_wait_same_stream1)
 {
     program_model pm;
-    auto one = pm.add_literal(1);
+    auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
     pm.add_instruction_stream(1, record_event{1});
@@ -174,7 +156,7 @@ TEST_CASE(simple_race_record_wait_same_stream1)
 TEST_CASE(simple_race_record_wait_same_stream2)
 {
     program_model pm;
-    auto one = pm.add_literal(1);
+    auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
     pm.add_instruction_stream(0, record_event{1});
@@ -190,7 +172,7 @@ TEST_CASE(simple_race_record_wait_same_stream2)
 TEST_CASE(simple_race_sync)
 {
     program_model pm;
-    auto one = pm.add_literal(1);
+    auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
     pm.add_instruction_stream(1, record_event{1});
@@ -202,4 +184,3 @@ TEST_CASE(simple_race_sync)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

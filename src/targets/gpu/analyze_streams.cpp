@@ -21,7 +21,10 @@ struct hip_stream_model
         return v["event"].to<std::size_t>();
     }
     bool has_stream(migraphx::instruction_ref ins) const { return ins2stream.count(ins) > 0; }
-    bool is_record(migraphx::instruction_ref ins) const { return ins->name() == "gpu::record_event"; }
+    bool is_record(migraphx::instruction_ref ins) const
+    {
+        return ins->name() == "gpu::record_event";
+    }
     bool is_wait(migraphx::instruction_ref ins) const { return ins->name() == "gpu::wait_event"; }
 };
 
@@ -29,17 +32,17 @@ stream_model make_stream_model(const program& p)
 {
     hip_stream_model m;
     std::size_t stream = 0;
-    for(auto ins:iterator_for(p))
+    for(auto ins : iterator_for(p))
     {
-        if (ins->name() == "gpu::set_stream")
+        if(ins->name() == "gpu::set_stream")
         {
-            auto v = ins->get_operator().to_value();
-            stream = v["stream"].to<std::size_t>();
+            auto v     = ins->get_operator().to_value();
+            stream     = v["stream"].to<std::size_t>();
             m.nstreams = std::max(stream, m.nstreams);
         }
-        if (ins->get_operator().is_context_free())
+        if(ins->get_operator().is_context_free())
             continue;
-        if (contains({"hip::hip_allocate_memory", "hip::hip_copy_literal", "@param"}, ins->name()))
+        if(contains({"hip::hip_allocate_memory", "hip::hip_copy_literal", "@param"}, ins->name()))
             continue;
         m.ins2stream[ins] = stream;
     }

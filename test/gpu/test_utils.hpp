@@ -132,7 +132,7 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
 inline void check_gpu_streams(const migraphx::program& p)
 {
     auto races = migraphx::gpu::analyze_streams(p);
-    for(auto&& race:races)
+    for(auto&& race : races)
     {
         std::cout << "FAILED: " << std::endl;
         std::cout << "Race condition detected for: ";

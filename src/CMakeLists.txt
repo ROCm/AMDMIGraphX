@@ -4,6 +4,7 @@ include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 
 add_library(migraphx 
+    analyze_streams.cpp
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
     decompose.cpp

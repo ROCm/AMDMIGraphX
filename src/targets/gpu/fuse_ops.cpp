@@ -749,16 +749,14 @@ struct find_gemm_add
     auto matcher() const
     {
         return match::name("gpu::add")(match::either_arg(0, 1)(
-                match::used_once().bind("c"),
-                match::name("gpu::gemm")(match::nargs(3)).bind("gemm")
-            ));
+            match::used_once().bind("c"), match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins     = r.result;
+        auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
-        auto c_ins   = r.instructions["c"];
+        auto c_ins    = r.instructions["c"];
 
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
@@ -789,7 +787,7 @@ struct find_commutative_broadcast
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins     = r.result;
+        auto ins  = r.result;
         auto args = ins->inputs();
         move_broadcasted_back(args);
 

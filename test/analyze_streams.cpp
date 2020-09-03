@@ -106,14 +106,11 @@ struct program_model
         return migraphx::analyze_streams(p, get_stream_model());
     }
 
-    void debug_print() const
-    {
-        p.debug_print();
-    }
+    void debug_print() const { p.debug_print(); }
 
     void debug_print(const std::vector<migraphx::stream_race>& races) const
     {
-        for(auto&& race:races)
+        for(auto&& race : races)
         {
             std::cout << "Race:\n";
             p.debug_print(race.ins);
@@ -139,12 +136,12 @@ TEST_CASE(simple_race1)
 TEST_CASE(simple_race2)
 {
     program_model pm;
-    auto one   = pm.add_literal(1);
-    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
-    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto one    = pm.add_literal(1);
+    auto pass1  = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2  = pm.add_instruction_stream(1, pass_op{}, one);
     auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
-    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass1, pass21);
-    auto races = pm.analyze();
+    auto pass3  = pm.add_instruction_stream(0, pass_op{}, pass1, pass21);
+    auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
     EXPECT(bool{races.front().ins == pass3});
@@ -154,12 +151,12 @@ TEST_CASE(simple_race2)
 TEST_CASE(simple_race3)
 {
     program_model pm;
-    auto one   = pm.add_literal(1);
-    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto one    = pm.add_literal(1);
+    auto pass1  = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
-    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
-    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass2);
-    auto races = pm.analyze();
+    auto pass2  = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass3  = pm.add_instruction_stream(0, pass_op{}, pass11, pass2);
+    auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
     EXPECT(bool{races.front().ins == pass3});
@@ -169,13 +166,13 @@ TEST_CASE(simple_race3)
 TEST_CASE(simple_race4)
 {
     program_model pm;
-    auto one   = pm.add_literal(1);
-    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto one    = pm.add_literal(1);
+    auto pass1  = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
-    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass2  = pm.add_instruction_stream(1, pass_op{}, one);
     auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
-    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
-    auto races = pm.analyze();
+    auto pass3  = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
+    auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
     EXPECT(bool{races.front().ins == pass3});
@@ -185,13 +182,13 @@ TEST_CASE(simple_race4)
 TEST_CASE(simple_race5)
 {
     program_model pm;
-    auto one   = pm.add_literal(1);
-    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
-    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto one    = pm.add_literal(1);
+    auto pass1  = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2  = pm.add_instruction_stream(1, pass_op{}, one);
     auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
     auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
-    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
-    auto races = pm.analyze();
+    auto pass3  = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
+    auto races  = pm.analyze();
 
     EXPECT(races.size() == 1);
     EXPECT(bool{races.front().ins == pass3});
@@ -259,7 +256,6 @@ TEST_CASE(simple_race_sync)
 
     EXPECT(races.empty());
 }
-
 
 TEST_CASE(race_double_wait1)
 {

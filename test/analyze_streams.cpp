@@ -60,7 +60,7 @@ struct test_stream_model
 {
     std::size_t max_stream = 0;
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
-    std::size_t get_nstream() const { return max_stream+1; }
+    std::size_t get_nstream() const { return max_stream + 1; }
     std::size_t get_stream(migraphx::instruction_ref ins) const { return ins2stream.at(ins); }
     std::size_t get_event_id(migraphx::instruction_ref ins) const
     {
@@ -93,7 +93,7 @@ struct program_model
     template <class... Ts>
     migraphx::instruction_ref add_instruction_stream(std::size_t n, Ts... xs)
     {
-        max_stream        = std::max(max_stream, n);
+        max_stream      = std::max(max_stream, n);
         auto ins        = p.add_instruction(xs...);
         ins2stream[ins] = n;
         return ins;
@@ -108,7 +108,7 @@ struct program_model
     template <class... Ts>
     migraphx::instruction_ref add_return_stream(std::size_t n, Ts... xs)
     {
-        max_stream        = std::max(max_stream, n);
+        max_stream      = std::max(max_stream, n);
         auto ins        = p.add_return({xs...});
         ins2stream[ins] = n;
         return ins;
@@ -278,7 +278,7 @@ TEST_CASE(race_return)
     auto one   = pm.add_literal(1);
     auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
     auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
-    auto r = pm.add_return_stream(0, pass1, pass2);
+    auto r     = pm.add_return_stream(0, pass1, pass2);
     auto races = pm.analyze();
 
     EXPECT(races.size() == 1);

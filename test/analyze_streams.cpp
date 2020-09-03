@@ -58,9 +58,9 @@ struct set_stream
 
 struct test_stream_model
 {
-    std::size_t nstreams = 0;
+    std::size_t max_stream = 0;
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
-    std::size_t get_nstream() const { return nstreams; }
+    std::size_t get_nstream() const { return max_stream+1; }
     std::size_t get_stream(migraphx::instruction_ref ins) const { return ins2stream.at(ins); }
     std::size_t get_event_id(migraphx::instruction_ref ins) const
     {
@@ -76,7 +76,7 @@ struct program_model
 {
     migraphx::program p;
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
-    std::size_t nstreams = 0;
+    std::size_t max_stream = 0;
 
     template <class... Ts>
     migraphx::instruction_ref add_literal(Ts... xs)
@@ -93,13 +93,13 @@ struct program_model
     template <class... Ts>
     migraphx::instruction_ref add_instruction_stream(std::size_t n, Ts... xs)
     {
-        nstreams        = std::max(nstreams, n);
+        max_stream        = std::max(max_stream, n);
         auto ins        = p.add_instruction(xs...);
         ins2stream[ins] = n;
         return ins;
     }
 
-    test_stream_model get_stream_model() const { return {nstreams, ins2stream}; }
+    test_stream_model get_stream_model() const { return {max_stream, ins2stream}; }
 
     std::vector<migraphx::stream_race> analyze() const
     {

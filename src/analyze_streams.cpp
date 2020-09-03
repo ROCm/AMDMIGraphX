@@ -17,7 +17,7 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
     using vector_clock = std::vector<std::size_t>;
     std::vector<stream_race> races;
     auto nstream = m.get_nstream();
-    std::vector<vector_clock> vclock(nstream + 1, vector_clock(nstream + 1));
+    std::vector<vector_clock> vclock(nstream, vector_clock(nstream));
     std::unordered_map<instruction_ref, vector_clock> timestamp;
     std::unordered_map<std::size_t, vector_clock> events;
     for(auto ins : iterator_for(p))
@@ -25,6 +25,9 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
         if(not m.has_stream(ins))
             continue;
         std::size_t s = m.get_stream(ins);
+        assert(s < nstream);
+        assert(vclock.size() < nstream);
+        assert(vclock[s].size() < nstream);
         if(m.is_record(ins))
         {
             vclock[s][s]++;

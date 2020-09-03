@@ -11,9 +11,9 @@ namespace gpu {
 
 struct hip_stream_model
 {
-    std::size_t nstreams = 0;
+    std::size_t max_stream = 0;
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
-    std::size_t get_nstream() const { return nstreams; }
+    std::size_t get_nstream() const { return max_stream+1; }
     std::size_t get_stream(migraphx::instruction_ref ins) const { return ins2stream.at(ins); }
     std::size_t get_event_id(migraphx::instruction_ref ins) const
     {
@@ -38,7 +38,7 @@ stream_model make_stream_model(const program& p)
         {
             auto v     = ins->get_operator().to_value();
             stream     = v["stream"].to<std::size_t>();
-            m.nstreams = std::max(stream, m.nstreams);
+            m.max_stream = std::max(stream, m.max_stream);
         }
         if(ins->get_operator().is_context_free())
             continue;

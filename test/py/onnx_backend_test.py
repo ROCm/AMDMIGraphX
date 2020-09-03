@@ -262,6 +262,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_expand_shape_model3_cpu')
         backend_test.exclude(r'test_expand_shape_model4_cpu')
 
+
 #        backend_test.exclude(r'test_bvlc_alexnet_cpu')
 #        backend_test.exclude(r'test_densenet121_cpu')
 #        backend_test.exclude(r'test_inception_v1_cpu')
@@ -272,8 +273,8 @@ def create_backend_test(testname=None, target_device=None):
 #        backend_test.exclude(r'test_vgg19_cpu')
 #        backend_test.exclude(r'test_zfnet512_cpu')
 
-    # import all test cases at global scope to make
-    # them visible to python.unittest.
+# import all test cases at global scope to make
+# them visible to python.unittest.
     globals().update(backend_test.enable_report().test_cases)
 
     return backend_test

@@ -105,9 +105,24 @@ struct program_model
     {
         return migraphx::analyze_streams(p, get_stream_model());
     }
+
+    void debug_print() const
+    {
+        p.debug_print();
+    }
+
+    void debug_print(const std::vector<migraphx::stream_race>& races) const
+    {
+        for(auto&& race:races)
+        {
+            std::cout << "Race:\n";
+            p.debug_print(race.ins);
+            p.debug_print(race.before);
+        }
+    }
 };
 
-TEST_CASE(simple_race)
+TEST_CASE(simple_race1)
 {
     program_model pm;
     auto one   = pm.add_literal(1);
@@ -119,6 +134,68 @@ TEST_CASE(simple_race)
     EXPECT(races.size() == 1);
     EXPECT(bool{races.front().ins == pass3});
     EXPECT(bool{races.front().before == pass2});
+}
+
+TEST_CASE(simple_race2)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
+    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass1, pass21);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass3});
+    EXPECT(bool{races.front().before == pass21});
+}
+
+TEST_CASE(simple_race3)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass2);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass3});
+    EXPECT(bool{races.front().before == pass2});
+}
+
+TEST_CASE(simple_race4)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
+    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass3});
+    EXPECT(bool{races.front().before == pass21});
+}
+
+TEST_CASE(simple_race5)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    auto pass11 = pm.add_instruction_stream(0, pass_op{}, pass1);
+    auto pass21 = pm.add_instruction_stream(1, pass_op{}, pass2);
+    auto pass3 = pm.add_instruction_stream(0, pass_op{}, pass11, pass21);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass3});
+    EXPECT(bool{races.front().before == pass21});
 }
 
 TEST_CASE(simple_race_record_wait_wrong_stream)
@@ -178,6 +255,227 @@ TEST_CASE(simple_race_sync)
     pm.add_instruction_stream(1, record_event{1});
     pm.add_instruction_stream(0, wait_event{1});
     pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    auto races = pm.analyze();
+
+    EXPECT(races.empty());
+}
+
+
+TEST_CASE(race_double_wait1)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one);
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    // pm.add_instruction_stream(0, wait_event{1});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    pm.add_instruction_stream(0, record_event{3});
+    pm.add_instruction_stream(1, wait_event{3});
+    pm.add_instruction_stream(1, wait_event{2});
+    pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass5});
+    EXPECT(bool{races.front().before == pass2});
+}
+
+TEST_CASE(race_double_wait2)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one);
+    auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(0, wait_event{1});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    pm.add_instruction_stream(0, record_event{3});
+    pm.add_instruction_stream(1, wait_event{3});
+    pm.add_instruction_stream(1, wait_event{2});
+    pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass4});
+    EXPECT(bool{races.front().before == pass2});
+}
+
+TEST_CASE(race_double_wait3)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one);
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(0, wait_event{1});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    pm.add_instruction_stream(1, wait_event{2});
+    auto pass6 = pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass6});
+    EXPECT(bool{races.front().before == pass5});
+}
+
+TEST_CASE(race_double_wait4)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one);
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(0, wait_event{1});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    pm.add_instruction_stream(0, record_event{3});
+    pm.add_instruction_stream(1, wait_event{3});
+    auto pass6 = pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass6});
+    EXPECT(bool{races.front().before == pass4});
+}
+
+TEST_CASE(race_double_wait_sync)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one);
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass4 = pm.add_instruction_stream(2, pass_op{}, pass3, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(0, wait_event{1});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass1, pass2);
+    pm.add_instruction_stream(0, record_event{3});
+    pm.add_instruction_stream(1, wait_event{3});
+    pm.add_instruction_stream(1, wait_event{2});
+    pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+    auto races = pm.analyze();
+
+    EXPECT(races.empty());
+}
+
+TEST_CASE(race_multi_wait1)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    pm.add_instruction_stream(0, record_event{5});
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(3, wait_event{5});
+    auto pass4 = pm.add_instruction_stream(3, pass_op{}, one, pass1);
+    pm.add_instruction_stream(3, record_event{3});
+    pm.add_instruction_stream(0, wait_event{2});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass3, pass1);
+    pm.add_instruction_stream(0, record_event{4});
+    pm.add_instruction_stream(1, wait_event{3});
+    auto pass6 = pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass6});
+    EXPECT(bool{races.front().before == pass5});
+}
+
+TEST_CASE(race_multi_wait2)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    pm.add_instruction_stream(0, record_event{5});
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(3, wait_event{5});
+    auto pass4 = pm.add_instruction_stream(3, pass_op{}, one, pass1);
+    pm.add_instruction_stream(3, record_event{3});
+    pm.add_instruction_stream(0, wait_event{2});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass3, pass1);
+    pm.add_instruction_stream(0, record_event{4});
+    pm.add_instruction_stream(1, wait_event{4});
+    auto pass6 = pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass6});
+    EXPECT(bool{races.front().before == pass4});
+}
+
+TEST_CASE(race_multi_wait3)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    auto pass4 = pm.add_instruction_stream(3, pass_op{}, one, pass1);
+    pm.add_instruction_stream(3, record_event{3});
+    pm.add_instruction_stream(0, wait_event{2});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass3, pass1);
+    pm.add_instruction_stream(0, record_event{4});
+    pm.add_instruction_stream(1, wait_event{3});
+    pm.add_instruction_stream(1, wait_event{4});
+    pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+
+    auto races = pm.analyze();
+
+    EXPECT(races.size() == 1);
+    EXPECT(bool{races.front().ins == pass4});
+    EXPECT(bool{races.front().before == pass1});
+}
+
+TEST_CASE(race_multi_wait_sync)
+{
+    program_model pm;
+    auto one   = pm.add_literal(1);
+    auto pass1 = pm.add_instruction_stream(0, pass_op{}, one);
+    pm.add_instruction_stream(0, record_event{5});
+    auto pass2 = pm.add_instruction_stream(1, pass_op{}, one);
+    pm.add_instruction_stream(1, record_event{1});
+    pm.add_instruction_stream(2, wait_event{1});
+    auto pass3 = pm.add_instruction_stream(2, pass_op{}, one, pass2);
+    pm.add_instruction_stream(2, record_event{2});
+    pm.add_instruction_stream(3, wait_event{5});
+    auto pass4 = pm.add_instruction_stream(3, pass_op{}, one, pass1);
+    pm.add_instruction_stream(3, record_event{3});
+    pm.add_instruction_stream(0, wait_event{2});
+    auto pass5 = pm.add_instruction_stream(0, pass_op{}, pass3, pass1);
+    pm.add_instruction_stream(0, record_event{4});
+    pm.add_instruction_stream(1, wait_event{3});
+    pm.add_instruction_stream(1, wait_event{4});
+    pm.add_instruction_stream(1, pass_op{}, pass4, pass5);
+
     auto races = pm.analyze();
 
     EXPECT(races.empty());

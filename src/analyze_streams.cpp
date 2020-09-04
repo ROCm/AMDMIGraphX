@@ -38,9 +38,10 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
         }
         else if(m.is_wait(ins))
         {
-            auto event   = m.get_event_id(ins);
-            if (not contains(events, event))
-                MIGRAPHX_THROW("Event is waited on before being recorded: " + std::to_string(event));
+            auto event = m.get_event_id(ins);
+            if(not contains(events, event))
+                MIGRAPHX_THROW("Event is waited on before being recorded: " +
+                               std::to_string(event));
             auto payload = events.at(event);
             assert(vclock[s].size() == payload.size());
             std::transform(vclock[s].begin(),

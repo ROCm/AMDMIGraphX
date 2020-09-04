@@ -1,7 +1,9 @@
 #include <migraphx/analyze_streams.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,6 +39,8 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
         else if(m.is_wait(ins))
         {
             auto event   = m.get_event_id(ins);
+            if (not contains(events, event))
+                MIGRAPHX_THROW("Event is waited on before being recorded: " + std::to_string(event));
             auto payload = events.at(event);
             assert(vclock[s].size() == payload.size());
             std::transform(vclock[s].begin(),

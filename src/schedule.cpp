@@ -47,7 +47,7 @@ struct stream_info
                 if(not is_context_free(op) and op.name()[0] != '@')
                     weight = model.weight(op);
                 // This will ensure a stream will be assigned to return
-                if (op.name() == "@return")
+                if(op.name() == "@return")
                     weight = 1;
                 iweights[ins] = weight;
                 weights[ins] =

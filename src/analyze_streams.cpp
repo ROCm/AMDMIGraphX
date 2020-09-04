@@ -26,8 +26,8 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
             continue;
         std::size_t s = m.get_stream(ins);
         assert(s < nstream);
-        assert(vclock.size() < nstream);
-        assert(vclock[s].size() < nstream);
+        assert(vclock.size() == nstream);
+        assert(vclock[s].size() == nstream);
         if(m.is_record(ins))
         {
             vclock[s][s]++;
@@ -37,7 +37,8 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
         else if(m.is_wait(ins))
         {
             auto event   = m.get_event_id(ins);
-            auto payload = events[event];
+            auto payload = events.at(event);
+            assert(vclock[s].size() == payload.size());
             std::transform(vclock[s].begin(),
                            vclock[s].end(),
                            payload.begin(),
@@ -70,7 +71,7 @@ std::vector<stream_race> analyze_streams(const program& p, const stream_model& m
             }
         })(ins);
         auto it = std::find_if(inputs.begin(), inputs.end(), [&](auto input) {
-            return not happens_before(timestamp[input], timestamp[ins]);
+            return not happens_before(timestamp.at(input), timestamp.at(ins));
         });
         if(it != inputs.end())
         {

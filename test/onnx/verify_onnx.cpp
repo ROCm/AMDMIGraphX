@@ -142,7 +142,7 @@ TEST_CASE(where_test)
     std::vector<float> y_data(8, 2.0f);
 
     migraphx::program::parameter_map pp;
-    pp["c"]    = migraphx::argument(c_shape, c_data.data());
+    pp["c"] = migraphx::argument(c_shape, c_data.data());
     pp["x"] = migraphx::argument(x_shape, x_data.data());
     pp["y"] = migraphx::argument(y_shape, y_data.data());
 
@@ -150,7 +150,22 @@ TEST_CASE(where_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f, 1.0f, 2.0f};
+    std::vector<float> gold = {1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

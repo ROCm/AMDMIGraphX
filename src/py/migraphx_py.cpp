@@ -99,7 +99,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
             t = as.type_enum();
             n = sizeof(as());
         }
-        else if (info.format == "?" and py::format_descriptor<decltype(as())>::format() == "b")
+        else if(info.format == "?" and py::format_descriptor<decltype(as())>::format() == "b")
         {
             t = migraphx::shape::bool_type;
             n = sizeof(bool);

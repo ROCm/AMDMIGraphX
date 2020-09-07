@@ -2436,7 +2436,7 @@ struct onnx_parser
         auto type = args[1]->get_shape().type();
         auto cond = prog.add_instruction(op::convert{type}, args[0]);
         auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
-        auto cd = add_broadcastable_binary_op(diff, cond, "mul");
+        auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
         return add_broadcastable_binary_op(cd, args[2], "add");
     }
 

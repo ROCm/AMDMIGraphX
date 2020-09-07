@@ -3032,11 +3032,11 @@ def variable_batch_leq_zero_test():
 
 @onnx_test
 def where_test():
-    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [16])
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 16, 16])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 1, 16, 16])
+    c = helper.make_tensor_value_info('c', TensorProto.BOOL, [2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 1, 2, 2])
 
-    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 3, 16, 16])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [2, 2, 2, 2])
     node = onnx.helper.make_node('Where',
                                  inputs=['c', 'x', 'y'],
                                  outputs=['z'])

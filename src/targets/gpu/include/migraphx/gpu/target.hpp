@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 
 #include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/config.hpp>
 
@@ -20,8 +19,6 @@ struct target
     argument copy_from(const argument& arg) const;
     argument allocate(const shape& s) const;
 };
-
-MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

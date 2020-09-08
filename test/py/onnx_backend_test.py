@@ -262,17 +262,11 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_expand_shape_model3_cpu')
         backend_test.exclude(r'test_expand_shape_model4_cpu')
 
-        #        backend_test.exclude(r'test_bvlc_alexnet_cpu')
-        #        backend_test.exclude(r'test_densenet121_cpu')
+        # These three tests failed because of bugs in fuse_ops related to conv
+        # to be investigated later
         backend_test.exclude(r'test_inception_v1_cpu')
-        #        backend_test.exclude(r'test_inception_v2_cpu')
         backend_test.exclude(r'test_resnet50_cpu')
-        #        backend_test.exclude(r'test_shufflenet_cpu')
         backend_test.exclude(r'test_squeezenet_cpu')
-
-
-#        backend_test.exclude(r'test_vgg19_cpu')
-#        backend_test.exclude(r'test_zfnet512_cpu')
 
 # import all test cases at global scope to make
 # them visible to python.unittest.

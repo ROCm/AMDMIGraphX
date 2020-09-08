@@ -268,6 +268,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_resnet50_cpu')
         backend_test.exclude(r'test_squeezenet_cpu')
 
+
 # import all test cases at global scope to make
 # them visible to python.unittest.
     globals().update(backend_test.enable_report().test_cases)

@@ -759,6 +759,10 @@ struct find_gemm_add
 
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
+        // Already fused gemm
+        if (gemm.beta != 0)
+            return;
+
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 

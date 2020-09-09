@@ -63,10 +63,7 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
-target get_target(const std::string& name)
-{
-    return make_target(name);
-}
+target get_target(const std::string& name) { return make_target(name); }
 
 migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
 {

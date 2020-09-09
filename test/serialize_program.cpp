@@ -1,4 +1,5 @@
 #include <migraphx/program.hpp>
+#include <migraphx/cpu/target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/op/add.hpp>
 #include "test.hpp"
@@ -52,6 +53,16 @@ TEST_CASE(as_file)
     std::remove(filename.c_str());
     EXPECT(p1.sort() == p2.sort());
 }
+
+TEST_CASE(compiled)
+{
+    migraphx::program p1     = create_program();
+    p1.compile(migraphx::cpu::target{});
+    std::vector<char> buffer = migraphx::save_buffer(p1);
+    migraphx::program p2     = migraphx::load_buffer(buffer);
+    EXPECT(p1.sort() == p2.sort());
+}
+
 
 TEST_CASE(unknown_format)
 {

@@ -56,13 +56,12 @@ TEST_CASE(as_file)
 
 TEST_CASE(compiled)
 {
-    migraphx::program p1     = create_program();
+    migraphx::program p1 = create_program();
     p1.compile(migraphx::cpu::target{});
     std::vector<char> buffer = migraphx::save_buffer(p1);
     migraphx::program p2     = migraphx::load_buffer(buffer);
     EXPECT(p1.sort() == p2.sort());
 }
-
 
 TEST_CASE(unknown_format)
 {

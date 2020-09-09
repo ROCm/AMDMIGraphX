@@ -3,15 +3,10 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/load_save.hpp>
-
-#ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
-#endif
 
 namespace migraphx {
 
@@ -68,19 +63,7 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
-target get_target(const std::string& name)
-{
-    migraphx::target t;
-    if(name == "cpu")
-        t = migraphx::cpu::target();
-#ifdef HAVE_GPU
-    else if(name == "gpu")
-        t = migraphx::gpu::target();
-#endif
-    else
-        MIGRAPHX_THROW(migraphx_status_unknown_target, "Unknown target: " + name);
-    return t;
-}
+target get_target(const std::string& name) { return make_target(name); }
 
 migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
 {

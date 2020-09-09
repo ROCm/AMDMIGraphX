@@ -58,10 +58,7 @@ target get_target(bool gpu)
         return make_target("cpu");
 }
 
-void compile_program(program& p, bool gpu)
-{
-    p.compile(get_target(gpu));
-}
+void compile_program(program& p, bool gpu) { p.compile(get_target(gpu)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

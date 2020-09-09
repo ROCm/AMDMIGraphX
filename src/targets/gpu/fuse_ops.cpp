@@ -760,7 +760,7 @@ struct find_gemm_add
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
-        if(gemm.op.beta != 0)
+        if(not float_equal(gemm.op.beta, 0))
             return;
 
         auto inputs = gemm_ins->inputs();

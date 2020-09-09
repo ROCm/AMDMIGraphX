@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ -z "$ONNX_HOME" ]
+then
+   ONNX_HOME=$HOME
+fi
+
 model_dir=$ONNX_HOME/.onnx/models
 tmp_dir=$ONNX_HOME/tmp/
 mkdir -p $model_dir

@@ -2,7 +2,6 @@
 #include <migraphx/target.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(make_target)
 {
     for(const auto& name : migraphx::get_targets())
@@ -19,4 +18,3 @@ TEST_CASE(targets)
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
-

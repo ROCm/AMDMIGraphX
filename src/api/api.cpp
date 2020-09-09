@@ -6,6 +6,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/cpu/target.hpp>
 #include <migraphx/load_save.hpp>
 
 namespace migraphx {

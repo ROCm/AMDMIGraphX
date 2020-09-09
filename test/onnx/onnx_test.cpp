@@ -301,6 +301,21 @@ TEST_CASE(clip_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_test_op11_max_only)
+{
+    migraphx::program p;
+    auto max_val = p.add_literal(0.0f);
+    auto l0      = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::undefined{});
+    max_val = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+    auto r  = p.add_instruction(migraphx::op::min{}, l0, max_val);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("clip_test_op11_max_only.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(clip_test_op11)
 {
     migraphx::program p;
@@ -333,6 +348,19 @@ TEST_CASE(clip_test_op11_no_args)
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
     p.add_instruction(migraphx::op::identity{}, l0);
     auto prog = optimize_onnx("clip_test_op11_no_args.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(clip_test_op11_no_args1)
+{
+    migraphx::program p;
+
+    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3}});
+    p.add_instruction(migraphx::op::undefined{});
+    auto r = p.add_instruction(migraphx::op::identity{}, l0);
+    p.add_return({r});
+    auto prog = migraphx::parse_onnx("clip_test_op11_no_args1.onnx");
 
     EXPECT(p == prog);
 }

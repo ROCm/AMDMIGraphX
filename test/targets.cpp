@@ -1,4 +1,5 @@
 #include <migraphx/register_target.hpp>
+#include <migraphx/cpu/target.hpp>
 #include <migraphx/target.hpp>
 #include "test.hpp"
 
@@ -6,8 +7,8 @@ TEST_CASE(make_target)
 {
     for(const auto& name : migraphx::get_targets())
     {
-        auto op = migraphx::make_target(name);
-        CHECK(op.name() == name);
+        auto t = migraphx::make_target(name);
+        CHECK(t.name() == name);
     }
 }
 

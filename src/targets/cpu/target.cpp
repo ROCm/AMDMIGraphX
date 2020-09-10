@@ -1,6 +1,7 @@
 
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/cpu/lowering.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -24,6 +25,8 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
 }
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
+
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

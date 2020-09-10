@@ -217,3 +217,26 @@ parse_tf
 
     :rtype: program
 
+load
+----
+
+.. py:function:: load(filename, format='msgpack')
+
+    Load a MIGraphX program
+
+    :param str filename: Path to file.
+    :param str format: Format of file. Valid options are msgpack or json.
+
+    :rtype: program
+
+save
+----
+
+.. py:function:: save(p, filename, format='msgpack')
+
+    Save a MIGraphX program
+
+    :param program p: Program to save.
+    :param str filename: Path to file.
+    :param str format: Format of file. Valid options are msgpack or json.
+

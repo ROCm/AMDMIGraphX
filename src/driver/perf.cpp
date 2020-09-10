@@ -1,9 +1,8 @@
 #include "perf.hpp"
 
-#include <migraphx/cpu/target.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/register_target.hpp>
 #ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #endif
 
@@ -54,34 +53,12 @@ program::parameter_map create_param_map(const program& p, bool gpu)
 target get_target(bool gpu)
 {
     if(gpu)
-    {
-#ifdef HAVE_GPU
-        return gpu::target{};
-#else
-        MIGRAPHX_THROW("Gpu not supported.");
-#endif
-    }
+        return make_target("gpu");
     else
-    {
-        return cpu::target{};
-    }
+        return make_target("cpu");
 }
 
-void compile_program(program& p, bool gpu)
-{
-    if(gpu)
-    {
-#ifdef HAVE_GPU
-        p.compile(gpu::target{});
-#else
-        MIGRAPHX_THROW("Gpu not supported.");
-#endif
-    }
-    else
-    {
-        p.compile(cpu::target{});
-    }
-}
+void compile_program(program& p, bool gpu) { p.compile(get_target(gpu)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

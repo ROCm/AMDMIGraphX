@@ -46,7 +46,8 @@ template <class To>
 struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(std::is_enum<To>{})>
 {
     template <class From>
-    static auto apply(const From& x) -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
+    static auto apply(const From& x)
+        -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
     {
         return static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x));
     }
@@ -173,11 +174,9 @@ struct value
                            std::conditional_t<std::is_unsigned<T>{}, std::uint64_t, T>>>;
 
     template <class T>
-    using pick = pick_numeric<typename std::conditional_t<
-        std::is_enum<T>{},
-        std::underlying_type<T>,
-        std::enable_if<true, T>
-    >::type>;
+    using pick = pick_numeric<typename std::conditional_t<std::is_enum<T>{},
+                                                          std::underlying_type<T>,
+                                                          std::enable_if<true, T>>::type>;
 
     template <class T>
     using is_pickable =
@@ -189,8 +188,7 @@ struct value
     template <class T>
     using is_generic_range =
         bool_c<(std::is_convertible<range_value<T>, value>{} and
-                                not std::is_convertible<T, array>{} and
-                                not std::is_convertible<T, object>{})>;
+                not std::is_convertible<T, array>{} and not std::is_convertible<T, object>{})>;
 
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
     value(const T& r) : value(from_values(r))

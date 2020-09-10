@@ -29,8 +29,7 @@ using bool_c = std::integral_constant<bool, B>;
          typename std::enable_if<(MIGRAPHX_REQUIRES_VAR() == __LINE__ && \
                                   (migraphx::and_<__VA_ARGS__>{})),      \
                                  int>::type = 0
-#define MIGRAPHX_CLASS_REQUIRES(...)                                           \
-         typename std::enable_if<(migraphx::and_<__VA_ARGS__>{})>::type
+#define MIGRAPHX_CLASS_REQUIRES(...) typename std::enable_if<(migraphx::and_<__VA_ARGS__>{})>::type
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -20,6 +20,7 @@ add_library(migraphx
     env.cpp
     generate.cpp
     instruction.cpp
+    load_save.cpp
     make_op.cpp
     msgpack.cpp
     program.cpp
@@ -31,6 +32,7 @@ add_library(migraphx
     serialize.cpp
     pass_manager.cpp
     register_op.cpp
+    register_target.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     value.cpp

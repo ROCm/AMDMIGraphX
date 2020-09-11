@@ -19,7 +19,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct value_base_impl;
 
-template <class To>
+template <class To, class = void>
 struct value_converter
 {
     template <class T = To>
@@ -39,6 +39,17 @@ struct value_converter
     static To apply(const From& x)
     {
         return To(x);
+    }
+};
+
+template <class To>
+struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(std::is_enum<To>{})>
+{
+    template <class From>
+    static auto apply(const From& x)
+        -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
+    {
+        return static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x));
     }
 };
 
@@ -155,7 +166,7 @@ struct value
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
     template <class T>
-    using pick = std::conditional_t<
+    using pick_numeric = std::conditional_t<
         std::is_floating_point<T>{},
         double,
         std::conditional_t<std::is_signed<T>{},
@@ -163,18 +174,21 @@ struct value
                            std::conditional_t<std::is_unsigned<T>{}, std::uint64_t, T>>>;
 
     template <class T>
+    using pick = pick_numeric<typename std::conditional_t<std::is_enum<T>{},
+                                                          std::underlying_type<T>,
+                                                          std::enable_if<true, T>>::type>;
+
+    template <class T>
     using is_pickable =
-        std::integral_constant<bool, (std::is_arithmetic<T>{} and not std::is_pointer<T>{})>;
+        bool_c<((std::is_arithmetic<T>{} or std::is_enum<T>{}) and not std::is_pointer<T>{})>;
 
     template <class T>
     using range_value = std::decay_t<decltype(std::declval<T>().end(), *std::declval<T>().begin())>;
 
     template <class T>
     using is_generic_range =
-        std::integral_constant<bool,
-                               (std::is_convertible<range_value<T>, value>{} and
-                                not std::is_convertible<T, array>{} and
-                                not std::is_convertible<T, object>{})>;
+        bool_c<(std::is_convertible<range_value<T>, value>{} and
+                not std::is_convertible<T, array>{} and not std::is_convertible<T, object>{})>;
 
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
     value(const T& r) : value(from_values(r))
@@ -187,11 +201,11 @@ struct value
     }
 
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
-    value(T i) : value(pick<T>{i})
+    value(T i) : value(static_cast<pick<T>>(i))
     {
     }
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
-    value(const std::string& pkey, T i) : value(pkey, pick<T>{i})
+    value(const std::string& pkey, T i) : value(pkey, static_cast<pick<T>>(i))
     {
     }
     template <class T, class U, class = decltype(value(T{}, U{}))>
@@ -201,7 +215,7 @@ struct value
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {
-        return *this = pick<T>{rhs}; // NOLINT
+        return *this = static_cast<pick<T>>(rhs); // NOLINT
     }
     template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
     value& operator=(T rhs)

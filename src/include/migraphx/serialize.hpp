@@ -85,7 +85,7 @@ value to_value_impl(rank<6>, const T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 value to_value_impl(rank<7>, const T& x)
 {
-    return static_cast<std::underlying_type_t<T>>(x);
+    return x;
 }
 
 inline value to_value_impl(rank<8>, const std::string& x) { return x; }
@@ -156,7 +156,7 @@ void from_value_impl(rank<4>, const value& v, T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 void from_value_impl(rank<5>, const value& v, T& x)
 {
-    x = static_cast<T>(v.to<std::underlying_type_t<T>>());
+    x = v.to<T>();
 }
 
 inline void from_value_impl(rank<6>, const value& v, std::string& x) { x = v.to<std::string>(); }

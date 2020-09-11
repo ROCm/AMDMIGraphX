@@ -2,6 +2,13 @@
 #include <migraphx/float_equal.hpp>
 #include <test.hpp>
 
+enum class enum_type
+{
+    a,
+    b,
+    c
+};
+
 TEST_CASE(value_default_construct)
 {
     migraphx::value v;
@@ -62,6 +69,15 @@ TEST_CASE(value_construct_bool)
     migraphx::value v = true;
     EXPECT(v.is_bool());
     EXPECT(v.get_bool() == true);
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_enum)
+{
+    migraphx::value v = enum_type::a;
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::a));
+    EXPECT(bool{v.to<enum_type>() == enum_type::a});
     EXPECT(v.get_key().empty());
 }
 

@@ -15,7 +15,7 @@ struct unary : op_name<Derived>
 {
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(1);
         auto s = inputs.at(0);
         if(s.packed())
         {

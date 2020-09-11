@@ -747,7 +747,8 @@ struct find_gemm_add
 {
     auto matcher() const
     {
-        return match::name("gpu::add")(match::either_arg(0, 1)(
+        return match::name("gpu::add")(match::all_of[match::inputs()](match::standard_shape()),
+            match::either_arg(0, 1)(
             match::used_once().bind("c"), match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
     }
 
@@ -761,6 +762,11 @@ struct find_gemm_add
 
         // Already fused gemm
         if(not float_equal(gemm.op.beta, 0))
+            return;
+
+        if (std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
+            return not i->get_shape().standard();
+        }))
             return;
 
         auto inputs = gemm_ins->inputs();

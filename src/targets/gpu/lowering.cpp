@@ -29,7 +29,6 @@
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/pooling.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -139,6 +138,7 @@ struct miopen_apply
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
         add_extend_op("pad");
+        add_extend_op("pooling");
         add_extend_op("reduce_max");
         add_extend_op("reduce_mean");
         add_extend_op("reduce_min");
@@ -154,7 +154,6 @@ struct miopen_apply
         add_convolution_op();
         add_deconvolution_op();
         add_quant_convolution_op();
-        add_pooling_op();
         add_batch_norm_inference_op();
         add_neg_op();
     }
@@ -310,18 +309,6 @@ struct miopen_apply
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return prog->replace_instruction(ins, conv, args[0], args[1], workspace, output);
-        });
-    }
-
-    void add_pooling_op()
-    {
-        apply_map.emplace("pooling", [=](instruction_ref ins) {
-            auto&& op   = any_cast<op::pooling>(ins->get_operator());
-            auto pd     = make_pooling(op);
-            auto output = insert_allocation(ins, ins->get_shape());
-
-            return prog->replace_instruction(
-                ins, miopen_pooling{op, std::move(pd)}, ins->inputs().at(0), output);
         });
     }
 

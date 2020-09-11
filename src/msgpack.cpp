@@ -145,10 +145,14 @@ std::vector<char> to_msgpack(const value& v)
     msgpack::pack(vs, v);
     return vs.buffer;
 }
+value from_msgpack(const char* buffer, std::size_t size)
+{
+    msgpack::object_handle oh = msgpack::unpack(buffer, size);
+    return oh.get().as<value>();
+}
 value from_msgpack(const std::vector<char>& buffer)
 {
-    msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
-    return oh.get().as<value>();
+    return from_msgpack(buffer.data(), buffer.size());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_CPU_TARGET_HPP
 
 #include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/config.hpp>
@@ -21,6 +22,8 @@ struct target
     argument copy_from(const argument& arg) const { return arg; }
     argument allocate(const shape& s) const;
 };
+
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

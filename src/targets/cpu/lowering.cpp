@@ -2,6 +2,7 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/op/identity.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
@@ -25,6 +26,7 @@
 #include <migraphx/clamp.hpp>
 #include <migraphx/cpu/gemm.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/make_op.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -520,7 +522,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 
 struct cpu_op
 {
-    operation op;
+    operation op = op::identity{};
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -531,6 +533,17 @@ struct cpu_op
     argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
         return op.compute(output_shape, args);
+    }
+    value to_value() const
+    {
+        value v;
+        v["name"]     = op.name();
+        v["operator"] = op.to_value();
+        return v;
+    }
+    void from_value(const value& v)
+    {
+        op = make_op(v.at("name").to<std::string>(), v.at("operator"));
     }
     friend std::ostream& operator<<(std::ostream& os, const cpu_op& x)
     {

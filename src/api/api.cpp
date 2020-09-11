@@ -8,6 +8,7 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 
@@ -137,6 +138,19 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+operation create_op(const char* name, const char* attributes)
+{
+    auto op = make_op(name, attributes);
+
+    return op;
+}
+
+const char* op_name(const operation& op)
+{
+    auto&& name = op.name();
+    return name.c_str();
+}
+
 template <class T>
 bool equal(const T& x, const T& y)
 {
@@ -255,6 +269,16 @@ struct migraphx_program
     {
     }
     migraphx::program object;
+};
+
+extern "C" struct migraphx_operation;
+struct migraphx_operation
+{
+    template <class... Ts>
+    migraphx_operation(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::operation object;
 };
 
 extern "C" struct migraphx_onnx_options;
@@ -672,6 +696,29 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((program->object), (x->object));
+    });
+}
+
+extern "C" migraphx_status migraphx_operation_destroy(migraphx_operation_t operation)
+{
+    return migraphx::try_([&] { destroy((operation)); });
+}
+
+extern "C" migraphx_status
+migraphx_operation_create(migraphx_operation_t* operation, const char* name, const char* attributes)
+{
+    return migraphx::try_([&] {
+        *operation = object_cast<migraphx_operation_t>(
+            allocate<migraphx::operation>(migraphx::create_op((name), (attributes))));
+    });
+}
+
+extern "C" migraphx_status migraphx_operation_name(const char** out, migraphx_operation_t operation)
+{
+    return migraphx::try_([&] {
+        if(operation == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
+        *out = migraphx::op_name((operation->object));
     });
 }
 

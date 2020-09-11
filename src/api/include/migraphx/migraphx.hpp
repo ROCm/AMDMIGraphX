@@ -510,6 +510,21 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
 
+struct op : MIGRAPHX_HANDLE_BASE(op)
+{
+    op(migraphx_op* p, own) { this->set_handle(p, own{}); }
+
+    op(migraphx_op* p, borrow) { this->set_handle(p, borrow{}); }
+
+    op(const char* name, const char* attributes) { this->make_handle(&migraphx_operation_create, name, attributes); }
+
+    std::string name() {
+        const char* name_ptr;
+        call(&migraphx_operation_name, &name_ptr, this->get_handle_ptr());
+        return std::move({name_ptr});
+    }
+};
+
 inline program load(const char* filename, migraphx_file_options options)
 {
     return program(make<migraphx_program>(&migraphx_load, filename, &options), own{});

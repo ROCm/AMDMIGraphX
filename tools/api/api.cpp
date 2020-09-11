@@ -8,6 +8,7 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 
@@ -135,6 +136,19 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     }
 
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
+}
+
+operation create_op(const char* name, const char* attributes)
+{
+    auto op = make_op(name, attributes);
+
+    return op;
+}
+
+const char* op_name(const operation& op)
+{
+    auto&& name = op.name();
+    return name.c_str();
 }
 
 template <class T>

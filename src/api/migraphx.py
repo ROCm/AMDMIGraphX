@@ -187,6 +187,14 @@ def program(h):
              returns='bool',
              const=True)
 
+@auto_handle
+def operation(h):
+    h.constructor('create',
+                  api.params(name='const char*', attributes='const char*'),
+                  fname='migraphx::create_op')
+    h.method('name',
+            invoke='migraphx::op_name($@)',
+            returns='const char*')
 
 api.add_function('migraphx_load',
                  api.params(name='const char*',

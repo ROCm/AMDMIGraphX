@@ -86,7 +86,6 @@ struct onnx_parser
         add_generic_op("Concat", "concat");
         add_generic_op("Cos", "cos");
         add_generic_op("Cosh", "cosh");
-        add_generic_op("Dropout", "identity");
         add_generic_op("Erf", "erf");
         add_generic_op("Exp", "exp");
         add_generic_op("Flatten", "flatten");
@@ -134,6 +133,7 @@ struct onnx_parser
         add_mem_op("Conv", "convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvInteger", "quant_convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Equal", &onnx_parser::parse_equal);
         add_mem_op("Expand", &onnx_parser::parse_expand);
@@ -2373,6 +2373,18 @@ struct onnx_parser
             }
         }
         MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
+    }
+
+    std::vector<instruction_ref>
+    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto out = prog.add_instruction(make_op("identity"), args[0]);
+        auto s   = args[0]->get_shape();
+        std::vector<int8_t> vec(s.elements(), 1);
+        shape mask_s{shape::bool_type, s.lens()};
+        auto mask = prog.add_literal(literal(mask_s, vec));
+
+        return {out, mask};
     }
 
     template <class T>

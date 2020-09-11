@@ -2446,6 +2446,8 @@ struct onnx_parser
     parse_where(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto type = args[1]->get_shape().type();
+        // the operation of if cond == 1 select x; else select y,
+        // is equivalent to cond * (x - y) + y
         auto cond = prog.add_instruction(op::convert{type}, args[0]);
         auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
         auto cd   = add_broadcastable_binary_op(diff, cond, "mul");

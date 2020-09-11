@@ -516,9 +516,13 @@ struct op : MIGRAPHX_HANDLE_BASE(op)
 
     op(migraphx_op* p, borrow) { this->set_handle(p, borrow{}); }
 
-    op(const char* name, const char* attributes) { this->make_handle(&migraphx_operation_create, name, attributes); }
+    op(const char* name, const char* attributes)
+    {
+        this->make_handle(&migraphx_operation_create, name, attributes);
+    }
 
-    std::string name() {
+    std::string name()
+    {
         const char* name_ptr;
         call(&migraphx_operation_name, &name_ptr, this->get_handle_ptr());
         return std::move({name_ptr});

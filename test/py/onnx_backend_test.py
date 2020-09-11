@@ -187,8 +187,6 @@ def create_backend_test(testname=None, target_device=None):
         )
         backend_test.exclude(
             r'test_argmin_no_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_dropout_default_mask_cpu')
-        backend_test.exclude(r'test_dropout_default_mask_ratio_cpu')
         backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
         backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
         backend_test.exclude(r'test_logsoftmax_default_axis_cpu')

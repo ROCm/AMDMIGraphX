@@ -1,9 +1,9 @@
 import sys
-if sys.version_info < (3, 0):
-    sys.exit()
-
 import migraphx
-import numpy as np
+try:
+    import numpy as np
+except:
+    sys.exit()
 
 
 def test_conv_relu():

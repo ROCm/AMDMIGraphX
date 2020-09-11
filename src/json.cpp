@@ -120,6 +120,11 @@ std::string to_json_string(const value& val)
     return j.dump();
 }
 
+migraphx::value from_json_string(const char* str, std::size_t size)
+{
+    json j = json::parse(str, str + size);
+    return j.get<value>();
+}
 migraphx::value from_json_string(const std::string& str)
 {
     json j = json::parse(str);

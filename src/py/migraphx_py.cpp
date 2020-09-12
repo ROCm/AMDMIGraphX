@@ -185,10 +185,10 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::operation>(m, "op")
         .def("__init__",
-            [](const std::string& name, const std::string& attributes) {
-                migraphx::value v = migraphx::from_json_string(attributes);
-                return migraphx::make_op(name, v);
-            })
+             [](const std::string& name, const std::string& attributes) {
+                 migraphx::value v = migraphx::from_json_string(attributes);
+                 return migraphx::make_op(name, v);
+             })
         .def("name", &migraphx::operation::name);
 
     m.def("parse_tf",

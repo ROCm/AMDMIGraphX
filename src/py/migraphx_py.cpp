@@ -12,6 +12,8 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/make_op.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -180,6 +182,14 @@ PYBIND11_MODULE(migraphx, m)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
+
+    py::class_<migraphx::operation>(m, "op")
+        .def("__init__",
+            [](const std::string& name, const std::string& attributes) {
+                migraphx::value v = migraphx::from_json_string(attributes);
+                return migraphx::make_op(name, v);
+            })
+        .def("name", &migraphx::operation::name);
 
     m.def("parse_tf",
           [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {

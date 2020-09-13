@@ -35,6 +35,12 @@ auto conv_const_weights()
                                       match::args(match::any(), match::is_constant().bind("w")));
 }
 
+template<class... Ms>
+auto pointwise(Ms... ms)
+{
+    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)), ms...);
+}
+
 struct find_mul_conv
 {
     auto matcher() const
@@ -237,7 +243,7 @@ struct find_inner_broadcast
 {
     auto matcher() const
     {
-        return match::name("mul", "add")(
+        return pointwise(match::nargs(2),
             match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
     }
 
@@ -264,7 +270,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::name("add", "mul", "relu", "broadcast"), match::used_once()));
+            match::any_of(pointwise(), match::name("broadcast")), match::used_once()));
     }
 
     template <class Iterator>
@@ -281,6 +287,11 @@ struct find_concat_op
         return lens;
     }
 
+    static bool is_valid_op(const operation& op)
+    {
+        return op.name() == "broadcast" or op.attributes().contains("pointwise");
+    }
+
     void apply(program& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -293,9 +304,9 @@ struct find_concat_op
             if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
                 return {start, last};
             auto&& name = x->name();
-            if(not contains({"add", "mul", "relu", "broadcast"}, name))
-                return {start, last};
             auto op    = x->get_operator();
+            if(not is_valid_op(x))
+                return {start, last};
             auto iaxis = axis;
             // Adjust broadcast lens
             if(op.name() == "broadcast")
@@ -380,7 +391,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](match::name("slice")(
-            match::any_of[match::outputs()](match::name("add", "mul", "relu")))));
+            match::any_of[match::outputs()](pointwise()))));
     }
 
     static std::vector<std::vector<instruction_ref>>

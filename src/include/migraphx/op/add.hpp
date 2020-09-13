@@ -20,7 +20,7 @@ struct add : binary<add>
 {
     value attributes() const
     {
-        auto a = base_attributes();
+        auto a           = base_attributes();
         a["commutative"] = true;
         return a;
     }

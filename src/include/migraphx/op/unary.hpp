@@ -14,14 +14,8 @@ namespace op {
 template <class Derived>
 struct unary : op_name<Derived>
 {
-    value base_attributes() const
-    {
-        return {{"pointwise", true}};
-    }
-    value attributes() const
-    {
-        return base_attributes();
-    }
+    value base_attributes() const { return {{"pointwise", true}}; }
+    value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs}.has(1);

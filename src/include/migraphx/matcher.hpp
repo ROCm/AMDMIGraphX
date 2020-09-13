@@ -572,9 +572,8 @@ inline auto has_value(T x, float tolerance = 1e-6)
 
 inline auto has_attribute(const std::string& name)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) {
-        return ins->get_operator().attributes().contains(name);
-    });
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
 } // namespace match

@@ -176,10 +176,7 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("t"),
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
-        .def("print", 
-            [](migraphx::program& p) {
-                std::cout << p << std::endl;
-            })
+        .def("print", [](migraphx::program& p) { std::cout << p << std::endl; })
         .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

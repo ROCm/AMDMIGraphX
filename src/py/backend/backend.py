@@ -16,6 +16,7 @@ import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
 from io import StringIO
 
+
 def get_device():
     return ("CPU", "GPU")
 
@@ -101,7 +102,7 @@ class MIGraphXBackend(Backend):
             inf.print()
             sys.stdout = old_stdout
             cls._prog_string = mystdout.getvalue()
-#            print("_prog_string = {}".format(_prog_string))
+            #            print("_prog_string = {}".format(_prog_string))
 
             return cls.prepare(inf, device, **kwargs)
         else:

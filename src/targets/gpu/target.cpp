@@ -64,8 +64,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        remap{},
-        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{},
         dead_code_elimination{},

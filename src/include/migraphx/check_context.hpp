@@ -3,6 +3,7 @@
 
 #include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,9 +11,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class T>
 struct check_context
 {
-    struct op
+    struct op : auto_register_op<op>
     {
-        std::string name() const { return "check_context"; }
+        std::string name() const { return "check_context::" + get_type_name<T>(); }
         shape compute_shape(const std::vector<shape>&) const { return {}; }
         argument compute(context& ctx, const shape&, const std::vector<argument>&) const
         {

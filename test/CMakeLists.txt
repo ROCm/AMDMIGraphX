@@ -44,6 +44,9 @@ function(add_test_command NAME EXE)
             #     --args $<TARGET_FILE:${EXE}> ${ARGN})
             set(TEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/gdb/test_${NAME})
             file(MAKE_DIRECTORY ${TEST_DIR})
+            if (NOT EXISTS ${TEST_DIR})
+                message(FATAL_ERROR "Failed to create test directory: ${TEST_DIR}")
+            endif()
             file(GENERATE OUTPUT "${TEST_DIR}/run.cmake"
                 CONTENT "
                 # Remove previous core dump

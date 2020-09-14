@@ -1,4 +1,5 @@
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/gpu/write_literals.hpp>
@@ -24,6 +25,7 @@
 #include <migraphx/gpu/adjust_allocation.hpp>
 #include <migraphx/gpu/preallocate_param.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
+#include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/decompose.hpp>
 #include <migraphx/remap.hpp>
@@ -62,8 +64,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        remap{},
-        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{},
         dead_code_elimination{},
@@ -78,6 +78,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
+        sync_device{},
         preallocate_param{"scratch", &ctx},
         dead_code_elimination{},
         eliminate_workspace{},
@@ -89,7 +90,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format on
 }
 
-std::string target::name() const { return "miopen"; }
+std::string target::name() const { return "gpu"; }
 
 migraphx::context target::get_context() const { return context{}; }
 
@@ -98,6 +99,8 @@ argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

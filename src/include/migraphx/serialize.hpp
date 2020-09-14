@@ -11,6 +11,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Avoid implicit conversion with ADL lookup
+template <class T>
+void migraphx_to_value(value&, const T&) = delete;
+
 template <class T>
 value to_value(const T& x);
 
@@ -43,7 +47,7 @@ value to_value_impl(rank<1>, const std::pair<T, U>& x)
 template <class T>
 auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
 {
-    value result;
+    value result = value::array{};
     for(auto&& y : x)
     {
         auto e = to_value(y);
@@ -55,7 +59,7 @@ auto to_value_impl(rank<2>, const T& x) -> decltype(x.begin(), x.end(), value{})
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 value to_value_impl(rank<3>, const T& x)
 {
-    value result;
+    value result = value::object{};
     reflect_each(x, [&](auto&& y, std::string name) { result.emplace(name, to_value(y)); });
     return result;
 }
@@ -81,7 +85,7 @@ value to_value_impl(rank<6>, const T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 value to_value_impl(rank<7>, const T& x)
 {
-    return static_cast<std::underlying_type_t<T>>(x);
+    return x;
 }
 
 inline value to_value_impl(rank<8>, const std::string& x) { return x; }
@@ -93,7 +97,13 @@ auto to_value_impl(rank<9>, const T& x) -> decltype(migraphx_to_value(x))
 }
 
 template <class T>
-auto to_value_impl(rank<10>, const T& x)
+auto to_value_impl(rank<10>, const T& x) -> decltype(x.to_value())
+{
+    return x.to_value();
+}
+
+template <class T>
+auto to_value_impl(rank<11>, const T& x)
     -> decltype(migraphx_to_value(std::declval<value&>(), x), value{})
 {
     value v;
@@ -131,7 +141,7 @@ auto from_value_impl(rank<2>, const value& v, T& x) -> decltype(x.insert(*x.begi
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 void from_value_impl(rank<3>, const value& v, T& x)
 {
-    reflect_each(x, [&](auto&& y, const std::string& name) {
+    reflect_each(x, [&](auto& y, const std::string& name) {
         using type = std::decay_t<decltype(y)>;
         y          = from_value<type>(v.at(name).without_key());
     });
@@ -146,13 +156,19 @@ void from_value_impl(rank<4>, const value& v, T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 void from_value_impl(rank<5>, const value& v, T& x)
 {
-    x = static_cast<T>(v.to<std::underlying_type_t<T>>());
+    x = v.to<T>();
 }
 
 inline void from_value_impl(rank<6>, const value& v, std::string& x) { x = v.to<std::string>(); }
 
 template <class T>
-auto from_value_impl(rank<7>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
+auto from_value_impl(rank<7>, const value& v, T& x) -> decltype(x.from_value(v), void())
+{
+    x.from_value(v);
+}
+
+template <class T>
+auto from_value_impl(rank<8>, const value& v, T& x) -> decltype(migraphx_from_value(v, x), void())
 {
     migraphx_from_value(v, x);
 }
@@ -162,13 +178,13 @@ auto from_value_impl(rank<7>, const value& v, T& x) -> decltype(migraphx_from_va
 template <class T>
 value to_value(const T& x)
 {
-    return detail::to_value_impl(rank<10>{}, x);
+    return detail::to_value_impl(rank<11>{}, x);
 }
 
 template <class T>
 void from_value(const value& v, T& x)
 {
-    detail::from_value_impl(rank<7>{}, v, x);
+    detail::from_value_impl(rank<8>{}, v, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

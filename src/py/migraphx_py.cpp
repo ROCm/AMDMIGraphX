@@ -1,6 +1,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -9,68 +10,49 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/load_save.hpp>
+#include <migraphx/register_target.hpp>
 
 #ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #endif
 
+using half   = half_float::half;
 namespace py = pybind11;
 
-template <class F>
-struct throw_half
+namespace pybind11 {
+namespace detail {
+
+template <>
+struct npy_format_descriptor<half>
 {
-    F f;
-
-    template <class A>
-    void operator()(A a) const
+    static std::string format()
     {
-        f(a);
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        return "e";
     }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
-    }
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const
-    {
-        throw std::runtime_error("Half not supported in python yet.");
-    }
+    static constexpr auto name() { return _("half"); }
 };
 
-template <class F>
-struct skip_half
-{
-    F f;
-
-    template <class A>
-    void operator()(A a) const
-    {
-        f(a);
-    }
-
-    void operator()(migraphx::shape::as<migraphx::half>) const {}
-
-    void operator()(migraphx::tensor_view<migraphx::half>) const {}
-};
+} // namespace detail
+} // namespace pybind11
 
 template <class F>
 void visit_type(const migraphx::shape& s, F f)
 {
-    s.visit_type(throw_half<F>{f});
+    s.visit_type(f);
 }
 
 template <class T, class F>
 void visit(const migraphx::raw_data<T>& x, F f)
 {
-    x.visit(throw_half<F>{f});
+    x.visit(f);
 }
 
 template <class F>
 void visit_types(F f)
 {
-    migraphx::shape::visit_types(skip_half<F>{f});
+    migraphx::shape::visit_types(f);
 }
 
 template <class T>
@@ -82,12 +64,26 @@ py::buffer_info to_buffer_info(T& x)
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
     visit_type(s, [&](auto as) {
-        b = py::buffer_info(x.data(),
-                            as.size(),
-                            py::format_descriptor<decltype(as())>::format(),
-                            s.lens().size(),
-                            s.lens(),
-                            strides);
+        // migraphx use int8_t data to store bool type, we need to
+        // explicitly specify the data type as bool for python
+        if(s.type() == migraphx::shape::bool_type)
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<bool>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
+        else
+        {
+            b = py::buffer_info(x.data(),
+                                as.size(),
+                                py::format_descriptor<decltype(as())>::format(),
+                                s.lens().size(),
+                                s.lens(),
+                                strides);
+        }
     });
     return b;
 }
@@ -97,16 +93,23 @@ migraphx::shape to_shape(const py::buffer_info& info)
     migraphx::shape::type_t t;
     std::size_t n = 0;
     visit_types([&](auto as) {
-        if(info.format == py::format_descriptor<decltype(as())>::format())
+        if(info.format == py::format_descriptor<decltype(as())>::format() or
+           (info.format == "l" and py::format_descriptor<decltype(as())>::format() == "q") or
+           (info.format == "L" and py::format_descriptor<decltype(as())>::format() == "Q"))
         {
             t = as.type_enum();
             n = sizeof(as());
+        }
+        else if(info.format == "?" and py::format_descriptor<decltype(as())>::format() == "b")
+        {
+            t = migraphx::shape::bool_type;
+            n = sizeof(bool);
         }
     });
 
     if(n == 0)
     {
-        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type" + info.format);
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: Unsupported data type " + info.format);
     }
 
     auto strides = info.strides;
@@ -166,6 +169,7 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
+        .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("compile",
@@ -177,6 +181,7 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("t"),
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
+        .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
@@ -210,16 +215,48 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 
-    m.def("get_target", [](const std::string& name) -> migraphx::target {
-        if(name == "cpu")
-            return migraphx::cpu::target{};
-#ifdef HAVE_GPU
-        if(name == "gpu")
-            return migraphx::gpu::target{};
-#endif
-        throw std::runtime_error("Target not found: " + name);
-    });
+    m.def("parse_onnx_buffer",
+          [](const std::string& onnx_buffer,
+             unsigned int default_dim_value,
+             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+             bool skip_unknown_operators,
+             bool print_program_on_error) {
+              migraphx::onnx_options options;
+              options.default_dim_value      = default_dim_value;
+              options.map_input_dims         = map_input_dims;
+              options.skip_unknown_operators = skip_unknown_operators;
+              options.print_program_on_error = print_program_on_error;
+              return migraphx::parse_onnx_buffer(onnx_buffer, options);
+          },
+          "Parse onnx file",
+          py::arg("filename"),
+          py::arg("default_dim_value") = 1,
+          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+          py::arg("skip_unknown_operators") = false,
+          py::arg("print_program_on_error") = false);
 
+    m.def("load",
+          [](const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::load(name, options);
+          },
+          "Load MIGraphX program",
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
+
+    m.def("save",
+          [](const migraphx::program& p, const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::save(p, name, options);
+          },
+          "Save MIGraphX program",
+          py::arg("p"),
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
+
+    m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,

@@ -69,4 +69,35 @@ TEST_CASE(serialize_reflectable_type)
     EXPECT(v2 != v3);
 }
 
+TEST_CASE(serialize_empty_array)
+{
+    std::vector<std::size_t> ints = {};
+    migraphx::value v             = migraphx::to_value(ints);
+    EXPECT(v.is_array());
+    EXPECT(v.empty());
+    v.push_back(1);
+    EXPECT(v.size() == 1);
+    EXPECT(v.front().to<int>() == 1);
+}
+
+struct empty_struct
+{
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+};
+
+TEST_CASE(serialize_empty_struct)
+{
+    empty_struct es{};
+    migraphx::value v = migraphx::to_value(es);
+    EXPECT(v.is_object());
+    EXPECT(v.empty());
+    v["a"] = 1;
+    EXPECT(v.size() == 1);
+    EXPECT(v.at("a").to<int>() == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

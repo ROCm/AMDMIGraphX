@@ -514,6 +514,41 @@ TEST_CASE(maxpool_test_1D_3D)
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 
+    // 1D case 2, input is 3D, ceil mode
+    {
+        migraphx::program p;
+        auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
+        auto op      = migraphx::op::pooling{"max"};
+        op.lengths   = {2};
+        op.padding   = {0};
+        op.stride    = {2};
+        op.ceil_mode = true;
+
+        std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
+                                0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
+                                0.9907, 0.477,   1.5001,  -1.1603, -1.361,  1.2556};
+        auto l0 = p.add_literal(migraphx::literal{s, data});
+        p.add_instruction(op, l0);
+        p.compile(migraphx::cpu::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.4975,
+                                -0.0405,
+                                -0.1227,
+                                -0.6186,
+                                0.6022,
+                                1.1925,
+                                0.5493,
+                                -0.8039,
+                                0.9907,
+                                1.5001,
+                                -1.1603,
+                                1.2556};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
     // 3D, input is 5D
     {
         migraphx::program p;
@@ -2928,6 +2963,47 @@ TEST_CASE(recip_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {-2.0f, 10.0f, 2.0f};
     EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(equal_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto eq = p.add_instruction(migraphx::op::equal{}, l0, l1);
+    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {true, false, false, false, true, false, true, false, false};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(equal_brcst_test)
+{
+    migraphx::program p;
+    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
+    auto eq  = p.add_instruction(migraphx::op::equal{}, l0, bl1);
+    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {true, false, false, false, true, false, true, false, false};
+    EXPECT(results_vector == gold);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

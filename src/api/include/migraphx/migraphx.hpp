@@ -494,6 +494,12 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
     void print() const { call(&migraphx_program_print, this->get_handle_ptr()); }
 
+    program sort()
+    {
+        call(&migraphx_program_sort, this->get_handle_ptr());
+        return *this;
+    }
+
     friend bool operator==(const program& px, const program& py)
     {
         bool pout;
@@ -503,6 +509,26 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
+
+inline program load(const char* filename, migraphx_file_options options)
+{
+    return program(make<migraphx_program>(&migraphx_load, filename, &options), own{});
+}
+
+inline program load(const char* filename)
+{
+    return program(make<migraphx_program>(&migraphx_load, filename, nullptr), own{});
+}
+
+inline void save(const program& p, const char* filename, migraphx_file_options options)
+{
+    call(&migraphx_save, p.get_handle_ptr(), filename, &options);
+}
+
+inline void save(const program& p, const char* filename)
+{
+    call(&migraphx_save, p.get_handle_ptr(), filename, nullptr);
+}
 
 struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {

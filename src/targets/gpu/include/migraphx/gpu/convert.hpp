@@ -1,7 +1,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONVERT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONVERT_HPP
 
-#include <migraphx/shape.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/op/convert.hpp>
 
 namespace migraphx {

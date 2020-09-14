@@ -131,6 +131,8 @@ value::value(const std::string& pkey, const std::unordered_map<std::string, valu
 
 value::value(const std::string& pkey, std::nullptr_t) : x(nullptr), key(pkey) {}
 
+value::value(std::nullptr_t) : x(nullptr) {}
+
 value::value(const std::string& pkey, const value& rhs)
     : x(rhs.x ? rhs.x->clone() : nullptr), key(pkey)
 {
@@ -158,6 +160,12 @@ value::value(const char* i) : value(std::string(i)) {}
     }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+
+value& value::operator=(std::nullptr_t)
+{
+    x = nullptr;
+    return *this;
+}
 
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
@@ -198,6 +206,14 @@ std::vector<value>& get_array_impl(const std::shared_ptr<value_base_impl>& x)
 {
     auto* a = if_array_impl(x);
     assert(a);
+    return *a;
+}
+
+std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
+{
+    auto* a = if_array_impl(x);
+    if(a == nullptr)
+        MIGRAPHX_THROW("Expected an array or object");
     return *a;
 }
 
@@ -294,14 +310,28 @@ const value& value::at(const std::string& pkey) const
 {
     auto* r = find(pkey);
     if(r == nullptr)
-        MIGRAPHX_THROW("Not an object");
+        MIGRAPHX_THROW("Not an object for field: " + pkey);
     if(r == end())
-        MIGRAPHX_THROW("Key not found");
+        MIGRAPHX_THROW("Key not found: " + pkey);
     return *r;
 }
 value& value::operator[](std::size_t i) { return *(begin() + i); }
 const value& value::operator[](std::size_t i) const { return *(begin() + i); }
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
+
+void value::clear() { get_array_throw(x).clear(); }
+void value::resize(std::size_t n)
+{
+    if(not is_array())
+        MIGRAPHX_THROW("Expected an array.");
+    get_array_impl(x).resize(n);
+}
+void value::resize(std::size_t n, const value& v)
+{
+    if(not is_array())
+        MIGRAPHX_THROW("Expected an array.");
+    get_array_impl(x).resize(n, v);
+}
 
 std::pair<value*, bool> value::insert(const value& v)
 {
@@ -427,7 +457,22 @@ std::ostream& operator<<(std::ostream& os, const value& d)
     return os;
 }
 
-void value::debug_print() const { std::cout << *this << std::endl; }
+void value::debug_print(bool show_type) const
+{
+    if(show_type)
+    {
+        switch(get_type())
+        {
+#define MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(vt, cpp_type) \
+    case vt##_type: std::cout << #vt << ": "; break;
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE)
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(null, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_TYPE_STRING_CASE(object, )
+        }
+    }
+    std::cout << *this << std::endl;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

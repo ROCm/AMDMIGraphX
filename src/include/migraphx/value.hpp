@@ -19,7 +19,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct value_base_impl;
 
-template <class To>
+template <class To, class = void>
 struct value_converter
 {
     template <class T = To>
@@ -39,6 +39,17 @@ struct value_converter
     static To apply(const From& x)
     {
         return To(x);
+    }
+};
+
+template <class To>
+struct value_converter<To, MIGRAPHX_CLASS_REQUIRES(std::is_enum<To>{})>
+{
+    template <class From>
+    static auto apply(const From& x)
+        -> decltype(static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x)))
+    {
+        return static_cast<To>(value_converter<std::underlying_type_t<To>>::apply(x));
     }
 };
 
@@ -73,6 +84,13 @@ struct value_converter<std::pair<T, U>>
 };
 
 namespace detail {
+template <class To, class Key, class From>
+auto try_convert_value_impl(rank<2>, const std::pair<Key, From>& x)
+    -> decltype(value_converter<To>::apply(x.second))
+{
+    return value_converter<To>::apply(x.second);
+}
+
 template <class To, class From>
 auto try_convert_value_impl(rank<1>, const From& x) -> decltype(value_converter<To>::apply(x))
 {
@@ -89,7 +107,7 @@ To try_convert_value_impl(rank<0>, const From& x)
 template <class To, class From>
 To try_convert_value(const From& x)
 {
-    return detail::try_convert_value_impl<To>(rank<1>{}, x);
+    return detail::try_convert_value_impl<To>(rank<2>{}, x);
 }
 
 struct value
@@ -134,6 +152,7 @@ struct value
     value(const std::string& pkey, const std::vector<value>& v, bool array_on_empty = true);
     value(const std::string& pkey, const std::unordered_map<std::string, value>& m);
     value(const std::string& pkey, std::nullptr_t);
+    value(std::nullptr_t);
 
     value(const char* i);
 
@@ -147,7 +166,7 @@ struct value
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
     template <class T>
-    using pick = std::conditional_t<
+    using pick_numeric = std::conditional_t<
         std::is_floating_point<T>{},
         double,
         std::conditional_t<std::is_signed<T>{},
@@ -155,15 +174,38 @@ struct value
                            std::conditional_t<std::is_unsigned<T>{}, std::uint64_t, T>>>;
 
     template <class T>
+    using pick = pick_numeric<typename std::conditional_t<std::is_enum<T>{},
+                                                          std::underlying_type<T>,
+                                                          std::enable_if<true, T>>::type>;
+
+    template <class T>
     using is_pickable =
-        std::integral_constant<bool, (std::is_arithmetic<T>{} and not std::is_pointer<T>{})>;
+        bool_c<((std::is_arithmetic<T>{} or std::is_enum<T>{}) and not std::is_pointer<T>{})>;
+
+    template <class T>
+    using range_value = std::decay_t<decltype(std::declval<T>().end(), *std::declval<T>().begin())>;
+
+    template <class T>
+    using is_generic_range =
+        bool_c<(std::is_convertible<range_value<T>, value>{} and
+                not std::is_convertible<T, array>{} and not std::is_convertible<T, object>{})>;
+
+    template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value(const T& r) : value(from_values(r))
+    {
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value(const std::string& pkey, const T& r) : value(pkey, from_values(r))
+    {
+    }
 
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
-    value(T i) : value(pick<T>{i})
+    value(T i) : value(static_cast<pick<T>>(i))
     {
     }
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
-    value(const std::string& pkey, T i) : value(pkey, pick<T>{i})
+    value(const std::string& pkey, T i) : value(pkey, static_cast<pick<T>>(i))
     {
     }
     template <class T, class U, class = decltype(value(T{}, U{}))>
@@ -173,8 +215,15 @@ struct value
     template <class T, MIGRAPHX_REQUIRES(is_pickable<T>{})>
     value& operator=(T rhs)
     {
-        return *this = pick<T>{rhs}; // NOLINT
+        return *this = static_cast<pick<T>>(rhs); // NOLINT
     }
+    template <class T, MIGRAPHX_REQUIRES(is_generic_range<T>{})>
+    value& operator=(T rhs)
+    {
+        return *this = from_values(rhs); // NOLINT
+    }
+
+    value& operator=(std::nullptr_t);
 
     bool is_array() const;
     const std::vector<value>& get_array() const;
@@ -210,6 +259,10 @@ struct value
     value& operator[](std::size_t i);
     const value& operator[](std::size_t i) const;
     value& operator[](const std::string& pkey);
+
+    void clear();
+    void resize(std::size_t n);
+    void resize(std::size_t n, const value& v);
 
     std::pair<value*, bool> insert(const value& v);
     value* insert(const value* pos, const value& v);
@@ -288,9 +341,17 @@ struct value
 
     friend std::ostream& operator<<(std::ostream& os, const value& d);
 
-    void debug_print() const;
+    void debug_print(bool show_type = false) const;
 
     private:
+    template <class T>
+    std::vector<value> from_values(const T& r)
+    {
+        std::vector<value> v;
+        std::transform(
+            r.begin(), r.end(), std::back_inserter(v), [&](auto&& e) { return value(e); });
+        return v;
+    }
     type_t get_type() const;
     std::shared_ptr<value_base_impl> x;
     std::string key;

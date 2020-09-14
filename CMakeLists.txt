@@ -19,10 +19,11 @@ endif()
 
 project(migraphx)
 find_package(ROCM REQUIRED)
+find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.7)
+rocm_setup_version(VERSION 0.8)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -191,8 +192,15 @@ rocm_create_package(
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(test)
 add_subdirectory(tools)
+
+set(DEST_DIR ${CMAKE_BINARY_DIR})
+file(GLOB backend_files ${CMAKE_SOURCE_DIR}/src/py/backend/*.py)
+file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
+foreach(py_file ${backend_files})
+    configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
+endforeach(py_file)
+configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)

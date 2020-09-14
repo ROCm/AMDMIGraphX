@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SLICE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SLICE_HPP
 
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>

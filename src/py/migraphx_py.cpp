@@ -178,7 +178,7 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
         .def("print",
-             [](migraphx::program& p) {
+             [](const migraphx::program& p) {
                  py::scoped_ostream_redirect stream(
                      std::cout,                               // std::ostream&
                      py::module::import("sys").attr("stdout") // Python output

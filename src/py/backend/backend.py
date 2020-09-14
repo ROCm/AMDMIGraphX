@@ -14,7 +14,7 @@ from onnx.checker import check_model
 from onnx.backend.base import Backend
 import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
-
+from io import StringIO
 
 def get_device():
     return ("CPU", "GPU")
@@ -23,6 +23,7 @@ def get_device():
 class MIGraphXBackend(Backend):
     _device = "GPU"
     _input_names = []
+    _prog_string = ""
 
     @classmethod
     def set_device(cls, device):
@@ -37,6 +38,10 @@ class MIGraphXBackend(Backend):
     shows how to use *caffe2* as a backend for a converted model.
     Note: This is not the official Python API.
     """  # noqa: E501
+
+    @classmethod
+    def get_program(cls):
+        return cls._prog_string
 
     @classmethod
     def is_compatible(cls, model, device=None, **kwargs):
@@ -84,10 +89,20 @@ class MIGraphXBackend(Backend):
                 raise RuntimeError(
                     "Incompatible device expected '{0}', got '{1}'".format(
                         device, get_device()))
+            old_stdout = sys.stdout
+            sys.stdout = mystdout = StringIO()
             inf = migraphx.parse_onnx_buffer(model)
+            print("Program =")
+            inf.print()
             device = cls._device
             cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))
+            print("Compiled program =")
+            inf.print()
+            sys.stdout = old_stdout
+            cls._prog_string = mystdout.getvalue()
+#            print("_prog_string = {}".format(_prog_string))
+
             return cls.prepare(inf, device, **kwargs)
         else:
             # type: ModelProto

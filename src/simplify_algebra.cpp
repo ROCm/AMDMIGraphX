@@ -307,7 +307,7 @@ struct find_concat_op
                 return {start, last};
             auto&& name = x->name();
             auto op     = x->get_operator();
-            if(not is_valid_op(x))
+            if(not is_valid_op(op))
                 return {start, last};
             auto iaxis = axis;
             // Adjust broadcast lens

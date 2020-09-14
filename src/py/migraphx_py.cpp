@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <pybind11/iostream.h>
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -176,7 +177,14 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("t"),
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
-        .def("print", [](migraphx::program& p) { std::cout << p << std::endl; })
+        .def("print", [](migraphx::program& p) { 
+            py::scoped_ostream_redirect stream(
+                std::cout,                               // std::ostream&
+                py::module::import("sys").attr("stdout") // Python output
+            );            
+            std::cout << p << std::endl; 
+        })
+
         .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

@@ -305,7 +305,6 @@ struct find_concat_op
             auto x = *start;
             if(x->inputs().size() > 2 or x->inputs().empty() or x->outputs().size() > 1)
                 return {start, last};
-            auto&& name = x->name();
             auto op     = x->get_operator();
             if(not is_valid_op(op))
                 return {start, last};

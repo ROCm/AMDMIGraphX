@@ -44,6 +44,11 @@ typedef struct
     bool offload_copy;
 } migraphx_compile_options;
 
+typedef struct
+{
+    const char* format;
+} migraphx_file_options;
+
 <% generate_c_header() %>
 
 #ifdef __cplusplus

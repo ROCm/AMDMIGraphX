@@ -86,7 +86,6 @@ struct onnx_parser
         add_generic_op("Concat", "concat");
         add_generic_op("Cos", "cos");
         add_generic_op("Cosh", "cosh");
-        add_generic_op("Dropout", "identity");
         add_generic_op("Erf", "erf");
         add_generic_op("Exp", "exp");
         add_generic_op("Flatten", "flatten");
@@ -134,6 +133,7 @@ struct onnx_parser
         add_mem_op("Conv", "convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvInteger", "quant_convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Equal", &onnx_parser::parse_equal);
         add_mem_op("Expand", &onnx_parser::parse_expand);
@@ -171,6 +171,7 @@ struct onnx_parser
         add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Where", &onnx_parser::parse_where);
 
         // init the activation function map
         init_actv_func();
@@ -2165,7 +2166,7 @@ struct onnx_parser
 
         int to_type        = parse_value(info.attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
-        return prog.add_instruction(op::convert{type}, std::move(args));
+        return prog.add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
     }
 
     std::vector<instruction_ref>
@@ -2375,6 +2376,18 @@ struct onnx_parser
         MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
     }
 
+    std::vector<instruction_ref>
+    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto out = prog.add_instruction(make_op("identity"), args[0]);
+        auto s   = args[0]->get_shape();
+        std::vector<int8_t> vec(s.elements(), 1);
+        shape mask_s{shape::bool_type, s.lens()};
+        auto mask = prog.add_literal(literal(mask_s, vec));
+
+        return {out, mask};
+    }
+
     template <class T>
     std::vector<std::size_t> nonzero_indices(const std::vector<T>& data)
     {
@@ -2424,9 +2437,21 @@ struct onnx_parser
         auto l = add_broadcastable_binary_op(args[0], args[1], "equal");
         if(l->get_shape().type() != shape::bool_type)
         {
-            l = prog.add_instruction(op::convert{shape::bool_type}, l);
+            l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
         }
         return l;
+    }
+
+    instruction_ref
+    parse_where(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto type = args[1]->get_shape().type();
+        // the operation of if cond == 1 select x; else select y,
+        // is equivalent to cond * (x - y) + y
+        auto cond = prog.add_instruction(make_op("convert", {{"target_type", type}}), args[0]);
+        auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
+        auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
+        return add_broadcastable_binary_op(cd, args[2], "add");
     }
 
     void parse_from(std::istream& is)

@@ -1,4 +1,5 @@
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/gpu/write_literals.hpp>
@@ -63,8 +64,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        remap{},
-        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{},
         dead_code_elimination{},
@@ -91,7 +90,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format on
 }
 
-std::string target::name() const { return "miopen"; }
+std::string target::name() const { return "gpu"; }
 
 migraphx::context target::get_context() const { return context{}; }
 
@@ -100,6 +99,8 @@ argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

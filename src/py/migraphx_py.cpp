@@ -10,9 +10,10 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/type_name.hpp>
+#include <migraphx/load_save.hpp>
+#include <migraphx/register_target.hpp>
 
 #ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #endif
 
@@ -99,6 +100,11 @@ migraphx::shape to_shape(const py::buffer_info& info)
             t = as.type_enum();
             n = sizeof(as());
         }
+        else if(info.format == "?" and py::format_descriptor<decltype(as())>::format() == "b")
+        {
+            t = migraphx::shape::bool_type;
+            n = sizeof(bool);
+        }
     });
 
     if(n == 0)
@@ -175,6 +181,7 @@ PYBIND11_MODULE(migraphx, m)
              py::arg("t"),
              py::arg("offload_copy") = true)
         .def("run", &migraphx::program::eval)
+        .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
@@ -228,16 +235,28 @@ PYBIND11_MODULE(migraphx, m)
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false);
 
-    m.def("get_target", [](const std::string& name) -> migraphx::target {
-        if(name == "cpu")
-            return migraphx::cpu::target{};
-#ifdef HAVE_GPU
-        if(name == "gpu")
-            return migraphx::gpu::target{};
-#endif
-        throw std::runtime_error("Target not found: " + name);
-    });
+    m.def("load",
+          [](const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::load(name, options);
+          },
+          "Load MIGraphX program",
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
 
+    m.def("save",
+          [](const migraphx::program& p, const std::string& name, const std::string& format) {
+              migraphx::file_options options;
+              options.format = format;
+              return migraphx::save(p, name, options);
+          },
+          "Save MIGraphX program",
+          py::arg("p"),
+          py::arg("filename"),
+          py::arg("format") = "msgpack");
+
+    m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,

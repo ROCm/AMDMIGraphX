@@ -85,7 +85,7 @@ value to_value_impl(rank<6>, const T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 value to_value_impl(rank<7>, const T& x)
 {
-    return static_cast<std::underlying_type_t<T>>(x);
+    return x;
 }
 
 inline value to_value_impl(rank<8>, const std::string& x) { return x; }
@@ -141,7 +141,7 @@ auto from_value_impl(rank<2>, const value& v, T& x) -> decltype(x.insert(*x.begi
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
 void from_value_impl(rank<3>, const value& v, T& x)
 {
-    reflect_each(x, [&](auto&& y, const std::string& name) {
+    reflect_each(x, [&](auto& y, const std::string& name) {
         using type = std::decay_t<decltype(y)>;
         y          = from_value<type>(v.at(name).without_key());
     });
@@ -156,7 +156,7 @@ void from_value_impl(rank<4>, const value& v, T& x)
 template <class T, MIGRAPHX_REQUIRES(std::is_enum<T>{})>
 void from_value_impl(rank<5>, const value& v, T& x)
 {
-    x = static_cast<T>(v.to<std::underlying_type_t<T>>());
+    x = v.to<T>();
 }
 
 inline void from_value_impl(rank<6>, const value& v, std::string& x) { x = v.to<std::string>(); }

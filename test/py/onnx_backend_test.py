@@ -36,7 +36,7 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
                 np.testing.assert_allclose(ref_outputs[i],
                                            outputs[i],
                                            rtol=1e-3,
-                                           atol=1e-6,
+                                           atol=1e-5,
                                            err_msg=prog_string)
 
 

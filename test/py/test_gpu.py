@@ -65,7 +65,8 @@ def test_fp16_imagescaler():
 
     params = {}
     shapes = p.get_parameter_shapes()
-    params["0"] = np.random.randn(768).reshape(shapes["0"].lens()).astype(np.float16)
+    params["0"] = np.random.randn(768).reshape(shapes["0"].lens()).astype(
+        np.float16)
 
     r = p.run(params)[-1]
     print(r)

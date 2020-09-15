@@ -1536,7 +1536,7 @@ struct onnx_parser
     instruction_ref
     parse_selu(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        auto type = args[0]->get_shape().type();
+        auto type   = args[0]->get_shape().type();
         float alpha = 1.67326f;
         if(contains(info.attributes, "alpha"))
         {
@@ -1549,18 +1549,18 @@ struct onnx_parser
         {
             beta = info.attributes.at("gamma").f();
         }
-        auto l_gamma = prog.add_literal({{type, {1}}, {gamma/2.0f}});
+        auto l_gamma = prog.add_literal({{type, {1}}, {gamma / 2.0f}});
 
         auto sign_x = prog.add_instruction(make_op("sign"), args[0]);
-        auto exp_x = prog.add_instruction(make_op("exp"), args[0]);
+        auto exp_x  = prog.add_instruction(make_op("exp"), args[0]);
 
-        auto alpha_ex = prog.add_instruction(make_op("mul"), l_alpha, exp_x);
+        auto alpha_ex  = prog.add_instruction(make_op("mul"), l_alpha, exp_x);
         auto aex_alpha = prog.add_instruction(make_op("sub"), alpha_ex, l_alpha);
 
         auto ins1 = prog.add_instruction(make_op("add"), aex_alpha, args[0]);
         auto ins2 = prog.add_instruction(make_op("sub"), aex_alpha, args[0]);
 
-        auto sign2 = prog.add_instruction(make_op("mul"), sign_x, ins2);
+        auto sign2   = prog.add_instruction(make_op("mul"), sign_x, ins2);
         auto ins_sub = prog.add_instruction(make_op("sub"), ins1, sign2);
 
         return prog.add_instruction(make_op("mul"), ins_sub, l_gamma);

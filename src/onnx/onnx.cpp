@@ -166,6 +166,7 @@ struct onnx_parser
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Selu", &onnx_parser::parse_selu);
         add_mem_op("Shape", &onnx_parser::parse_shape);
         add_mem_op("Slice", &onnx_parser::parse_slice);
         add_mem_op("Split", &onnx_parser::parse_split);
@@ -1531,6 +1532,40 @@ struct onnx_parser
 
         return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
+
+    instruction_ref
+    parse_selu(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto type = args[0]->get_shape().type();
+        float alpha = 1.67326f;
+        if(contains(info.attributes, "alpha"))
+        {
+            alpha = info.attributes.at("alpha").f();
+        }
+        auto l_alpha = prog.add_literal({{type, {1}}, {alpha}});
+
+        float gamma = 1.0507f;
+        if(contains(info.attributes, "gamma"))
+        {
+            beta = info.attributes.at("gamma").f();
+        }
+        auto l_gamma = prog.add_literal({{type, {1}}, {gamma/2.0f}});
+
+        auto sign_x = prog.add_instruction(make_op("sign"), args[0]);
+        auto exp_x = prog.add_instruction(make_op("exp"), args[0]);
+
+        auto alpha_ex = prog.add_instruction(make_op("mul"), l_alpha, exp_x);
+        auto aex_alpha = prog.add_instruction(make_op("sub"), alpha_ex, l_alpha);
+
+        auto ins1 = prog.add_instruction(make_op("add"), aex_alpha, args[0]);
+        auto ins2 = prog.add_instruction(make_op("sub"), aex_alpha, args[0]);
+
+        auto sign2 = prog.add_instruction(make_op("mul"), sign_x, ins2);
+        auto ins_sub = prog.add_instruction(make_op("sub"), ins1, sign2);
+
+        return prog.add_instruction(make_op("mul"), ins_sub, l_gamma);
+    }
+
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref

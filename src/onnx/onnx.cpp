@@ -1537,7 +1537,7 @@ struct onnx_parser
     parse_selu(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
         auto type   = args[0]->get_shape().type();
-        auto lens = args[0]->get_shape().lens();
+        auto lens   = args[0]->get_shape().lens();
         float alpha = 1.67326f;
         if(contains(info.attributes, "alpha"))
         {
@@ -1552,10 +1552,12 @@ struct onnx_parser
 
         auto l_alpha = prog.add_literal({{type, {1}}, {alpha}});
         auto l_gamma = prog.add_literal({{type, {1}}, {gamma / 2.0f}});
-        if (lens != std::vector<std::size_t>{1})
+        if(lens != std::vector<std::size_t>{1})
         {
-           l_alpha = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
-           l_gamma = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
+            l_alpha =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
+            l_gamma =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
         }
 
         auto sign_x = prog.add_instruction(make_op("sign"), args[0]);

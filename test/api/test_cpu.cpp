@@ -33,12 +33,10 @@ TEST_CASE(load_and_run_init_list)
     CHECK(bool{shapes_before.front() == shapes_after.front()});
     auto param_shapes = p.get_parameter_shapes();
     EXPECT(param_shapes.size() == 3);
-    auto names = param_shapes.names();
-    auto outputs = p.eval({
-        {names[0], migraphx::argument::generate(param_shapes[names[0]])},
-        {names[1], migraphx::argument::generate(param_shapes[names[1]])},
-        {names[2], migraphx::argument::generate(param_shapes[names[2]])}
-    });
+    auto names   = param_shapes.names();
+    auto outputs = p.eval({{names[0], migraphx::argument::generate(param_shapes[names[0]])},
+                           {names[1], migraphx::argument::generate(param_shapes[names[1]])},
+                           {names[2], migraphx::argument::generate(param_shapes[names[2]])}});
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }

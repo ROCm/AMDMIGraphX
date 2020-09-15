@@ -378,11 +378,11 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
     program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
 
     program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
-    
-    program_parameters(std::initializer_list<std::pair<std::string, argument>> l) 
-    { 
-        this->make_handle(&migraphx_program_parameters_create); 
-        for(auto&& p:l)
+
+    program_parameters(std::initializer_list<std::pair<std::string, argument>> l)
+    {
+        this->make_handle(&migraphx_program_parameters_create);
+        for(auto&& p : l)
             this->add(p.first.c_str(), p.second);
     }
 

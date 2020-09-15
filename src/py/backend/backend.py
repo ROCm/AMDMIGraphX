@@ -90,18 +90,12 @@ class MIGraphXBackend(Backend):
                 raise RuntimeError(
                     "Incompatible device expected '{0}', got '{1}'".format(
                         device, get_device()))
-            old_stdout = sys.stdout
-            sys.stdout = mystdout = StringIO()
             inf = migraphx.parse_onnx_buffer(model)
-            print("Program =")
-            inf.print()
+            cls._prog_string = str("\nProgram =\n{}".format(inf))
             device = cls._device
             cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))
-            print("Compiled program =")
-            inf.print()
-            sys.stdout = old_stdout
-            cls._prog_string = mystdout.getvalue()
+            cls._prog_string = cls._prog_string + str("\nCompiled program =\n{}".format(inf))
 
             return cls.prepare(inf, device, **kwargs)
         else:

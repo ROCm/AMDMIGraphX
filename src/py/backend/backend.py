@@ -14,7 +14,6 @@ from onnx.checker import check_model
 from onnx.backend.base import Backend
 import migraphx
 from onnx_migraphx.backend_rep import MIGraphXBackendRep
-from io import StringIO
 
 
 def get_device():

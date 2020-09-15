@@ -2,7 +2,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
-#include <pybind11/iostream.h>
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>

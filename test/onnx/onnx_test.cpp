@@ -2198,4 +2198,25 @@ TEST_CASE(variable_batch_leq_zero_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(where_test)
+{
+    migraphx::program p;
+    auto lc   = p.add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
+    auto lx   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+    auto ly   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
+    auto lcc  = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, lc);
+    auto lxm  = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, lx);
+    auto lym  = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, ly);
+    auto lxy  = p.add_instruction(migraphx::op::sub{}, lxm, lym);
+    auto lccm = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, lcc);
+    auto lm   = p.add_instruction(migraphx::op::mul{}, lxy, lccm);
+    auto lym1 = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, ly);
+    auto r    = p.add_instruction(migraphx::op::add{}, lm, lym1);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("where_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

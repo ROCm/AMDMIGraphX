@@ -95,7 +95,8 @@ class MIGraphXBackend(Backend):
             device = cls._device
             cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))
-            cls._prog_string = cls._prog_string + str("\nCompiled program =\n{}".format(inf))
+            cls._prog_string = cls._prog_string + str(
+                "\nCompiled program =\n{}".format(inf))
 
             return cls.prepare(inf, device, **kwargs)
         else:

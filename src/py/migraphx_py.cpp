@@ -71,8 +71,8 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
 
     for(auto&& arg : kwargs)
     {
-        auto&& key = py::str(arg.first);
-        auto&& val = arg.second;
+        auto&& key  = py::str(arg.first);
+        auto&& val  = arg.second;
         auto&& type = val.get_type();
         if(py::isinstance<py::kwargs>(val))
         {
@@ -277,15 +277,14 @@ PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     py::class_<migraphx::operation>(m, "op")
-        .def(py::init(
-             [](const std::string& name, py::kwargs kwargs) {
-                 migraphx::value v = migraphx::value::object{};
-                 if(kwargs)
-                 {
-                     v = migraphx::kwargs_to_value(kwargs);
-                 }
-                 return migraphx::make_op(name, v);
-             }))
+        .def(py::init([](const std::string& name, py::kwargs kwargs) {
+            migraphx::value v = migraphx::value::object{};
+            if(kwargs)
+            {
+                v = migraphx::kwargs_to_value(kwargs);
+            }
+            return migraphx::make_op(name, v);
+        }))
 
         .def("name", &migraphx::operation::name);
 

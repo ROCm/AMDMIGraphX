@@ -220,6 +220,12 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 }
 
 template <class T>
+value attributes_op(const T&)
+{
+    return value::object{};
+}
+
+template <class T>
 value to_value_op(const T& x)
 {
     return migraphx::to_value(x);
@@ -248,6 +254,7 @@ void from_value_op(T& x, const value& v)
  *      argument compute(const shape& output,const std::vector<argument>& input) const;
  *      value to_value() const;
  *      void from_value(const value& v) ;
+ *      value attributes() const;
  *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
  *     friend bool operator==(const operation & x,const operation & y) ;
  * };
@@ -377,6 +384,12 @@ struct operation
         (*this).private_detail_te_get_handle().from_value(v);
     }
 
+    value attributes() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().attributes();
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const operation& op)
     {
         assert(op.private_detail_te_handle_mem_var);
@@ -414,6 +427,7 @@ struct operation
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
         virtual value to_value() const                                                          = 0;
         virtual void from_value(const value& v)                                                 = 0;
+        virtual value attributes() const                                                        = 0;
         virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
         virtual bool operator==(const operation& y) const                                       = 0;
     };
@@ -550,6 +564,19 @@ struct operation
         detail::from_value_op(private_detail_te_self, v);
     }
 
+    template <class T>
+    static auto private_detail_te_default_attributes(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.attributes())
+    {
+        return private_detail_te_self.attributes();
+    }
+
+    template <class T>
+    static value private_detail_te_default_attributes(float, T&& private_detail_te_self)
+    {
+        return detail::attributes_op(private_detail_te_self);
+    }
+
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
     {
@@ -637,6 +664,12 @@ struct operation
         {
 
             private_detail_te_default_from_value(char(0), private_detail_te_value, v);
+        }
+
+        value attributes() const override
+        {
+
+            return private_detail_te_default_attributes(char(0), private_detail_te_value);
         }
 
         std::ostream& operator_shift_left(std::ostream& os) const override

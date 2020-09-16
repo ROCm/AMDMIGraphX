@@ -2392,8 +2392,8 @@ def reshape_non_standard_test():
 
 @onnx_test
 def selu_test():
-    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [10, 5])
-    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [10, 5])
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])
 
     node = onnx.helper.make_node('Selu',
                                  inputs=['x'],

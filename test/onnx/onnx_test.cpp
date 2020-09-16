@@ -1770,7 +1770,7 @@ TEST_CASE(round_test)
 TEST_CASE(selu_test)
 {
     migraphx::program p;
-    std::vector<std::size_t> lens = {10, 5};
+    std::vector<std::size_t> lens = {2, 3};
     migraphx::shape s{migraphx::shape::double_type, lens};
     auto x = p.add_parameter("x", s);
 

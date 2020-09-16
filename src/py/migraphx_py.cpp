@@ -40,19 +40,19 @@ migraphx::value list_to_value(py::list lst)
             auto elem_v = list_to_value(val.cast<py::list>());
             v.push_back(elem_v);
         }
-        else if(py::isinstance<bool>(val))
+        else if(py::isinstance<py::bool_>(val))
         {
             v.push_back(val.cast<bool>());
         }
-        else if(py::isinstance<int>(val))
+        else if(py::isinstance<py::int_>(val))
         {
             v.push_back(val.cast<int>());
         }
-        else if(py::isinstance<float>(val))
+        else if(py::isinstance<py::float_>(val))
         {
             v.push_back(val.cast<float>());
         }
-        else if(py::isinstance<std::string>(val))
+        else if(py::isinstance<py::str>(val))
         {
             v.push_back(val.cast<std::string>());
         }
@@ -73,6 +73,7 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
     {
         auto&& key = py::str(arg.first);
         auto&& val = arg.second;
+        auto&& type = val.get_type();
         if(py::isinstance<py::kwargs>(val))
         {
             auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
@@ -83,19 +84,19 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
             auto elem_v = list_to_value(val.cast<py::list>());
             v[key]      = elem_v;
         }
-        else if(py::isinstance<bool>(val))
+        else if(py::isinstance<py::bool_>(val))
         {
             v[key] = val.cast<bool>();
         }
-        else if(py::isinstance<int>(val))
+        else if(py::isinstance<py::int_>(val))
         {
             v[key] = val.cast<int>();
         }
-        else if(py::isinstance<float>(val))
+        else if(py::isinstance<py::float_>(val))
         {
             v[key] = val.cast<float>();
         }
-        else if(py::isinstance<std::string>(val))
+        else if(py::isinstance<py::str>(val))
         {
             v[key] = val.cast<std::string>();
         }
@@ -276,15 +277,16 @@ PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     py::class_<migraphx::operation>(m, "op")
-        .def("__init__",
+        .def(py::init(
              [](const std::string& name, py::kwargs kwargs) {
-                 migraphx::value v;
+                 migraphx::value v = migraphx::value::object{};
                  if(kwargs)
                  {
                      v = migraphx::kwargs_to_value(kwargs);
                  }
                  return migraphx::make_op(name, v);
-             })
+             }))
+
         .def("name", &migraphx::operation::name);
 
     m.def("parse_tf",

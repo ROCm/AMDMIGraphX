@@ -2395,13 +2395,11 @@ def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [10, 5])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [10, 5])
 
-    node = onnx.helper.make_node(
-        'Selu',
-        inputs=['x'],
-        outputs=['y'],
-        alpha=0.3,
-        gamma=0.5
-    )
+    node = onnx.helper.make_node('Selu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.3,
+                                 gamma=0.5)
 
     return ([node], [x], [y])
 

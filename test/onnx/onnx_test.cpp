@@ -1775,15 +1775,15 @@ TEST_CASE(selu_test)
     auto x = p.add_parameter("x", s);
 
     migraphx::shape ls{migraphx::shape::double_type, {1}};
-    auto la = p.add_literal({ls, {0.3}});
-    auto lg = p.add_literal({ls, {0.25}});
+    auto la   = p.add_literal({ls, {0.3}});
+    auto lg   = p.add_literal({ls, {0.25}});
     auto mbla = p.add_instruction(migraphx::op::multibroadcast{lens}, la);
     auto mblg = p.add_instruction(migraphx::op::multibroadcast{lens}, lg);
 
     auto sign_x = p.add_instruction(migraphx::op::sign{}, x);
-    auto exp_x = p.add_instruction(migraphx::op::exp{}, x);
+    auto exp_x  = p.add_instruction(migraphx::op::exp{}, x);
 
-    auto mlax = p.add_instruction(migraphx::op::mul{}, mbla, exp_x);
+    auto mlax  = p.add_instruction(migraphx::op::mul{}, mbla, exp_x);
     auto smlax = p.add_instruction(migraphx::op::sub{}, mlax, mbla);
 
     auto item1 = p.add_instruction(migraphx::op::add{}, smlax, x);
@@ -1791,7 +1791,7 @@ TEST_CASE(selu_test)
 
     auto sitem2 = p.add_instruction(migraphx::op::mul{}, sign_x, item2);
     auto item12 = p.add_instruction(migraphx::op::sub{}, item1, sitem2);
-    auto r = p.add_instruction(migraphx::op::mul{}, item12, mblg);
+    auto r      = p.add_instruction(migraphx::op::mul{}, item12, mblg);
     p.add_return({r});
 
     auto prog = migraphx::parse_onnx("selu_test.onnx");

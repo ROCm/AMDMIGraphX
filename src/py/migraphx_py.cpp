@@ -22,6 +22,93 @@
 using half   = half_float::half;
 namespace py = pybind11;
 
+namespace migraphx {
+migraphx::value kwargs_to_value(py::kwargs kwargs);
+
+migraphx::value list_to_value(py::list lst)
+{
+    migraphx::value v = migraphx::value::array{};
+    for (auto&& val : lst)
+    {
+        if (py::isinstance<py::kwargs>(val))
+        {
+            auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
+            v.push_back(elem_v);
+        }
+        else if (py::isinstance<py::list>(val))
+        {
+            auto elem_v = list_to_value(val.cast<py::list>());
+            v.push_back(elem_v);
+        }
+        else if (py::isinstance<bool>(val))
+        {
+            v.push_back(val.cast<bool>());
+        }
+        else if (py::isinstance<int>(val))
+        {
+            v.push_back(val.cast<int>());
+        }
+        else if (py::isinstance<float>(val))
+        {
+            v.push_back(val.cast<float>());
+        }
+        else if (py::isinstance<std::string>(val))
+        {
+            v.push_back(val.cast<std::string>());
+        }
+        else
+        {
+            MIGRAPHX_THROW("LIST_TO_VALUE: Unsupported data type ");
+        }
+    }
+
+    return v;
+}
+
+migraphx::value kwargs_to_value(py::kwargs kwargs)
+{
+    migraphx::value v = migraphx::value::object{};
+
+    for (auto&& arg : kwargs)
+    {
+        auto&& key = py::str(arg.first);
+        auto&& val = arg.second;
+        if (py::isinstance<py::kwargs>(val))
+        {
+            auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
+            v[key] = elem_v;
+        }
+        else if (py::isinstance<py::list>(val))
+        {
+            auto elem_v = list_to_value(val.cast<py::list>());
+            v[key] = elem_v;
+        }
+        else if (py::isinstance<bool>(val))
+        {
+            v[key] = val.cast<bool>();
+        }
+        else if (py::isinstance<int>(val))
+        {
+            v[key] = val.cast<int>();
+        }
+        else if (py::isinstance<float>(val))
+        {
+            v[key] = val.cast<float>();
+        }
+        else if (py::isinstance<std::string>(val))
+        {
+            v[key] = val.cast<std::string>();
+        }
+        else
+        {
+            MIGRAPHX_THROW("KWARGS_TO_VALUE: Unsupported data type ");
+        }
+    }
+
+    return v;
+}
+}
+
 namespace pybind11 {
 namespace detail {
 
@@ -190,8 +277,12 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::operation>(m, "op")
         .def("__init__",
-             [](const std::string& name, const std::string& attributes) {
-                 migraphx::value v = migraphx::from_json_string(attributes);
+             [](const std::string& name, py::kwargs kwargs) {
+                 migraphx::value v;
+                 if(kwargs)
+                 {
+                     v = migraphx::kwargs_to_value(kwargs);
+                 }
                  return migraphx::make_op(name, v);
              })
         .def("name", &migraphx::operation::name);

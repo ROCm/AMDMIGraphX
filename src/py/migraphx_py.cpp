@@ -28,31 +28,31 @@ migraphx::value kwargs_to_value(py::kwargs kwargs);
 migraphx::value list_to_value(py::list lst)
 {
     migraphx::value v = migraphx::value::array{};
-    for (auto&& val : lst)
+    for(auto&& val : lst)
     {
-        if (py::isinstance<py::kwargs>(val))
+        if(py::isinstance<py::kwargs>(val))
         {
             auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
             v.push_back(elem_v);
         }
-        else if (py::isinstance<py::list>(val))
+        else if(py::isinstance<py::list>(val))
         {
             auto elem_v = list_to_value(val.cast<py::list>());
             v.push_back(elem_v);
         }
-        else if (py::isinstance<bool>(val))
+        else if(py::isinstance<bool>(val))
         {
             v.push_back(val.cast<bool>());
         }
-        else if (py::isinstance<int>(val))
+        else if(py::isinstance<int>(val))
         {
             v.push_back(val.cast<int>());
         }
-        else if (py::isinstance<float>(val))
+        else if(py::isinstance<float>(val))
         {
             v.push_back(val.cast<float>());
         }
-        else if (py::isinstance<std::string>(val))
+        else if(py::isinstance<std::string>(val))
         {
             v.push_back(val.cast<std::string>());
         }
@@ -69,33 +69,33 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
 {
     migraphx::value v = migraphx::value::object{};
 
-    for (auto&& arg : kwargs)
+    for(auto&& arg : kwargs)
     {
         auto&& key = py::str(arg.first);
         auto&& val = arg.second;
-        if (py::isinstance<py::kwargs>(val))
+        if(py::isinstance<py::kwargs>(val))
         {
             auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
-            v[key] = elem_v;
+            v[key]      = elem_v;
         }
-        else if (py::isinstance<py::list>(val))
+        else if(py::isinstance<py::list>(val))
         {
             auto elem_v = list_to_value(val.cast<py::list>());
-            v[key] = elem_v;
+            v[key]      = elem_v;
         }
-        else if (py::isinstance<bool>(val))
+        else if(py::isinstance<bool>(val))
         {
             v[key] = val.cast<bool>();
         }
-        else if (py::isinstance<int>(val))
+        else if(py::isinstance<int>(val))
         {
             v[key] = val.cast<int>();
         }
-        else if (py::isinstance<float>(val))
+        else if(py::isinstance<float>(val))
         {
             v[key] = val.cast<float>();
         }
-        else if (py::isinstance<std::string>(val))
+        else if(py::isinstance<std::string>(val))
         {
             v[key] = val.cast<std::string>();
         }
@@ -107,7 +107,7 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
 
     return v;
 }
-}
+} // namespace migraphx
 
 namespace pybind11 {
 namespace detail {

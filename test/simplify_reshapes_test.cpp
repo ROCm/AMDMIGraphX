@@ -289,7 +289,7 @@ TEST_CASE(concat_transpose2)
     auto y      = p.add_parameter("y", s);
     auto xt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
     auto yt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, y);
-    auto concat = p.add_instruction(migraphx::op::concat{3}, xt, yt);
+    auto concat = p.add_instruction(migraphx::op::concat{-1}, xt, yt);
     auto t      = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
     p.add_instruction(pass_op{}, t);
     auto out_shape = p.get_output_shapes().back();
@@ -323,6 +323,25 @@ TEST_CASE(concat_transpose3)
         std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != p.end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+}
+
+TEST_CASE(concat_transpose4)
+{
+    migraphx::program p;
+    auto sx     = migraphx::shape{migraphx::shape::float_type, {1, 1, 12, 64}};
+    auto sy     = migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}};
+    auto x      = p.add_parameter("x", sx);
+    auto y      = p.add_parameter("y", sy);
+    auto xt     = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
+    auto yt     = p.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, y);
+    auto concat = p.add_instruction(migraphx::op::concat{3}, xt, yt);
+    auto t      = p.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
+    p.add_return({t});
+
+    migraphx::program p1 = p;
+
+    run_pass(p);
+    EXPECT(p1 == p);
 }
 
 TEST_CASE(nested_concat)

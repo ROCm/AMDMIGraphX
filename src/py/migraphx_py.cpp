@@ -173,13 +173,15 @@ PYBIND11_MODULE(migraphx, m)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
         .def("compile",
-             [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
+             [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
                  migraphx::compile_options options;
                  options.offload_copy = offload_copy;
+                 options.fast_math    = fast_math;
                  p.compile(t, options);
              },
              py::arg("t"),
-             py::arg("offload_copy") = true)
+             py::arg("offload_copy") = true,
+             py::arg("fast_math")    = true)
         .def("run", &migraphx::program::eval)
         .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})

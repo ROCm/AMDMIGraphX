@@ -70,6 +70,7 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    result.fast_math    = result.fast_math;
     return result;
 }
 

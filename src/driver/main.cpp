@@ -236,7 +236,10 @@ struct compiler
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
-        ap(fast_math, {"--disable-fast-math"}, ap.help("Disable fast math optimization"), ap.set_value(false));
+        ap(fast_math,
+           {"--disable-fast-math"},
+           ap.help("Disable fast math optimization"),
+           ap.set_value(false));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
@@ -263,7 +266,7 @@ struct compiler
         }
         compile_options options;
         options.offload_copy = offload_copy;
-        options.fast_math = fast_math;
+        options.fast_math    = fast_math;
         p.compile(t, options);
         l.save(p);
         return p;
@@ -313,9 +316,9 @@ struct verify : command<verify>
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
         ap(fast_math,
-            {"--disable-fast-math"},
-            ap.help("Disable fast math optimization"),
-            ap.set_value(false));
+           {"--disable-fast-math"},
+           ap.help("Disable fast math optimization"),
+           ap.set_value(false));
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
@@ -333,7 +336,7 @@ struct verify : command<verify>
         compile_options options;
         options.offload_copy = offload_copy;
         options.fast_math    = fast_math;
-        auto m = parameters.generate(p, false);
+        auto m               = parameters.generate(p, false);
 
         if(per_instruction)
         {

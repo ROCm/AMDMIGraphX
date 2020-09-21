@@ -27,7 +27,7 @@ namespace migraphx {
 migraphx::value to_value(py::kwargs kwargs);
 migraphx::value to_value(py::list lst);
 
-template<class T, class F>
+template <class T, class F>
 void visit_py(T x, F f)
 {
     if(py::isinstance<py::kwargs>(x))
@@ -65,10 +65,8 @@ migraphx::value to_value(py::list lst)
     migraphx::value v = migraphx::value::array{};
     for(auto&& val : lst)
     {
-        visit_py(val, [&](auto py_val) {
-            v.push_back(py_val);
-        });
-        
+        visit_py(val, [&](auto py_val) { v.push_back(py_val); });
+
         // if(py::isinstance<py::kwargs>(val))
         // {
         //     auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
@@ -110,11 +108,9 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
 
     for(auto&& arg : kwargs)
     {
-        auto&& key  = py::str(arg.first);
-        auto&& val  = arg.second;
-        visit_py(val, [&](auto py_val) {
-            v[key] = py_val;
-        });
+        auto&& key = py::str(arg.first);
+        auto&& val = arg.second;
+        visit_py(val, [&](auto py_val) { v[key] = py_val; });
 
         // if(py::isinstance<py::kwargs>(val))
         // {

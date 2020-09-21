@@ -20,16 +20,24 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
 
     @classmethod
     def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol):
-        np.testing.assert_equal(len(ref_outputs), len(outputs))
+        prog_string = c2.get_program()
+        np.testing.assert_equal(len(ref_outputs),
+                                len(outputs),
+                                err_msg=prog_string)
         for i in range(len(outputs)):
-            np.testing.assert_equal(ref_outputs[i].dtype, outputs[i].dtype)
+            np.testing.assert_equal(ref_outputs[i].dtype,
+                                    outputs[i].dtype,
+                                    err_msg=prog_string)
             if ref_outputs[i].dtype == np.object:
-                np.testing.assert_array_equal(ref_outputs[i], outputs[i])
+                np.testing.assert_array_equal(ref_outputs[i],
+                                              outputs[i],
+                                              err_msg=prog_string)
             else:
                 np.testing.assert_allclose(ref_outputs[i],
                                            outputs[i],
                                            rtol=1e-3,
-                                           atol=1e-5)
+                                           atol=1e-5,
+                                           err_msg=prog_string)
 
 
 def create_backend_test(testname=None, target_device=None):
@@ -259,18 +267,15 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_expand_shape_model3_cpu')
         backend_test.exclude(r'test_expand_shape_model4_cpu')
 
-        backend_test.exclude(r'test_bvlc_alexnet_cpu')
-        backend_test.exclude(r'test_densenet121_cpu')
+        # These three tests failed because of bugs in fuse_ops related to conv
+        # to be investigated later
         backend_test.exclude(r'test_inception_v1_cpu')
-        backend_test.exclude(r'test_inception_v2_cpu')
         backend_test.exclude(r'test_resnet50_cpu')
-        backend_test.exclude(r'test_shufflenet_cpu')
         backend_test.exclude(r'test_squeezenet_cpu')
-        backend_test.exclude(r'test_vgg19_cpu')
-        backend_test.exclude(r'test_zfnet512_cpu')
 
-    # import all test cases at global scope to make
-    # them visible to python.unittest.
+
+# import all test cases at global scope to make
+# them visible to python.unittest.
     globals().update(backend_test.enable_report().test_cases)
 
     return backend_test

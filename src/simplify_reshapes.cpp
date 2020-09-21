@@ -231,11 +231,25 @@ struct find_concat_transpose
 
     void apply(program& p, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto s   = ins->inputs().front()->get_shape();
+        auto ins          = mr.result;
+        auto trans_inputs = ins->inputs();
+        auto s            = trans_inputs.front()->get_shape();
         assert(s.transposed());
-        auto op           = any_cast<op::concat>(ins->get_operator());
-        auto permutation  = find_permutation(s);
+        auto op          = any_cast<op::concat>(ins->get_operator());
+        auto permutation = find_permutation(s);
+
+        // permutation should be the same for all inputs
+        if(!std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
+               return (find_permutation(in->get_shape()) == permutation);
+           }))
+        {
+            return;
+        }
+
+        // axis could be a negative value
+        int64_t n_dim = static_cast<int64_t>(s.lens().size());
+        op.axis       = (op.axis < 0) ? (op.axis + n_dim) : op.axis;
+
         auto ipermutation = invert_permutation(permutation);
         op.axis           = ipermutation[op.axis];
 

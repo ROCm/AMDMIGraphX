@@ -102,7 +102,7 @@ migraphx::value to_value(py::list lst)
     return v;
 }
 
-migraphx::value kwargs_to_value(py::kwargs kwargs)
+migraphx::value to_value(py::kwargs kwargs)
 {
     migraphx::value v = migraphx::value::object{};
 
@@ -319,7 +319,7 @@ PYBIND11_MODULE(migraphx, m)
             migraphx::value v = migraphx::value::object{};
             if(kwargs)
             {
-                v = migraphx::kwargs_to_value(kwargs);
+                v = migraphx::to_value(kwargs);
             }
             return migraphx::make_op(name, v);
         }))

@@ -13,4 +13,3 @@ std::string jsonize_attribute_string(const std::string& op_name, const std::stri
 } // namespace migraphx
 
 #endif
-

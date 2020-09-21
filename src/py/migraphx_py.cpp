@@ -23,43 +23,82 @@ using half   = half_float::half;
 namespace py = pybind11;
 
 namespace migraphx {
-migraphx::value kwargs_to_value(py::kwargs kwargs);
 
-migraphx::value list_to_value(py::list lst)
+migraphx::value to_value(py::kwargs kwargs);
+migraphx::value to_value(py::list lst);
+
+template<class T, class F>
+void visit_py(T x, F f)
+{
+    if(py::isinstance<py::kwargs>(x))
+    {
+        f(to_value(x.template cast<py::kwargs>()));
+    }
+    else if(py::isinstance<py::list>(x))
+    {
+        f(to_value(x.template cast<py::list>()));
+    }
+    else if(py::isinstance<py::bool_>(x))
+    {
+        f(x.template cast<bool>());
+    }
+    else if(py::isinstance<py::int_>(x))
+    {
+        f(x.template cast<int>());
+    }
+    else if(py::isinstance<py::float_>(x))
+    {
+        f(x.template cast<float>());
+    }
+    else if(py::isinstance<py::str>(x))
+    {
+        f(x.template cast<std::string>());
+    }
+    else
+    {
+        MIGRAPHX_THROW("VISIT_PY: Unsupported data type!");
+    }
+}
+
+migraphx::value to_value(py::list lst)
 {
     migraphx::value v = migraphx::value::array{};
     for(auto&& val : lst)
     {
-        if(py::isinstance<py::kwargs>(val))
-        {
-            auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
-            v.push_back(elem_v);
-        }
-        else if(py::isinstance<py::list>(val))
-        {
-            auto elem_v = list_to_value(val.cast<py::list>());
-            v.push_back(elem_v);
-        }
-        else if(py::isinstance<py::bool_>(val))
-        {
-            v.push_back(val.cast<bool>());
-        }
-        else if(py::isinstance<py::int_>(val))
-        {
-            v.push_back(val.cast<int>());
-        }
-        else if(py::isinstance<py::float_>(val))
-        {
-            v.push_back(val.cast<float>());
-        }
-        else if(py::isinstance<py::str>(val))
-        {
-            v.push_back(val.cast<std::string>());
-        }
-        else
-        {
-            MIGRAPHX_THROW("LIST_TO_VALUE: Unsupported data type ");
-        }
+        visit_py(val, [&](auto py_val) {
+            v.push_back(py_val);
+        });
+        
+        // if(py::isinstance<py::kwargs>(val))
+        // {
+        //     auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
+        //     v.push_back(elem_v);
+        // }
+        // else if(py::isinstance<py::list>(val))
+        // {
+        //     auto elem_v = list_to_value(val.cast<py::list>());
+        //     v.push_back(elem_v);
+        // }
+        // else if(py::isinstance<py::bool_>(val))
+        // {
+        //     v.push_back(val.cast<bool>());
+        // }
+        // else if(py::isinstance<py::int_>(val))
+        // {
+        //     v.push_back(val.cast<int>());
+        // }
+        // else if(py::isinstance<py::float_>(val))
+        // {
+        //     v.push_back(val.cast<float>());
+        // }
+        // else if(py::isinstance<py::str>(val))
+        // {
+        //     v.push_back(val.cast<std::string>());
+        // }
+        // else
+        // {
+        //     MIGRAPHX_THROW("LIST_TO_VALUE: Unsupported data type ");
+        // }
     }
 
     return v;
@@ -73,37 +112,40 @@ migraphx::value kwargs_to_value(py::kwargs kwargs)
     {
         auto&& key  = py::str(arg.first);
         auto&& val  = arg.second;
-        auto&& type = val.get_type();
-        if(py::isinstance<py::kwargs>(val))
-        {
-            auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
-            v[key]      = elem_v;
-        }
-        else if(py::isinstance<py::list>(val))
-        {
-            auto elem_v = list_to_value(val.cast<py::list>());
-            v[key]      = elem_v;
-        }
-        else if(py::isinstance<py::bool_>(val))
-        {
-            v[key] = val.cast<bool>();
-        }
-        else if(py::isinstance<py::int_>(val))
-        {
-            v[key] = val.cast<int>();
-        }
-        else if(py::isinstance<py::float_>(val))
-        {
-            v[key] = val.cast<float>();
-        }
-        else if(py::isinstance<py::str>(val))
-        {
-            v[key] = val.cast<std::string>();
-        }
-        else
-        {
-            MIGRAPHX_THROW("KWARGS_TO_VALUE: Unsupported data type ");
-        }
+        visit_py(val, [&](auto py_val) {
+            v[key] = py_val;
+        });
+
+        // if(py::isinstance<py::kwargs>(val))
+        // {
+        //     auto elem_v = kwargs_to_value(val.cast<py::kwargs>());
+        //     v[key]      = elem_v;
+        // }
+        // else if(py::isinstance<py::list>(val))
+        // {
+        //     auto elem_v = list_to_value(val.cast<py::list>());
+        //     v[key]      = elem_v;
+        // }
+        // else if(py::isinstance<py::bool_>(val))
+        // {
+        //     v[key] = val.cast<bool>();
+        // }
+        // else if(py::isinstance<py::int_>(val))
+        // {
+        //     v[key] = val.cast<int>();
+        // }
+        // else if(py::isinstance<py::float_>(val))
+        // {
+        //     v[key] = val.cast<float>();
+        // }
+        // else if(py::isinstance<py::str>(val))
+        // {
+        //     v[key] = val.cast<std::string>();
+        // }
+        // else
+        // {
+        //     MIGRAPHX_THROW("KWARGS_TO_VALUE: Unsupported data type ");
+        // }
     }
 
     return v;

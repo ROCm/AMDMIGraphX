@@ -22,6 +22,25 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
+TEST_CASE(load_and_run_init_list)
+{
+    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto shapes_before = p.get_output_shapes();
+    p.compile(migraphx::target("cpu"));
+    auto shapes_after = p.get_output_shapes();
+    CHECK(shapes_before.size() == 1);
+    CHECK(shapes_before.size() == shapes_after.size());
+    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    auto param_shapes = p.get_parameter_shapes();
+    EXPECT(param_shapes.size() == 3);
+    auto names   = param_shapes.names();
+    auto outputs = p.eval({{names[0], migraphx::argument::generate(param_shapes[names[0]])},
+                           {names[1], migraphx::argument::generate(param_shapes[names[1]])},
+                           {names[2], migraphx::argument::generate(param_shapes[names[2]])}});
+    CHECK(shapes_before.size() == outputs.size());
+    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+}
+
 TEST_CASE(quantize_fp16)
 {
     auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");

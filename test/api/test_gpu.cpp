@@ -30,7 +30,7 @@ TEST_CASE(gelu_new)
     auto shapes_before = p.get_output_shapes();
     migraphx_compile_options options;
     options.offload_copy = true;
-    options.fast_math = false;
+    options.fast_math    = false;
     p.compile(migraphx::target("gpu"), options);
 }
 

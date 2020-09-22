@@ -1309,18 +1309,18 @@ def gelu_new_test():
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5])
     half_val = np.array([0.5])
     three_val = np.array([3])
-    sqrt_2_pi_val = np.array([np.sqrt(2/np.pi)])
+    sqrt_2_pi_val = np.array([np.sqrt(2 / np.pi)])
     const_val = np.array([0.044715])
 
     half_tensor = helper.make_tensor(name='half_val',
-                                      data_type=TensorProto.FLOAT,
-                                      dims=half_val.shape,
-                                      vals=half_val.astype(np.float))
+                                     data_type=TensorProto.FLOAT,
+                                     dims=half_val.shape,
+                                     vals=half_val.astype(np.float))
 
     half = onnx.helper.make_node('Constant',
-                                  inputs=[],
-                                  outputs=['half'],
-                                  value=half_tensor)
+                                 inputs=[],
+                                 outputs=['half'],
+                                 value=half_tensor)
 
     three_tensor = helper.make_tensor(name='three_val',
                                       data_type=TensorProto.FLOAT,
@@ -1331,16 +1331,16 @@ def gelu_new_test():
                                   inputs=[],
                                   outputs=['three'],
                                   value=three_tensor)
-    
+
     sqrt_2_pi_tensor = helper.make_tensor(name='sqrt_2_pi_val',
-                                      data_type=TensorProto.FLOAT,
-                                      dims=sqrt_2_pi_val.shape,
-                                      vals=sqrt_2_pi_val.astype(np.float))
+                                          data_type=TensorProto.FLOAT,
+                                          dims=sqrt_2_pi_val.shape,
+                                          vals=sqrt_2_pi_val.astype(np.float))
 
     sqrt_2_pi = onnx.helper.make_node('Constant',
-                                  inputs=[],
-                                  outputs=['sqrt_2_pi'],
-                                  value=sqrt_2_pi_tensor)
+                                      inputs=[],
+                                      outputs=['sqrt_2_pi'],
+                                      value=sqrt_2_pi_tensor)
 
     const_tensor = helper.make_tensor(name='const_val',
                                       data_type=TensorProto.FLOAT,
@@ -1353,9 +1353,9 @@ def gelu_new_test():
                                   value=const_tensor)
 
     pow_node = onnx.helper.make_node('Pow',
-                                inputs=['0', 'three'],
-                                outputs=['pow_out'])
-                                
+                                     inputs=['0', 'three'],
+                                     outputs=['pow_out'])
+
     mul_const = onnx.helper.make_node('Mul',
                                       inputs=['const', 'pow_out'],
                                       outputs=['mul_const_out'])
@@ -1365,8 +1365,8 @@ def gelu_new_test():
                                   outputs=['add_x_out'])
 
     mul_sqrt_2_pi = onnx.helper.make_node('Mul',
-                                      inputs=['sqrt_2_pi', 'add_x_out'],
-                                      outputs=['mul_sqrt_out'])
+                                          inputs=['sqrt_2_pi', 'add_x_out'],
+                                          outputs=['mul_sqrt_out'])
 
     tanh = onnx.helper.make_node('Tanh',
                                  inputs=['mul_sqrt_out'],
@@ -1377,14 +1377,17 @@ def gelu_new_test():
                                      outputs=['mul_half_out'])
 
     add_half = onnx.helper.make_node('Add',
-                                    inputs=['mul_half_out', 'half'],
-                                    outputs=['add_half_out'])
+                                     inputs=['mul_half_out', 'half'],
+                                     outputs=['add_half_out'])
 
     mul_x = onnx.helper.make_node('Mul',
                                   inputs=['0', 'add_half_out'],
                                   outputs=['1'])
 
-    return ([half, three, sqrt_2_pi, const, pow_node, mul_const, add_x, mul_sqrt_2_pi, tanh, mul_half, add_half, mul_x], [x], [y])
+    return ([
+        half, three, sqrt_2_pi, const, pow_node, mul_const, add_x,
+        mul_sqrt_2_pi, tanh, mul_half, add_half, mul_x
+    ], [x], [y])
 
 
 @onnx_test

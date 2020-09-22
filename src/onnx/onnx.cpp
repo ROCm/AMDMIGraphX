@@ -2449,21 +2449,21 @@ struct onnx_parser
         auto arg_scale = args[1]->eval();
         check_arg_empty(arg_scale, "PARSE_UPSAMPLE: only constant scale is supported!");
         std::vector<float> vec_scale;
-        arg_scale.visit([&](auto v) {
-            vec_scale.assign(v.begin(), v.end());
-        });
+        arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
 
-        auto in_s = args[0]->get_shape();
+        auto in_s    = args[0]->get_shape();
         auto in_lens = in_s.lens();
-        if (in_lens.size() != vec_scale.size())
+        if(in_lens.size() != vec_scale.size())
         {
             MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
         }
 
         std::vector<std::size_t> out_lens(in_lens.size());
-        std::transform(in_lens.begin(), in_lens.end(), vec_scale.begin(), out_lens.begin(), [&](auto idx, auto scale) {
-            return static_cast<std::size_t>(idx * scale);
-        });
+        std::transform(in_lens.begin(),
+                       in_lens.end(),
+                       vec_scale.begin(),
+                       out_lens.begin(),
+                       [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
 
         shape out_s{in_s.type(), out_lens};
         std::vector<int> ind(out_s.elements());
@@ -2471,18 +2471,23 @@ struct onnx_parser
         // map out_idx to in_idx
         shape_for_each(out_s, [&](auto idx) {
             auto in_idx = idx;
-            std::transform(idx.begin(), idx.end(), vec_scale.begin(), in_idx.begin(), 
-                // nearest mode
-                [](auto index, auto scale) { return static_cast<std::size_t>(std::round(index / scale)); 
-            });
+            std::transform(idx.begin(),
+                           idx.end(),
+                           vec_scale.begin(),
+                           in_idx.begin(),
+                           // nearest mode
+                           [](auto index, auto scale) {
+                               return static_cast<std::size_t>(std::round(index / scale));
+                           });
 
-            ind[out_s.index(idx)] = std::accumulate(in_idx.begin(), in_idx.end(), 1, std::multiplies<std::size_t>{});
+            ind[out_s.index(idx)] =
+                std::accumulate(in_idx.begin(), in_idx.end(), 1, std::multiplies<std::size_t>{});
         });
 
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         shape ind_s{shape::int32_type, out_lens};
-        auto rsp = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto rsp     = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
         auto ins_ind = prog.add_literal(literal(ind_s, ind));
         return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }

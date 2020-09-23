@@ -2444,8 +2444,17 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_upsample(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    parse_upsample(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if (mode != "nearest")
+            {
+                MIGRAPHX_THROW("PARSE_UPSAMPLE: only nearest mode is supported!");
+            }
+        }
+            
         auto arg_scale = args[1]->eval();
         check_arg_empty(arg_scale, "PARSE_UPSAMPLE: only constant scale is supported!");
         std::vector<float> vec_scale;
@@ -2465,6 +2474,14 @@ struct onnx_parser
                        out_lens.begin(),
                        [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
 
+        std::vector<float> idx_scale(in_lens.size());
+        std::transform(out_lens.begin(), out_lens.end(),
+                       in_lens.begin(), idx_scale.begin(), 
+                       [](auto od, auto id) {
+                           return (od == id) ? 1.0f : (id - 1.0f) / (od - 1.0f);
+                       });
+
+
         shape out_s{in_s.type(), out_lens};
         std::vector<int> ind(out_s.elements());
 
@@ -2473,11 +2490,11 @@ struct onnx_parser
             auto in_idx = idx;
             std::transform(idx.begin(),
                            idx.end(),
-                           vec_scale.begin(),
+                           idx_scale.begin(),
                            in_idx.begin(),
                            // nearest mode
                            [](auto index, auto scale) {
-                               return static_cast<std::size_t>(std::round(index / scale));
+                               return static_cast<std::size_t>(std::round(index * scale));
                            });
 
             ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));

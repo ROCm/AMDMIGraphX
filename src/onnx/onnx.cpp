@@ -2480,8 +2480,7 @@ struct onnx_parser
                                return static_cast<std::size_t>(std::round(index / scale));
                            });
 
-            ind[out_s.index(idx)] =
-                std::accumulate(in_idx.begin(), in_idx.end(), 1, std::multiplies<std::size_t>{});
+            ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
         });
 
         // reshape input to one-dimension

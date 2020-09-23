@@ -181,7 +181,7 @@ PYBIND11_MODULE(migraphx, m)
         p.compile(t, options);
              },
              py::arg("t"),
-             py::arg("offload_copy") = true),
+             py::arg("offload_copy") = true,
              py::arg("fast_math")    = true)
         .def("run",
              [](migraphx::program& p, py::dict params) {

@@ -58,7 +58,8 @@ std::pair<siter, siter> key(siter start, siter end)
 
     if(start == end)
     {
-        if (std::ispunct(*end) or *end == ' ') ++end;
+        if(std::ispunct(*end) or *end == ' ')
+            ++end;
     }
 
     auto ks = end;

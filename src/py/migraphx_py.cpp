@@ -180,7 +180,18 @@ PYBIND11_MODULE(migraphx, m)
              },
              py::arg("t"),
              py::arg("offload_copy") = true)
-        .def("run", &migraphx::program::eval)
+        .def("run",
+             [](migraphx::program& p, py::dict params) {
+                 migraphx::program::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 return p.eval(pm);
+             })
         .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

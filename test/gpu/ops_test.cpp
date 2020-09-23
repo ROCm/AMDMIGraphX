@@ -1,5 +1,6 @@
 #include <test.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/iterator_for.hpp>
 #include "test_utils.hpp"
 
 #ifdef __clang__
@@ -2617,14 +2618,14 @@ void manual_disable_fast_gelu()
 
     migraphx::compile_options options;
     options.fast_math = false;
-    p.compile(migraphx::gpu::target{});
-    migraphx::program::parameter_map m;
-    for(auto&& i : p.get_parameter_shapes())
+    p.compile(migraphx::gpu::target{}, options);
+    bool found_gelu_new = false;
+    for(auto ins : iterator_for(p))
     {
-        m[i.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(i.second));
+        if(ins->name() == "gpu::gelu_new")
+            found_gelu_new = true;
     }
-    auto result = migraphx::gpu::from_gpu(p.eval(m).back());
-    std::cout << result << std::endl;
+    CHECK(found_gelu_new);
 }
 
 void manual_test_concat_relu()

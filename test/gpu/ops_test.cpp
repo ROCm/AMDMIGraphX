@@ -2959,6 +2959,6 @@ struct test_equal_brcst : verify_program<test_equal_brcst>
 
 int main(int argc, const char* argv[])
 {
-    manual_fast_gelu();
+    manual_disable_fast_gelu();
     test::run(argc, argv);
 }

@@ -79,6 +79,7 @@ std::string json_tokenize(const std::string& s)
             auto tk = key(start, colon_iter);
             if(tk.first != tk.second)
             {
+                // key is not quoted yet, need to quote it
                 if(*tk.first != '\"' or *tk.second != '\"')
                 {
                     tokens.emplace_back(tk);

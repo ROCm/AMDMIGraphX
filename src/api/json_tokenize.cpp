@@ -10,18 +10,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 siter colon(siter start, siter end)
 {
-    return std::find_if(start, end, [](auto c) {
-        return c == ':';
-    });
+    return std::find_if(start, end, [](auto c) { return c == ':'; });
 }
 
 std::pair<siter, siter> key(siter start, siter end)
 {
     // find key end
     --end;
-    while (start != end)
+    while(start != end)
     {
-        if (*end != ' ')
+        if(*end != ' ')
         {
             break;
         }
@@ -29,9 +27,9 @@ std::pair<siter, siter> key(siter start, siter end)
     }
     auto ke = end;
 
-    if (start == end)
+    if(start == end)
     {
-        if (*ke != '\"')
+        if(*ke != '\"')
         {
             return {ke, ke};
         }
@@ -43,14 +41,14 @@ std::pair<siter, siter> key(siter start, siter end)
 
     // find key start
     --end;
-    while (start != end)
+    while(start != end)
     {
         // match
-        if (*ke == '\"' and *end == '\"')
+        if(*ke == '\"' and *end == '\"')
         {
             break;
         }
-        else if (*ke != '\"' and (std::ispunct(*end) or *end == ' '))
+        else if(*ke != '\"' and (std::ispunct(*end) or *end == ' '))
         {
             ++end;
             break;
@@ -65,23 +63,23 @@ std::pair<siter, siter> key(siter start, siter end)
 std::string json_tokenize(const std::string& s)
 {
     siter start = s.begin();
-    siter end = s.end();
+    siter end   = s.end();
     std::vector<token> tokens;
 
-    while (start != end)
+    while(start != end)
     {
         auto colon_iter = colon(start, end);
-        if (colon_iter == s.end())
+        if(colon_iter == s.end())
         {
             break;
         }
 
-        if (start != colon_iter)
+        if(start != colon_iter)
         {
             auto tk = key(start, colon_iter);
-            if (tk.first != tk.second)
+            if(tk.first != tk.second)
             {
-                if (*tk.first != '\"' or *tk.second != '\"')
+                if(*tk.first != '\"' or *tk.second != '\"')
                 {
                     tokens.emplace_back(tk);
                 }
@@ -93,7 +91,7 @@ std::string json_tokenize(const std::string& s)
 
     std::string result;
     siter prev_it = s.begin();
-    for (auto token : tokens)
+    for(auto token : tokens)
     {
         result.append(std::string(prev_it, token.first));
         result.append(1, '"');

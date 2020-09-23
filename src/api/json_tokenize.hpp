@@ -7,7 +7,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::string jsonize_attribute_string(const std::string& op_name, const std::string& str);
+using siter = std::string::const_iterator;
+using token = std::pair<siter, siter>;
+
+std::string json_tokenize(const std::string& s);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

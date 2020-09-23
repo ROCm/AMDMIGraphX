@@ -1,7 +1,7 @@
 
 add_library(migraphx_c
     api.cpp
-    jsonize_attr_string.cpp
+    json_tokenize.cpp
 )
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 rocm_set_soversion(migraphx_c 2.0)

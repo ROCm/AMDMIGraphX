@@ -143,7 +143,11 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
 
 operation create_op(const char* name, const char* attributes)
 {
-    value v = from_json_string(json_tokenize(std::string(attributes)));
+    value v = value::object{};
+    if(attributes)
+    {
+        v = from_json_string(json_tokenize(std::string(attributes)));
+    }
     auto op = make_op(name, v);
 
     return op;

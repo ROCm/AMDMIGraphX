@@ -516,7 +516,7 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
     operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
 
-    operation(const char* name, const char* attributes)
+    operation(const char* name, const char* attributes = nullptr)
     {
         this->make_handle(&migraphx_operation_create, name, attributes);
     }

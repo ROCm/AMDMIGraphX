@@ -168,38 +168,37 @@ PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::target>(m, "target");
 
     py::class_<migraphx::program>(m, "program")
-        .def("clone", [](migraphx::program& p) {
-        return *(new migraphx::program(p)); })
+        .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
-        .def("compile",
-             [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
-        migraphx::compile_options options;
-        options.offload_copy = offload_copy;
-        options.fast_math    = fast_math;
-        p.compile(t, options);
-             },
-             py::arg("t"),
-             py::arg("offload_copy") = true,
-             py::arg("fast_math")    = true)
+        .def(
+            "compile",
+            [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
+                migraphx::compile_options options;
+                options.offload_copy = offload_copy;
+                options.fast_math    = fast_math;
+                p.compile(t, options);
+            },
+            py::arg("t"),
+            py::arg("offload_copy") = true,
+            py::arg("fast_math")    = true)
         .def("run",
              [](migraphx::program& p, py::dict params) {
-        migraphx::program::parameter_map pm;
-        for(auto x : params)
-        {
-            std::string key      = x.first.cast<std::string>();
-            py::buffer b         = x.second.cast<py::buffer>();
-            py::buffer_info info = b.request();
-            pm[key]              = migraphx::argument(to_shape(info), info.ptr);
-        }
-        return p.eval(pm);
+                 migraphx::program::parameter_map pm;
+                 for(auto x : params)
+                 {
+                     std::string key      = x.first.cast<std::string>();
+                     py::buffer b         = x.second.cast<py::buffer>();
+                     py::buffer_info info = b.request();
+                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                 }
+                 return p.eval(pm);
              })
         .def("sort", &migraphx::program::sort)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
-        .def("__repr__", [](const migraphx::program& p) {
-        return migraphx::to_string(p); });
+        .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
 
     m.def("parse_tf",
           [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {

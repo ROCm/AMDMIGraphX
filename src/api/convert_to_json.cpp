@@ -57,11 +57,13 @@ std::vector<token> tokenize(const char* start, const char* end, std::vector<lexe
                 break;
             }
         }
+
         if(error)
         {
-            std::abort();
+            MIGRAPHX_THROW("TOKENIZE: no token found!");
         }
     }
+    
     return result;
 }
 

@@ -22,14 +22,6 @@ auto lex_while(P p)
 }
 
 template <class P>
-auto lex_while1(P p)
-{
-    return [=](const char* start, const char* end) {
-        return std::find_if(start, end, [&](char c) { return p(c); });
-    };
-}
-
-template <class P>
 auto lex_if(P p)
 {
     return [=](const char* start, const char*) {

@@ -3010,11 +3010,10 @@ def unknown_aten_test():
 @onnx_test
 def upsample_test():
     scales = np.array([1.0, 1.0, 2.0, 3.0], dtype=np.float32)
-    scale_tensor = helper.make_tensor(
-        name='scales',
-        data_type  = TensorProto.FLOAT,
-        dims = scales.shape,
-        vals = scales.flatten().astype(np.float32))
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])

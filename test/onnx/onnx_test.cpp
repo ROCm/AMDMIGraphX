@@ -2167,9 +2167,9 @@ TEST_CASE(upsample_test)
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
 
-    auto li = p.add_literal(migraphx::literal(si, ind));
+    auto li  = p.add_literal(migraphx::literal(si, ind));
     auto rsp = p.add_instruction(migraphx::op::reshape{{4}}, ix);
-    auto r = p.add_instruction(migraphx::op::gather{0}, rsp, li);
+    auto r   = p.add_instruction(migraphx::op::gather{0}, rsp, li);
     p.add_return({r});
 
     auto prog = migraphx::parse_onnx("upsample_test.onnx");

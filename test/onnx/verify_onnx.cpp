@@ -136,12 +136,13 @@ TEST_CASE(upsample_test)
 
     migraphx::program::parameter_map pp;
     pp["X"] = migraphx::argument(sx, x_data.data());
-    
+
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
+    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
+                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

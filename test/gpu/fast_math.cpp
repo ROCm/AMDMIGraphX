@@ -4,7 +4,6 @@
 #include "test_utils.hpp"
 #include "test.hpp"
 
-
 migraphx::program create_gelu()
 {
     migraphx::program p;

@@ -24,14 +24,4 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
-TEST_CASE(gelu_new)
-{
-    auto p             = migraphx::parse_onnx("gelu_new_test.onnx");
-    auto shapes_before = p.get_output_shapes();
-    migraphx_compile_options options;
-    options.offload_copy = true;
-    options.fast_math    = false;
-    p.compile(migraphx::target("gpu"), options);
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

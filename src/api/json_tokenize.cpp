@@ -1,115 +1,123 @@
-#include "json_tokenize.hpp"
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <iostream>
+#include <functional>
+#include <sstream>
 #include <migraphx/errors.hpp>
+#include <migraphx/ranges.hpp>
+#include "json_tokenize.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-siter colon(siter start, siter end)
+using token = std::pair<const char*, const char*>;
+using lexer = std::function<const char*(const char* start, const char* end)>;
+
+template<class P>
+auto lex_while(P p)
 {
-    return std::find_if(start, end, [](auto c) { return c == ':'; });
+    return [=](const char* start, const char* end) {
+        return std::find_if(start, end, [&](char c) {
+            return not p(c);
+        });
+    };
 }
 
-std::pair<siter, siter> key(siter start, siter end)
+template<class P>
+auto lex_while1(P p)
 {
-    // find key end
-    --end;
-    while(start != end)
-    {
-        if(*end != ' ')
-        {
-            break;
-        }
-        --end;
-    }
-    auto ke = end;
+    return [=](const char* start, const char* end) {
+        return std::find_if(start, end, [&](char c) {
+            return p(c);
+        });
+    };
+}
 
-    if(start == end)
+template<class P>
+auto lex_if(P p)
+{
+    return [=](const char* start, const char*) {
+        if (p(*start))
+            return start+1;
+        return start;
+    };
+}
+
+std::vector<token> tokenize(const char* start, const char* end, std::vector<lexer> lexers)
+{
+    std::vector<token> result;
+    while(start != end) 
     {
-        if(*ke != '\"')
+        bool error = true;
+        for(auto l:lexers) 
         {
-            return {ke, ke};
+            auto next = l(start, end);
+            if (next != start)
+            {
+                if (not std::all_of(start, next, &isspace))
+                    result.emplace_back(start, next);
+                start = next;
+                error = false;
+                break;
+            }
+        }
+        if (error)
+        {
+            std::abort();
+        }
+    }
+    return result;
+}
+
+std::vector<token> json_tokenize(const std::string& s)
+{
+    std::vector<lexer> lexers;
+
+    // Quote
+    lexers.push_back([](const char* start, const char* end) {
+        if (*start != '\"')
+            return start;
+        ++start;
+        while(start != end and *start != '\"')
+        {
+            if (*start == '\\')
+                start++;
+            start++;
+        }
+
+        return ++start;
+    });
+
+    lexers.push_back(lex_while(&isspace));
+
+    // Punctation
+    lexers.push_back(lex_if(&ispunct));
+    
+    // Identifier/number
+    lexers.push_back(lex_while([](char c) { return (isalnum(c) or contains({'_', '.', '+'}, c)); }));
+
+    return tokenize(s.data(), s.data()+s.length(), lexers);
+}
+
+std::string convert_to_json(const std::string& str)
+{
+    auto tokens = json_tokenize(str);
+    std::stringstream ss;
+
+    for (auto& token : tokens)
+    {
+        std::string s(token.first, token.second);
+        if (std::isalpha(s.front()) and not contains({"null", "nan"}, s))
+        {
+            ss << "\"" << s << "\"";
         }
         else
         {
-            MIGRAPHX_THROW("KEY: single quote cannot be a key!");
+            ss << s;
         }
     }
 
-    // find key start
-    --end;
-    while(start != end)
-    {
-        // match
-        if(*ke == '\"' and *end == '\"')
-        {
-            break;
-        }
-        else if(*ke != '\"' and (std::ispunct(*end) or *end == ' '))
-        {
-            ++end;
-            break;
-        }
-        --end;
-    }
-
-    if(start == end)
-    {
-        if(std::ispunct(*end) or *end == ' ')
-            ++end;
-    }
-
-    auto ks = end;
-
-    return {ks, ke};
-}
-
-std::string json_tokenize(const std::string& s)
-{
-    siter start = s.begin();
-    siter end   = s.end();
-    std::vector<token> tokens;
-
-    while(start != end)
-    {
-        auto colon_iter = colon(start, end);
-        if(colon_iter == s.end())
-        {
-            break;
-        }
-
-        if(start != colon_iter)
-        {
-            auto tk = key(start, colon_iter);
-            if(tk.first != tk.second)
-            {
-                // key is not quoted yet, need to quote it
-                if(*tk.first != '\"' or *tk.second != '\"')
-                {
-                    tokens.emplace_back(tk);
-                }
-            }
-        }
-
-        start = ++colon_iter;
-    }
-
-    std::string result;
-    siter prev_it = s.begin();
-    for(auto token : tokens)
-    {
-        result.append(std::string(prev_it, token.first));
-        result.append(1, '"');
-        result.append(std::string(token.first, ++token.second));
-        result.append(1, '"');
-        prev_it = token.second;
-    }
-    result.append(std::string(prev_it, s.end()));
-
-    return result;
+    return ss.str();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

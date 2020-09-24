@@ -146,7 +146,7 @@ operation create_op(const char* name, const char* attributes)
     value v = value::object{};
     if(attributes != nullptr)
     {
-        v = from_json_string(json_tokenize(std::string(attributes)));
+        v = from_json_string(convert_to_json(std::string(attributes)));
     }
     auto op = make_op(name, v);
 

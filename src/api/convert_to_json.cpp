@@ -63,7 +63,7 @@ std::vector<token> tokenize(const char* start, const char* end, std::vector<lexe
             MIGRAPHX_THROW("TOKENIZE: no token found!");
         }
     }
-    
+
     return result;
 }
 

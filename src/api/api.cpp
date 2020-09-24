@@ -11,7 +11,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
 
-#include "json_tokenize.hpp"
+#include "convert_to_json.hpp"
 
 namespace migraphx {
 

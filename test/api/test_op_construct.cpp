@@ -1,6 +1,5 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
-#include <../json_tokenize.hpp>
 #include "test.hpp"
 
 TEST_CASE(add_op)

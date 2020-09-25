@@ -13,6 +13,12 @@ namespace op {
 
 struct equal : binary<equal>
 {
+    value attributes() const
+    {
+        auto a           = base_attributes();
+        a["commutative"] = true;
+        return a;
+    }
     auto apply() const
     {
         return [](auto x, auto y) { return float_equal(x, y); };

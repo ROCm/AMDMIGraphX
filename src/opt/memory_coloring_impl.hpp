@@ -83,7 +83,7 @@ struct memory_coloring_impl
     bool allocate(interval_ptr);
     void add_conflicts(std::set<int>& live_set, int val)
     {
-        for(auto& iter : live_set)
+        for(const auto& iter : live_set)
         {
             conflict_table[iter].insert(val);
             conflict_table[val].insert(iter);

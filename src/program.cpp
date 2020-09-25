@@ -369,7 +369,7 @@ std::vector<shape> program::get_output_shapes() const
     auto last_ins = impl->instructions.back();
     if(last_ins.name() == "@return")
     {
-        auto& output_ins = last_ins.inputs();
+        const auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;
         std::transform(output_ins.begin(),
                        output_ins.end(),

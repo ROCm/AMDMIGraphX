@@ -93,11 +93,11 @@ struct argument_parser
     {
         std::vector<std::string> flags;
         std::function<bool(argument_parser&, const std::vector<std::string>&)> action{};
-        std::string type = "";
-        std::string help = "";
-        std::string metavar = "";
+        std::string type          = "";
+        std::string help          = "";
+        std::string metavar       = "";
         std::string default_value = "";
-        unsigned nargs = 1;
+        unsigned nargs            = 1;
     };
 
     template <class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>

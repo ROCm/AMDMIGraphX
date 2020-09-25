@@ -42,8 +42,7 @@ std::vector<token> tokenize(const char* start, const char* end, std::vector<lexe
             auto next = l(start, end);
             if(next != start)
             {
-                if(not std::all_of(start, next, &isspace))
-                    result.emplace_back(start, next);
+                result.emplace_back(start, next);
                 start = next;
                 error = false;
                 break;

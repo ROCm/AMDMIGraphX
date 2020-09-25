@@ -65,7 +65,10 @@ struct set_stream
         ctx.set_stream(stream);
         return {};
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) const { ctx.set_stream(stream); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+    {
+        ctx.set_stream(stream);
+    }
 };
 
 std::size_t schedule_model::concurrency() const { return streams; }

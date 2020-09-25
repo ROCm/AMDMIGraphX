@@ -97,7 +97,7 @@ struct argument_parser
         std::string help;
         std::string metavar;
         std::string default_value;
-        unsigned nargs            = 1;
+        unsigned nargs = 1;
     };
 
     template <class T, MIGRAPHX_REQUIRES(is_multi_value<T>{})>

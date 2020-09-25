@@ -64,9 +64,10 @@ struct program
     {
         return replace_instruction(ins, op, {args...});
     }
-    instruction_ref replace_instruction(instruction_ref ins,
-                                        const operation& op,
-                                        std::vector<instruction_ref> args); // NOLINT(readability-make-member-function-const)
+    instruction_ref replace_instruction(
+        instruction_ref ins,
+        const operation& op,
+        std::vector<instruction_ref> args); // NOLINT(readability-make-member-function-const)
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 

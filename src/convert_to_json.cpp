@@ -5,7 +5,7 @@
 #include <sstream>
 #include <migraphx/errors.hpp>
 #include <migraphx/ranges.hpp>
-#include "convert_to_json.hpp"
+#include <migraphx/convert_to_json.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

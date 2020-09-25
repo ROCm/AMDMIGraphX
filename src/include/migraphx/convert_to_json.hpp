@@ -1,7 +1,8 @@
-#ifndef MIGRAPHX_GUARD_API_RTGLIB_CONVERT_TO_JSON_HPP
-#define MIGRAPHX_GUARD_API_RTGLIB_CONVERT_TO_JSON_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_CONVERT_TO_JSON_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_CONVERT_TO_JSON_HPP
 
 #include <string>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -10,8 +10,7 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
-
-#include "convert_to_json.hpp"
+#include <migraphx/convert_to_json.hpp>
 
 namespace migraphx {
 

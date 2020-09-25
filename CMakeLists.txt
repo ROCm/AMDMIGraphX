@@ -101,6 +101,7 @@ rocm_enable_clang_tidy(
         -google-runtime-int
         -google-runtime-references
         -misc-macro-parentheses
+        -misc-no-recursion
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-use-default-member-init

@@ -67,7 +67,7 @@ struct program
     instruction_ref replace_instruction(
         instruction_ref ins,
         const operation& op,
-        std::vector<instruction_ref> args); // NOLINT(readability-make-member-function-const)
+        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 

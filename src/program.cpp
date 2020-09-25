@@ -185,7 +185,7 @@ instruction_ref program::insert_instruction(instruction_ref ins,
 
 instruction_ref program::replace_instruction(instruction_ref ins,
                                              const operation& op,
-                                             std::vector<instruction_ref> args)
+                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&

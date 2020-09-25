@@ -38,22 +38,11 @@ migraphx::program create_gelu()
     return p;
 }
 
-void check_gelu_version(const migraphx::program& p, const std::string& gelu_name)
-{
-    bool found_gelu = false;
-    for(auto ins : iterator_for(p))
-    {
-        if(ins->name() == gelu_name)
-            found_gelu = true;
-    }
-    CHECK(found_gelu);
-}
-
 TEST_CASE(enable_fast_gelu)
 {
     migraphx::program p = create_gelu();
     p.compile(migraphx::gpu::target{});
-    check_gelu_version(p, "gpu::gelu");
+    CHECK(any_of(p, [&](auto&& i) { return i.name() == "gpu::gelu"; }));
 }
 
 TEST_CASE(disable_fast_gelu)
@@ -62,7 +51,7 @@ TEST_CASE(disable_fast_gelu)
     migraphx::compile_options options;
     options.fast_math = false;
     p.compile(migraphx::gpu::target{}, options);
-    check_gelu_version(p, "gpu::gelu_new");
+    CHECK(any_of(p, [&](auto&& i) { return i.name() == "gpu::gelu_new"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

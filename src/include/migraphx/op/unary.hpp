@@ -49,6 +49,7 @@ struct unary : op_name<Derived>
             result.visit([&](auto output) {
                 args[0].visit([&](auto input) {
                     shape_for_each(output.get_shape(), [&](const auto& idx) {
+                        // NOLINTNEXTLINE(bugprone-signed-char-misuse)
                         output(idx.begin(), idx.end()) = static_cast<const Derived&>(*this).apply()(
                             input(idx.begin(), idx.end()));
                     });

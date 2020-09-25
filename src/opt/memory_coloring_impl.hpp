@@ -123,7 +123,7 @@ struct memory_coloring_impl
 #endif
     struct ordering
     {
-        bool operator()(const interval_ptr i1, const interval_ptr i2) const
+        bool operator()(const interval_ptr& i1, const interval_ptr& i2) const
         {
             auto len1 = i1->get_end() - i1->get_begin();
             auto len2 = i2->get_end() - i2->get_begin();

@@ -109,7 +109,7 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
 
 static const std::unordered_map<std::string, std::size_t>& weight_map()
 {
-    static std::unordered_map<std::string, std::size_t> m = create_weight_map();
+    static const std::unordered_map<std::string, std::size_t> m = create_weight_map();
     return m;
 }
 

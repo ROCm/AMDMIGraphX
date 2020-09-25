@@ -97,9 +97,7 @@ void gemm_impl(
                             compute_type,
                             rocblas_gemm_algo_standard,
                             0,
-                            0,
-                            nullptr,
-                            nullptr);
+                            0);
         }
         else
         {
@@ -132,9 +130,7 @@ void gemm_impl(
                 compute_type,
                 rocblas_gemm_algo_standard,
                 0,
-                0,
-                nullptr,
-                nullptr);
+                0);
         }
     });
 }

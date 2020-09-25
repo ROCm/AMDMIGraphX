@@ -134,8 +134,6 @@ struct program
 
     private:
     void assign(const program& p);
-
-    private:
     std::unique_ptr<program_impl> impl;
 };
 

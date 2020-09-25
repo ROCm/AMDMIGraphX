@@ -44,7 +44,7 @@ struct index
 template <class F>
 __global__ void launcher(F f)
 {
-    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x};
+    index idx{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
     f(idx);
 }
 

@@ -25,6 +25,16 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
+template<class R, class... Ts, class... Us>
+R rocblas_invoke(R (*f)(Ts...), Us... xs)
+{
+    if constexpr(sizeof...(Ts) == sizeof...(Us))
+        return f(xs...);
+    else
+        return f(xs..., nullptr, nullptr);
+
+}
+
 template <class T>
 void gemm_impl(
     context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
@@ -74,7 +84,7 @@ void gemm_impl(
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as
             // A and args[0] as B in calling the rocblas_gemm.
-            rocblas_gemm_ex(ctx.get_stream().get_rocblas(),
+            rocblas_invoke(&rocblas_gemm_ex, ctx.get_stream().get_rocblas(),
                             transb ? rocblas_operation_transpose : rocblas_operation_none,
                             transa ? rocblas_operation_transpose : rocblas_operation_none,
                             n,
@@ -101,7 +111,7 @@ void gemm_impl(
         }
         else
         {
-            rocblas_gemm_strided_batched_ex(
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                 ctx.get_stream().get_rocblas(),
                 transb ? rocblas_operation_transpose : rocblas_operation_none,
                 transa ? rocblas_operation_transpose : rocblas_operation_none,

@@ -130,10 +130,10 @@ void set_device(std::size_t id)
         MIGRAPHX_THROW("Error setting device");
 }
 
-void gpu_sync() 
-{ 
+void gpu_sync()
+{
     auto status = hipDeviceSynchronize();
-    if (status != hipSuccess)
+    if(status != hipSuccess)
         MIGRAPHX_THROW("hip device synchronization failed: " + hip_error(status));
 }
 

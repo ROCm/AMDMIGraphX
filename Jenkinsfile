@@ -75,6 +75,12 @@ def rocmnode(Map conf, name, body) {
     }
 }
 
+@NonCPS
+def rocmnode(name, body) {
+    def m = [:]
+    rocmnode(m, name, body)
+}
+
 // Static checks
 rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Tidy') {

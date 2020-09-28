@@ -23,6 +23,7 @@ def get_device():
 class MIGraphXBackend(Backend):
     _device = "GPU"
     _input_names = []
+    _prog_string = ""
 
     @classmethod
     def set_device(cls, device):
@@ -37,6 +38,10 @@ class MIGraphXBackend(Backend):
     shows how to use *caffe2* as a backend for a converted model.
     Note: This is not the official Python API.
     """  # noqa: E501
+
+    @classmethod
+    def get_program(cls):
+        return cls._prog_string
 
     @classmethod
     def is_compatible(cls, model, device=None, **kwargs):
@@ -85,9 +90,13 @@ class MIGraphXBackend(Backend):
                     "Incompatible device expected '{0}', got '{1}'".format(
                         device, get_device()))
             inf = migraphx.parse_onnx_buffer(model)
+            cls._prog_string = str("\nProgram =\n{}".format(inf))
             device = cls._device
             cls._input_names = inf.get_parameter_names()
             inf.compile(migraphx.get_target(device.lower()))
+            cls._prog_string = cls._prog_string + str(
+                "\nCompiled program =\n{}".format(inf))
+
             return cls.prepare(inf, device, **kwargs)
         else:
             # type: ModelProto

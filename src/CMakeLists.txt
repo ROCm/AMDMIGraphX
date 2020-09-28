@@ -142,6 +142,9 @@ rocm_install_targets(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+find_package(Threads)
+target_link_libraries(migraphx PUBLIC Threads::Threads)
+
 find_path(HALF_INCLUDE_DIR half.hpp)
 # TODO: Fix the incorrect path
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)

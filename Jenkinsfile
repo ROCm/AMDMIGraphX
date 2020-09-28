@@ -1,5 +1,8 @@
 
-def rocmtestnode(variant, name, body) {
+def rocmtestnode(Map conf) {
+    def variant = conf.get("variant")
+    def name = conf.get("name")
+    def body = conf.get("body")
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -55,7 +58,7 @@ def rocmtest(m) {
 }
 
 @NonCPS
-def rocmnode(name, body) {
+def rocmnode(Map conf, name, body) {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
@@ -65,7 +68,10 @@ def rocmnode(name, body) {
         node_name = name
     }
     return { label ->
-        rocmtestnode(label, node_name, body)
+        conf["variant"] = label
+        conf["name"] = node_name
+        conf["body"] = body
+        rocmtestnode(conf)
     }
 }
 

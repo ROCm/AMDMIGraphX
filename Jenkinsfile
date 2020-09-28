@@ -3,8 +3,9 @@
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
     def name = conf.get("node")
-    def args = conf.args("args", "")
-    def pre = conf.args("pre", {})
+    def docker_args = conf.get("docker_args", "")
+    def docker_build_args = conf.get("docker_build_args", "")
+    def pre = conf.get("pre", {})
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -33,13 +34,13 @@ def rocmtestnode(Map conf) {
             pre()
             stage("image ${variant}") {
                 try {
-                    docker.build("${image}", '.')
+                    docker.build("${image}", "${docker_build_args} .")
                 } catch(Exception ex) {
-                    docker.build("${image}", '--no-cache .')
+                    docker.build("${image}", "${docker_build_args} --no-cache .")
 
                 }
             }
-            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${args}") {
+            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
                 timeout(time: 1, unit: 'HOURS') {
                     body(cmake_build)
                 }
@@ -59,7 +60,7 @@ def rocmtest(m) {
     parallel builders
 }
 
-def rocmnode(Map conf, body) {
+def rocmnodename(name) {
     def node_name = 'rocmtest || rocm'
     def name = conf.get("node") 
     if(name == 'fiji') {
@@ -69,17 +70,23 @@ def rocmnode(Map conf, body) {
     } else {
         node_name = name
     }
+    return node_name
+}
+
+def rocmnode(name, body) {
     return { label ->
-        def m = [:]
-        m["variant"] = label
-        m["node"] = node_name
-        m["body"] = body
-        rocmtestnode(m)
+        rocmtestnode(variant: label, node: rocmnodename(name), body: body)
+    }
+}
+
+def rocmhipclangnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_build_args: '-f hip-clang.docker', body: body)
     }
 }
 
 // Static checks
-rocmtest tidy: rocmnode(node: 'rocmtest') { cmake_build ->
+rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Tidy') {
         sh '''
             rm -rf build
@@ -89,7 +96,7 @@ rocmtest tidy: rocmnode(node: 'rocmtest') { cmake_build ->
             make -j$(nproc) -k analyze
         '''
     }
-}, format: rocmnode(node: 'rocmtest') { cmake_build ->
+}, format: rocmnode('rocmtest') { cmake_build ->
     stage('Format') {
         sh '''
             find . -iname \'*.h\' \
@@ -106,30 +113,30 @@ rocmtest tidy: rocmnode(node: 'rocmtest') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
         '''
     }
-}, clang_debug: rocmnode(node: 'vega') { cmake_build ->
+}, clang_debug: rocmnode('vega') { cmake_build ->
     stage('Clang Debug') {
         // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, clang_release: rocmnode(node: 'vega') { cmake_build ->
+}, clang_release: rocmnode('vega') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
-}, clang_release_py3: rocmnode(node: 'vega') { cmake_build ->
+}, clang_release_py3: rocmnode('vega') { cmake_build ->
     stage('Clang Release Python 3') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }
-}, gcc5: rocmnode(node: 'rocmtest') { cmake_build ->
+}, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
     }
     stage('GCC 5 Release') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
     }
-}, gcc7: rocmnode(node: 'rocmtest') { cmake_build ->
+}, gcc7: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
@@ -152,10 +159,16 @@ rocmtest tidy: rocmnode(node: 'rocmtest') { cmake_build ->
     }
 }
 
-rocmtest onnx: rocmnode(node: 'rocmtest', args: '-u root', pre: { 
-    sh 'rm -rf ./build/*.deb'
-    unstash 'migraphx-package' 
-}) { cmake_build ->
+def onnxnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
+            sh 'rm -rf ./build/*.deb'
+            unstash 'migraphx-package' 
+        })
+    }
+}
+
+rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             ls -lR

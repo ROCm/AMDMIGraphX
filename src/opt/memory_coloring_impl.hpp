@@ -81,7 +81,7 @@ struct memory_coloring_impl
         unify_literals     = false;
     }
     bool allocate(interval_ptr);
-    void add_conflicts(std::set<int>& live_set, int val)
+    void add_conflicts(const std::set<int>& live_set, int val)
     {
         for(const auto& iter : live_set)
         {

@@ -199,9 +199,9 @@ struct check_shapes
         return begin + i;
     }
 
-    check_shapes slice(long start) { return {get(start), end, name}; }
+    check_shapes slice(long start) const { return {get(start), end, name}; }
 
-    check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
+    check_shapes slice(long start, long last) const { return {get(start), get(last), name}; }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

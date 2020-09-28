@@ -3,6 +3,7 @@
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
     def name = conf.get("node")
+    def body = conf.get("body")
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})

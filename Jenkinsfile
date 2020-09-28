@@ -44,7 +44,6 @@ def rocmtestnode(Map conf) {
         }
     }
 }
-@NonCPS
 def rocmtest(m) {
     def builders = [:]
     for(e in m) {
@@ -57,7 +56,6 @@ def rocmtest(m) {
     parallel builders
 }
 
-@NonCPS
 def rocmnode(Map conf, name, body) {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
@@ -75,7 +73,6 @@ def rocmnode(Map conf, name, body) {
     }
 }
 
-@NonCPS
 def rocmnode(name, body) {
     def m = [:]
     rocmnode(m, name, body)

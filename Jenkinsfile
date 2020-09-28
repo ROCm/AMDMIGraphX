@@ -1,7 +1,7 @@
 
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
-    def name = conf.get("name")
+    def name = conf.get("node") 
     def body = conf.get("body")
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
@@ -56,8 +56,9 @@ def rocmtest(m) {
     parallel builders
 }
 
-def rocmnode(Map conf, name, body) {
+def rocmnode(Map conf, body) {
     def node_name = 'rocmtest || rocm'
+    def name = conf.get("node") 
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
     } else if(name == 'vega') {
@@ -67,19 +68,14 @@ def rocmnode(Map conf, name, body) {
     }
     return { label ->
         conf["variant"] = label
-        conf["name"] = node_name
+        conf["node"] = node_name
         conf["body"] = body
         rocmtestnode(conf)
     }
 }
 
-def rocmnode(name, body) {
-    def m = [:]
-    rocmnode(m, name, body)
-}
-
 // Static checks
-rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
+rocmtest tidy: rocmnode(node: 'rocmtest') { cmake_build ->
     stage('Clang Tidy') {
         sh '''
             rm -rf build
@@ -89,7 +85,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             make -j$(nproc) -k analyze
         '''
     }
-}, format: rocmnode('rocmtest') { cmake_build ->
+}, format: rocmnode(node: 'rocmtest') { cmake_build ->
     stage('Format') {
         sh '''
             find . -iname \'*.h\' \
@@ -106,29 +102,29 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
         '''
     }
-}, clang_debug: rocmnode('vega') { cmake_build ->
+}, clang_debug: rocmnode(node: 'vega') { cmake_build ->
     stage('Clang Debug') {
         // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, clang_release: rocmnode('vega') { cmake_build ->
+}, clang_release: rocmnode(node: 'vega') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
     }
-}, clang_release_py3: rocmnode('vega') { cmake_build ->
+}, clang_release_py3: rocmnode(node: 'vega') { cmake_build ->
     stage('Clang Release Python 3') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }
-}, gcc5: rocmnode('rocmtest') { cmake_build ->
+}, gcc5: rocmnode(node: 'rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
     }
     stage('GCC 5 Release') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
     }
-}, gcc7: rocmnode('rocmtest') { cmake_build ->
+}, gcc7: rocmnode(node: 'rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"

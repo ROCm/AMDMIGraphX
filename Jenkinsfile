@@ -62,7 +62,6 @@ def rocmtest(m) {
 
 def rocmnodename(name) {
     def node_name = 'rocmtest || rocm'
-    def name = conf.get("node") 
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
     } else if(name == 'vega') {

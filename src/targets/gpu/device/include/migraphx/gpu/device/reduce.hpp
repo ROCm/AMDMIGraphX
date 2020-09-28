@@ -85,13 +85,18 @@ struct highest
 };
 
 #ifdef MIGRAPHX_NO_DPP
-template <index_int N, class Op, class T, class F>
-__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+template <index_int N,
+          class Op,
+          class T,
+          class ForStride,
+          class F,
+          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
+__device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
-    using type = decltype(f(idx.local));
+    using type = decltype(f(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
     type x = init;
-    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
+    fs([&](auto i) { x = op(x, f(i)); });
     buffer[idx.local] = x;
     __syncthreads();
 
@@ -218,7 +223,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
     }
     return y;
 }
-
+#endif
 template <index_int N, class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
@@ -229,14 +234,29 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
     return block_reduce<N>(
         idx, op, init, midx.for_stride(fs), [&](auto mi) __device__ { return f(mi[0]); });
 }
-
-#endif
 constexpr index_int compute_block_size(index_int n, index_int max_block_size)
 {
     size_t block_size = 64;
     while(block_size < max_block_size and block_size < n)
         block_size *= 2;
     return block_size;
+}
+
+inline std::vector<index_int> get_reduce_lens(const std::vector<size_t>& input_lens,
+                                              const std::vector<size_t>& output_lens)
+{
+    std::vector<index_int> reduce_lens;
+    std::transform(output_lens.begin(),
+                   output_lens.end(),
+                   input_lens.begin(),
+                   std::back_inserter(reduce_lens),
+                   [](auto x, auto y) -> index_int {
+                       if(x == y)
+                           return 1;
+                       else
+                           return y;
+                   });
+    return reduce_lens;
 }
 
 template <class Op, class T, class Input, class Output>
@@ -306,29 +326,19 @@ void reduce(hipStream_t stream,
 {
     auto&& output_shape = result.get_shape();
     auto&& input_shape  = arg.get_shape();
-    assert(output_shape.lens().size() == input_shape.lens().size());
+    auto input_lens     = input_shape.lens();
+    auto output_lens    = output_shape.lens();
+    assert(output_lens.size() == input_lens.size());
     if(input_shape.standard() and output_shape.standard() and
-       output_shape.lens().back() != input_shape.lens().back() and
-       std::equal(output_shape.lens().begin(),
-                  std::prev(output_shape.lens().end()),
-                  input_shape.lens().begin()))
+       output_lens.back() != input_lens.back() and
+       std::equal(output_lens.begin(), std::prev(output_lens.end()), input_lens.begin()))
     {
         reduce_standard_impl(
-            stream, result, arg, op, init, read_input, read_output, input_shape.lens().back());
+            stream, result, arg, op, init, read_input, read_output, input_lens.back());
     }
     else
     {
-        std::vector<index_int> reduce_lens;
-        std::transform(output_shape.lens().begin(),
-                       output_shape.lens().end(),
-                       input_shape.lens().begin(),
-                       std::back_inserter(reduce_lens),
-                       [](auto x, auto y) -> index_int {
-                           if(x == y)
-                               return 1;
-                           else
-                               return y;
-                       });
+        std::vector<index_int> reduce_lens = get_reduce_lens(input_lens, output_lens);
         shape reduce_slice{output_shape.type(), reduce_lens};
         reduce_multi_impl(stream, result, arg, op, init, read_input, read_output, reduce_slice);
     }

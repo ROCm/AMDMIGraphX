@@ -556,15 +556,24 @@ template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
     return make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->get_shape().elements() != 1)
+        if(ins->name() != "@literal")
             return false;
         auto l = ins->get_literal();
         if(l.empty())
             return false;
         bool b = false;
-        l.visit([&](auto v) { b = v.front() - x < tolerance; });
+        l.visit([&](auto v) {
+            if(std::all_of(v.begin(), v.end(), [&](auto val) { return val - x < tolerance; }))
+                b = true;
+        });
         return b;
     });
+}
+
+inline auto has_attribute(const std::string& name)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
 } // namespace match

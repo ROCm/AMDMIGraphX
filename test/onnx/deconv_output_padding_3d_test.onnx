@@ -1,0 +1,28 @@
+deconv_output_padding_3d_test:Ë
+G
+x
+wy"ConvTranspose*
+output_padding@@@ *
+strides@@@ deconv_output_padding_3d_testZ
+x
+
+
+
+
+
+Z
+w
+
+
+
+
+
+b
+y
+
+
+
+
+
+
+B

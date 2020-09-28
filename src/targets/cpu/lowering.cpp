@@ -2,7 +2,8 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/identity.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -24,8 +25,11 @@
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
 #include <migraphx/cpu/gemm.hpp>
+#include <migraphx/register_op.hpp>
+#include <migraphx/make_op.hpp>
 #include <unordered_map>
 #include <utility>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -86,45 +90,42 @@ struct cpu_batch_norm_inference
         auto mini_batch_mean     = args[3];
         auto mini_batch_variance = args[4];
 
-        auto num_batch    = output_shape.lens()[0];
-        auto num_channels = output_shape.lens()[1];
-        auto image_height = output_shape.lens()[2];
-        auto image_width  = output_shape.lens()[3];
-
         if(op.bn_mode == op::batch_norm_inference::spatial)
         {
             visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-
-                    par_dfor(num_batch, num_channels, image_height, image_width)(
-                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                            assert((variance[c] + epsilon) > 0);
-                            result(n, c, h, w) = gamma[c] * (buffer(n, c, h, w) - mean[c]) /
-                                                     std::sqrt(variance[c] + epsilon) +
-                                                 bias[c];
-                        });
+                    par_for(output_shape.elements(), [&](auto i) {
+                        auto idx = output_shape.multi(i);
+                        auto c   = idx[1];
+                        assert((variance[c] + epsilon) > 0);
+                        result[i] =
+                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
+                            bias[c];
+                    });
                 });
         }
 
         if(op.bn_mode == op::batch_norm_inference::per_activation)
         {
-            visit_all(output, input, mini_batch_mean, mini_batch_mean, arg_gamma, arg_bias)(
+            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
                 [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
+                    par_for(output_shape.elements(), [&](auto i) {
+                        auto idx   = output_shape.multi(i);
+                        idx[0]     = 0;
+                        auto index = output_shape.index(idx);
 
-                    par_dfor(num_batch, num_channels, image_height, image_width)(
-                        [&](std::size_t n, std::size_t c, std::size_t h, std::size_t w) {
-                            assert((variance(c, h, w) + epsilon) > 0);
-                            result(n, c, h, w) = gamma(c, h, w) *
-                                                     (buffer(n, c, h, w) - mean(c, h, w)) /
-                                                     std::sqrt(variance(c, h, w) + epsilon) +
-                                                 bias(c, h, w);
-                        });
+                        assert((variance[index] + epsilon) > 0);
+                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
+                                        std::sqrt(variance[index] + epsilon) +
+                                    bias[index];
+                    });
                 });
         }
 
         return output;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_batch_norm_inference)
 
 struct cpu_lrn
 {
@@ -169,10 +170,30 @@ struct cpu_lrn
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_lrn)
+
+template <class V, class T, class... Ts>
+void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
+{
+    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
+}
+
+template <class T, class... Ts>
+auto visit_quantize(T&& x, Ts&&... xs)
+{
+    return [&](auto v) {
+        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
+        visit_quantize_impl(v, x, xs...);
+    };
+}
 
 template <class Op>
-struct cpu_convolution
+struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
 {
+    cpu_convolution() = default;
+
+    cpu_convolution(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -186,38 +207,57 @@ struct cpu_convolution
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            visit_all(args[0], args[1])([&](auto input, auto weights) {
-                auto in   = input.get_shape().lens();
-                auto in_h = in[2];
-                auto in_w = in[3];
+        visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
+            auto in_lens = input.get_shape().lens();
 
-                auto wei   = weights.get_shape().lens();
-                auto wei_n = wei[0];
-                auto wei_c = wei[1];
-                auto wei_h = wei[2];
-                auto wei_w = wei[3];
+            auto wei_lens = weights.get_shape().lens();
+            auto wei_n    = wei_lens[0];
+            auto wei_c    = wei_lens[1];
+            std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
 
-                par_dfor(output_shape.lens()[0],
-                         output_shape.lens()[1],
-                         output_shape.lens()[2],
-                         output_shape.lens()[3])(
-                    [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                        const auto start_x  = i * op.stride[0] - op.padding[0];
-                        const auto start_y  = j * op.stride[1] - op.padding[1];
-                        const auto group_id = w / (wei_n / op.group);
+            par_for(output_shape.elements(), [&](auto i) {
+                auto idx_o = output_shape.multi(i);
+                auto w     = idx_o[1];
+                auto n_dim = idx_o.size();
 
-                        type acc = type{0};
-                        dfor(wei_c, wei_h, wei_w)([&](std::size_t k, std::size_t x, std::size_t y) {
-                            const auto in_x  = start_x + x;
-                            const auto in_y  = start_y + y;
-                            const auto in_ch = group_id * wei_c + k;
-                            if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                                acc += input(o, in_ch, in_x, in_y) * weights(w, k, x, y);
-                        });
-                        output(o, w, i, j) = acc;
-                    });
+                std::vector<std::ptrdiff_t> win_start;
+                for(std::size_t dim = 2; dim < n_dim; ++dim)
+                {
+                    auto d_2 = dim - 2;
+                    win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
+                                        std::ptrdiff_t(op.padding[d_2]));
+                }
+                const auto group_id = w / (wei_n / op.group);
+
+                shape win_shape{output_shape.type(), win_size};
+
+                double acc = 0.0;
+                shape_for_each(win_shape, [&](auto idx_win) {
+                    auto k           = idx_win[0];
+                    const auto in_ch = group_id * wei_c + k;
+                    std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
+                    idx[1] = in_ch;
+                    std::transform(idx_win.begin() + 1,
+                                   idx_win.end(),
+                                   win_start.begin(),
+                                   idx.begin() + 2,
+                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
+                    std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
+                    idx_wei[0] = w;
+                    std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
+                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                       std::equal(idx.begin(),
+                                  idx.end(),
+                                  in_lens.begin(),
+                                  in_lens.end(),
+                                  std::less<std::ptrdiff_t>{}))
+                    {
+                        acc +=
+                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
+                    }
+                });
+
+                output[i] = acc;
             });
         });
         return result;
@@ -225,8 +265,12 @@ struct cpu_convolution
 };
 
 template <class Op>
-struct cpu_deconvolution
+struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
 {
+    cpu_deconvolution() = default;
+
+    cpu_deconvolution(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -245,41 +289,69 @@ struct cpu_deconvolution
 
             std::fill(output.begin(), output.end(), type{0});
 
-            auto out_lens = output_shape.lens();
-            auto out_h    = out_lens[2];
-            auto out_w    = out_lens[3];
-
-            auto in   = input.get_shape().lens();
-            auto in_n = in[0];
-            auto in_c = in[1];
-            auto in_h = in[2];
-            auto in_w = in[3];
+            auto in_lens = input.get_shape().lens();
+            auto in_n    = in_lens[0];
+            auto in_c    = in_lens[1];
 
             auto wei   = weights.get_shape().lens();
             auto wei_n = wei[0];
             auto wei_c = wei[1];
-            auto wei_h = wei[2];
-            auto wei_w = wei[3];
 
-            par_dfor(in_n, wei_c)([&](std::size_t o, std::size_t k) {
+            auto out_lens = output_shape.lens();
+            auto kdims    = op.kdims();
 
-                dfor(in_c, in_h, in_w, wei_h, wei_w)(
-                    [&](std::size_t w, std::size_t i, std::size_t j, std::size_t x, std::size_t y) {
-                        const int start_x = i * op.stride[0] - op.padding[0];
-                        const int start_y = j * op.stride[1] - op.padding[1];
-                        const int out_x   = start_x + x * op.dilation[0];
-                        const int out_y   = start_y + y * op.dilation[1];
+            std::vector<std::size_t> win_size{in_c};
+            std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
+            std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
+            shape win_shape{output_shape.type(), win_size};
 
-                        const auto group_id = w / (wei_n / op.group);
-                        const auto in_ch    = group_id * wei_c + k;
+            par_dfor(in_n, wei_c)([&](int o, int k) {
 
-                        if(out_x >= 0 && out_x < out_h && out_y >= 0 && out_y < out_w)
-                        {
-                            output(o, in_ch, out_x, out_y) +=
-                                input(o, w, i, j) * weights(w, k, x, y);
-                        }
-                    });
+                shape_for_each(win_shape, [&](auto idx_win) {
+                    const int w = idx_win[0];
+
+                    auto input_dims_start = idx_win.begin() + 1;
+                    auto wei_dims_start   = idx_win.begin() + kdims + 1;
+
+                    std::vector<std::ptrdiff_t> win_start;
+                    for(std::size_t n = 0; n < kdims; ++n)
+                    {
+                        win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * op.stride[n]) -
+                                            std::ptrdiff_t(op.padding[n]));
+                    }
+
+                    const int group_id = w / (wei_n / op.group);
+                    const int in_ch    = group_id * wei_c + k;
+
+                    std::vector<std::ptrdiff_t> idx_out{o, in_ch};
+
+                    for(size_t n = 0; n < kdims; n++)
+                    {
+                        idx_out.push_back(win_start[n] + *(wei_dims_start + n) * op.dilation[n]);
+                    }
+
+                    std::vector<std::ptrdiff_t> idx_wei{w, k};
+                    std::copy(wei_dims_start, idx_win.end(), std::back_inserter(idx_wei));
+
+                    std::vector<std::ptrdiff_t> idx_in{o, w};
+                    std::copy(input_dims_start, wei_dims_start, std::back_inserter(idx_in));
+
+                    if(std::all_of(
+                           idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
+                       std::equal(idx_out.begin() + 2,
+                                  idx_out.end(),
+                                  out_lens.begin() + 2,
+                                  out_lens.end(),
+                                  std::less<std::ptrdiff_t>{}))
+                    {
+                        output(idx_out.begin(), idx_out.end()) +=
+                            input(idx_in.begin(), idx_in.end()) *
+                            weights(idx_wei.begin(), idx_wei.end());
+                    }
+                });
+
             });
+
         });
         return result;
     }
@@ -346,11 +418,16 @@ struct cpu_im2col
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_im2col)
 
 struct max_pool
 {
     static std::string name() { return "max"; }
-    static double start() { return std::numeric_limits<double>::lowest(); }
+    template <class T>
+    static T start()
+    {
+        return std::numeric_limits<T>::lowest();
+    }
 
     static double apply(double x, double y)
     {
@@ -358,22 +435,31 @@ struct max_pool
         return (m);
     }
 
-    static double final(double x, double) { return (x); }
+    static double final(double x, std::size_t) { return (x); }
 };
 
 struct avg_pool
 {
     static std::string name() { return "average"; }
-    static double start() { return 0.0; }
+
+    template <class T>
+    static double start()
+    {
+        return 0.0;
+    }
 
     static double apply(double x, double y) { return x + y; }
 
-    static double final(double x, double y) { return x / y; }
+    static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
 };
 
 template <class Op>
-struct cpu_pooling
+struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 {
+    cpu_pooling() = default;
+
+    cpu_pooling(op::pooling pop) : op(std::move(pop)) {}
+
     op::pooling op;
 
     template <class Self, class F>
@@ -388,62 +474,84 @@ struct cpu_pooling
     {
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
-            using type = typename decltype(output)::value_type;
-            auto in_h  = input.get_shape().lens()[2];
-            auto in_w  = input.get_shape().lens()[3];
+            using type   = typename decltype(output)::value_type;
+            auto in_s    = input.get_shape();
+            auto in_lens = in_s.lens();
+            std::vector<std::size_t> vec_len(in_lens.begin() + 2, in_lens.end());
 
-            par_dfor(output_shape.lens()[0],
-                     output_shape.lens()[1],
-                     output_shape.lens()[2],
-                     output_shape.lens()[3])(
-                [&](std::size_t o, std::size_t w, std::size_t i, std::size_t j) {
-                    const int start_x0 = i * op.stride[0] - op.padding[0];
-                    const int start_y0 = j * op.stride[1] - op.padding[1];
+            par_for(output_shape.elements(), [&](auto i) {
+                auto idx_o = output_shape.multi(i);
+                auto n_dim = idx_o.size();
+                std::vector<std::size_t> win_start;
+                std::vector<std::size_t> win_size;
+                for(std::size_t dim = 2; dim < n_dim; ++dim)
+                {
+                    auto d_2  = dim - 2;
+                    int start = static_cast<int>(idx_o[dim] * op.stride[d_2]) -
+                                static_cast<int>(op.padding[d_2]);
+                    int end = std::min(start + op.lengths[d_2], in_lens[dim]);
+                    start   = std::max(start, 0);
+                    win_start.push_back(start);
+                    win_size.push_back(end - start);
+                }
 
-                    const int hend = std::min(start_x0 + op.lengths[0], in_h);
-                    const int wend = std::min(start_y0 + op.lengths[1], in_w);
-
-                    const int start_x = std::max(start_x0, 0);
-                    const int start_y = std::max(start_y0, 0);
-
-                    const int w_h       = (hend - start_x);
-                    const int w_w       = (wend - start_y);
-                    const int pool_size = std::max(w_h * w_w, 1);
-
-                    double acc = Op::start();
-                    dfor(w_h, w_w)([&](int x, int y) {
-                        const int in_x = start_x + x;
-                        const int in_y = start_y + y;
-                        if(in_x >= 0 && in_x < in_h && in_y >= 0 && in_y < in_w)
-                        {
-                            acc = Op::apply(acc, input(o, w, in_x, in_y));
-                        }
-                    });
-                    output(o, w, i, j) = type(Op::final(acc, pool_size));
+                shape win_shape{output_shape.type(), win_size};
+                auto pool_size = win_shape.elements();
+                double acc     = Op::template start<type>();
+                shape_for_each(win_shape, [&](auto idx_w) {
+                    auto idx = idx_o;
+                    std::transform(idx_w.begin(),
+                                   idx_w.end(),
+                                   win_start.begin(),
+                                   idx.begin() + 2,
+                                   [](auto ii, auto jj) { return ii + jj; });
+                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
+                       idx < in_lens)
+                    {
+                        acc = Op::apply(acc, input[in_s.index(idx)]);
+                    }
                 });
+
+                output[i] = type(Op::final(acc, pool_size));
+            });
         });
+
         return result;
     }
 };
 
 struct cpu_op
 {
-    operation op;
-    std::string name() const { return "cpu::" + op.name(); }
+    operation op = op::identity{};
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+    std::string name() const { return "cpu::op"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
     {
         return op.compute(output_shape, args);
     }
-    friend bool operator==(const cpu_op& x, const cpu_op& y) { return x.op == y.op; }
-    friend bool operator==(const cpu_op& x, const operation& y)
+    value to_value() const
     {
-        if(x.name() != y.name())
-            return false;
-        return x == any_cast<cpu_op>(y);
+        value v;
+        v["name"]     = op.name();
+        v["operator"] = op.to_value();
+        return v;
     }
-    friend bool operator==(const operation& x, const cpu_op& y) { return y == x; }
+    void from_value(const value& v)
+    {
+        op = make_op(v.at("name").to<std::string>(), v.at("operator"));
+    }
+    friend std::ostream& operator<<(std::ostream& os, const cpu_op& x)
+    {
+        os << "cpu::" << x.op;
+        return os;
+    }
 };
+MIGRAPHX_REGISTER_OP(cpu_op)
 
 struct cpu_pad
 {
@@ -455,7 +563,7 @@ struct cpu_pad
         return migraphx::reflect(self.op, f);
     }
 
-    std::string name() const { return "cpu::contiguous"; }
+    std::string name() const { return "cpu::pad"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
@@ -480,6 +588,7 @@ struct cpu_pad
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_pad)
 
 struct cpu_gemm
 {
@@ -531,6 +640,7 @@ struct cpu_gemm
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_gemm)
 
 struct cpu_quant_gemm
 {
@@ -597,6 +707,7 @@ struct cpu_quant_gemm
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_gemm)
 
 struct leaky_relu_op
 {
@@ -621,8 +732,15 @@ struct elu_op
 };
 
 template <typename Op>
-struct cpu_unary
+struct cpu_unary : auto_register_op<cpu_unary<Op>>
 {
+    cpu_unary() = default;
+
+    template <class T>
+    cpu_unary(T pop) : op(Op{std::move(pop)})
+    {
+    }
+
     Op op;
 
     template <class Self, class F>
@@ -651,8 +769,12 @@ struct cpu_unary
 };
 
 template <class Op>
-struct cpu_softmax
+struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
 {
+    cpu_softmax() = default;
+
+    cpu_softmax(Op pop) : op(std::move(pop)) {}
+
     Op op;
 
     template <class Self, class F>
@@ -756,6 +878,7 @@ struct cpu_rnn_var_sl_last_output
         return result;
     }
 };
+MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
 struct cpu_apply
 {

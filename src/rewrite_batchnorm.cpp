@@ -1,7 +1,7 @@
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/mul.hpp>
@@ -26,7 +26,8 @@ void rewrite_batchnorm::apply(program& p) const
         if(any_of({gamma, bias, mean, variance}, [](auto arg) { return arg.empty(); }))
             continue;
 
-        auto s = shape{ins->get_shape().type(), {ins->get_shape().lens()[1]}};
+        std::vector<std::size_t> lens = ins->inputs()[1]->get_shape().lens();
+        shape s{ins->get_shape().type(), lens};
         // Get epsilon
         auto bn_op   = any_cast<op::batch_norm_inference>(ins->get_operator());
         auto epsilon = bn_op.epsilon;

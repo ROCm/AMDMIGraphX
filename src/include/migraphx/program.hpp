@@ -90,6 +90,8 @@ struct program
 
     instruction_ref add_return(std::vector<instruction_ref> args);
 
+    std::vector<std::string> get_parameter_names() const;
+
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;
@@ -112,9 +114,14 @@ struct program
 
     void compile(const target& t, compile_options options = compile_options{});
 
+    bool is_compiled() const;
+
     void finalize();
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
+
+    value to_value() const;
+    void from_value(const value& v);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

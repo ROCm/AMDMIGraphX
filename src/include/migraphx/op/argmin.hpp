@@ -1,9 +1,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_ARGMIN_HPP
 #define MIGRAPHX_GUARD_OPERATORS_ARGMIN_HPP
 
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/par_dfor.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

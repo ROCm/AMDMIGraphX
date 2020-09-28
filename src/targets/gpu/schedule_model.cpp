@@ -1,5 +1,6 @@
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operation.hpp>
@@ -71,6 +72,10 @@ struct set_stream
     }
 };
 
+MIGRAPHX_REGISTER_OP(record_event)
+MIGRAPHX_REGISTER_OP(wait_event)
+MIGRAPHX_REGISTER_OP(set_stream)
+
 std::size_t schedule_model::concurrency() const { return streams; }
 void schedule_model::sched(program& p, instruction_ref ins, std::size_t n) const
 {
@@ -99,6 +104,7 @@ void schedule_model::record(program& p, instruction_ref ins, std::size_t wait_id
 static std::unordered_map<std::string, std::size_t> create_weight_map()
 {
     return {{"hip::load_literal", 0},
+            {"hip::hip_allocate_memory", 0},
             {"hip::hip_load_memory", 0},
             {"hip::allocate", 0},
             {"gpu::convolution", 8},

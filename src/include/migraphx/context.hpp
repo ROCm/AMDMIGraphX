@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,11 +26,24 @@ struct context
 
 #else
 
+template <class T>
+value to_value_context(const T&)
+{
+    return value{};
+}
+
+template <class T>
+void from_value_context(T&, const value&)
+{
+}
+
 /*
  * Type-erased interface for:
  *
  * struct context
  * {
+ *      value to_value() const;
+ *      void from_value(const value& v) ;
  *      void finish() const;
  * };
  *
@@ -98,6 +112,18 @@ struct context
             return private_detail_te_get_handle().type();
     }
 
+    value to_value() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_value();
+    }
+
+    void from_value(const value& v)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().from_value(v);
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -117,8 +143,38 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void finish() const = 0;
+        virtual value to_value() const          = 0;
+        virtual void from_value(const value& v) = 0;
+        virtual void finish() const             = 0;
     };
+
+    template <class T>
+    static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.to_value())
+    {
+        return private_detail_te_self.to_value();
+    }
+
+    template <class T>
+    static value private_detail_te_default_to_value(float, T&& private_detail_te_self)
+    {
+        return to_value_context(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
+        -> decltype(private_detail_te_self.from_value(v))
+    {
+        private_detail_te_self.from_value(v);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
+    {
+        from_value_context(private_detail_te_self, v);
+    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
@@ -147,6 +203,18 @@ struct context
         }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
+
+        value to_value() const override
+        {
+
+            return private_detail_te_default_to_value(char(0), private_detail_te_value);
+        }
+
+        void from_value(const value& v) override
+        {
+
+            private_detail_te_default_from_value(char(0), private_detail_te_value, v);
+        }
 
         void finish() const override { private_detail_te_value.finish(); }
 
@@ -214,6 +282,9 @@ inline const ValueType& any_cast(const context& x)
         throw std::bad_cast();
     return *y;
 }
+
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif
 

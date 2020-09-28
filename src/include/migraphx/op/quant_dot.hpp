@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_DOT_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -24,7 +23,7 @@ struct quant_dot
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(as_number(self.alpha), "alpha"), f(as_number(self.beta), "beta"));
+        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
     std::string name() const { return "quant_dot"; }

@@ -6,6 +6,10 @@
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/oper.hpp>
+#include <migraphx/gpu/add.hpp>
+#include <migraphx/gpu/mul.hpp>
+#include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/device/layernorm.hpp>
 #include <migraphx/gpu/device/gelu.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/add_clip.hpp>
@@ -15,6 +19,7 @@
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
@@ -42,17 +47,20 @@ struct fusion
         return result;
     }
 
+    fusion() = default;
+
     fusion(const shape& input)
-    // : fp(make_fusion_plan(input))
     {
         assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
+        assert(fp);
         keep_alive(std::move(t));
     }
 
     op_t operator[](std::size_t i) const
     {
+        assert(fp);
         op_t result;
         auto status = miopenFusionPlanGetOp(fp.get(), i, &result);
         if(status != miopenStatusSuccess)
@@ -60,10 +68,15 @@ struct fusion
         return result;
     }
 
-    auto get() const { return fp.get(); }
+    auto get() const
+    {
+        assert(fp);
+        return fp.get();
+    }
 
     op_t create_bias(const shape& bias)
     {
+        assert(fp);
         op_t result;
         auto b      = shape{bias.type(), {1, bias.lens().at(1), 1, 1}};
         auto t      = keep_alive(make_tensor(b));
@@ -75,6 +88,7 @@ struct fusion
 
     op_t create_relu()
     {
+        assert(fp);
         op_t result;
         auto status = miopenCreateOpActivationForward(fp.get(), &result, miopenActivationRELU);
         if(status != miopenStatusSuccess)
@@ -84,6 +98,7 @@ struct fusion
 
     op_t create_conv(const op::convolution& op, const shape& weights)
     {
+        assert(fp);
         op_t result;
         auto cd     = keep_alive(make_conv(op));
         auto t      = keep_alive(make_tensor(weights));
@@ -95,6 +110,7 @@ struct fusion
 
     shape get_workspace(context&)
     {
+        // assert(fp);
         // TODO: Use zero workspace for now
         std::size_t ws_size = 0;
         // int algo_count = 1;
@@ -107,6 +123,7 @@ struct fusion
 
     void compile(context& ctx)
     {
+        assert(fp);
         auto status = miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("Compiling fusion plan failed");
@@ -117,6 +134,7 @@ struct fusion
                      const argument& x,
                      const argument& y) const
     {
+        assert(fp);
         auto x_td   = make_tensor(x.get_shape());
         auto y_td   = make_tensor(y.get_shape());
         auto status = miopenExecuteFusionPlan(ctx.get_stream().get_miopen(),
@@ -163,154 +181,93 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     auto op = conv.op;
     // Dont fuse winograd for non-3x3s since there is no fused windograd for those configs
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
-       wei.lens()[3] != 3 and op.stride == make_array<size_t>(1, 1))
+       wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
         return false;
     return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
-           contains({{0, 0}, {1, 1}}, op.stride) and op.dilation == make_array<size_t>(1, 1);
+           contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
 }
 
-struct hip_triadd
+struct hip_triadd : ternary_device<hip_triadd, &device::add>
 {
-    std::string name() const { return "hip::triadd"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
+MIGRAPHX_REGISTER_OP(hip_triadd)
 
-struct hip_triadd_clip
+struct hip_triadd_clip : quinary_device<hip_triadd_clip, &device::add_clip>
 {
-    std::string name() const { return "hip::triadd_clip"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(6);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_clip(ctx.get_stream().get(),
-                         args.at(5),
-                         args.at(0),
-                         args.at(1),
-                         args.at(2),
-                         args.at(3),
-                         args.at(4));
-        return args.at(5);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_clip)
 
-struct hip_add_clip
+struct hip_add_clip : quaternary_device<hip_add_clip, &device::add_clip>
 {
-    std::string name() const { return "hip::add_clip"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(5);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::add_clip(
-            ctx.get_stream().get(), args.at(4), args.at(0), args.at(1), args.at(2), args.at(3));
-        return args.at(4);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
+MIGRAPHX_REGISTER_OP(hip_add_clip)
 
 struct hip_triadd_relu : ternary_device<hip_triadd_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_relu)
 
 struct hip_triadd_sigmoid : ternary_device<hip_triadd_sigmoid, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_sigmoid)
 
 struct hip_triadd_tanh : ternary_device<hip_triadd_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_triadd_tanh)
 
 struct hip_add_relu : binary_device<hip_add_relu, &device::add_relu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_relu)
 
 struct hip_add_sigmoid : binary_device<hip_add_relu, &device::add_sigmoid>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_sigmoid)
 
 struct hip_add_tanh : binary_device<hip_add_tanh, &device::add_tanh>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_tanh)
+
+struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
+{
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&) {}
+};
+MIGRAPHX_REGISTER_OP(hip_layernorm)
 
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu)
 
 struct hip_add_gelu : binary_device<hip_add_gelu, &device::add_gelu>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu)
 
 struct hip_gelu_new : unary_device<hip_gelu_new, &device::gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_gelu_new)
 
 struct hip_add_gelu_new : binary_device<hip_add_gelu_new, &device::add_gelu_new>
 {
 };
+MIGRAPHX_REGISTER_OP(hip_add_gelu_new)
 
-struct hip_mul_add
+struct hip_mul_add : ternary_device<hip_mul_add, &device::mul_add>
 {
-    std::string name() const { return "hip::mul_add"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::mul_add(ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add)
 
-struct hip_mul_add_relu
+struct hip_mul_add_relu : ternary_device<hip_mul_add_relu, &device::mul_add_relu>
 {
-    std::string name() const { return "hip::mul_add_relu"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs.front();
-    }
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::mul_add_relu(
-            ctx.get_stream().get(), args.at(3), args.at(0), args.at(1), args.at(2));
-        return args.at(3);
-    }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
 };
+MIGRAPHX_REGISTER_OP(hip_mul_add_relu)
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
@@ -331,6 +288,59 @@ void move_standard_front(std::vector<instruction_ref>& args)
     if(it != last)
         std::swap(*it, args.front());
 }
+
+struct find_layernorm
+{
+    template <class... Ts>
+    static auto multibroadcast_op(Ts... xs)
+    {
+        return match::name("multibroadcast")(match::arg(0)(xs...));
+    }
+
+    static auto x_minus_mean()
+    {
+        return match::name("gpu::sub")(
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean"))));
+    }
+
+    static auto variance()
+    {
+        return match::name("gpu::reduce_mean")(match::arg(0)(
+            match::name("gpu::pow")(match::arg(0)(x_minus_mean()),
+                                    match::arg(1)(multibroadcast_op(match::has_value(2.0f))))));
+    }
+
+    static auto layernorm_onnx()
+    {
+        return match::name("gpu::div")(
+            match::arg(0)(x_minus_mean()),
+
+            match::arg(1)(multibroadcast_op(
+                match::name("gpu::sqrt")(match::arg(0)(match::name("gpu::add")(match::either_arg(
+                    0, 1)(variance(), multibroadcast_op(match::has_value(1e-12f)))))))));
+    }
+
+    auto matcher() const { return layernorm_onnx(); }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto args  = ins->inputs();
+
+        // We dont fuse for non-standard layouts
+        if(not x_ins->get_shape().standard())
+            return;
+
+        auto relements = x_ins->get_shape().lens().back();
+
+        if(relements > 1024 or (relements % 4 != 0 and relements > 256))
+            return;
+
+        p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+    }
+};
 
 struct find_gelu
 {
@@ -453,7 +463,7 @@ struct find_add_clip
     {
         return match::name(std::unordered_set<std::string>{"gpu::clip", "gpu::clipped_relu"})(
             match::arg(0)(match::any_of(match::name("gpu::add"),
-                                        match::name("hip::triadd"),
+                                        match::name("gpu::triadd"),
                                         match::any_of[match::inputs()](match::standard_shape()))
                               .bind("add")));
     }
@@ -472,7 +482,7 @@ struct find_add_clip
         add_args.insert(add_args.end(), std::next(ins_args.begin()), ins_args.end());
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, hip_add_clip{}, add_args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, hip_triadd_clip{}, add_args);
     }
 };
@@ -487,7 +497,7 @@ struct find_add_unary
         return match::name(op_name)(match::arg(0)(
             match::used_once(),
             match::any_of(match::name("gpu::add"),
-                          match::name("hip::triadd"),
+                          match::name("gpu::triadd"),
                           match::any_of(match::name("@literal"),
                                         match::any_of[match::inputs()](match::standard_shape())))
                 .bind("add")));
@@ -505,7 +515,7 @@ struct find_add_unary
         args.back() = ins->inputs().back();
         if(add_ins->name() == "gpu::add")
             p.replace_instruction(ins, binary_add_op, args);
-        else if(add_ins->name() == "hip::triadd")
+        else if(add_ins->name() == "gpu::triadd")
             p.replace_instruction(ins, ternary_add_op, args);
     }
 };
@@ -527,10 +537,9 @@ struct find_triadd
         auto input_ins = r.instructions["input"];
         auto ins       = r.result;
         auto args      = add_ins->inputs();
-        assert(add_ins != input_ins);
 
         auto is_broadcasted = [](auto arg) { return arg->get_shape().broadcasted(); };
-        if(std::count_if(args.begin(), args.end(), is_broadcasted) > 1)
+        if(std::count_if(args.begin(), args.end(), is_broadcasted) > 2)
             return;
         args.insert(args.begin(), input_ins);
         move_standard_front(args);
@@ -571,7 +580,7 @@ struct find_mul_add_relu
     auto matcher() const
     {
         return match::name("gpu::relu")(
-            match::arg(0)(match::name("hip::mul_add")(match::used_once()).bind("mul_add")));
+            match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -589,21 +598,14 @@ struct find_mul_add_relu
 struct miopen_conv_bias
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias(op::convolution c, const shape& input, const shape& weights, const shape& b)
-        : op(c), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
     }
 
     std::string name() const { return "gpu::conv_bias"; }
@@ -623,37 +625,34 @@ struct miopen_conv_bias
         return f.execute(ctx, fargs, args[0], args[4]);
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias)
 
 struct miopen_conv_bias_relu
 {
     op::convolution op;
-    fusion f;
-    fusion::op_t conv;
-    fusion::op_t bias;
-    fusion::op_t relu;
+    fusion f          = {};
+    fusion::op_t conv = {};
+    fusion::op_t bias = {};
+    fusion::op_t relu = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return op::convolution::reflect(self.op, f);
-    }
-
-    miopen_conv_bias_relu(op::convolution c,
-                          const shape& input,
-                          const shape& weights,
-                          const shape& b)
-        : op(c), f(input)
-    {
-        conv = f.create_conv(op, weights);
-        bias = f.create_bias(b);
-        relu = f.create_relu();
     }
 
     std::string name() const { return "gpu::conv_bias_relu"; }
@@ -673,13 +672,22 @@ struct miopen_conv_bias_relu
         miopenSetOpArgsActivForward(fargs.get(), relu, &alpha, &beta, 0, 0, 0);
         return f.execute(ctx, fargs, args[0], args[4]);
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { f.compile(ctx); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>& inputs)
+    {
+        f    = fusion(inputs[0]);
+        conv = f.create_conv(op, inputs[1]);
+        bias = f.create_bias(inputs[3]);
+        relu = f.create_relu();
+        f.compile(ctx);
+    }
+
     shape get_workspace(context& ctx) { return f.get_workspace(ctx); }
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
 };
+MIGRAPHX_REGISTER_OP(miopen_conv_bias_relu)
 
 template <class... Ms>
 auto conv_bias(Ms... ms)
@@ -702,7 +710,7 @@ void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
     auto alloc_ins   = ins->inputs().back();
     auto old_ws_ins  = conv_ins->inputs().at(2);
 
-    Op cb{conv_op, input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()};
+    Op cb{conv_op};
     // TODO: Insert ws allocation
     auto ws = cb.get_workspace(ctx);
     (void)ws;
@@ -735,25 +743,86 @@ struct find_conv_bias_relu
     }
 };
 
+struct find_gemm_add
+{
+    auto matcher() const
+    {
+        return match::name("gpu::add")(
+            match::all_of[match::inputs()](match::standard_shape()),
+            match::either_arg(0, 1)(match::used_once().bind("c"),
+                                    match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
+    }
+
+    void apply(program& p, match::matcher_result r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["gemm"];
+        auto c_ins    = r.instructions["c"];
+
+        auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
+
+        // Already fused gemm
+        if(not float_equal(gemm.op.beta, 0))
+            return;
+
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
+               return not i->get_shape().standard();
+           }))
+            return;
+
+        auto inputs = gemm_ins->inputs();
+        inputs.pop_back();
+
+        auto copy_ins = c_ins;
+
+        // Insert copy
+        if(ins == p.end() or c_ins->outputs().size() > 1 or c_ins->inputs().empty())
+        {
+            copy_ins = p.insert_instruction(ins, hip_copy{}, c_ins, ins->inputs().back());
+        }
+        inputs.push_back(copy_ins);
+        inputs.push_back(copy_ins);
+
+        gemm.op.beta = 1;
+        p.replace_instruction(ins, gemm, inputs);
+    }
+};
+
+struct find_commutative_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("gpu::add", "gpu::mul")(match::arg(1)(match::broadcast_shape()));
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto args = ins->inputs();
+        move_broadcasted_back(args);
+
+        p.replace_instruction(ins, ins->get_operator(), args);
+    }
+};
+
 void fuse_ops::apply(program& p) const
 {
-    // clang-format off
     match::find_matches(p, find_gelu{}, find_gelu_new{});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
-    match::find_matches(p, 
-        find_conv_bias_relu{ctx},
-        find_conv_bias{ctx},
-        find_add_gelu{},
-        find_add_gelu_new{},
-        find_mul_add{},
-        find_mul_add_relu{},
-        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
-        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
-        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
-        find_add_clip{}
-    );
-    // clang-format on
+    match::find_matches(p,
+                        find_layernorm{},
+                        find_conv_bias_relu{ctx},
+                        find_conv_bias{ctx},
+                        find_add_gelu{},
+                        find_add_gelu_new{},
+                        find_mul_add{},
+                        find_mul_add_relu{},
+                        find_add_unary{"gpu::relu", hip_add_relu{}, hip_triadd_relu{}},
+                        find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
+                        find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
+                        find_add_clip{});
+    match::find_matches(p, find_gemm_add{}, find_commutative_broadcast{});
 }
 
 } // namespace gpu

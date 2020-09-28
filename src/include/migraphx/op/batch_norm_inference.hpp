@@ -3,7 +3,6 @@
 
 #include <array>
 #include <migraphx/op/common.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -42,9 +41,8 @@ struct batch_norm_inference
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(5);
-        check_shapes{inputs.data(), inputs.data() + 1, *this}.only_dims(4);
-        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape().elements(
-            inputs.front().lens()[1]);
+        check_shapes{inputs.data(), inputs.data() + 1, *this}.same_ndims();
+        check_shapes{inputs.data() + 1, inputs.data() + inputs.size(), *this}.same_shape();
         return inputs.front();
     }
 };

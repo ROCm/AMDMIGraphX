@@ -2,12 +2,8 @@
 #define MIGRAPHX_GUARD_OPERATORS_IM2COL_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -18,9 +14,9 @@ namespace op {
 
 struct im2col
 {
-    std::array<std::size_t, 2> padding  = {{0, 0}};
-    std::array<std::size_t, 2> stride   = {{1, 1}};
-    std::array<std::size_t, 2> dilation = {{1, 1}};
+    std::vector<std::size_t> padding{0, 0};
+    std::vector<std::size_t> stride{1, 1};
+    std::vector<std::size_t> dilation{1, 1};
 
     padding_mode_t padding_mode = default_;
 

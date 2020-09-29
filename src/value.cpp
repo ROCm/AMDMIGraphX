@@ -236,7 +236,7 @@ value* value::find(const std::string& pkey) { return find_impl(x, pkey); }
 const value* value::find(const std::string& pkey) const { return find_impl(x, pkey); }
 bool value::contains(const std::string& pkey) const
 {
-    const auto *it = find(pkey);
+    const auto* it = find(pkey);
     if(it == nullptr)
         return false;
     if(it == end())

@@ -130,12 +130,12 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }
 }, hip_clang_release: rocmhipclangnode('vega') { cmake_build ->
-    stage('Clang Release') {
+    stage('Hip Clang Release') {
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
         // stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }, hip_clang_tidy: rocmhipclangnode('rocmtest') { cmake_build ->
-    stage('Clang Tidy') {
+    stage('Hip Clang Tidy') {
         sh '''
             rm -rf build
             mkdir build

@@ -140,7 +140,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             rm -rf build
             mkdir build
             cd build
-            CXX=hcc cmake .. 
+            CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
             make -j$(nproc) -k analyze
         '''
     }

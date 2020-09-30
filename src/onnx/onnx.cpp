@@ -53,6 +53,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
+    using nearest_op = std::function<std::size_t(std::size_t, float)>;
     struct node_info
     {
         attribute_map attributes{};
@@ -165,6 +166,7 @@ struct onnx_parser
         add_mem_op("ReduceSum", "reduce_sum", &onnx_parser::parse_reduce_oper);
         add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
         add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("Resize", &onnx_parser::parse_resize);
         add_mem_op("RNN", &onnx_parser::parse_rnn);
         add_mem_op("Selu", &onnx_parser::parse_selu);
         add_mem_op("Shape", &onnx_parser::parse_shape);
@@ -1063,6 +1065,118 @@ struct onnx_parser
         }
 
         return prog.add_instruction(op, make_contiguous(args[0]));
+    }
+
+    nearest_op get_nearest_op(const std::string& mode)
+    {
+        static std::unordered_map<std::string, nearest_op> nearest_ops;
+        nearest_ops.emplace("round_perfer_floor", [=](std::size_t i, float scale) {
+            return static_cast<std::size_t>(std::ceil((i * scale - 0.5f)));
+        });
+        nearest_ops.emplace("round_perfer_ceil", [=](std::size_t i, float scale) {
+            return static_cast<std::size_t>(std::round((i * scale - 0.5f)));
+        });
+        nearest_ops.emplace("floor", [=](std::size_t i, float scale) {
+            return static_cast<std::size_t>(std::floor((i * scale - 0.5f)));
+        });
+        nearest_ops.emplace("ceil", [=](std::size_t i, float scale) {
+            return static_cast<std::size_t>(std::ceil((i * scale - 0.5f)));
+        });
+
+        if (contains(nearest_ops, mode) == 0)
+        {
+            MIGRAPHX_THROW("PRASE_RESIZE: nearest_mode " + mode + " not supported!");
+        }
+
+        return nearest_ops.at(mode);
+    }
+
+    instruction_ref
+    parse_resize(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode != "nearest")
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: only nearest mode is supported!");
+            }
+        }
+
+        std::string nearest_mode = "round_prefer_floor";
+        if (contains(info.attributes, "nearest_mode"))
+        {
+            nearest_mode = info.attributes.at("nearest_mode").s();
+        }
+
+        // input data shape info
+        auto in_s    = args[0]->get_shape();
+        auto in_lens = in_s.lens();
+
+        // output shape is explicitly specified
+        std::vector<std::size_t> out_lens(in_lens.size());
+        if (args.size() == 4 and args.back()->name() != "undefined")
+        {
+            auto arg_out_s = args[3]->eval();
+            check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");        
+            arg_out_s.visit([&](auto ol) {
+                out_lens.assign(ol.begin(), ol.end());
+            });
+        }
+        // need to compute the output lens from input
+        else
+        {
+            auto arg_scale = args[2]->eval();
+            check_arg_empty(arg_scale, "PARSE_RESIZE: dynamic input scale is not supported!");        
+
+            std::vector<double> vec_scale;
+            arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+
+            if(in_lens.size() != vec_scale.size())
+            {
+                MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
+            }
+
+            std::transform(in_lens.begin(),
+                        in_lens.end(),
+                        vec_scale.begin(),
+                        out_lens.begin(),
+                        [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+        }
+
+        std::vector<float> idx_scale(in_lens.size());
+        std::transform(
+            out_lens.begin(),
+            out_lens.end(),
+            in_lens.begin(),
+            idx_scale.begin(),
+            [](auto od, auto id) { return (od == id) ? 1.0f : (id - 1.0f) / (od - 1.0f); });
+
+        shape out_s{in_s.type(), out_lens};
+        std::vector<int> ind(out_s.elements());
+
+        // map out_idx to in_idx
+        auto nearest_op = get_nearest_op(nearest_mode);
+        shape_for_each(out_s, [&](auto idx) {
+            auto in_idx = idx;
+            std::transform(idx.begin(),
+                           idx.end(),
+                           idx_scale.begin(),
+                           in_idx.begin(),
+                           // nearest mode
+                           [&](auto index, auto scale) {
+                               return nearest_op(index, scale);
+                           });
+
+            ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
+        });
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        shape ind_s{shape::int32_type, out_lens};
+        auto rsp     = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto ins_ind = prog.add_literal(literal(ind_s, ind));
+        return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
     instruction_ref
@@ -2596,6 +2710,20 @@ struct onnx_parser
         }
     }
 
+    bool is_unused_input(const onnx::TypeProto& t)
+    {
+        // This is the scenario used in the resize operator the second 
+        // and third inputs are put there, but is empty, so unused.
+        // note that scalar input has dims.size() 0
+        auto&& dims = t.tensor_type().shape().dim();
+        if (dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     void parse_graph(const onnx::GraphProto& graph)
     {
         for(auto&& f : graph.initializer())
@@ -2613,8 +2741,15 @@ struct onnx_parser
                     dims = map_input_dims.at(name);
                 }
 
-                shape s            = parse_type(input.type(), dims);
-                instructions[name] = prog.add_parameter(name, s);
+                if (is_unused_input(input.type()))
+                {
+                    this->parse_undefined(name);
+                }
+                else
+                {
+                    shape s            = parse_type(input.type(), dims);
+                    instructions[name] = prog.add_parameter(name, s);
+                }
             }
         }
 

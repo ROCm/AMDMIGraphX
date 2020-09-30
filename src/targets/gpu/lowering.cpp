@@ -23,10 +23,12 @@
 #include <migraphx/gpu/deconvolution.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/equal.hpp>
+#include <migraphx/gpu/greater.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
+#include <migraphx/gpu/less.hpp>
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
@@ -106,6 +108,8 @@ struct miopen_apply
         add_generic_op("erf");
         add_generic_op("exp");
         add_generic_op("floor");
+        add_generic_op("greater");
+        add_generic_op("less");
         add_generic_op("log");
         add_generic_op("max");
         add_generic_op("min");

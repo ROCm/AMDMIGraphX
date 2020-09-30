@@ -53,7 +53,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
-    using nearest_op = std::function<std::size_t(std::size_t, float)>;
+    using nearest_op    = std::function<std::size_t(std::size_t, float)>;
     struct node_info
     {
         attribute_map attributes{};
@@ -1083,7 +1083,7 @@ struct onnx_parser
             return static_cast<std::size_t>(std::ceil((i * scale - 0.5f)));
         });
 
-        if (contains(nearest_ops, mode) == 0)
+        if(contains(nearest_ops, mode) == 0)
         {
             MIGRAPHX_THROW("PRASE_RESIZE: nearest_mode " + mode + " not supported!");
         }
@@ -1104,7 +1104,7 @@ struct onnx_parser
         }
 
         std::string nearest_mode = "round_prefer_floor";
-        if (contains(info.attributes, "nearest_mode"))
+        if(contains(info.attributes, "nearest_mode"))
         {
             nearest_mode = info.attributes.at("nearest_mode").s();
         }
@@ -1115,19 +1115,17 @@ struct onnx_parser
 
         // output shape is explicitly specified
         std::vector<std::size_t> out_lens(in_lens.size());
-        if (args.size() == 4 and args.back()->name() != "undefined")
+        if(args.size() == 4 and args.back()->name() != "undefined")
         {
             auto arg_out_s = args[3]->eval();
-            check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");        
-            arg_out_s.visit([&](auto ol) {
-                out_lens.assign(ol.begin(), ol.end());
-            });
+            check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");
+            arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
         }
         // need to compute the output lens from input
         else
         {
             auto arg_scale = args[2]->eval();
-            check_arg_empty(arg_scale, "PARSE_RESIZE: dynamic input scale is not supported!");        
+            check_arg_empty(arg_scale, "PARSE_RESIZE: dynamic input scale is not supported!");
 
             std::vector<double> vec_scale;
             arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
@@ -1137,11 +1135,12 @@ struct onnx_parser
                 MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
             }
 
-            std::transform(in_lens.begin(),
-                        in_lens.end(),
-                        vec_scale.begin(),
-                        out_lens.begin(),
-                        [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                vec_scale.begin(),
+                out_lens.begin(),
+                [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
         }
 
         std::vector<float> idx_scale(in_lens.size());
@@ -1164,9 +1163,7 @@ struct onnx_parser
                            idx_scale.begin(),
                            in_idx.begin(),
                            // nearest mode
-                           [&](auto index, auto scale) {
-                               return nearest_op(index, scale);
-                           });
+                           [&](auto index, auto scale) { return nearest_op(index, scale); });
 
             ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
         });
@@ -2712,11 +2709,11 @@ struct onnx_parser
 
     bool is_unused_input(const onnx::TypeProto& t)
     {
-        // This is the scenario used in the resize operator the second 
+        // This is the scenario used in the resize operator the second
         // and third inputs are put there, but is empty, so unused.
         // note that scalar input has dims.size() 0
         auto&& dims = t.tensor_type().shape().dim();
-        if (dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0)
+        if(dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0)
         {
             return true;
         }
@@ -2741,7 +2738,7 @@ struct onnx_parser
                     dims = map_input_dims.at(name);
                 }
 
-                if (is_unused_input(input.type()))
+                if(is_unused_input(input.type()))
                 {
                     this->parse_undefined(name);
                 }

@@ -6,7 +6,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::unordered_map<std::string, target>& target_map()
 {
-    static std::unordered_map<std::string, target> m;
+    static std::unordered_map<std::string, target> m; // NOLINT
     return m;
 }
 

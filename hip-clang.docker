@@ -44,6 +44,10 @@ ENV LANG=C.UTF-8
 # Install rbuild
 RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
+# Install doc requirements
+ADD doc/requirements.txt /doc-requirements.txt
+RUN pip3 install -r /doc-requirements.txt
+
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt

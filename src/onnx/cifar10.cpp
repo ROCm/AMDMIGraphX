@@ -69,7 +69,7 @@ int main(int argc, char const* argv[])
         }
         auto labels = imageset.first;
         auto input  = imageset.second;
-        auto ptr    = input.data();
+        auto* ptr   = input.data();
         for(int i = 0; i < 10; i++)
         {
             std::cout << "label: " << static_cast<uint32_t>(labels[i]) << "  ---->  ";
@@ -91,7 +91,7 @@ int main(int argc, char const* argv[])
         auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 32, 32}};
         auto labels = imageset.first;
         auto input  = imageset.second;
-        auto ptr    = input.data();
+        auto* ptr   = input.data();
         for(int i = 0; i < 10; i++)
         {
             std::cout << "label: " << static_cast<uint32_t>(labels[i]) << "  ---->  ";

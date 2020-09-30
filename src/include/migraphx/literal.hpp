@@ -90,7 +90,7 @@ struct literal : raw_data<literal>
             m_shape.visit_type([&](auto as) {
                 auto output = make_view(m_shape, as.from(buffer.get()));
                 shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    output(idx.begin(), idx.end()) = *it;
+                    output(idx.begin(), idx.end()) = *it; // NOLINT(bugprone-signed-char-misuse)
                     it++;
                 });
             });

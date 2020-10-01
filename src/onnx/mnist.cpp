@@ -123,7 +123,7 @@ int main(int argc, char const* argv[])
         prog.compile(migraphx::gpu::target{});
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
-        auto ptr = input.data();
+        auto* ptr = input.data();
         migraphx::program::parameter_map m;
         m["output"] =
             migraphx::gpu::to_gpu(migraphx::generate_argument(prog.get_parameter_shape("output")));

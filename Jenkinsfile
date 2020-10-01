@@ -119,10 +119,6 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
-}, clang_release_py3: rocmnode('vega') { cmake_build ->
-    stage('Clang Release Python 3') {
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
-    }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")

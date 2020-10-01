@@ -26,6 +26,15 @@ rocblas_datatype get_type(shape::type_t type)
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
 }
 
+template <class R, class... Ts, class... Us>
+R rocblas_invoke(R (*f)(Ts...), Us... xs)
+{
+    if constexpr(sizeof...(Ts) == sizeof...(Us))
+        return f(xs...);
+    else
+        return f(xs..., nullptr, nullptr);
+}
+
 template <class T>
 void gemm_impl(
     context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
@@ -75,67 +84,64 @@ void gemm_impl(
             // column-major format. When doing a C = A * B, we actually do
             // C^T = (B^T) * (A^T). That is the reason we input args[1] as
             // A and args[0] as B in calling the rocblas_gemm.
-            rocblas_gemm_ex(ctx.get_stream().get_rocblas(),
-                            transb ? rocblas_operation_transpose : rocblas_operation_none,
-                            transa ? rocblas_operation_transpose : rocblas_operation_none,
-                            n,
-                            m,
-                            k,
-                            &alpha_r,
-                            to_pointer(args.at(1)),
-                            arg_type,
-                            ldb,
-                            to_pointer(args.at(0)),
-                            arg_type,
-                            lda,
-                            &beta_r,
-                            to_pointer(args[2]),
-                            output_type,
-                            ldc,
-                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                            output_type,
-                            ldc,
-                            compute_type,
-                            rocblas_gemm_algo_standard,
-                            0,
-                            0,
-                            nullptr,
-                            nullptr);
+            rocblas_invoke(&rocblas_gemm_ex,
+                           ctx.get_stream().get_rocblas(),
+                           transb ? rocblas_operation_transpose : rocblas_operation_none,
+                           transa ? rocblas_operation_transpose : rocblas_operation_none,
+                           n,
+                           m,
+                           k,
+                           &alpha_r,
+                           to_pointer(args.at(1)),
+                           arg_type,
+                           ldb,
+                           to_pointer(args.at(0)),
+                           arg_type,
+                           lda,
+                           &beta_r,
+                           to_pointer(args[2]),
+                           output_type,
+                           ldc,
+                           is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                           output_type,
+                           ldc,
+                           compute_type,
+                           rocblas_gemm_algo_standard,
+                           0,
+                           0);
         }
         else
         {
-            rocblas_gemm_strided_batched_ex(
-                ctx.get_stream().get_rocblas(),
-                transb ? rocblas_operation_transpose : rocblas_operation_none,
-                transa ? rocblas_operation_transpose : rocblas_operation_none,
-                n,
-                m,
-                k,
-                &alpha_r,
-                to_pointer(args.at(1)),
-                arg_type,
-                ldb,
-                k * n,
-                to_pointer(args.at(0)),
-                arg_type,
-                lda,
-                m * k,
-                &beta_r,
-                to_pointer(args[2]),
-                output_type,
-                ldc,
-                m * n,
-                is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                output_type,
-                ldc,
-                m * n,
-                num_matrices,
-                compute_type,
-                rocblas_gemm_algo_standard,
-                0,
-                0,
-                nullptr,
-                nullptr);
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                           ctx.get_stream().get_rocblas(),
+                           transb ? rocblas_operation_transpose : rocblas_operation_none,
+                           transa ? rocblas_operation_transpose : rocblas_operation_none,
+                           n,
+                           m,
+                           k,
+                           &alpha_r,
+                           to_pointer(args.at(1)),
+                           arg_type,
+                           ldb,
+                           k * n,
+                           to_pointer(args.at(0)),
+                           arg_type,
+                           lda,
+                           m * k,
+                           &beta_r,
+                           to_pointer(args[2]),
+                           output_type,
+                           ldc,
+                           m * n,
+                           is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                           output_type,
+                           ldc,
+                           m * n,
+                           num_matrices,
+                           compute_type,
+                           rocblas_gemm_algo_standard,
+                           0,
+                           0);
         }
     });
 }

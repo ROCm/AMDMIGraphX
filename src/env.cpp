@@ -31,7 +31,7 @@ std::size_t value_of(const char* name, std::size_t fallback)
 
 std::vector<std::string> env(const char* name)
 {
-    auto p = std::getenv(name);
+    auto* p = std::getenv(name);
     if(p == nullptr)
         return {};
     else

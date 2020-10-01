@@ -159,7 +159,7 @@ struct loader
         os.write(buffer.data(), buffer.size());
     }
 
-    void save(const program& p)
+    void save(const program& p) const
     {
         auto* os = &std::cout;
         std::ofstream fs;

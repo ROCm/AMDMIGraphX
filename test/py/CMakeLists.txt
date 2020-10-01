@@ -1,30 +1,26 @@
 
-set(PYTHON_VERSIONS 2.7 3.5 3.6 3.7 3.8 3.9)
+include(PythonModules)
 
 function(add_py_test NAME SCRIPT)
     foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
-        if (TARGET migraphx_py_${PYTHON_VERSION})
-            set (ENV_COMMAND ${CMAKE_COMMAND} -E env 
-                "PYTHONPATH=$<TARGET_FILE_DIR:migraphx_py_${PYTHON_VERSION}>"
-                "PYTHONMALLOC=debug"
-                "MALLOC_CHECK_=3"
-            )
-            set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
-            add_test(
-                NAME test_py_${PYTHON_VERSION}_${NAME} 
-                COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN})
-            add_custom_target(test_py_${PYTHON_VERSION}_${NAME} 
-                COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN} 
-                COMMENT "${PYTHON_EXECUTABLE} ${SCRIPT}")
+        set (ENV_COMMAND ${CMAKE_COMMAND} -E env 
+            "PYTHONPATH=$<TARGET_FILE_DIR:migraphx_py_${PYTHON_VERSION}>"
+            "PYTHONMALLOC=debug"
+            "MALLOC_CHECK_=3"
+        )
+        set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
+        add_test(
+            NAME test_py_${PYTHON_VERSION}_${NAME} 
+            COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN})
+        add_custom_target(test_py_${PYTHON_VERSION}_${NAME} 
+            COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN} 
+            COMMENT "${PYTHON_EXECUTABLE} ${SCRIPT}")
 
-        endif()
     endforeach()
 endfunction()
 foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
-    if (TARGET migraphx_py_${PYTHON_VERSION})
-        add_dependencies(tests migraphx_py_${PYTHON_VERSION})
-        add_dependencies(check migraphx_py_${PYTHON_VERSION})
-    endif()
+    add_dependencies(tests migraphx_py_${PYTHON_VERSION})
+    add_dependencies(check migraphx_py_${PYTHON_VERSION})
 endforeach()
 
 add_py_test(cpu test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

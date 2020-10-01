@@ -53,7 +53,8 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
-    using nearest_op    = std::function<std::size_t(std::size_t, float)>;
+    using nearest_op    = std::function<std::size_t(std::size_t, double)>;
+    using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
     struct node_info
     {
         attribute_map attributes{};
@@ -1070,17 +1071,21 @@ struct onnx_parser
     nearest_op get_nearest_op(const std::string& mode)
     {
         static std::unordered_map<std::string, nearest_op> nearest_ops;
-        nearest_ops.emplace("round_perfer_floor", [=](std::size_t i, float scale) {
-            return static_cast<std::size_t>(std::ceil((i * scale - 0.5f)));
+        nearest_ops.emplace("round_perfer_floor", [=](std::size_t d_in, double val) {
+            val = std::max(0.0, std::min(d_in - 1.0, val));
+            return static_cast<std::size_t>(std::ceil((val - 0.5)));
         });
-        nearest_ops.emplace("round_perfer_ceil", [=](std::size_t i, float scale) {
-            return static_cast<std::size_t>(std::round((i * scale - 0.5f)));
+        nearest_ops.emplace("round_perfer_ceil", [=](std::size_t d_in, double val) {
+            val = std::max(0.0, std::min(d_in - 1.0, val));
+            return static_cast<std::size_t>(std::round((val)));
         });
-        nearest_ops.emplace("floor", [=](std::size_t i, float scale) {
-            return static_cast<std::size_t>(std::floor((i * scale - 0.5f)));
+        nearest_ops.emplace("floor", [=](std::size_t d_in, double val) {
+            val = std::max(0.0, std::min(d_in - 1.0, val));
+            return static_cast<std::size_t>(std::floor((val)));
         });
-        nearest_ops.emplace("ceil", [=](std::size_t i, float scale) {
-            return static_cast<std::size_t>(std::ceil((i * scale - 0.5f)));
+        nearest_ops.emplace("ceil", [=](std::size_t d_in, double val) {
+            val = std::max(0.0, std::min(d_in - 1.0, val));
+            return static_cast<std::size_t>(std::ceil((val)));
         });
 
         if(contains(nearest_ops, mode) == 0)
@@ -1091,9 +1096,47 @@ struct onnx_parser
         return nearest_ops.at(mode);
     }
 
+    original_idx_op get_original_idx_op(const std::string& mode)
+    {
+        static std::unordered_map<std::string, original_idx_op> idx_ops;
+        idx_ops.emplace("half_pixel", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+            return (idx + 0.5) / scale - 0.5;
+        });
+        idx_ops.emplace("pytorch_half_pixel", [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
+            return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
+        });
+        idx_ops.emplace("align_corners", [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
+            return 1.0 * idx * (l_in - 1) / (l_out - 1);
+        });
+        idx_ops.emplace("asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+            return idx / scale;
+        });
+        idx_ops.emplace("tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+            return (idx + 0.5) / scale;
+        });
+        if(contains(idx_ops, mode) == 0)
+        {
+            MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode + " not supported!");
+        }
+
+        return idx_ops.at(mode);
+    }
+
     instruction_ref
     parse_resize(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
+        std::string coord_trans_mode = "half_pixel";
+        if (contains(info.attributes, "coordinate_transformation_mode"))
+        {
+            coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
+            // does not support transformation mode "tf_crop_and_resize"
+            if (coord_trans_mode == "tf_crop_and_resize")
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
+            }
+        }
+
+        // mode: only nearest mode is supported for now
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
@@ -1103,10 +1146,22 @@ struct onnx_parser
             }
         }
 
+        // nearest mode
         std::string nearest_mode = "round_prefer_floor";
         if(contains(info.attributes, "nearest_mode"))
         {
             nearest_mode = info.attributes.at("nearest_mode").s();
+        }
+
+        // check exclude_outside, only support 0
+        int exclude_outside = 0;
+        if (contains(info.attributes, "exclude_outside"))
+        {
+            exclude_outside = info.attributes.at("exclude_outside").i();
+            if (exclude_outside == 1)
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
+            }
         }
 
         // input data shape info
@@ -1115,11 +1170,28 @@ struct onnx_parser
 
         // output shape is explicitly specified
         std::vector<std::size_t> out_lens(in_lens.size());
+
+        // scale
+        std::vector<double> vec_scale;
+
+        // output size is specified in input, so use it as output size
         if(args.size() == 4 and args.back()->name() != "undefined")
         {
             auto arg_out_s = args[3]->eval();
             check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");
             arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
+
+            if (out_lens.size() != in_lens.size())
+            {
+                MIGRAPHX_THROW("PARSE_RESIZE: specified output size does not match input size");
+            }
+
+            // compute the scale
+            vec_scale.resize(in_lens.size());
+            std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(),
+                vec_scale.begin(), [](auto iss, auto oss) {
+                    return 1.0 * oss / iss;
+                });
         }
         // need to compute the output lens from input
         else
@@ -1127,12 +1199,10 @@ struct onnx_parser
             auto arg_scale = args[2]->eval();
             check_arg_empty(arg_scale, "PARSE_RESIZE: dynamic input scale is not supported!");
 
-            std::vector<double> vec_scale;
             arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
-
             if(in_lens.size() != vec_scale.size())
             {
-                MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
+                MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
             }
 
             std::transform(
@@ -1143,27 +1213,20 @@ struct onnx_parser
                 [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
         }
 
-        std::vector<float> idx_scale(in_lens.size());
-        std::transform(
-            out_lens.begin(),
-            out_lens.end(),
-            in_lens.begin(),
-            idx_scale.begin(),
-            [](auto od, auto id) { return (od == id) ? 1.0f : (id - 1.0f) / (od - 1.0f); });
-
         shape out_s{in_s.type(), out_lens};
         std::vector<int> ind(out_s.elements());
 
         // map out_idx to in_idx
         auto nearest_op = get_nearest_op(nearest_mode);
+        auto idx_op = get_original_idx_op(coord_trans_mode);
+
         shape_for_each(out_s, [&](auto idx) {
             auto in_idx = idx;
-            std::transform(idx.begin(),
-                           idx.end(),
-                           idx_scale.begin(),
-                           in_idx.begin(),
-                           // nearest mode
-                           [&](auto index, auto scale) { return nearest_op(index, scale); });
+            for (auto ii = 0; ii < in_lens.size(); ++ii)
+            {
+                auto idx_val = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
+                in_idx[ii] = nearest_op(in_lens[ii], idx_val);
+            }
 
             ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
         });

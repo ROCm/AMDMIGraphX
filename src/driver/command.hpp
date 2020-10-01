@@ -17,6 +17,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 inline auto& get_commands()
 {
+    // NOLINTNEXTLINE
     static std::unordered_map<std::string, std::function<void(std::vector<std::string> args)>> m;
     return m;
 }
@@ -64,7 +65,7 @@ int auto_register_command()
 template <class T>
 struct command
 {
-    static int static_register;
+    static const int static_register;
     // This typedef ensures that the static member will be instantiated if
     // the class itself is instantiated
     using static_register_type =
@@ -77,7 +78,7 @@ struct command
 #endif
 
 template <class T>
-int command<T>::static_register = auto_register_command<T>(); // NOLINT
+const int command<T>::static_register = auto_register_command<T>(); // NOLINT
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

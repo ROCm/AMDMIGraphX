@@ -17,7 +17,7 @@ int auto_register_action()
 template <class Action, class T>
 struct auto_register
 {
-    static int static_register;
+    const static int static_register;
     // This typedef ensures that the static member will be instantiated if
     // the class itself is instantiated
     using static_register_type =
@@ -30,7 +30,7 @@ struct auto_register
 #endif
 
 template <class Action, class T>
-int auto_register<Action, T>::static_register = auto_register_action<Action, T>(); // NOLINT
+const int auto_register<Action, T>::static_register = auto_register_action<Action, T>(); // NOLINT
 
 #ifdef __clang__
 #pragma clang diagnostic pop

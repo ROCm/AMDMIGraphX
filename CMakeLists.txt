@@ -71,6 +71,10 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
+        -bugprone-signed-char-misuse
+        # Disable the aliased reserved identifiers
+        -cert-dcl37-c
+        -cert-dcl51-cpp
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
         # Enable some alpha checks
@@ -103,6 +107,7 @@ rocm_enable_clang_tidy(
         -google-runtime-int
         -google-runtime-references
         -misc-macro-parentheses
+        -misc-no-recursion
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-use-default-member-init
@@ -115,7 +120,8 @@ rocm_enable_clang_tidy(
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-named-parameter
-        -readability-uppercase-literal-suffix,
+        -readability-redundant-string-init
+        -readability-uppercase-literal-suffix
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers

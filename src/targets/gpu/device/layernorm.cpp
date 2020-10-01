@@ -23,23 +23,22 @@ template <class T>
 using vector_type_t = typename vector_type<T>::type;
 
 template <class T>
-struct vector_size
-: std::integral_constant<index_int, 1>
+struct vector_size : std::integral_constant<index_int, 1>
 {
 };
 
 template <class T, index_int N>
-struct vector_size<vec<T, N>>
-: std::integral_constant<index_int, N>
-{};
+struct vector_size<vec<T, N>> : std::integral_constant<index_int, N>
+{
+};
 
-template<class T, class F>
+template <class T, class F>
 __device__ auto vec_transform(T x, F f)
 {
     return f(x);
 }
 
-template<class T, index_int N, class F>
+template <class T, index_int N, class F>
 __device__ auto vec_transform(vec<T, N> x, F f)
 {
     vec<T, N> y = x;
@@ -48,13 +47,13 @@ __device__ auto vec_transform(vec<T, N> x, F f)
     return y;
 }
 
-template<class T, class U, class Op>
+template <class T, class U, class Op>
 __device__ auto vec_reduce(T x, U, Op)
 {
     return x;
 }
 
-template<class T, index_int N, class U, class Op>
+template <class T, index_int N, class U, class Op>
 __device__ auto vec_reduce(vec<T, N> x, U init, Op op)
 {
     T r = init;
@@ -67,26 +66,31 @@ template <index_int N, class Op, class T, class F>
 __device__ auto auto_block_reduce(index idx, Op op, T init, index_int n, F f)
 {
     using type = decltype(f(0));
-    auto r = block_reduce<N>(idx, op, init, n, f);
+    auto r     = block_reduce<N>(idx, op, init, n, f);
     return vec_reduce(r, 0, op);
 }
 
-template<index_int MaxBlockSize, class Input, class Output>
-__device__ void layernorm(index_int i, index idx, std::size_t block_size_div, index_int relements, Input input, Output output)
+template <index_int MaxBlockSize, class Input, class Output>
+__device__ void layernorm(index_int i,
+                          index idx,
+                          std::size_t block_size_div,
+                          index_int relements,
+                          Input input,
+                          Output output)
 {
-    using value_type = decltype(input(idx.local));
+    using value_type       = decltype(input(idx.local));
     const auto relements_v = relements / vector_size<value_type>{};
-    const auto out_idx   = fast_div(i, block_size_div);
-    const auto base_idx  = out_idx * relements_v;
-    const auto input_idx = base_idx + idx.local;
-    const bool in_range  = idx.local < relements_v;
+    const auto out_idx     = fast_div(i, block_size_div);
+    const auto base_idx    = out_idx * relements_v;
+    const auto input_idx   = base_idx + idx.local;
+    const bool in_range    = idx.local < relements_v;
 
     auto mean = [&](auto z) {
         return auto_block_reduce<MaxBlockSize>(
-            idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) / relements;
+                   idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
+               relements;
 
     };
-
 
     // m = x - mean(x)
     value_type x = in_range ? input(input_idx) : 0;
@@ -120,9 +124,13 @@ void layernorm_vec_impl(hipStream_t stream,
         assert(relements_v <= block_size);
 
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
-            layernorm<max_block_size>(i, idx, block_size_div, relements, [&](auto input_idx) { return input.data()[input_idx]; }, [&](auto input_idx, auto x) {
-                output.data()[input_idx] = x;
-            });
+            layernorm<max_block_size>(
+                i,
+                idx,
+                block_size_div,
+                relements,
+                [&](auto input_idx) { return input.data()[input_idx]; },
+                [&](auto input_idx, auto x) { output.data()[input_idx] = x; });
         });
     });
 }
@@ -142,9 +150,13 @@ void layernorm_impl(hipStream_t stream,
         assert(relements <= block_size);
 
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
-            layernorm<max_block_size>(i, idx, block_size_div, relements, [&](auto input_idx) { return input.data()[input_idx]; }, [&](auto input_idx, auto x) {
-                output.data()[input_idx] = x;
-            });
+            layernorm<max_block_size>(
+                i,
+                idx,
+                block_size_div,
+                relements,
+                [&](auto input_idx) { return input.data()[input_idx]; },
+                [&](auto input_idx, auto x) { output.data()[input_idx] = x; });
         });
     });
 }

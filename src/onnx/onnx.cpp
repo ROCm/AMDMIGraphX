@@ -52,8 +52,8 @@ namespace onnx = onnx_for_migraphx;
 
 struct onnx_parser
 {
-    using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
-    using nearest_op    = std::function<std::size_t(std::size_t, double)>;
+    using attribute_map   = std::unordered_map<std::string, onnx::AttributeProto>;
+    using nearest_op      = std::function<std::size_t(std::size_t, double)>;
     using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
     struct node_info
     {
@@ -1102,21 +1102,25 @@ struct onnx_parser
         idx_ops.emplace("half_pixel", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
             return (idx + 0.5) / scale - 0.5;
         });
-        idx_ops.emplace("pytorch_half_pixel", [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
-            return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
-        });
-        idx_ops.emplace("align_corners", [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-            return 1.0 * idx * (l_in - 1) / (l_out - 1);
-        });
+        idx_ops.emplace("pytorch_half_pixel",
+                        [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
+                            return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
+                        });
+        idx_ops.emplace("align_corners",
+                        [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
+                            return 1.0 * idx * (l_in - 1) / (l_out - 1);
+                        });
         idx_ops.emplace("asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
             return idx / scale;
         });
-        idx_ops.emplace("tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-            return (idx + 0.5) / scale;
-        });
+        idx_ops.emplace("tf_half_pixel_for_nn",
+                        [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                            return (idx + 0.5) / scale;
+                        });
         if(contains(idx_ops, mode) == 0)
         {
-            MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode + " not supported!");
+            MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode +
+                           " not supported!");
         }
 
         return idx_ops.at(mode);
@@ -1126,11 +1130,11 @@ struct onnx_parser
     parse_resize(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
         std::string coord_trans_mode = "half_pixel";
-        if (contains(info.attributes, "coordinate_transformation_mode"))
+        if(contains(info.attributes, "coordinate_transformation_mode"))
         {
             coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
             // does not support transformation mode "tf_crop_and_resize"
-            if (coord_trans_mode == "tf_crop_and_resize")
+            if(coord_trans_mode == "tf_crop_and_resize")
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
             }
@@ -1155,10 +1159,10 @@ struct onnx_parser
 
         // check exclude_outside, only support 0
         int exclude_outside = 0;
-        if (contains(info.attributes, "exclude_outside"))
+        if(contains(info.attributes, "exclude_outside"))
         {
             exclude_outside = info.attributes.at("exclude_outside").i();
-            if (exclude_outside == 1)
+            if(exclude_outside == 1)
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
             }
@@ -1181,17 +1185,18 @@ struct onnx_parser
             check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");
             arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
 
-            if (out_lens.size() != in_lens.size())
+            if(out_lens.size() != in_lens.size())
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: specified output size does not match input size");
             }
 
             // compute the scale
             vec_scale.resize(in_lens.size());
-            std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(),
-                vec_scale.begin(), [](auto iss, auto oss) {
-                    return 1.0 * oss / iss;
-                });
+            std::transform(in_lens.begin(),
+                           in_lens.end(),
+                           out_lens.begin(),
+                           vec_scale.begin(),
+                           [](auto iss, auto oss) { return 1.0 * oss / iss; });
         }
         // need to compute the output lens from input
         else
@@ -1218,14 +1223,14 @@ struct onnx_parser
 
         // map out_idx to in_idx
         auto nearest_op = get_nearest_op(nearest_mode);
-        auto idx_op = get_original_idx_op(coord_trans_mode);
+        auto idx_op     = get_original_idx_op(coord_trans_mode);
 
         shape_for_each(out_s, [&](auto idx) {
             auto in_idx = idx;
-            for (auto ii = 0; ii < in_lens.size(); ++ii)
+            for(auto ii = 0; ii < in_lens.size(); ++ii)
             {
                 auto idx_val = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
-                in_idx[ii] = nearest_op(in_lens[ii], idx_val);
+                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
             }
 
             ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));

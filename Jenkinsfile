@@ -139,6 +139,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
             make -j$(nproc) -k analyze
         '''
+        recordIssues aggregatingResults: true, enabledForFailure: true, tools: [cmake(), clangTidy(), cppCheck(), clang(), gcc(), sphinxBuild()]
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {

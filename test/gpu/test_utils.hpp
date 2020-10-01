@@ -33,6 +33,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
 
 static std::array<std::function<void()>, 2>& handlers()
 {
+    // NOLINTNEXTLINE
     static std::array<std::function<void()>, 2> r = {};
     return r;
 };
@@ -57,6 +58,7 @@ struct auto_print
 {
     static void set_terminate_handler(const std::string& name)
     {
+        // NOLINTNEXTLINE
         static std::string pname;
         pname = name;
         std::set_terminate(+[] {
@@ -218,7 +220,7 @@ int auto_register_verify_program()
 template <class T>
 struct verify_program
 {
-    static int static_register;
+    static const int static_register;
     // This typedef ensures that the static member will be instantiated if
     // the class itself is instantiated
     using static_register_type =
@@ -226,6 +228,6 @@ struct verify_program
 };
 
 template <class T>
-int verify_program<T>::static_register = auto_register_verify_program<T>(); // NOLINT
+const int verify_program<T>::static_register = auto_register_verify_program<T>(); // NOLINT
 
 #endif

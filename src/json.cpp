@@ -41,7 +41,7 @@ void value_to_json(const T& x, json& j)
 
 void value_to_json(const std::vector<value>& x, json& j)
 {
-    for(auto& v : x)
+    for(const auto& v : x)
     {
         if(v.get_key().empty())
         {

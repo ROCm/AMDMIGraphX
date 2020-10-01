@@ -139,7 +139,12 @@ void set_device(std::size_t id)
         MIGRAPHX_THROW("Error setting device");
 }
 
-void gpu_sync() { hipDeviceSynchronize(); }
+void gpu_sync()
+{
+    auto status = hipDeviceSynchronize();
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("hip device synchronization failed: " + hip_error(status));
+}
 
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {

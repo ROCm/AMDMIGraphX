@@ -1071,11 +1071,11 @@ struct onnx_parser
     nearest_op get_nearest_op(const std::string& mode)
     {
         static std::unordered_map<std::string, nearest_op> nearest_ops;
-        nearest_ops.emplace("round_perfer_floor", [=](std::size_t d_in, double val) {
+        nearest_ops.emplace("round_prefer_floor", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::ceil((val - 0.5)));
         });
-        nearest_ops.emplace("round_perfer_ceil", [=](std::size_t d_in, double val) {
+        nearest_ops.emplace("round_prefer_ceil", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::round((val)));
         });

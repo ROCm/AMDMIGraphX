@@ -6,7 +6,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::unordered_map<std::string, operation>& op_map()
 {
-    static std::unordered_map<std::string, operation> m;
+    static std::unordered_map<std::string, operation> m; // NOLINT
     return m;
 }
 void register_op(const operation& op) { op_map()[op.name()] = op; }

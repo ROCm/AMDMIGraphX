@@ -136,14 +136,17 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, hip_clang_tidy: rocmhipclangnode('rocmtest') { cmake_build ->
     stage('Hip Clang Tidy') {
-        sh '''
-            rm -rf build
-            mkdir build
-            cd build
-            CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
-            make -j$(nproc) -k analyze
-        '''
-        recordIssues aggregatingResults: true, enabledForFailure: true, tools: [cmake(), clangTidy(), cppCheck(), clang(), gcc(), sphinxBuild()]
+        try {
+            sh '''
+                rm -rf build
+                mkdir build
+                cd build
+                CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
+                make -j$(nproc) -k analyze
+            '''
+        } finally {
+            recordIssues aggregatingResults: true, enabledForFailure: true, tools: [cmake(), clangTidy(), cppCheck(), clang(), gcc(), sphinxBuild()]
+        }
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {

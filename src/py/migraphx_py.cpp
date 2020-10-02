@@ -63,7 +63,7 @@ void visit_py(T x, F f)
 migraphx::value to_value(py::list lst)
 {
     migraphx::value v = migraphx::value::array{};
-    for(auto& val : lst)
+    for(auto val : lst)
     {
         visit_py(val, [&](auto py_val) { v.push_back(py_val); });
     }
@@ -75,7 +75,7 @@ migraphx::value to_value(py::kwargs kwargs)
 {
     migraphx::value v = migraphx::value::object{};
 
-    for(auto& arg : kwargs)
+    for(auto arg : kwargs)
     {
         auto&& key = py::str(arg.first);
         auto&& val = arg.second;

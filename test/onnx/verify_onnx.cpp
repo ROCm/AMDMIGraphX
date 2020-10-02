@@ -146,7 +146,6 @@ TEST_CASE(upsample_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-
 TEST_CASE(selu_test)
 {
     migraphx::program p = migraphx::parse_onnx("selu_test.onnx");

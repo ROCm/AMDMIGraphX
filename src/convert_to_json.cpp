@@ -31,13 +31,13 @@ auto lex_if(P p)
     };
 }
 
-std::vector<token> tokenize(const char* start, const char* end, std::vector<lexer> lexers)
+std::vector<token> tokenize(const char* start, const char* end, const std::vector<lexer>& lexers)
 {
     std::vector<token> result;
     while(start != end)
     {
         bool error = true;
-        for(auto l : lexers)
+        for(const auto& l : lexers)
         {
             auto next = l(start, end);
             if(next != start)
@@ -84,7 +84,7 @@ std::vector<token> json_tokenize(const std::string& s)
 
     // Identifier/number
     lexers.push_back(lex_while([](char c) {
-        return (isalnum(c) or contains({'_', '.', '+'}, c));
+        return (isalnum(c) != 0 or contains({'_', '.', '+'}, c));
     }));
 
     return tokenize(s.data(), s.data() + s.length(), lexers);
@@ -98,7 +98,7 @@ std::string convert_to_json(const std::string& str)
     for(auto& token : tokens)
     {
         std::string s(token.first, token.second);
-        if(std::isalpha(s.front()) and not contains({"null", "nan"}, s))
+        if(std::isalpha(s.front()) != 0 and not contains({"null", "nan"}, s))
         {
             ss << "\"" << s << "\"";
         }

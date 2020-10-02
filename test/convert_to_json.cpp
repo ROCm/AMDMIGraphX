@@ -24,14 +24,14 @@ TEST_CASE(key_nan)
 
 TEST_CASE(quote_key_num)
 {
-    std::string str = "{\"abc\":{\"key\":1}}";
+    std::string str = R"({"abc":{"key":1}})";
     auto jstr       = migraphx::convert_to_json(str);
     EXPECT(jstr == "{\"abc\":{\"key\":1}}");
 }
 
 TEST_CASE(quote_with_space_key_num)
 {
-    std::string str = "{\"abc key\":{\"key\":1}}";
+    std::string str = R"({"abc key":{"key":1}})";
     auto jstr       = migraphx::convert_to_json(str);
     EXPECT(jstr == "{\"abc key\":{\"key\":1}}");
 }

@@ -149,7 +149,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
                 aggregatingResults: true,
                 enabledForFailure: true,
                 referenceJobName: 'MLLibs/AMDMIGraphX/develop',
-                tools: [cmake(), clangTidy(), cppCheck(), clang(), gcc(), sphinxBuild()]
+                tools: [cmake(), clang(), sphinxBuild()]
             )
         }
     }

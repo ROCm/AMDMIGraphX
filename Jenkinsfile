@@ -141,7 +141,12 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
                 make -j$(nproc) -k analyze
             '''
         } finally {
-            recordIssues aggregatingResults: true, enabledForFailure: true, tools: [cmake(), clangTidy(), cppCheck(), clang(), gcc(), sphinxBuild()]
+            recordIssues(
+                aggregatingResults: true,
+                enabledForFailure: true,
+                referenceJobName: 'MLLibs/AMDMIGraphX/develop',
+                tools: [cmake(), clang(), sphinxBuild()]
+            )
         }
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->

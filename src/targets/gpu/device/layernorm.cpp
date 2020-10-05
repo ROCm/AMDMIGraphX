@@ -181,6 +181,10 @@ auto layernorm_fusion(hipStream_t stream, const argument& result, const argument
     };
 }
 
+void triadd_layernorm(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+{
+    layernorm_fusion(stream, result, arg1, arg2, arg3)([](auto x, auto y, auto z) { return x+y+z; }, [](auto x, auto& y, auto...) { y = x; });
+}
 
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {

@@ -130,12 +130,14 @@ void layernorm_vec_impl(hipStream_t stream,
                 block_size_div,
                 relements,
                 [&](auto input_idx) { return in(inputs.data()[input_idx]...); },
-                [&](auto input_idx, auto x) { out(x, output.data()[input_idx], inputs.data()[input_idx]...); });
+                [&](auto input_idx, auto x) {
+                    out(x, output.data()[input_idx], inputs.data()[input_idx]...);
+                });
         });
     });
 }
 
-template<class Input, class Output, class... Arguments>
+template <class Input, class Output, class... Arguments>
 void layernorm_impl(hipStream_t stream,
                     index_int nelements,
                     index_int relements,
@@ -157,13 +159,18 @@ void layernorm_impl(hipStream_t stream,
                 block_size_div,
                 relements,
                 [&](auto input_idx) { return in(inputs.data()[input_idx]...); },
-                [&](auto input_idx, auto x) { out(x, output.data()[input_idx], inputs.data()[input_idx]...); });
+                [&](auto input_idx, auto x) {
+                    out(x, output.data()[input_idx], inputs.data()[input_idx]...);
+                });
         });
     });
 }
 
-template<class... Arguments>
-auto layernorm_fusion(hipStream_t stream, const argument& result, const argument& arg1, const Arguments&... args)
+template <class... Arguments>
+auto layernorm_fusion(hipStream_t stream,
+                      const argument& result,
+                      const argument& arg1,
+                      const Arguments&... args)
 {
     return [=](auto input, auto output) {
         auto relements    = arg1.get_shape().lens().back();
@@ -173,7 +180,8 @@ auto layernorm_fusion(hipStream_t stream, const argument& result, const argument
         reduce_output_lens.back() = 1;
 
         if((relements % 4) == 0)
-            layernorm_vec_impl<4>(stream, nelements, relements, input, output, result, arg1, args...);
+            layernorm_vec_impl<4>(
+                stream, nelements, relements, input, output, result, arg1, args...);
         else if(relements < 256)
             layernorm_impl(stream, nelements, relements, input, output, result, arg1, args...);
         else
@@ -181,14 +189,20 @@ auto layernorm_fusion(hipStream_t stream, const argument& result, const argument
     };
 }
 
-void triadd_layernorm(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2, const argument& arg3)
+void triadd_layernorm(hipStream_t stream,
+                      const argument& result,
+                      const argument& arg1,
+                      const argument& arg2,
+                      const argument& arg3)
 {
-    layernorm_fusion(stream, result, arg1, arg2, arg3)([](auto x, auto y, auto z) { return x+y+z; }, [](auto x, auto& y, auto...) { y = x; });
+    layernorm_fusion(stream, result, arg1, arg2, arg3)(
+        [](auto x, auto y, auto z) { return x + y + z; }, [](auto x, auto& y, auto...) { y = x; });
 }
 
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
-    layernorm_fusion(stream, result, arg1)([](auto x) { return x; }, [](auto x, auto& y, auto) { y = x; });
+    layernorm_fusion(stream, result, arg1)([](auto x) { return x; },
+                                           [](auto x, auto& y, auto) { y = x; });
 }
 
 } // namespace device

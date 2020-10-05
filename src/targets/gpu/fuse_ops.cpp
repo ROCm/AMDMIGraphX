@@ -353,12 +353,13 @@ struct find_triadd_layernorm
 {
     auto matcher() const
     {
-        return match::name("gpu::layernorm")(match::arg(0)(match::name("triadd")(match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
+        return match::name("gpu::layernorm")(match::arg(0)(match::name("triadd")(
+            match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
     }
 
     void apply(program& p, match::matcher_result r) const
     {
-        auto ins   = r.result;
+        auto ins    = r.result;
         auto triadd = ins->inputs().front();
         p.replace_instruction(ins, hip_triadd_layernorm{}, triadd->inputs());
     }

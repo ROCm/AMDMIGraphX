@@ -107,16 +107,16 @@ __device__ void layernorm(index_int i,
 // m = x - mean(x)
 // m / sqrt(mean(m ^ 2) + 1e-12)
 
-template <index_int N>
+template <index_int N, class Input, class Output, class... Arguments>
 void layernorm_vec_impl(hipStream_t stream,
-                        const argument& result,
-                        const argument& arg1,
                         index_int nelements,
-                        index_int relements)
+                        index_int relements,
+                        Input in,
+                        Output out,
+                        const argument& result,
+                        const Arguments&... args)
 {
-    hip_vec_visit_all<N>(result, arg1)([&](auto output, auto input) {
-        using value_type = typename decltype(input)::value_type;
-
+    hip_vec_visit_all<N>(result, args...)([&](auto output, auto... inputs) {
         const auto relements_v           = relements / N;
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements_v, max_block_size);
@@ -129,21 +129,22 @@ void layernorm_vec_impl(hipStream_t stream,
                 idx,
                 block_size_div,
                 relements,
-                [&](auto input_idx) { return input.data()[input_idx]; },
-                [&](auto input_idx, auto x) { output.data()[input_idx] = x; });
+                [&](auto input_idx) { return in(inputs.data()[input_idx]...); },
+                [&](auto input_idx, auto x) { out(x, output.data()[input_idx], inputs.data()[input_idx]...); });
         });
     });
 }
 
+template<class Input, class Output, class... Arguments>
 void layernorm_impl(hipStream_t stream,
-                    const argument& result,
-                    const argument& arg1,
                     index_int nelements,
-                    index_int relements)
+                    index_int relements,
+                    Input in,
+                    Output out,
+                    const argument& result,
+                    const Arguments&... args)
 {
-    hip_visit_all(result, arg1)([&](auto output, auto input) {
-        using value_type = typename decltype(input)::value_type;
-
+    hip_visit_all(result, args...)([&](auto output, auto... inputs) {
         const std::size_t max_block_size = 256;
         const std::size_t block_size     = compute_block_size(relements, max_block_size);
         const std::size_t block_size_div = encode_divisor(block_size);
@@ -155,26 +156,35 @@ void layernorm_impl(hipStream_t stream,
                 idx,
                 block_size_div,
                 relements,
-                [&](auto input_idx) { return input.data()[input_idx]; },
-                [&](auto input_idx, auto x) { output.data()[input_idx] = x; });
+                [&](auto input_idx) { return in(inputs.data()[input_idx]...); },
+                [&](auto input_idx, auto x) { out(x, output.data()[input_idx], inputs.data()[input_idx]...); });
         });
     });
 }
 
+template<class... Arguments>
+auto layernorm_fusion(hipStream_t stream, const argument& result, const argument& arg1, const Arguments&... args)
+{
+    return [=](auto input, auto output) {
+        auto relements    = arg1.get_shape().lens().back();
+        auto nelements    = result.get_shape().elements() / relements;
+        auto output_shape = result.get_shape();
+        auto reduce_output_lens(output_shape.lens());
+        reduce_output_lens.back() = 1;
+
+        if((relements % 4) == 0)
+            layernorm_vec_impl<4>(stream, nelements, relements, input, output, result, arg1, args...);
+        else if(relements < 256)
+            layernorm_impl(stream, nelements, relements, input, output, result, arg1, args...);
+        else
+            MIGRAPHX_THROW("No kernel for layernorm");
+    };
+}
+
+
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
-    auto relements    = arg1.get_shape().lens().back();
-    auto nelements    = result.get_shape().elements() / relements;
-    auto output_shape = result.get_shape();
-    auto reduce_output_lens(output_shape.lens());
-    reduce_output_lens.back() = 1;
-
-    if((relements % 4) == 0)
-        layernorm_vec_impl<4>(stream, result, arg1, nelements, relements);
-    else if(relements < 256)
-        layernorm_impl(stream, result, arg1, nelements, relements);
-    else
-        MIGRAPHX_THROW("No kernel for layernorm");
+    layernorm_fusion(stream, result, arg1)([](auto x) { return x; }, [](auto x, auto& y, auto) { y = x; });
 }
 
 } // namespace device

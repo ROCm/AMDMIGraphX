@@ -39,7 +39,7 @@ std::vector<token> tokenize(const char* start, const char* end, const std::vecto
         bool error = true;
         for(const auto& l : lexers)
         {
-            const auto * next = l(start, end);
+            const auto* next = l(start, end);
             if(next != start)
             {
                 result.emplace_back(start, next);

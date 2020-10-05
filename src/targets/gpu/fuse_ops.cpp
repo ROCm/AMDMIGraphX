@@ -239,7 +239,7 @@ struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 };
 MIGRAPHX_REGISTER_OP(hip_layernorm)
 
-struct hip_triadd_layernorm : unary_device<hip_triadd_layernorm, &device::layernorm>
+struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
 {
     // Empty finalize to skip dimension reduction
     void finalize(context&, const shape&, const std::vector<shape>&) {}
@@ -353,7 +353,7 @@ struct find_triadd_layernorm
 {
     auto matcher() const
     {
-        return match::name("gpu::layernorm")(match::arg(0)(match::name("triadd")(
+        return match::name("gpu::layernorm")(match::arg(0)(match::name("gpu::triadd")(
             match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
     }
 

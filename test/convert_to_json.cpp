@@ -1,11 +1,46 @@
 #include <migraphx/convert_to_json.hpp>
 #include <test.hpp>
 
-TEST_CASE(key_num)
+TEST_CASE(key_int)
 {
     std::string str = "{abc:{key:1}}";
     auto jstr       = migraphx::convert_to_json(str);
     EXPECT(jstr == "{\"abc\":{\"key\":1}}");
+}
+
+TEST_CASE(key_negative_int)
+{
+    std::string str = "{abc:{key:-1}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":-1}}");
+}
+
+TEST_CASE(key_float)
+{
+    std::string str = "{abc:{key:1.0}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":1.0}}");
+}
+
+TEST_CASE(key_negative_float)
+{
+    std::string str = "{abc:{key:-1.0}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":-1.0}}");
+}
+
+TEST_CASE(key_exp)
+{
+    std::string str = "{abc:{key:1e+10}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":1e+10}}");
+}
+
+TEST_CASE(key_exp_1)
+{
+    std::string str = "{abc:{key:1E-10}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":1E-10}}");
 }
 
 TEST_CASE(key_null)
@@ -13,6 +48,34 @@ TEST_CASE(key_null)
     std::string str = "{abc:{key:null}}";
     auto jstr       = migraphx::convert_to_json(str);
     EXPECT(jstr == "{\"abc\":{\"key\":null}}");
+}
+
+TEST_CASE(key_inf)
+{
+    std::string str = "{abc:{key:inf}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":inf}}");
+}
+
+TEST_CASE(key_neg_inf)
+{
+    std::string str = "{abc:{key:-inf}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":-inf}}");
+}
+
+TEST_CASE(key_true)
+{
+    std::string str = "{abc:{key:true}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":true}}");
+}
+
+TEST_CASE(key_false)
+{
+    std::string str = "{abc:{key:false}}";
+    auto jstr       = migraphx::convert_to_json(str);
+    EXPECT(jstr == "{\"abc\":{\"key\":false}}");
 }
 
 TEST_CASE(key_nan)

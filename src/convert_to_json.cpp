@@ -98,7 +98,8 @@ std::string convert_to_json(const std::string& str)
     for(auto& token : tokens)
     {
         std::string s(token.first, token.second);
-        if(std::isalpha(s.front()) != 0 and not contains({"null", "nan", "true", "false", "inf"}, s))
+        if(std::isalpha(s.front()) != 0 and
+           not contains({"null", "nan", "true", "false", "inf"}, s))
         {
             ss << "\"" << s << "\"";
         }

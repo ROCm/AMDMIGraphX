@@ -67,7 +67,7 @@ std::vector<token> json_tokenize(const std::string& s)
         if(*start != '\"')
             return start;
         ++start;
-        while(start != end and *start != '\"')
+        while((start != end) and (*start != '\"'))
         {
             if(*start == '\\')
                 start++;

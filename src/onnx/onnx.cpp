@@ -141,10 +141,12 @@ struct onnx_parser
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("Greater", &onnx_parser::parse_greater);
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Less", &onnx_parser::parse_less);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("MatMul", "dot", &onnx_parser::parse_matmul);
@@ -2479,6 +2481,28 @@ struct onnx_parser
     parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto l = add_broadcastable_binary_op(args[0], args[1], "equal");
+        if(l->get_shape().type() != shape::bool_type)
+        {
+            l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
+        }
+        return l;
+    }
+
+    instruction_ref
+    parse_greater(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto l = add_broadcastable_binary_op(args[0], args[1], "greater");
+        if(l->get_shape().type() != shape::bool_type)
+        {
+            l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
+        }
+        return l;
+    }
+
+    instruction_ref
+    parse_less(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto l = add_broadcastable_binary_op(args[0], args[1], "less");
         if(l->get_shape().type() != shape::bool_type)
         {
             l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);

@@ -15,7 +15,7 @@ struct greater : binary<greater>
     value attributes() const
     {
         auto a           = base_attributes();
-        a["commutative"] = true;
+        a["commutative"] = false;
         return a;
     }
     auto apply() const

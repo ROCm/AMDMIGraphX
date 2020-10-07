@@ -39,7 +39,7 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
-        check_shapes{in_shapes}.not_broadcasted();
+        check_shapes{in_shapes, *this}.not_broadcasted();
         batch_not_transposed(inputs[0].strides());
         batch_not_transposed(inputs[1].strides());
 

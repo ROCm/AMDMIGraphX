@@ -1767,6 +1767,38 @@ TEST_CASE(round_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(selu_test)
+{
+    migraphx::program p;
+    std::vector<std::size_t> lens = {2, 3};
+    migraphx::shape s{migraphx::shape::double_type, lens};
+    auto x = p.add_parameter("x", s);
+
+    migraphx::shape ls{migraphx::shape::double_type, {1}};
+    auto la   = p.add_literal({ls, {0.3}});
+    auto lg   = p.add_literal({ls, {0.25}});
+    auto mbla = p.add_instruction(migraphx::op::multibroadcast{lens}, la);
+    auto mblg = p.add_instruction(migraphx::op::multibroadcast{lens}, lg);
+
+    auto sign_x = p.add_instruction(migraphx::op::sign{}, x);
+    auto exp_x  = p.add_instruction(migraphx::op::exp{}, x);
+
+    auto mlax  = p.add_instruction(migraphx::op::mul{}, mbla, exp_x);
+    auto smlax = p.add_instruction(migraphx::op::sub{}, mlax, mbla);
+
+    auto item1 = p.add_instruction(migraphx::op::add{}, smlax, x);
+    auto item2 = p.add_instruction(migraphx::op::sub{}, smlax, x);
+
+    auto sitem2 = p.add_instruction(migraphx::op::mul{}, sign_x, item2);
+    auto item12 = p.add_instruction(migraphx::op::sub{}, item1, sitem2);
+    auto r      = p.add_instruction(migraphx::op::mul{}, item12, mblg);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("selu_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(shape_test)
 {
     migraphx::program p;

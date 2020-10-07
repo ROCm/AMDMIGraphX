@@ -170,7 +170,7 @@ value& value::operator=(std::nullptr_t)
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
 {
-    auto* r = this->if_array();
+    const auto* r = this->if_array();
     assert(r);
     return *r;
 }
@@ -179,7 +179,7 @@ const std::vector<value>* value::if_array() const { return x ? x->if_array() : n
 bool value::is_object() const { return x ? x->get_type() == object_type : false; }
 const std::vector<value>& value::get_object() const
 {
-    auto* r = this->if_object();
+    const auto* r = this->if_object();
     assert(r);
     return *r;
 }
@@ -236,7 +236,7 @@ value* value::find(const std::string& pkey) { return find_impl(x, pkey); }
 const value* value::find(const std::string& pkey) const { return find_impl(x, pkey); }
 bool value::contains(const std::string& pkey) const
 {
-    auto it = find(pkey);
+    const auto* it = find(pkey);
     if(it == nullptr)
         return false;
     if(it == end())
@@ -308,7 +308,7 @@ value& value::at(const std::string& pkey)
 }
 const value& value::at(const std::string& pkey) const
 {
-    auto* r = find(pkey);
+    const auto* r = find(pkey);
     if(r == nullptr)
         MIGRAPHX_THROW("Not an object for field: " + pkey);
     if(r == end())

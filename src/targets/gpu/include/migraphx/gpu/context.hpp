@@ -37,7 +37,7 @@ struct hip_device
 
         stream(std::size_t device_number) : id(device_number) {}
 
-        void setup() { set_device(id); }
+        void setup() const { set_device(id); }
 
         static hip_stream_ptr create_stream()
         {

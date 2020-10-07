@@ -41,7 +41,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
     if(conflict_table.find(vn) != conflict_table.end())
     {
         std::set<int>& vn_set = conflict_table[vn];
-        for(auto& iter : vn_set)
+        for(const auto& iter : vn_set)
         {
             live_range* range = live_ranges[iter];
             long long offset  = range->offset;
@@ -240,7 +240,7 @@ void memory_coloring_impl::verify()
             if(conflict_table.find(vn) != conflict_table.end())
             {
                 std::set<int>& vn_set = conflict_table[vn];
-                for(auto& iter : vn_set)
+                for(const auto& iter : vn_set)
                 {
                     live_range* range = live_ranges[iter];
                     if(range->offset == invalid_offset)

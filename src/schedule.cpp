@@ -335,7 +335,7 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions(program& p)
+    find_concurrent_instructions(program& p) const
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
@@ -353,7 +353,7 @@ struct stream_info
             auto streams = this->get_streams(ins);
 
             // Collect concur instructions for each merge point.
-            for(auto& merge : merge_from[ins])
+            for(const auto& merge : merge_from[ins])
             {
                 for(auto stream : streams)
                 {

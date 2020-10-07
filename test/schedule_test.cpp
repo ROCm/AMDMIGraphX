@@ -31,7 +31,7 @@ struct unary_op
 
 struct nary_op
 {
-    std::string comment = "";
+    std::string comment;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -56,7 +56,7 @@ struct nary_op
 
 struct stream_free_op
 {
-    std::string comment = "";
+    std::string comment;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

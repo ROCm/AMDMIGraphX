@@ -262,6 +262,7 @@ string_map parse(std::vector<std::string> as, Keyword keyword)
 
 inline auto& get_test_cases()
 {
+    // NOLINTNEXTLINE
     static std::vector<std::pair<std::string, std::function<void()>>> cases;
     return cases;
 }

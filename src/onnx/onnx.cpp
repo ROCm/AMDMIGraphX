@@ -2536,12 +2536,11 @@ struct onnx_parser
         for(auto&& f : graph.initializer())
         {
             std::string f_name = f.name();
-            
-            if (not f.external_data().empty())
+
+            if(not f.external_data().empty())
                 std::cout << f_name << std::endl;
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
         }
-            
 
         for(auto&& input : graph.input())
         {
@@ -2713,9 +2712,9 @@ struct onnx_parser
         if(not t.external_data().empty())
         {
             const std::string& filename = t.external_data().at(0).value();
-            auto raw_buffer = read_buffer(filename);
+            auto raw_buffer             = read_buffer(filename);
             std::string s(raw_buffer.begin(), raw_buffer.end());
-            auto type            = get_type(t.data_type());
+            auto type = get_type(t.data_type());
             return create_literal(type, dims, s.data());
         }
         if(t.has_raw_data())

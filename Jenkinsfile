@@ -32,18 +32,20 @@ def rocmtestnode(Map conf) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            pre()
-            stage("image ${variant}") {
-                try {
-                    docker.build("${image}", "${docker_build_args} .")
-                } catch(Exception ex) {
-                    docker.build("${image}", "${docker_build_args} --no-cache .")
+            gitStatusWrapper(credentialsId: 'github-app-rocm-mici', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+                pre()
+                stage("image ${variant}") {
+                    try {
+                        docker.build("${image}", "${docker_build_args} .")
+                    } catch(Exception ex) {
+                        docker.build("${image}", "${docker_build_args} --no-cache .")
 
+                    }
                 }
-            }
-            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
-                timeout(time: 1, unit: 'HOURS') {
-                    body(cmake_build)
+                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
+                    timeout(time: 1, unit: 'HOURS') {
+                        body(cmake_build)
+                    }
                 }
             }
         }
@@ -136,22 +138,13 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }, hip_clang_tidy: rocmhipclangnode('rocmtest') { cmake_build ->
     stage('Hip Clang Tidy') {
-        try {
-            sh '''
-                rm -rf build
-                mkdir build
-                cd build
-                CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
-                make -j$(nproc) -k analyze
-            '''
-        } finally {
-            recordIssues(
-                aggregatingResults: true,
-                enabledForFailure: true,
-                referenceJobName: 'MLLibs/AMDMIGraphX/develop',
-                tools: [cmake(), clang(), sphinxBuild()]
-            )
-        }
+        sh '''
+            rm -rf build
+            mkdir build
+            cd build
+            CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
+            make -j$(nproc) -k analyze
+        '''
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {

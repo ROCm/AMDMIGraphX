@@ -46,7 +46,7 @@ struct hip_allocate
     std::string name() const { return "hip::allocate"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(0);
+        check_shapes{inputs, *this}.has(0);
         return s;
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
@@ -80,7 +80,7 @@ struct hip_copy_to_gpu
     std::string name() const { return "hip::copy_to_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1, 2);
+        check_shapes{inputs, *this}.has(1, 2);
         return inputs.at(0);
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
@@ -106,7 +106,7 @@ struct hip_copy_from_gpu
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1, 2);
+        check_shapes{inputs, *this}.has(1, 2);
         return inputs.at(0);
     }
     argument
@@ -135,7 +135,7 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).standard();
+        check_shapes{inputs, *this}.has(2).standard();
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const
@@ -162,7 +162,7 @@ struct hip_allocate_memory
     std::string name() const { return "hip::hip_allocate_memory"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(0);
+        check_shapes{inputs, *this}.has(0);
         return s;
     }
 
@@ -192,7 +192,7 @@ struct hip_copy_literal
     std::string name() const { return "hip::hip_copy_literal"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(0);
+        check_shapes{inputs, *this}.has(0);
         return l.get_shape();
     }
 

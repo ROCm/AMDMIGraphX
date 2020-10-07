@@ -558,6 +558,19 @@ TEST_CASE(test_argmin)
     }
 }
 
+TEST_CASE(test_scalar)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1}, {1}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 5}, {0, 0, 0, 0}};
+    expect_shape(s2, migraphx::op::scalar{{2, 3, 4, 5}}, s1);
+}
+
+TEST_CASE(test_scalar_nelemnts)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
+    throws_shape(migraphx::op::scalar{{2, 3, 4, 5}}, input);
+}
+
 TEST_CASE(test_squeeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};

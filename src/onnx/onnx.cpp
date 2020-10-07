@@ -52,6 +52,7 @@ namespace onnx = onnx_for_migraphx;
 
 struct onnx_parser
 {
+    std::string filename;
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {
@@ -2533,7 +2534,14 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         for(auto&& f : graph.initializer())
+        {
+            std::string f_name = f.name();
+            
+            if (not f.external_data().empty())
+                std::cout << f_name << std::endl;
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
+        }
+            
 
         for(auto&& input : graph.input())
         {
@@ -2664,6 +2672,20 @@ struct onnx_parser
         return literal{{t, {size}}, r.begin(), r.end()};
     }
 
+    static std::vector<char> read_buffer(const std::string& filename)
+    {
+        std::ifstream is(filename, std::ios::binary | std::ios::ate);
+        std::streamsize size = is.tellg();
+        is.seekg(0, std::ios::beg);
+
+        std::vector<char> buffer(size);
+        if(!is.read(buffer.data(), size))
+        {
+            MIGRAPHX_THROW("Error reading file: " + filename);
+        }
+        return buffer;
+    }
+
     static literal parse_value(const onnx::AttributeProto& attr)
     {
         switch(attr.type())
@@ -2688,6 +2710,14 @@ struct onnx_parser
     static literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
+        if(not t.external_data().empty())
+        {
+            const std::string& filename = t.external_data().at(0).value();
+            auto raw_buffer = read_buffer(filename);
+            std::string s(raw_buffer.begin(), raw_buffer.end());
+            auto type            = get_type(t.data_type());
+            return create_literal(type, dims, s.data());
+        }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
@@ -2826,7 +2856,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
-    return parse_onnx_from(options, input);
+    return parse_onnx_from(options, name, input);
 }
 
 program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)

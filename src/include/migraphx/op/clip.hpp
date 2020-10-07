@@ -23,7 +23,7 @@ struct clip
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(3).same_type();
+        check_shapes{inputs, *this}.has(3).same_type();
         return inputs.front();
     }
 

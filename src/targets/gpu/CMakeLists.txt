@@ -212,6 +212,13 @@ register_op(migraphx_gpu
     INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
+# Get flags needed to compile hip
+target_flags(HIP_COMPILER_FLAGS hip::device)
+# Remove cuda arch flags
+string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+target_compile_definitions(migraphx_gpu PRIVATE "-DHIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}")
+
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_compile_options(migraphx_gpu PRIVATE -std=c++17)

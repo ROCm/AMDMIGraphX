@@ -17,6 +17,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using module = program;
+
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
@@ -138,6 +140,10 @@ struct program
     friend std::ostream& operator<<(std::ostream& os, const program& p);
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
+
+    module& get_main_module() {
+        return *this;
+    }
 
     private:
     void assign(const program& p);

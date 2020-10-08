@@ -1,4 +1,4 @@
-FROM ubuntu:xenial-20180417
+FROM ubuntu:18.04
 
 ARG PREFIX=/usr/local
 
@@ -23,7 +23,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     comgr \
     curl \
     doxygen \
-    g++-7 \
+    g++ \
     gdb \
     git \
     hsa-rocr-dev \

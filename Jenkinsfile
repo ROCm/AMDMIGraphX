@@ -146,14 +146,11 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
             make -j$(nproc) -k analyze
         '''
     }
-}, gcc5: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC 5 Debug') {
-        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
+}, gcc7_release: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 7 Release') {
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=release")
     }
-    stage('GCC 5 Release') {
-        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
-    }
-}, gcc7: rocmnode('rocmtest') { cmake_build ->
+}, gcc7_debug: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"

@@ -212,6 +212,7 @@ register_op(migraphx_gpu
     INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
+include(TargetFlags)
 # Get flags needed to compile hip
 target_flags(HIP_COMPILER_FLAGS hip::device)
 # Remove cuda arch flags

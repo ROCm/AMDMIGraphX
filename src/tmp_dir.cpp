@@ -17,14 +17,14 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SAVE_TEMP_DIR)
 std::string random_string(std::string::size_type length)
 {
     static const std::string& chars = "0123456789"
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                                      "abcdefghijklmnopqrstuvwxyz"
+                                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     std::mt19937 rg{std::random_device{}()};
-    std::uniform_int_distribution<std::string::size_type> pick(0, chars.length()-1);
+    std::uniform_int_distribution<std::string::size_type> pick(0, chars.length() - 1);
 
     std::string str(length, 0);
-    std::generate( str.begin(), str.end(), [&] { return chars[pick(rg)]; } );
+    std::generate(str.begin(), str.end(), [&] { return chars[pick(rg)]; });
 
     return str;
 }
@@ -38,8 +38,7 @@ std::string unique_string(const std::string& prefix)
     return ss.str();
 }
 
-tmp_dir::tmp_dir()
-: path(fs::temp_directory_path() / unique_string("migraphx"))
+tmp_dir::tmp_dir() : path(fs::temp_directory_path() / unique_string("migraphx"))
 {
     fs::create_directories(this->path);
 }
@@ -72,4 +71,3 @@ tmp_dir::~tmp_dir()
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

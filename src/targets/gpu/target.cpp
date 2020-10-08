@@ -73,7 +73,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
-        fuse_ops{&ctx},
+        fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},

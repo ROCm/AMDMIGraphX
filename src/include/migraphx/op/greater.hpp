@@ -12,12 +12,6 @@ namespace op {
 
 struct greater : binary<greater>
 {
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
     auto apply() const
     {
         return [](auto x, auto y) { return x > y; };

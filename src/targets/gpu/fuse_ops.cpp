@@ -29,7 +29,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FAST_GELU)
 
 struct fusion
 {
@@ -396,6 +395,7 @@ struct find_add_gelu
 
 struct find_gelu_new
 {
+    bool fast_math = true;
 
     static auto pow_fn()
     {
@@ -430,7 +430,7 @@ struct find_gelu_new
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        if(enabled(MIGRAPHX_DISABLE_FAST_GELU{}))
+        if(not fast_math)
             p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
         else
             p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
@@ -807,7 +807,7 @@ struct find_commutative_broadcast
 
 void fuse_ops::apply(program& p) const
 {
-    match::find_matches(p, find_gelu{}, find_gelu_new{});
+    match::find_matches(p, find_gelu{}, find_gelu_new{fast_math});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
     match::find_matches(p,

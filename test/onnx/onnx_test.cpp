@@ -2251,6 +2251,28 @@ TEST_CASE(unknown_test_throw)
     EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
 }
 
+TEST_CASE(upsample_test)
+{
+    migraphx::program p;
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    p.add_literal(migraphx::literal(ss, {1.0f, 1.0f, 2.0f, 3.0f}));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto ix = p.add_parameter("X", sx);
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+
+    auto li  = p.add_literal(migraphx::literal(si, ind));
+    auto rsp = p.add_instruction(migraphx::op::reshape{{4}}, ix);
+    auto r   = p.add_instruction(migraphx::op::gather{0}, rsp, li);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("upsample_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(unknown_test_throw_print_error)
 {
     migraphx::onnx_options options;

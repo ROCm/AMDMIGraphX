@@ -18,8 +18,12 @@ struct kernel
     kernel() = default;
     kernel(const std::vector<char>& image, const std::string& name);
 
-    void launch(hipStream_t stream, std::size_t global, std::size_t local, const std::vector<std::pair<std::size_t, void*>>& args);
-private:
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                const std::vector<std::pair<std::size_t, void*>>& args);
+
+    private:
     std::shared_ptr<kernel_impl> impl;
 };
 

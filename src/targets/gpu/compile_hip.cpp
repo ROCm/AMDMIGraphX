@@ -19,7 +19,8 @@ bool is_hip_clang_compiler()
     return result;
 }
 
-std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
+std::vector<std::vector<char>>
+compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<std::vector<char>> hsacos;
     tmp_dir td{};
@@ -37,25 +38,25 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         params += " -O3 ";
     }
 
-    for(const auto& src:srcs)
+    for(const auto& src : srcs)
     {
-        fs::path full_path = td.path / src.path;
+        fs::path full_path   = td.path / src.path;
         fs::path parent_path = full_path.parent_path();
         fs::create_directories(parent_path);
         write_buffer(full_path.string(), src.content.first, src.len());
-        if (src.path.extension().string() == ".cpp")
+        if(src.path.extension().string() == ".cpp")
             params += " " + src.path.filename().string();
     }
 
     params += " -Wno-unused-command-line-argument -I. ";
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
 
-    for(auto entry:fs::directory_iterator{td.path})
+    for(auto entry : fs::directory_iterator{td.path})
     {
-        if (not entry.is_regular_file())
+        if(not entry.is_regular_file())
             continue;
         auto obj_path = entry.path();
-        if (obj_path.extension() != ".o")
+        if(obj_path.extension() != ".o")
             continue;
         if(is_hcc_compiler())
         {
@@ -66,25 +67,24 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         {
             // call clang-offload-bundler
             td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_OFFLOADBUNDLER_BIN),
-                             "--type=o --targets=hip-amdgcn-amd-amdhsa-" + arch + " --inputs=" +
-                                 obj_path.string() + " --outputs=" + obj_path.string() +
-                                 ".hsaco --unbundle");
+                       "--type=o --targets=hip-amdgcn-amd-amdhsa-" + arch +
+                           " --inputs=" + obj_path.string() + " --outputs=" + obj_path.string() +
+                           ".hsaco --unbundle");
         }
     }
 
-    for(auto entry:fs::directory_iterator{td.path})
+    for(auto entry : fs::directory_iterator{td.path})
     {
-        if (not entry.is_regular_file())
+        if(not entry.is_regular_file())
             continue;
         auto obj_path = entry.path();
-        if (obj_path.extension() != ".hsaco")
+        if(obj_path.extension() != ".hsaco")
             continue;
         fs::path full_path = td.path / obj_path;
         hsacos.push_back(read_buffer(full_path.string()));
     }
 
     return hsacos;
-
 }
 
 } // namespace gpu

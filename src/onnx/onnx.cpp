@@ -1071,22 +1071,25 @@ struct onnx_parser
     const nearest_op& get_nearest_op(const std::string& mode)
     {
         static std::unordered_map<std::string, nearest_op> const nearest_ops = {
-        {"round_prefer_floor", [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::ceil((val - 0.5)));
-        }},
-        {"round_prefer_ceil", [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::round((val)));
-        }},
-        {"floor", [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::floor((val)));
-        }},
-        {"ceil", [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::ceil((val)));
-        }}};
+            {"round_prefer_floor",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::ceil((val - 0.5)));
+             }},
+            {"round_prefer_ceil",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::round((val)));
+             }},
+            {"floor",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::floor((val)));
+             }},
+            {"ceil", [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::ceil((val)));
+             }}};
 
         if(!contains(nearest_ops, mode))
         {
@@ -1099,24 +1102,23 @@ struct onnx_parser
     const original_idx_op& get_original_idx_op(const std::string& mode)
     {
         static std::unordered_map<std::string, original_idx_op> const idx_ops = {
-        {"half_pixel", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-            return (idx + 0.5) / scale - 0.5;
-        }},
-        {"pytorch_half_pixel",
-                        [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
-                            return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
-                        }},
-        {"align_corners",
-                        [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-                            return 1.0 * idx * (l_in - 1.0) / (l_out - 1.0);
-                        }},
-        {"asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-            return idx / scale;
-        }},
-        {"tf_half_pixel_for_nn",
-                        [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-                            return (idx + 0.5) / scale;
-                        }}};
+            {"half_pixel",
+             [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                 return (idx + 0.5) / scale - 0.5;
+             }},
+            {"pytorch_half_pixel",
+             [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
+                 return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
+             }},
+            {"align_corners",
+             [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
+                 return 1.0 * idx * (l_in - 1.0) / (l_out - 1.0);
+             }},
+            {"asymmetric",
+             [=](std::size_t, std::size_t, std::size_t idx, double scale) { return idx / scale; }},
+            {"tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                 return (idx + 0.5) / scale;
+             }}};
 
         if(!contains(idx_ops, mode))
         {

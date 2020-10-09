@@ -155,7 +155,7 @@ operation create_op(const char* name, const char* attributes)
 
 const char* op_name(const operation& op)
 {
-    auto&& name = op.name();
+    const auto& name = op.name();
     return name.c_str();
 }
 

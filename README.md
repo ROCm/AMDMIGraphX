@@ -114,7 +114,11 @@ Also, githooks can be installed to format the code per-commit:
 
 The easiest way to setup the development environment is to use docker. You can build the top-level docker file:
 
-    docker build -t migraphx .
+    docker build -f Dockerfile -t migraphx .
+
+You can also build the hip-clang version:
+
+    docker build -f Dockerfile.hip-clang -t migraphx .
 
 Then to enter the developement environment use `docker run`:
 

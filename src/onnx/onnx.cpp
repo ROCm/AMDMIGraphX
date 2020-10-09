@@ -2499,8 +2499,9 @@ struct onnx_parser
         return add_broadcastable_binary_op(cd, args[2], "add");
     }
 
-    void parse_from(std::istream& is)
+    void parse_from(std::istream& is, std::string name = "")
     {
+        this->filename = name;
         onnx::ModelProto model;
         if(model.ParseFromIstream(&is))
         {
@@ -2855,7 +2856,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
-    return parse_onnx_from(options, name, input);
+    return parse_onnx_from(options, input, name);
 }
 
 program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)

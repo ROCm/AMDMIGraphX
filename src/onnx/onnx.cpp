@@ -1088,7 +1088,7 @@ struct onnx_parser
             return static_cast<std::size_t>(std::ceil((val)));
         });
 
-        if(contains(nearest_ops, mode) == 0)
+        if(!contains(nearest_ops, mode))
         {
             MIGRAPHX_THROW("PRASE_RESIZE: nearest_mode " + mode + " not supported!");
         }
@@ -1108,7 +1108,7 @@ struct onnx_parser
                         });
         idx_ops.emplace("align_corners",
                         [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-                            return 1.0 * idx * (l_in - 1) / (l_out - 1);
+                            return 1.0 * idx * (l_in - 1.0) / (l_out - 1.0);
                         });
         idx_ops.emplace("asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
             return idx / scale;
@@ -1117,7 +1117,7 @@ struct onnx_parser
                         [=](std::size_t, std::size_t, std::size_t idx, double scale) {
                             return (idx + 0.5) / scale;
                         });
-        if(contains(idx_ops, mode) == 0)
+        if(!contains(idx_ops, mode))
         {
             MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode +
                            " not supported!");
@@ -1158,10 +1158,9 @@ struct onnx_parser
         }
 
         // check exclude_outside, only support 0
-        int exclude_outside = 0;
         if(contains(info.attributes, "exclude_outside"))
         {
-            exclude_outside = info.attributes.at("exclude_outside").i();
+            int exclude_outside = info.attributes.at("exclude_outside").i();
             if(exclude_outside == 1)
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
@@ -2781,12 +2780,7 @@ struct onnx_parser
         // and third inputs are put there, but is empty, so unused.
         // note that scalar input has dims.size() 0
         auto&& dims = t.tensor_type().shape().dim();
-        if(dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0)
-        {
-            return true;
-        }
-
-        return false;
+        return (dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0);
     }
 
     void parse_graph(const onnx::GraphProto& graph)

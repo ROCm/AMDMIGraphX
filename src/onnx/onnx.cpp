@@ -1068,25 +1068,25 @@ struct onnx_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    nearest_op get_nearest_op(const std::string& mode)
+    const nearest_op& get_nearest_op(const std::string& mode)
     {
-        static std::unordered_map<std::string, nearest_op> nearest_ops;
-        nearest_ops.emplace("round_prefer_floor", [=](std::size_t d_in, double val) {
+        static std::unordered_map<std::string, nearest_op> const nearest_ops = {
+        {"round_prefer_floor", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::ceil((val - 0.5)));
-        });
-        nearest_ops.emplace("round_prefer_ceil", [=](std::size_t d_in, double val) {
+        }},
+        {"round_prefer_ceil", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::round((val)));
-        });
-        nearest_ops.emplace("floor", [=](std::size_t d_in, double val) {
+        }},
+        {"floor", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::floor((val)));
-        });
-        nearest_ops.emplace("ceil", [=](std::size_t d_in, double val) {
+        }},
+        {"ceil", [=](std::size_t d_in, double val) {
             val = std::max(0.0, std::min(d_in - 1.0, val));
             return static_cast<std::size_t>(std::ceil((val)));
-        });
+        }}};
 
         if(!contains(nearest_ops, mode))
         {
@@ -1096,27 +1096,28 @@ struct onnx_parser
         return nearest_ops.at(mode);
     }
 
-    original_idx_op get_original_idx_op(const std::string& mode)
+    const original_idx_op& get_original_idx_op(const std::string& mode)
     {
-        static std::unordered_map<std::string, original_idx_op> idx_ops;
-        idx_ops.emplace("half_pixel", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+        static std::unordered_map<std::string, original_idx_op> const idx_ops = {
+        {"half_pixel", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
             return (idx + 0.5) / scale - 0.5;
-        });
-        idx_ops.emplace("pytorch_half_pixel",
+        }},
+        {"pytorch_half_pixel",
                         [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
                             return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
-                        });
-        idx_ops.emplace("align_corners",
+                        }},
+        {"align_corners",
                         [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
                             return 1.0 * idx * (l_in - 1.0) / (l_out - 1.0);
-                        });
-        idx_ops.emplace("asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                        }},
+        {"asymmetric", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
             return idx / scale;
-        });
-        idx_ops.emplace("tf_half_pixel_for_nn",
+        }},
+        {"tf_half_pixel_for_nn",
                         [=](std::size_t, std::size_t, std::size_t idx, double scale) {
                             return (idx + 0.5) / scale;
-                        });
+                        }}};
+
         if(!contains(idx_ops, mode))
         {
             MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode +

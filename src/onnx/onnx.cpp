@@ -1,3091 +1,2911 @@
+#include <google/protobuf/text_format.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <onnx.pb.h>
 #include <iostream>
+#include <fstream>
+#include <unordered_map>
+#include <functional>
+#include <array>
+#include <utility>
 #include <vector>
-#include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
+
+#include <migraphx/fallthrough.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/quantization.hpp>
-#include <migraphx/cpu/target.hpp>
-#include <migraphx/quantization.hpp>
-#include <migraphx/verify.hpp>
+#include <migraphx/config.hpp>
 #include <migraphx/onnx.hpp>
-#include "test.hpp"
-#include <migraphx/half.hpp>
+#include <migraphx/pad_calc.hpp>
+#include <migraphx/type_traits.hpp>
+#include <migraphx/float_equal.hpp>
 
-float sigmoid(float x) { return 1 / (1 + expf(-x)); }
+#include <migraphx/op/as_shape.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/convert.hpp>
+#include <migraphx/op/gather.hpp>
+#include <migraphx/op/gru.hpp>
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/op/lstm.hpp>
+#include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/pad.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/rnn.hpp>
+#include <migraphx/op/rnn_last_cell_output.hpp>
+#include <migraphx/op/rnn_last_hs_output.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
+#include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/scalar.hpp>
+#include <migraphx/op/slice.hpp>
+#include <migraphx/op/squeeze.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unknown.hpp>
+#include <migraphx/op/unsqueeze.hpp>
 
-float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-TEST_CASE(slice_test)
+namespace onnx = onnx_for_migraphx;
+
+struct onnx_parser
 {
+    using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
+    struct node_info
     {
-        migraphx::program p;
-        std::vector<int> data(2 * 2 * 3);
-        std::iota(data.begin(), data.end(), 0);
-        migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::slice{{2}, {1}, {3}}, l0);
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
-        EXPECT(p.get_output_shapes().back() == s2);
-        p.compile(migraphx::cpu::target{});
-        migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
-        std::vector<int> results_vector(2 * 2 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(result.get_shape() == sresult);
-    }
-    {
-        migraphx::program p;
-        std::vector<int> data(2 * 2 * 3);
-        std::iota(data.begin(), data.end(), 0);
-        migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(migraphx::op::slice{{0, 1, 2}, {0, 0, 0}, {2, 2, 2}}, l0);
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}};
-        EXPECT(p.get_output_shapes().back() == s2);
-        p.compile(migraphx::cpu::target{});
-        migraphx::shape sresult{migraphx::shape::int32_type, {2, 2, 2}, {4, 2, 1}};
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
-        std::vector<int> results_vector(2 * 2 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(result.get_shape() == sresult);
-    }
-}
+        attribute_map attributes{};
+        std::size_t num_outputs = 1;
+    };
+    using node_map = std::unordered_map<std::string, onnx::NodeProto>;
+    using op_func =
+        std::function<std::vector<instruction_ref>(node_info, std::vector<instruction_ref>)>;
+    node_map nodes;
+    std::unordered_map<std::string, instruction_ref> instructions;
+    program prog                  = program();
+    bool is_pytorch               = false;
+    std::size_t default_dim_value = 1;
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+    bool skip_unknown_operators = false;
 
-TEST_CASE(concat_test)
-{
-    {
-        migraphx::program p;
-        int axis               = 1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
-        auto l0 = p.add_literal(migraphx::literal{s0, data0});
-        auto l1 = p.add_literal(migraphx::literal{s1, data1});
-        auto l2 = p.add_literal(migraphx::literal{s2, data2});
-        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
-        p.compile(migraphx::cpu::target{});
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
-        std::vector<int> results_vector(2 * 6);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify_range(result.get_shape().lens(), std::vector<std::size_t>({2, 6})));
-        EXPECT(
-            migraphx::verify_range(result.get_shape().strides(), std::vector<std::size_t>({6, 1})));
-    }
+    std::unordered_map<std::string, op_func> ops;
+    std::unordered_map<std::string, operation> map_actv_funcs;
 
+    onnx_parser()
     {
-        migraphx::program p;
-        int axis               = -1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
-        migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
-        auto l0 = p.add_literal(migraphx::literal{s0, data0});
-        auto l1 = p.add_literal(migraphx::literal{s1, data1});
-        auto l2 = p.add_literal(migraphx::literal{s2, data2});
-        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
-        p.compile(migraphx::cpu::target{});
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
-        std::vector<int> results_vector(2 * 6);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify_range(result.get_shape().lens(), std::vector<std::size_t>({2, 6})));
-        EXPECT(
-            migraphx::verify_range(result.get_shape().strides(), std::vector<std::size_t>({6, 1})));
-    }
+        // sort onnx operator alphabetically through name
+        add_generic_op("Abs", "abs");
+        add_generic_op("Acos", "acos");
+        add_generic_op("Acosh", "acosh");
+        add_generic_op("Asin", "asin");
+        add_generic_op("Asinh", "asinh");
+        add_generic_op("Atan", "atan");
+        add_generic_op("Atanh", "atanh");
+        add_generic_op("Ceil", "ceil");
+        add_generic_op("Concat", "concat");
+        add_generic_op("Cos", "cos");
+        add_generic_op("Cosh", "cosh");
+        add_generic_op("Erf", "erf");
+        add_generic_op("Exp", "exp");
+        add_generic_op("Flatten", "flatten");
+        add_generic_op("Floor", "floor");
+        add_generic_op("Gather", "gather", true);
+        add_generic_op("Identity", "identity");
+        add_generic_op("Log", "log");
+        add_generic_op("LogSoftmax", "logsoftmax");
+        add_generic_op("Neg", "neg");
+        add_generic_op("Reciprocal", "recip");
+        add_generic_op("Relu", "relu");
+        add_generic_op("Round", "round");
+        add_generic_op("Sigmoid", "sigmoid");
+        add_generic_op("Sign", "sign");
+        add_generic_op("Sin", "sin");
+        add_generic_op("Sinh", "sinh");
+        add_generic_op("Softmax", "softmax");
+        add_generic_op("Sqrt", "sqrt");
+        add_generic_op("Squeeze", "squeeze", true);
+        add_generic_op("Tan", "tan");
+        add_generic_op("Tanh", "tanh");
+        add_generic_op("Unsqueeze", "unsqueeze", true);
 
-    {
-        migraphx::program p;
-        int axis               = 0;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
-        auto l0 = p.add_literal(migraphx::literal{s0, data0});
-        auto l1 = p.add_literal(migraphx::literal{s1, data1});
-        auto l2 = p.add_literal(migraphx::literal{s2, data2});
-        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
-        p.compile(migraphx::cpu::target{});
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        std::vector<int> results_vector(6 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify_range(result.get_shape().lens(), std::vector<std::size_t>({6, 2})));
-        EXPECT(
-            migraphx::verify_range(result.get_shape().strides(), std::vector<std::size_t>({2, 1})));
-    }
+        add_binary_op("Add", "add");
+        add_binary_op("Div", "div");
+        add_binary_op("Mul", "mul");
+        add_binary_op("Pow", "pow");
+        add_binary_op("PRelu", "prelu");
+        add_binary_op("Sub", "sub");
 
-    {
-        migraphx::program p;
-        int axis               = -2;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
-        migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
-        migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
-        migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
-        auto l0 = p.add_literal(migraphx::literal{s0, data0});
-        auto l1 = p.add_literal(migraphx::literal{s1, data1});
-        auto l2 = p.add_literal(migraphx::literal{s2, data2});
-        p.add_instruction(migraphx::op::concat{axis}, l0, l1, l2);
-        p.compile(migraphx::cpu::target{});
-        auto result           = p.eval({}).back();
-        std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        std::vector<int> results_vector(6 * 2);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, gold));
-        EXPECT(migraphx::verify_range(result.get_shape().lens(), std::vector<std::size_t>({6, 2})));
-        EXPECT(
-            migraphx::verify_range(result.get_shape().strides(), std::vector<std::size_t>({2, 1})));
-    }
-}
+        add_variadic_op("Sum", "add");
+        add_variadic_op("Max", "max");
+        add_variadic_op("Min", "min");
 
-TEST_CASE(gather_test)
-{
-    {
-        migraphx::program p;
+        add_mem_op("ATen", &onnx_parser::parse_aten);
+        add_mem_op("AveragePool", &onnx_parser::parse_pooling);
+        add_mem_op("ArgMax", "argmax", &onnx_parser::parse_arg_op);
+        add_mem_op("ArgMin", "argmin", &onnx_parser::parse_arg_op);
+        add_mem_op("BatchNormalization", &onnx_parser::parse_batchnorm);
+        add_mem_op("Cast", &onnx_parser::parse_cast);
+        add_mem_op("Clip", &onnx_parser::parse_clip);
+        add_mem_op("Constant", &onnx_parser::parse_constant);
+        add_mem_op("ConstantFill", &onnx_parser::parse_constant_fill);
+        add_mem_op("ConstantOfShape", &onnx_parser::parse_constant_of_shape);
+        add_mem_op("Conv", "convolution", &onnx_parser::parse_conv);
+        add_mem_op("ConvInteger", "quant_convolution", &onnx_parser::parse_conv);
+        add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("Dropout", &onnx_parser::parse_dropout);
+        add_mem_op("Elu", &onnx_parser::parse_elu);
+        add_mem_op("Equal", "equal", &onnx_parser::parse_compare_op);
+        add_mem_op("Expand", &onnx_parser::parse_expand);
+        add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
+        add_mem_op("Gemm", &onnx_parser::parse_gemm);
+        add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
+        add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("Greater", "greater", &onnx_parser::parse_compare_op);
+        add_mem_op("GRU", &onnx_parser::parse_gru);
+        add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
+        add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
+        add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Less", "less", &onnx_parser::parse_compare_op);
+        add_mem_op("LRN", &onnx_parser::parse_lrn);
+        add_mem_op("LSTM", &onnx_parser::parse_lstm);
+        add_mem_op("MatMul", "dot", &onnx_parser::parse_matmul);
+        add_mem_op("MatMulInteger", "quant_dot", &onnx_parser::parse_matmul);
+        add_mem_op("MaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("NonZero", &onnx_parser::parse_nonzero);
+        add_mem_op("OneHot", &onnx_parser::parse_onehot);
+        add_mem_op("Pad", &onnx_parser::parse_pad);
+        add_mem_op("Range", &onnx_parser::parse_range);
+        add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
+        add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
+        add_mem_op("ReduceLogSum", &onnx_parser::parse_reduce_log_sum);
+        add_mem_op("ReduceLogSumExp", &onnx_parser::parse_reduce_log_sum_exp);
+        add_mem_op("ReduceMax", "reduce_max", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceMean", "reduce_mean", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceMin", "reduce_min", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceProd", "reduce_prod", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceSum", "reduce_sum", &onnx_parser::parse_reduce_oper);
+        add_mem_op("ReduceSumSquare", &onnx_parser::parse_reduce_sum_square);
+        add_mem_op("Reshape", &onnx_parser::parse_reshape);
+        add_mem_op("RNN", &onnx_parser::parse_rnn);
+        add_mem_op("Selu", &onnx_parser::parse_selu);
+        add_mem_op("Shape", &onnx_parser::parse_shape);
+        add_mem_op("Slice", &onnx_parser::parse_slice);
+        add_mem_op("Split", &onnx_parser::parse_split);
+        add_mem_op("Tile", &onnx_parser::parse_tile);
+        add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Upsample", &onnx_parser::parse_upsample);
+        add_mem_op("Where", &onnx_parser::parse_where);
 
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
-        std::vector<int> indices{0, 2};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = 0;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
+        // init the activation function map
+        init_actv_func();
     }
 
+    void init_actv_func()
     {
-        migraphx::program p;
-
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
-        std::vector<int> indices{-3, -1};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = 0;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
+        // Support name format of all lower case or the first letter capital
+        map_actv_funcs.insert(std::make_pair("tanh", make_op("tanh")));
+        map_actv_funcs.insert(std::make_pair("relu", make_op("relu")));
+        map_actv_funcs.insert(std::make_pair("sigmoid", make_op("sigmoid")));
+        map_actv_funcs.insert(std::make_pair("leakyrelu", make_op("leaky_relu")));
+        map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
     }
 
+    static operation load(const std::string& name, const node_info& info)
     {
-        migraphx::program p;
-
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
-        std::vector<int> indices{0, 2};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = 1;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
+        auto op = make_op(name);
+        auto v  = op.to_value();
+        for(auto&& x : v)
+        {
+            if(info.attributes.count(x.get_key()) == 0)
+                continue;
+            literal s = parse_value(info.attributes.at(x.get_key()));
+            if(x.is_array())
+            {
+                std::vector<value> values;
+                s.visit([&](auto y) {
+                    std::transform(y.begin(), y.end(), std::back_inserter(values), [](auto z) {
+                        return value(z);
+                    });
+                });
+                x = values;
+            }
+            else
+            {
+                s.visit([&](auto y) { x = y.front(); });
+            }
+        }
+        op.from_value(v);
+        return op;
     }
 
+    template <class F>
+    void add_op(std::string name, F f)
     {
-        migraphx::program p;
-
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        migraphx::shape s_indices{migraphx::shape::int32_type, {1, 2}};
-        std::vector<int> indices{0, 2};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = -1;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data(4 * 5);
-        std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
-    }
-
-    {
-        migraphx::program p;
-
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        // scalar index
-        migraphx::shape s_indices{migraphx::shape::int32_type};
-        std::vector<int> indices{0};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = -1;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data{};
-        std::vector<float> golden = {0.5f, 3.5f, 6.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
-    }
-
-    {
-        migraphx::program p;
-
-        std::vector<float> data(3 * 3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        // scalar index
-        migraphx::shape s_indices{migraphx::shape::int32_type};
-        std::vector<int> indices{-3};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = -1;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data{};
-        std::vector<float> golden = {0.5f, 3.5f, 6.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
-    }
-
-    {
-        migraphx::program p;
-
-        std::vector<float> data(3);
-        std::iota(data.begin(), data.end(), 0.5);
-        migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto a0 = p.add_literal(migraphx::literal{s, data});
-        // scalar index
-        migraphx::shape s_indices{migraphx::shape::int32_type};
-        std::vector<int> indices{0};
-        auto a1  = p.add_literal(migraphx::literal{s_indices, indices});
-        int axis = -1;
-        p.add_instruction(migraphx::op::gather{axis}, a0, a1);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res_data{};
-        std::vector<float> golden = {0.5f};
-        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res_data, golden));
-    }
-}
-
-TEST_CASE(squeeze_test)
-{
-    {
-        migraphx::program p;
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s1, data});
-        p.add_instruction(migraphx::op::squeeze{{1}}, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-    {
-        migraphx::program p;
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s1, data});
-        p.add_instruction(migraphx::op::squeeze{{3}}, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-
-    {
-        migraphx::program p;
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s1, data});
-        p.add_instruction(migraphx::op::squeeze{}, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-}
-
-TEST_CASE(unsqueeze_test)
-{
-    {
-        migraphx::program p;
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s1, data});
-        p.add_instruction(migraphx::op::unsqueeze{{1}}, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-    {
-        migraphx::program p;
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
-        auto l0 = p.add_literal(migraphx::literal{s1, data});
-        p.add_instruction(migraphx::op::unsqueeze{{2}}, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-}
-
-TEST_CASE(avgpool_test)
-{
-    // 1D case 1, input is 3D
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"average"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {1};
-
-        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    // 1D case 2, stride 2
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{"average"};
-        op.lengths = {2};
-        op.padding = {1};
-        op.stride  = {2};
-
-        std::vector<float> data{1.6321,
-                                -2.4186,
-                                0.2239,
-                                -1.4232,
-                                0.8158,
-                                0.4103,
-                                -0.3149,
-                                -0.1361,
-                                -0.3442,
-                                2.007,
-                                0.4331,
-                                1.5295,
-                                0.9965,
-                                0.4766,
-                                1.0942,
-                                -0.2915};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{1.6321,
-                                -1.0974,
-                                -1.4232,
-                                0.8158,
-                                0.0477,
-                                -0.1361,
-                                -0.3442,
-                                1.22005,
-                                1.5295,
-                                0.9965,
-                                0.7854,
-                                -0.2915};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    // 3D, input is 5D
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{"average"};
-        op.lengths = {2, 2, 2};
-        op.padding = {0, 0, 0};
-        op.stride  = {1, 1, 1};
-
-        std::vector<float> data{
-            -0.179, -1.756, 0.651,  1.955,  1.87,   -0.604, 0.247,  0.449,  -0.137, 1.187,  1.593,
-            0.424,  2.698,  -0.104, -0.069, -1.293, 0.538,  1.291,  0.974,  1.096,  0.74,   -0.669,
-            -1.08,  -1.041, -1.407, 1.43,   -0.211, -0.017, 0.532,  1.276,  0.627,  0.236,  -0.396,
-            -0.204, 0.501,  -0.599, -1.414, -0.615, -0.274, 0.168,  -0.144, 0.5,    1.42,   1.082,
-            -0.952, -0.846, -1.244, 1.475,  1.246,  1.344,  -1.722, -1.24,  -0.851, 0.06,   0.507,
-            0.762,  -0.007, -1.484, 1.028,  0.317,  1.077,  -1.289, 0.875,  -0.417, -0.673, 1.715,
-            -0.307, 0.264,  -0.973, 1.412,  2.561,  -0.515, -0.201, 0.827,  -1.231, 1.958,  -0.552,
-            0.036,  -0.993, -0.859, -1.458, -0.575, 0.048,  -0.779, -1.025, -1.135, 1.166,  -0.131,
-            0.726,  0.52,   0.467,  -0.494, 0.675,  0.203,  -0.63,  -0.918, -0.5,   -1.395, 1.39,
-            1.705,  0.444,  -0.835, -0.506, 0.101,  0.602,  0.543,  0.357,  1.042};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{
-            0.908,     0.250625,  0.795,     0.40425, 0.711875,  0.194875,  0.014125,  0.09425,
-            -0.078375, 0.139375,  0.46075,   0.0285,  -0.188125, -0.085,    0.378125,  -0.085375,
-            -0.04,     0.304125,  0.40775,   0.2835,  0.112375,  -0.073375, 0.4355,    -0.187,
-            -0.392625, -0.258375, -0.485875, -0.0345, 0.16125,   -0.131875, -0.228375, 0.068625};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-}
-
-TEST_CASE(maxpool_test_1D_3D)
-{
-    // 1D case 1, input is 3D
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"max"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {1};
-
-        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0.3, 0.4, 0.4, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    // 1D case 2, input is 3D
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op    = migraphx::op::pooling{"max"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {2};
-
-        std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
-                                0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
-                                0.9907, 0.477,   1.5001,  -1.1603, -1.361,  1.2556};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0.4975, -0.0405, -0.6186, 0.6022, 0.5493, -0.8039, 1.5001, -1.1603};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    // 1D case 2, input is 3D, ceil mode
-    {
-        migraphx::program p;
-        auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op      = migraphx::op::pooling{"max"};
-        op.lengths   = {2};
-        op.padding   = {0};
-        op.stride    = {2};
-        op.ceil_mode = true;
-
-        std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
-                                0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
-                                0.9907, 0.477,   1.5001,  -1.1603, -1.361,  1.2556};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{0.4975,
-                                -0.0405,
-                                -0.1227,
-                                -0.6186,
-                                0.6022,
-                                1.1925,
-                                0.5493,
-                                -0.8039,
-                                0.9907,
-                                1.5001,
-                                -1.1603,
-                                1.2556};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    // 3D, input is 5D
-    {
-        migraphx::program p;
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{"max"};
-        op.lengths = {2, 2, 2};
-        op.padding = {0, 0, 0};
-        op.stride  = {2, 2, 2};
-
-        std::vector<float> data{
-            -2.8029, 0.5861,  0.7015,  0.1297,  -1.44,   -1.9472, 0.7812,  2.408,   -0.3145,
-            0.3405,  -0.9146, 0.0624,  1.5064,  -0.8345, 1.7977,  1.8949,  1.0073,  -0.2102,
-            -0.042,  -0.7146, 0.6227,  -0.5263, -2.2598, 0.1713,  0.449,   0.5303,  -0.8622,
-            -0.5691, 0.907,   -0.0569, -1.5348, -0.4109, -0.1461, -0.5445, 0.4266,  0.2282,
-            1.3655,  -2.1519, 0.6068,  -0.2001, -0.4702, 0.3864,  1.7083,  0.9096,  0.4286,
-            -1.8866, 0.7034,  0.0293,  1.4587,  0.7672,  -2.8614, 0.8124,  -0.053,  1.0449,
-            0.845,   -0.0131, 0.1139,  -0.859,  -1.2681, -0.6337, -0.4644, 0.1938,  0.2889,
-            0.9035,  0.7118,  -0.5767, 0.4577,  -0.0549, 0.2237,  0.5756,  0.0677,  -0.0223,
-            -0.329,  0.2364,  2.7666,  -0.7417, -1.3196, -0.2655, 0.1698,  -0.1777, -0.9427,
-            2.6859,  -0.7501, 0.5175,  1.0029,  -2.6436, -0.4388, -1.2348, -0.1539, -0.6229,
-            -0.4136, 0.5085,  0.4136,  -0.6439, -1.1953, -0.406,  -0.0195, 0.1869,  -0.8664,
-            1.1364,  0.5041,  0.0647,  0.1941,  -1.0819, -0.4629, -0.5107, 0.3612,  -0.3583};
-        auto l0 = p.add_literal(migraphx::literal{s, data});
-        p.add_instruction(op, l0);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{1.5064, 1.3655, 0.9035, 2.6859};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-}
-
-TEST_CASE(globalavgpool_test)
-{
-    migraphx::program p;
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"average"};
-    auto lens  = s.lens();
-    op.lengths = {lens[2], lens[3]};
-
-    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
-    auto l0 = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(op, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0.25, 0.575, 0.375};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(globalmaxpool_test)
-{
-    migraphx::program p;
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"max"};
-    auto lens  = s.lens();
-    op.lengths = {lens[2], lens[3]};
-
-    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
-    auto l0 = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(op, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0.4, 0.9, 0.7};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(im2col_3x3_no_pad_identity_test)
-{
-    std::size_t f[2]    = {3, 3};
-    std::size_t size[2] = {3, 3};
-    std::vector<std::size_t> padding{0, 0};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t channels = 1;
-
-    std::vector<int32_t> weights(channels * f[0] * f[1]);
-    std::vector<int32_t> input(channels * size[0] * size[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::program p;
-    migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
-    migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
-    auto l_image   = p.add_literal(migraphx::literal{s_image, input});
-    auto l_weights = p.add_literal(migraphx::literal{s_weights, weights});
-    p.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
-    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
-    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, input));
-}
-
-TEST_CASE(im2col_3x3_no_pad_test)
-{
-    std::size_t f[2]    = {3, 3};
-    std::size_t size[2] = {4, 4};
-    std::vector<std::size_t> padding{0, 0};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t channels = 1;
-
-    std::vector<int32_t> weights(channels * f[0] * f[1]);
-    std::vector<int32_t> input(channels * size[0] * size[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::program p;
-    migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
-    migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
-    auto l_image   = p.add_literal(migraphx::literal{s_image, input});
-    auto l_weights = p.add_literal(migraphx::literal{s_weights, weights});
-    p.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<int> correct = {0, 1, 2, 4, 5, 6,  8,  9,  10, 1, 2, 3, 5, 6,  7,  9,  10, 11,
-                                4, 5, 6, 8, 9, 10, 12, 13, 14, 5, 6, 7, 9, 10, 11, 13, 14, 15};
-
-    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
-    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
-    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, correct));
-}
-
-TEST_CASE(im2col_3x3_stride_2_no_pad_test)
-{
-    std::size_t f[2]    = {3, 3};
-    std::size_t size[2] = {6, 6};
-    std::vector<std::size_t> padding{0, 0};
-    std::vector<std::size_t> stride{2, 2};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t channels = 1;
-
-    std::vector<int32_t> weights(channels * f[0] * f[1]);
-    std::vector<int32_t> input(channels * size[0] * size[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::program p;
-    migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
-    migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
-    auto l_image   = p.add_literal(migraphx::literal{s_image, input});
-    auto l_weights = p.add_literal(migraphx::literal{s_weights, weights});
-    p.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<int> correct = {0,  1,  2,  6,  7,  8,  12, 13, 14, 2,  3,  4,
-                                8,  9,  10, 14, 15, 16, 12, 13, 14, 18, 19, 20,
-                                24, 25, 26, 14, 15, 16, 20, 21, 22, 26, 27, 28};
-
-    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
-    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
-    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, correct));
-}
-
-TEST_CASE(im2col_3x3_with_padding_test)
-{
-    std::size_t f[2]    = {3, 3};
-    std::size_t size[2] = {2, 2};
-    std::vector<std::size_t> padding{1, 1};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t channels = 1;
-
-    std::vector<int32_t> weights(channels * f[0] * f[1]);
-    std::vector<int32_t> input(channels * size[0] * size[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::program p;
-    migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
-    migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
-    auto l_image   = p.add_literal(migraphx::literal{s_image, input});
-    auto l_weights = p.add_literal(migraphx::literal{s_weights, weights});
-    p.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<int> correct = {0, 0, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0, 0, 1, 0, 2, 3, 0,
-                                0, 0, 1, 0, 2, 3, 0, 0, 0, 0, 1, 0, 2, 3, 0, 0, 0, 0};
-
-    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
-    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
-    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, correct));
-}
-
-TEST_CASE(batch_norm_1d_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 3, 4}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {3});
-
-    std::vector<float> x_data        = {0.7253,  -0.6356, 0.4606,  -0.8689, -1.1932, 0.4538,
-                                 -1.0018, -0.365,  -0.214,  -0.9553, -0.7672, 0.2331,
-                                 -0.8416, -0.6142, 0.0814,  0.2498,  -0.6706, 1.4872,
-                                 0.5112,  -1.5212, -0.9126, 0.0735,  1.085,   -0.3417};
-    std::vector<float> scale_data    = {1.1, 1.2, 1.3};
-    std::vector<float> bias_data     = {0.1, 0.2, 0.3};
-    std::vector<float> mean_data     = {-0.1804, -0.2875, -0.2249};
-    std::vector<float> variance_data = {2.7914, 7.3424, 3.3287};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(migraphx::op::batch_norm_inference{1e-5}, x, scale, bias, mean, variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.696301,  -0.199697, 0.522026,  -0.353299, -0.201094, 0.528289,
-                               -0.116332, 0.165679,  0.307767,  -0.220435, -0.086407, 0.62634,
-                               -0.335325, -0.185608, 0.272366,  0.383238,  0.0303421, 0.985936,
-                               0.553709,  -0.346351, -0.190009, 0.51262,   1.23335,   0.216776};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(batch_norm_1d_per_actv_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 4}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {2, 4});
-
-    std::vector<float> x_data     = {0.3547,
-                                 0.477,
-                                 -1.8575,
-                                 0.663,
-                                 -0.1881,
-                                 -0.5113,
-                                 -0.1803,
-                                 -0.5915,
-                                 -0.1552,
-                                 0.9821,
-                                 1.827,
-                                 0.0558,
-                                 -0.0417,
-                                 -1.0693,
-                                 1.9948,
-                                 -0.7448};
-    std::vector<float> scale_data = {
-        -0.3181, -0.3885, 1.655, 0.0704, -0.2565, -1.1761, -0.3751, 0.1057};
-    std::vector<float> bias_data = {
-        -1.2118, -2.1156, 0.0046, -0.1341, -0.2724, -1.0718, 0.5535, -0.889};
-    std::vector<float> mean_data = {
-        0.0997, 0.7295, -0.0153, 0.3594, -0.1149, -0.7903, 0.9073, -0.6681};
-    std::vector<float> variance_data = {
-        0.13, 0.1276, 6.7878, 0.1843, 0.0107, 0.1556, 2.3655, 0.0117};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(
-        migraphx::op::batch_norm_inference{
-            1e-6, 0.9, migraphx::op::batch_norm_inference::per_activation},
-        x,
-        scale,
-        bias,
-        mean,
-        variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-1.43677,
-                               -1.84098,
-                               -1.16563,
-                               -0.0843136,
-                               -0.090896,
-                               -1.90364,
-                               0.81875,
-                               -0.81415,
-                               -0.986915,
-                               -2.39032,
-                               1.17489,
-                               -0.183886,
-                               -0.453904,
-                               -0.239955,
-                               0.288275,
-                               -0.963948};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(batch_norm_inference_test)
-{
-    migraphx::program p;
-    const size_t width       = 2;
-    const size_t height      = 2;
-    const size_t channels    = 4;
-    const size_t batches     = 2;
-    const float x_val        = 8.0;
-    const float mean_val     = 2.0;
-    const float variance_val = 4.0;
-    const float scale_val    = 2.0f;
-    const float bias_val     = 1.0f;
-    const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
-
-    migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
-    migraphx::shape vars{migraphx::shape::float_type, {channels}};
-    std::vector<float> x_data(width * height * channels * batches);
-    std::vector<float> scale_data(channels);
-    std::vector<float> bias_data(channels);
-    std::vector<float> mean_data(channels);
-    std::vector<float> variance_data(channels);
-
-    std::fill(x_data.begin(), x_data.end(), x_val);
-    std::fill(mean_data.begin(), mean_data.end(), mean_val);
-    std::fill(variance_data.begin(), variance_data.end(), variance_val);
-    std::fill(scale_data.begin(), scale_data.end(), scale_val);
-    std::fill(bias_data.begin(), bias_data.end(), bias_val);
-
-    auto x        = p.add_literal(migraphx::literal{s, x_data});
-    auto scale    = p.add_literal(migraphx::literal{vars, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{vars, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{vars, mean_data});
-    auto variance = p.add_literal(migraphx::literal{vars, variance_data});
-
-    p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> result_vector(width * height * channels * batches);
-    std::vector<float> gold(width * height * channels * batches);
-    std::fill(gold.begin(), gold.end(), output_val);
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(batch_norm_3d_test)
-{
-    migraphx::program p;
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2, 2, 2}};
-    migraphx::shape c_shape(migraphx::shape::float_type, {2});
-
-    std::vector<float> x_data     = {-1.0833, 1.9681,  1.2075,  -0.723,  -0.4076, -0.8738, 0.5853,
-                                 -0.5357, 1.734,   0.7904,  0.6953,  -0.468,  -0.425,  0.6895,
-                                 0.0096,  0.4205,  -0.1749, 1.2821,  2.1453,  -0.8538, 1.0687,
-                                 0.0906,  0.0714,  -1.3079, -0.6376, 1.3023,  0.945,   0.0927,
-                                 -0.7421, -1.4341, -1.0309, 1.5153};
-    std::vector<float> scale_data = {1.1, 1.3};
-    std::vector<float> bias_data  = {0.1, 0.2};
-    std::vector<float> mean_data  = {0.1537, 0.2161};
-    std::vector<float> variance_data = {18.0805, 13.3906};
-
-    auto x        = p.add_literal(migraphx::literal{x_shape, x_data});
-    auto scale    = p.add_literal(migraphx::literal{c_shape, scale_data});
-    auto bias     = p.add_literal(migraphx::literal{c_shape, bias_data});
-    auto mean     = p.add_literal(migraphx::literal{c_shape, mean_data});
-    auto variance = p.add_literal(migraphx::literal{c_shape, variance_data});
-
-    p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {
-        -0.220005, 0.569376, 0.372612, -0.126798,  -0.0452053, -0.165809, 0.211653,  -0.0783441,
-        0.739245,  0.404024, 0.370239, -0.0430317, -0.0277556, 0.368179,  0.126639,  0.272615,
-        0.0149929, 0.391911, 0.615216, -0.160635,  0.336706,   0.0836764, 0.0787094, -0.278108,
-        -0.103283, 0.585881, 0.458947, 0.156161,   -0.140408,  -0.386246, -0.243006, 0.661551};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(im2col_3x3_with_channels_identity_test)
-{
-    std::size_t f[2]    = {3, 3};
-    std::size_t size[2] = {3, 3};
-    std::vector<std::size_t> padding{0, 0};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t channels = 2;
-
-    std::vector<int32_t> weights(channels * f[0] * f[1]);
-    std::vector<int32_t> input(channels * size[0] * size[1]);
-    std::iota(input.begin(), input.end(), 0);
-
-    migraphx::program p;
-    migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
-    migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
-    auto l_image   = p.add_literal(migraphx::literal{s_image, input});
-    auto l_weights = p.add_literal(migraphx::literal{s_weights, weights});
-    p.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::size_t col_height = (size[0] - f[0] + 2 * padding[0]) / stride[0] + 1;
-    std::size_t col_width  = (size[1] - f[1] + 2 * padding[1]) / stride[1] + 1;
-    std::vector<float> results_vector(channels * f[0] * f[1] * col_height * col_width);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, input));
-}
-
-TEST_CASE(exp_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    p.add_instruction(migraphx::op::exp{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.36787944f, 1.f, 2.71828183f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(erf_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {4}};
-    auto l =
-        p.add_literal(migraphx::literal{s, {0.73785057, 1.58165966, -0.43597795, -0.01677432}});
-    p.add_instruction(migraphx::op::erf{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.70327317, 0.97470088, -0.46247893, -0.01892602};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(sqrt_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {5}};
-    auto l = p.add_literal(
-        migraphx::literal{s, {1.02481645, 0.85643062, 0.03404123, 0.92791926, 0.10569184}});
-    p.add_instruction(migraphx::op::sqrt{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.01233218, 0.92543537, 0.18450265, 0.96328566, 0.32510282};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(sign_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {5}};
-    auto l = p.add_literal(
-        migraphx::literal{s, {1.02481645, 0.85643062, -0.03404123, -0.92791926, 0.0}});
-    p.add_instruction(migraphx::op::sign{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0, 1.0, -1.0, -1.0, 0.0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(log_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::log{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.0f, 0.6931471806f, 1.0986122887f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(prelu_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto x     = p.add_literal(migraphx::literal{s, {-1, 0, 2}});
-    auto slope = p.add_literal(migraphx::literal{s, {2, 1, 2}});
-    p.add_instruction(migraphx::op::prelu{}, x, slope);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-2.0f, 0.0f, 2.0f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(pow_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto b = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    auto e = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::pow{}, b, e);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0f, 4.0f, 27.0f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(sin_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    p.add_instruction(migraphx::op::sin{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.84147098f, 0.f, 0.84147098f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(cos_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    p.add_instruction(migraphx::op::cos{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.54030231f, 1.f, 0.54030231f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(tan_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    p.add_instruction(migraphx::op::tan{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-1.55740772f, 0.0f, 1.55740772f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(asin_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    std::vector<float> data{-0.5f, 0.0f, 0.9f};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::asin{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.5235987756f, 0.f, 1.119769515};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(acos_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.8f, 0.0f, 1.0f};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::acos{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {2.4980915448f, 1.5707963268f, 0.0f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(atan_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    p.add_instruction(migraphx::op::atan{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.7853981634f, 0.0f, 0.7853981634f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(asinh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    std::vector<float> data{-0.5f, 0.0f, 0.9f};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::asinh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.481211841, 0, 0.808866858};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(acosh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{1.1f, 1.2f, 2.0f};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::acosh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.4435683, 0.6223626, 1.316958};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(atanh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {0.4435683, 0.6223626, 0.316958}});
-    p.add_instruction(migraphx::op::atanh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.476664424, 0.728852153, 0.328261733};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(add_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::add{}, l1, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0, 2, 4};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(broadcast_test)
-{
-    migraphx::program p;
-    migraphx::shape a_shape{migraphx::shape::int32_type, {2, 2}};
-    std::vector<int32_t> a_data{0, 0, 0, 0};
-    migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
-    std::vector<int32_t> b_data{-2, -3};
-    uint64_t axis = 0;
-    auto l1       = p.add_literal(migraphx::literal{a_shape, a_data});
-    auto l2       = p.add_literal(migraphx::literal{b_shape, b_data});
-    p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    auto output = result.get<int32_t>();
-    EXPECT(output(0, 0) == -2);
-    EXPECT(output(0, 1) == -2);
-    EXPECT(output(1, 0) == -3);
-    EXPECT(output(1, 1) == -3);
-}
-TEST_CASE(add_broadcast_test)
-{
-    {
-        migraphx::program p;
-        migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3}};
-        std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        migraphx::shape b_shape{migraphx::shape::float_type, {2, 2}};
-        std::vector<float> b_data{0, -1, -2, -3};
-        uint64_t axis = 0;
-        auto l1       = p.add_literal(migraphx::literal{a_shape, a_data});
-        auto l2       = p.add_literal(migraphx::literal{b_shape, b_data});
-        auto l3 = p.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
-        p.add_instruction(migraphx::op::add{}, l1, l3);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape().packed());
-        std::vector<float> results_vector(12);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-    {
-        migraphx::program p;
-        migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3}};
-        std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        migraphx::shape b_shape{migraphx::shape::float_type, {2, 2, 1}};
-        std::vector<float> b_data{0, -1, -2, -3};
-        auto l1 = p.add_literal(migraphx::literal{a_shape, a_data});
-        auto l2 = p.add_literal(migraphx::literal{b_shape, b_data});
-        auto l3 = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 3}}, l1);
-        auto l4 = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 3}}, l2);
-        p.add_instruction(migraphx::op::add{}, l3, l4);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape().packed());
-        std::vector<float> results_vector(12);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-}
-
-TEST_CASE(sub_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::sub{}, l1, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-2, -2, -2};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(mul_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::mul{}, l1, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-1, 0, 3};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(div_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l1 = p.add_literal(migraphx::literal{s, {-1.0f, 0.5f, 1.0f}});
-    auto l2 = p.add_literal(migraphx::literal{s, {1.0f, 2.0f, 4.0f}});
-    p.add_instruction(migraphx::op::div{}, l1, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-1.f, 0.25f, 0.25f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(relu_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
-    p.add_instruction(migraphx::op::relu{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.f, 0.f, 1.f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(leaky_relu_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
-    p.add_instruction(migraphx::op::leaky_relu{0.01}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.01f, 0.f, 1.f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(lrn_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {1, 5, 1, 1}};
-    auto l = p.add_literal(migraphx::literal{s, {-2.0f, 1.0f, 0.f, 1.0f, 2.0f}});
-    p.add_instruction(migraphx::op::lrn{0.0001, 0.75, 1, 5}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(5);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-2 / 1.000075, 1 / 1.00009, 0 / 1.000145, 1 / 1.00009, 2 / 1.000075};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(imagescaler_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto img           = p.add_literal(migraphx::literal{s,
-                                               {0.2,
-                                                0.3,
-                                                0.5,
-                                                0.4,
-
-                                                0.7,
-                                                0.8,
-                                                0.1,
-                                                0.9,
-
-                                                0.15,
-                                                0.25,
-                                                0.35,
-                                                0.45}});
-    auto scale_val     = p.add_literal(2.f);
-    auto scaled_tensor = p.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
-    auto img_scaled    = p.add_instruction(migraphx::op::mul{}, img, scaled_tensor);
-    auto bias_vals     = p.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
-    auto bias_bcast = p.add_instruction(migraphx::op::broadcast{1, s.lens()}, bias_vals);
-    p.add_instruction(migraphx::op::add{}, img_scaled, bias_bcast);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(12);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.41,
-                               0.61,
-                               1.01,
-                               0.81,
-
-                               1.42,
-                               1.62,
-                               0.22,
-                               1.82,
-
-                               0.33,
-                               0.53,
-                               0.73,
-                               0.93};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(reshape_test)
-{
-    migraphx::shape a_shape{migraphx::shape::float_type, {24, 1, 1, 1}};
-    std::vector<float> data(24);
-    std::iota(data.begin(), data.end(), -3);
-    {
-        migraphx::program p;
-        auto l                         = p.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> new_shape = {8, 3, 1, 1};
-        p.add_instruction(migraphx::op::reshape{new_shape}, l);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector(3);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, data));
-    }
-    {
-        migraphx::program p;
-        auto l                         = p.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        p.add_instruction(migraphx::op::reshape{new_shape}, l);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector(3);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, data));
-    }
-    {
-        migraphx::program p;
-        auto l                         = p.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        p.add_instruction(migraphx::op::reshape{new_shape}, l);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector(3);
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(results_vector, data));
-    }
-}
-
-TEST_CASE(maxpool_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        -2.1314404,  -1.63041711, 1.54562736,  1.04625261,  -1.42931843, -0.48703974, 0.4065806,
-        -0.1524526,  1.30775225,  0.45538983,  -0.06631992, -1.75332725, 1.33493888,  0.47327688,
-        0.36873096,  1.18358743,  -0.34640595, 1.22098756,  0.01946825,  -0.20238149, 0.43348005,
-        -0.67991608, -0.83041084, 0.93537551,  0.70241445,  -0.5654031,  -1.30899191, -0.26735824,
-        -0.52444768, 1.99097753,  1.86504853,  -0.26506025, 0.26236168,  0.43763575,  0.95300823,
-        -1.02733946, -0.74655169, -0.5374338,  -0.28901565, -0.59789604, 0.5310151,   0.99125904,
-        0.40609556,  -1.57175648, 0.22031412,  1.45862222,  0.53217483,  1.39087725,  1.00170159,
-        -0.87175864, -1.7204628,  -1.72008383, -0.38656762, -0.01443311, 1.46645272,  -1.39995027,
-        0.22505587,  -0.43461126, -0.05511411, -0.79950953, -0.01439556, 0.08795211,  1.18943918,
-        -0.84079367, -1.73383629, -0.55662078, -0.30626822, -0.67339015, 0.44179603,  0.54316711,
-        0.40899998,  -0.27831686, -1.11900508, -0.0881724,  0.35483059,  2.36277103,  -0.04765317,
-        -0.36865309, 0.73814237,  1.47151589,  1.36546791,  -0.32649881, -1.0517807,  2.24768877,
-        0.68883753,  0.58646208,  -0.91017133, -0.50462508, -0.4013325,  -0.72348958, -0.47368807,
-        0.35285577,  -1.01817429, -0.5152272,  0.60321307,  0.43521205,  -0.23733577, 0.66427642,
-        0.82949388,  0.82443929,  0.71550399,  0.34561086,  0.68570769,  -0.40718508, -1.20350206,
-        0.15793853,  -2.31013632, -0.07934658, -0.09348056, 0.36576006,  2.46601582,  0.11090943,
-        0.9144392,   0.56759721,  -0.22112127, -0.21955389, 0.72474903,  -1.28448462, 1.53285873,
-        0.37437943,  0.31409341,  1.95433736,  0.91620457,  0.86205518,  1.24365854,  0.19248386,
-        0.22526583,  0.13462132,  -0.27561715, -2.06446075, -0.02306402, -1.38278747, 1.1411345,
-        1.31293464,  -1.86041689, 1.06763375,  -0.26541466, 1.4545635,   1.11430049,  -0.66491818,
-        0.87101674,  0.67768967,  -1.02062869, -1.05031872, -2.2764678,  -2.0200038,  0.37592548,
-        -0.26701379, -0.83388507, 0.19403623,  1.00968623,  0.11020003,  1.16736257,  -1.1160326,
-        0.47346735,  0.6126079,   -0.19135755, 1.33624589,  -0.29802522, -0.57873946, -1.06555879,
-        -0.20686582, 1.36892557,  -0.19937795, 0.8649236,   -1.40126073, 1.53441942,  0.34682792,
-        -1.31724346, -1.32898355, 2.40126371,  0.07845283,  1.35732043,  -0.63678312, 0.39429256,
-        -1.36487007, -0.31026676, -0.44981545, -0.28994772, -0.14657612, -1.75206447, -0.70612341,
-        1.20071781,  -1.64647579, -0.7133292,  0.88494766,  0.52119428,  -2.77387547, 2.07681108,
-        -0.90133125, 0.2847338,   0.6174528,   -0.20616426, -0.64263535, -1.08496261, 0.54275119,
-        -0.88503587, 0.6629802,   1.47319221,  -1.05829155, -0.97027361, -0.93187737, -1.39954746,
-        -0.52359426, -0.14743951, 1.51522756,  0.2078452,   -1.28156149, -1.19363916, -0.78680223,
-        -0.89094824, 1.30212069,  -0.77974445, -0.58411664, 0.48764706,  -0.67132682};
-    std::vector<float> c = {1.33493888, 1.54562736, 1.22098756, 1.33493888, 1.18358743, 1.99097753,
-                            1.00170159, 1.45862222, 1.39087725, 1.46645272, 1.18943918, -0.01443311,
-                            1.47151589, 2.36277103, 2.24768877, 0.68883753, 0.82949388, 0.71550399,
-                            1.95433736, 2.46601582, 1.53285873, 1.95433736, 1.06763375, 1.4545635,
-                            1.33624589, 1.16736257, 0.6126079,  1.36892557, 2.40126371, 1.53441942,
-                            0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 6, 6}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-    p.add_instruction(migraphx::op::pooling{"max", {{0, 0}}, {{2, 2}}, {{3, 2}}}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(36);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, c));
-}
-
-TEST_CASE(softmax_simple_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {0.25, 0.75};
-    std::vector<float> s = {0.377541, 0.622459};
-    migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-    p.add_instruction(migraphx::op::softmax{1}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(2);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(softmax_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        -5.61869681e-01, 9.07827199e-01,  1.29255986e+00,  3.18533443e-02,  -1.22183852e-03,
-        -2.83830553e-01, -1.03245842e+00, -9.28322077e-01, -8.82696748e-01, 1.11327164e-01,
-        -9.20038462e-01, 8.47388089e-01,  2.51734018e-01,  1.50563884e+00,  2.23056650e+00,
-        -6.17576987e-02, -1.00264274e-01, -6.10369384e-01, 1.17537189e+00,  -2.51560897e-01,
-        -8.50333512e-01, -8.03578615e-01, -6.51194930e-01, -2.58137047e-01, 4.65528190e-01,
-        3.23284641e-02,  -1.54700470e+00, 1.38096774e+00,  5.39869189e-01,  -7.56884992e-01,
-        1.81503093e+00,  -2.11269641e+00, 1.92466557e+00,  1.77230799e+00,  2.21660900e+00,
-        1.56777036e+00,  -2.08995026e-03, 3.50566894e-01,  -1.15042710e+00, -1.18577778e+00,
-        8.90633047e-01,  -6.63949102e-02, 1.44661188e+00,  1.59215283e+00,  -2.56262213e-01,
-        9.39079225e-01,  4.07298543e-02,  3.86590779e-01,  6.09607756e-01,  8.22331488e-01,
-        -2.82126725e-01, -9.49052632e-01, -4.24012303e-01, -5.32990396e-01, -3.18386006e+00,
-        3.27092171e-01,  -1.33315325e+00, 3.62459183e-01,  3.74710828e-01,  -1.30302286e+00,
-        1.79680198e-01,  -4.51832324e-01, 4.34282750e-01,  -7.09520102e-01, 6.20333970e-01,
-        -1.28712380e+00, 2.04130828e-01,  -7.70607769e-01, 1.61889160e+00,  -1.50951004e+00,
-        -4.10505563e-01, -3.56566496e-02, -1.29747534e+00, -1.49967879e-01, 7.77626812e-01,
-        -8.28408226e-02, 2.73412596e-02,  5.79780899e-03,  9.87900198e-02,  -7.95276761e-01,
-        -1.38536084e+00, -6.63573861e-01, 3.89783204e-01,  -1.30670881e+00, -7.62425125e-01,
-        -4.04883057e-01, 6.24344349e-01,  3.68128955e-01,  -1.01577950e+00, -3.06715906e-01,
-        5.67961395e-01,  2.98198581e-01,  -1.63613629e+00, -3.75131965e-01, -6.75393403e-01,
-        2.59172034e+00,  6.75538957e-01,  9.07939598e-02,  1.92257717e-01,  -1.21592450e+00,
-        -2.73682117e-01, 1.25232983e+00,  -1.39969170e+00, -1.91483587e-01, 2.57732719e-01,
-        3.10056299e-01,  1.41833842e+00,  -1.81386679e-01, 3.92868072e-01,  -8.14771175e-01,
-        2.02392387e+00,  -9.42091495e-02, -3.77683818e-01, 2.05638766e+00,  2.93796062e-01,
-        -6.02131486e-01, 2.70461679e-01,  -8.92358482e-01, 1.04388881e+00,  2.66154885e-01};
-
-    std::vector<float> s = {
-        0.30191708, 0.59879845, 0.50029165, 0.24915339, 0.36823985, 0.13190967, 0.0349741,
-        0.18750034, 0.21905553, 0.27000085, 0.0547399,  0.56318235, 0.47422904, 0.78964758,
-        0.91381913, 0.44601166, 0.47902739, 0.13120073, 0.4449684,  0.18766427, 0.15753111,
-        0.07844277, 0.05120674, 0.36648798, 0.14637007, 0.13152322, 0.01560997, 0.29065287,
-        0.49196178, 0.10550152, 0.81890774, 0.06369215, 0.62972021, 0.74931765, 0.67285055,
-        0.35034987, 0.28612873, 0.31931475, 0.04220394, 0.16093165, 0.22390974, 0.11915915,
-        0.3115395,  0.35899726, 0.22190949, 0.57518375, 0.13888834, 0.7753762,  0.4642328,
-        0.57055861, 0.21954368, 0.34515455, 0.09486015, 0.40631217, 0.01842281, 0.48770609,
-        0.06652815, 0.36023033, 0.42343026, 0.24226256, 0.17348589, 0.44066274, 0.6865865,
-        0.17296699, 0.46923906, 0.06921105, 0.3570261,  0.4125829,  0.73165393, 0.15302512,
-        0.29499072, 0.33932695, 0.30852377, 0.40762195, 0.40170741, 0.36259529, 0.60848355,
-        0.42618036, 0.31721094, 0.02960522, 0.28256637, 0.24389413, 0.2725659,  0.10663581,
-        0.27622163, 0.28264219, 0.53652936, 0.09476089, 0.40890986, 0.34848392, 0.32572666,
-        0.53076893, 0.11529481, 0.29117745, 0.14625968, 0.8756339,  0.49818122, 0.10656087,
-        0.1813329,  0.17664003, 0.21410346, 0.80408043, 0.02315119, 0.27155462, 0.32804728,
-        0.13268511, 0.61795473, 0.49703068, 0.41696799, 0.10175809, 0.71028161, 0.29929739,
-        0.17377149, 0.76075399, 0.20071237, 0.32632929, 0.36892858, 0.09416146, 0.26656723,
-        0.42914796};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {5, 3, 4, 2}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-    p.add_instruction(migraphx::op::softmax{}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(120);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(logsoftmax_test_axis_0)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
-        -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
-        -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
-        -0.01257413, -1.5326607,  0.53137897,  -1.52383859, 0.46994381,  0.00453619,  0.0066996,
-        1.58394908,  0.84216752,  -0.04137941, -0.88580789, 1.44055158,  -0.17621241, -1.98917923,
-        -0.08610038, 0.79020567,  -0.67714548, 0.42774631,  0.1376574,   2.23569227,  1.16681234,
-        -1.21191456, -0.28411502, -0.18688975, 1.67552548,  2.48357974,  0.95891282,  -0.06616535,
-        -0.99628491, 1.04314606,  -1.22943315, 0.76930403,  0.31106618};
-
-    std::vector<float> s = {
-        -0.135261, -2.843968, -0.659995, -0.488413, -1.051857, -2.812936, -0.250956, -0.353985,
-        -1.155980, -0.603651, -0.211969, -0.175371, -1.336552, -3.885010, -1.871544, -0.837083,
-        -0.887745, -0.433338, -1.158864, -4.911197, -1.147972, -0.666711, -0.996874, -0.981418,
-        -0.851145, -0.853988, -0.858112, -2.067420, -0.059956, -0.727436, -0.950881, -0.429689,
-        -0.061906, -1.505332, -1.210277, -0.377970, -0.791448, -1.655428, -1.827253, -0.304828,
-        -0.020762, -0.167101, -0.567346, -0.530319, -1.045094, -0.376648, -0.007391, -0.381670,
-        -0.720302, -0.460499, -0.469651, -0.556740, -0.554628, -0.551582};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto al  = p.add_literal(migraphx::literal{a_shape, a});
-    int axis = 0;
-    p.add_instruction(migraphx::op::logsoftmax{axis}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(logsoftmax_test_axis_1)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
-        -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
-        -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
-        -0.01257413, -1.5326607,  0.53137897,  -1.52383859, 0.46994381,  0.00453619,  0.0066996,
-        1.58394908,  0.84216752,  -0.04137941, -0.88580789, 1.44055158,  -0.17621241, -1.98917923,
-        -0.08610038, 0.79020567,  -0.67714548, 0.42774631,  0.1376574,   2.23569227,  1.16681234,
-        -1.21191456, -0.28411502, -0.18688975, 1.67552548,  2.48357974,  0.95891282,  -0.06616535,
-        -0.99628491, 1.04314606,  -1.22943315, 0.76930403,  0.31106618};
-
-    std::vector<float> s = {
-        -0.550468, -2.132973, -1.549746, -0.650533, -1.051529, -2.248570, -0.141017, -2.028357,
-        -1.947730, -1.511324, -0.166597, -0.379726, -1.965689, -1.172109, -1.475721, -2.700831,
-        -1.537011, -0.658754, -1.596017, -3.353137, -2.266743, -1.084197, -1.076214, -0.406712,
-        -2.743019, -0.425526, -1.079083, -2.139486, -1.270584, -1.024088, -1.154231, -3.201762,
-        -0.888957, -0.532855, -3.103583, -1.221339, -1.355980, -3.531678, -1.438510, -0.975194,
-        -0.080261, -1.162697, -1.568557, -1.398519, -1.322129, -0.470660, -0.370953, -0.907343,
-        -1.179017, -3.312239, -1.286363, -1.586076, -0.345100, -0.824173};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto al  = p.add_literal(migraphx::literal{a_shape, a});
-    int axis = 1;
-    p.add_instruction(migraphx::op::logsoftmax{axis}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(logsoftmax_test_axis_2)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
-        -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
-        -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
-        -0.01257413, -1.5326607,  0.53137897,  -1.52383859, 0.46994381,  0.00453619,  0.0066996,
-        1.58394908,  0.84216752,  -0.04137941, -0.88580789, 1.44055158,  -0.17621241, -1.98917923,
-        -0.08610038, 0.79020567,  -0.67714548, 0.42774631,  0.1376574,   2.23569227,  1.16681234,
-        -1.21191456, -0.28411502, -0.18688975, 1.67552548,  2.48357974,  0.95891282,  -0.06616535,
-        -0.99628491, 1.04314606,  -1.22943315, 0.76930403,  0.31106618};
-
-    std::vector<float> s = {
-        -0.495957, -1.031212, -0.245531, -2.013726, -1.339125, -2.465619, -1.356652, -0.964037,
-        -2.019250, -0.214522, -0.289569, -0.234392, -2.086591, -2.684439, -2.851651, -2.674176,
-        -1.697424, -1.889155, -0.401029, -3.064586, -1.173030, -1.306912, -2.177020, -0.834262,
-        -2.818177, -0.174415, -1.361105, -1.024571, -0.106766, -1.167645, -1.072650, -2.576522,
-        -0.569261, -1.207483, -3.679894, -2.095913, -0.504264, -3.039291, -1.290559, -1.156812,
-        -0.126453, -0.551493, -2.506384, -2.646261, -1.905195, -0.206994, -0.191369, -0.959754,
-        -1.948685, -3.671233, -0.875521, -3.111952, -1.905644, -1.6076011};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto al  = p.add_literal(migraphx::literal{a_shape, a});
-    int axis = 2;
-    p.add_instruction(migraphx::op::logsoftmax{axis}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(logsoftmax_test_axis_3)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
-        -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
-        -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
-        -0.01257413, -1.5326607,  0.53137897,  -1.52383859, 0.46994381,  0.00453619,  0.0066996,
-        1.58394908,  0.84216752,  -0.04137941, -0.88580789, 1.44055158,  -0.17621241, -1.98917923,
-        -0.08610038, 0.79020567,  -0.67714548, 0.42774631,  0.1376574,   2.23569227,  1.16681234,
-        -1.21191456, -0.28411502, -0.18688975, 1.67552548,  2.48357974,  0.95891282,  -0.06616535,
-        -0.99628491, 1.04314606,  -1.22943315, 0.76930403,  0.31106618};
-
-    std::vector<float> s = {
-        -0.336904, -3.475825, -1.366154, -0.279366, -2.208430, -2.010934, -0.225511, -2.436562,
-        -2.167785, -1.572415, -1.784104, -0.470789, -1.067459, -1.801948, -0.711023, -2.307197,
-        -1.467087, -0.400681, -0.426983, -3.740518, -1.127681, -1.078919, -2.599005, -0.534965,
-        -2.561400, -0.567617, -1.033025, -2.097713, -0.520463, -1.262245, -1.763230, -2.607658,
-        -0.281299, -0.814243, -2.627210, -0.724131, -0.655704, -2.123055, -1.018163, -2.480634,
-        -0.382599, -1.451479, -1.843102, -0.915303, -0.818078, -1.316929, -0.508875, -2.033541,
-        -1.487672, -2.417791, -0.378360, -2.568531, -0.569794, -1.028032};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto al  = p.add_literal(migraphx::literal{a_shape, a});
-    int axis = 3;
-    p.add_instruction(migraphx::op::logsoftmax{axis}, al);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(argmax_test_0)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{0}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmax_test_1)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {0, 0, 2, 1, 2, 0, 0, 2};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{1}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmax_test_neg_2)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {0, 0, 2, 1, 2, 0, 0, 2};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{-2}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmax_test_2)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {1, 3, 2, 2, 2, 3};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmax{2}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmin_test_0)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{0}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmin_test_1)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {2, 2, 0, 2, 0, 1, 2, 0};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{1}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmin_test_2)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {2, 1, 0, 3, 3, 2};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{2}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(argmin_test_neg_1)
-{
-    migraphx::program p;
-    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
-                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
-                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
-    std::vector<int64_t> res_gold = {2, 1, 0, 3, 3, 2};
-    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto dl = p.add_literal(migraphx::literal{data_shape, data});
-    p.add_instruction(migraphx::op::argmin{-1}, dl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int64_t> result_vec;
-    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(result_vec, res_gold));
-}
-
-TEST_CASE(neg_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
-    auto input              = p.add_literal(migraphx::literal(s, data));
-    auto ret                = p.add_instruction(migraphx::op::neg{}, input);
-    p.add_return({ret});
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {-1.0f, -1.3f, 1.2f, 0.0f, 100.f, -200.f};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(conv2d_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
-        -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
-        0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
-        0.947339,    0.41949373,  -0.70814759, 0.25892952,  1.07311416,  1.2571274,   -0.62318051,
-        -0.19951548, -0.94232577, -0.29393643, 0.42292568,  -0.80230367, 1.40909171,  0.63617158,
-        0.13900366,  1.09253144,  -0.15265895, 1.54781747,  0.72780299,  1.09189606,  -0.38068101,
-        0.97057933,  -0.58958799, 1.56188643,  0.21474874,  0.58725154,  -1.27097559, -0.03024297,
-        1.09437096,  -0.4897908,  0.34838957,  -1.31042492, -1.69069934, 0.86956722,  -0.40457946,
-        0.46691212,  1.29273605,  0.26464137,  0.22073045,  -1.02178168, 0.22163901,  -1.84387338,
-        0.75522131,  -0.45775682, -0.42241111, -1.50944722, 1.07256448,  -1.95876884, -0.28106022,
-        0.3341668,   2.13129425,  -1.14728117, -1.06555498, -0.298444,   -0.88322699, -0.65866792,
-        -2.06007552, 0.01374334,  0.45612028,  0.52715492,  1.01914406,  -1.72659791, 0.80650896,
-        0.16860051,  2.24112225,  -0.78620857, 0.36566174,  -0.07020134, -0.47976932, -0.68230027,
-        -0.94711417, -0.54506505, 1.66504931,  -0.71860826, 0.61132306};
-
-    std::vector<float> c = {
-        2.82721668e-02,  6.44195229e-02,  1.53499246e-02,  1.72468081e-01,  -6.33238107e-02,
-        9.49496776e-02,  1.40258059e-01,  -7.92879611e-02, -1.29301161e-01, 3.11307609e-03,
-        -1.90624535e-01, 1.13238767e-01,  -2.80647576e-02, 3.12882811e-02,  -3.52091640e-02,
-        3.33581865e-02,  6.43158704e-02,  7.40238279e-02,  -1.00106120e-01, -9.56912562e-02,
-        1.44342467e-01,  9.40258950e-02,  6.36333972e-02,  1.66158378e-03,  -8.91554281e-02,
-        2.58734226e-02,  1.70919895e-02,  1.78214177e-01,  8.84564668e-02,  8.98126513e-02,
-        -1.63809001e-01, 1.37802169e-01,  1.66439757e-01,  -1.45631135e-02, 1.88469887e-04,
-        4.76950556e-02,  -1.91969007e-01, -1.76233292e-01, -7.70473927e-02, 1.14828631e-01,
-        1.76608220e-01,  -1.50728196e-01, 1.99946314e-02,  -5.88052124e-02, 1.31612435e-01,
-        1.61106288e-02,  -1.35080189e-01, 1.49512306e-01,  3.86456847e-02,  1.29330024e-01,
-        -3.22975963e-02, -5.60784787e-02, -5.41997552e-02, 4.78562862e-02};
-
-    std::vector<float> s = {0.27039781,
-                            0.19105849,
-                            -0.06339942,
-                            -0.65087199,
-                            0.40867025,
-                            0.05063812,
-                            -0.14907975,
-                            0.49018705,
-                            -0.49197209,
-                            0.33236548,
-                            -0.39374301,
-                            0.16012701,
-                            0.06574871,
-                            0.71606487,
-                            -0.55201721,
-                            -0.46427044};
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-
-    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-
-    p.add_instruction(migraphx::op::convolution{}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(conv3d_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
-        -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
-        0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
-        0.947339,    0.41949373,  -0.70814759, 0.25892952,  1.07311416,  1.2571274,   -0.62318051,
-        -0.19951548, -0.94232577, -0.29393643, 0.42292568,  -0.80230367, 1.40909171,  0.63617158,
-        0.13900366,  1.09253144,  -0.15265895, 1.54781747,  0.72780299,  1.09189606,  -0.38068101,
-        0.97057933,  -0.58958799, 1.56188643,  0.21474874,  0.58725154,  -1.27097559, -0.03024297,
-        1.09437096,  -0.4897908,  0.34838957,  -1.31042492, -1.69069934, 0.86956722,  -0.40457946,
-        0.46691212,  1.29273605,  0.26464137,  0.22073045,  -1.02178168, 0.22163901,  -1.84387338,
-        0.75522131,  -0.45775682, -0.42241111, -1.50944722, 1.07256448,  -1.95876884, -0.28106022,
-        0.3341668,   2.13129425,  -1.14728117, -1.06555498, -0.298444,   -0.88322699, -0.65866792,
-        -2.06007552, 0.01374334,  0.45612028,  0.52715492,  1.01914406,  -1.72659791, 0.80650896,
-        0.16860051,  2.24112225,  -0.78620857, 0.36566174,  -0.07020134, -0.47976932, -0.68230027,
-        -0.94711417, -0.54506505, 1.66504931,  -0.71860826, 0.61132306};
-
-    std::vector<float> c = {
-        2.82721668e-02,  6.44195229e-02,  1.53499246e-02,  1.72468081e-01,  -6.33238107e-02,
-        9.49496776e-02,  1.40258059e-01,  -7.92879611e-02, -1.29301161e-01, 3.11307609e-03,
-        -1.90624535e-01, 1.13238767e-01,  -2.80647576e-02, 3.12882811e-02,  -3.52091640e-02,
-        3.33581865e-02,  6.43158704e-02,  7.40238279e-02,  -1.00106120e-01, -9.56912562e-02,
-        1.44342467e-01,  9.40258950e-02,  6.36333972e-02,  1.66158378e-03,  -8.91554281e-02,
-        2.58734226e-02,  1.70919895e-02,  1.78214177e-01,  8.84564668e-02,  8.98126513e-02,
-        -1.63809001e-01, 1.37802169e-01,  1.66439757e-01,  -1.45631135e-02, 1.88469887e-04,
-        4.76950556e-02,  -1.91969007e-01, -1.76233292e-01, -7.70473927e-02, 1.14828631e-01,
-        1.76608220e-01,  -1.50728196e-01, 1.99946314e-02,  -5.88052124e-02, 1.31612435e-01,
-        1.61106288e-02,  -1.35080189e-01, 1.49512306e-01,  3.86456847e-02,  1.29330024e-01,
-        -3.22975963e-02, -5.60784787e-02, -5.41997552e-02, 4.78562862e-02};
-
-    std::vector<float> s = {0.27039781,
-                            0.19105849,
-                            -0.06339942,
-                            -0.65087199,
-                            0.40867025,
-                            0.05063812,
-                            -0.14907975,
-                            0.49018705,
-                            -0.49197209,
-                            0.33236548,
-                            -0.39374301,
-                            0.16012701,
-                            0.06574871,
-                            0.71606487,
-                            -0.55201721,
-                            -0.46427044};
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 4, 4, 1}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-
-    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3, 1}};
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-
-    p.add_instruction(migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(conv2d_padding_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
-        -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
-        0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
-        0.947339,    0.41949373,  -0.70814759, 0.25892952,  1.07311416,  1.2571274,   -0.62318051,
-        -0.19951548, -0.94232577, -0.29393643, 0.42292568,  -0.80230367, 1.40909171,  0.63617158,
-        0.13900366,  1.09253144,  -0.15265895, 1.54781747,  0.72780299,  1.09189606,  -0.38068101,
-        0.97057933,  -0.58958799, 1.56188643,  0.21474874,  0.58725154,  -1.27097559, -0.03024297,
-        1.09437096,  -0.4897908,  0.34838957,  -1.31042492, -1.69069934, 0.86956722,  -0.40457946,
-        0.46691212,  1.29273605,  0.26464137,  0.22073045,  -1.02178168, 0.22163901,  -1.84387338,
-        0.75522131,  -0.45775682, -0.42241111, -1.50944722, 1.07256448,  -1.95876884, -0.28106022,
-        0.3341668,   2.13129425,  -1.14728117, -1.06555498, -0.298444,   -0.88322699, -0.65866792,
-        -2.06007552, 0.01374334,  0.45612028,  0.52715492,  1.01914406,  -1.72659791, 0.80650896,
-        0.16860051,  2.24112225,  -0.78620857, 0.36566174,  -0.07020134, -0.47976932, -0.68230027,
-        -0.94711417, -0.54506505, 1.66504931,  -0.71860826, 0.61132306};
-
-    std::vector<float> c = {
-        -0.16115488, -0.09800646, -0.05412646, 0.10475694,  0.00555485,  -0.12667653, 0.0458357,
-        -0.02656217, -0.16338061, 0.15037455,  0.0102711,   0.01303349,  0.05242859,  0.02034754,
-        0.04751867,  -0.17038961, -0.1434752,  -0.10770349, 0.05676742,  -0.15838449, 0.10128359,
-        -0.18958683, 0.11954515,  0.10758857,  -0.01058291, -0.12797487, 0.08971019,  0.18793164,
-        -0.00881396, -0.06588994, -0.13321903, -0.03300409, 0.01439607,  0.07618178,  -0.11556662,
-        0.00764295,  0.12956454,  -0.08937147, -0.12763587, 0.04674943,  0.05765297,  0.11336918,
-        0.14747436,  -0.06199479, -0.01166052, -0.12432006, -0.04494537, -0.17581205, 0.09475745,
-        0.1149437,   -0.1014564,  0.0274073,   -0.01323579, -0.11092556};
-
-    std::vector<float> s = {
-        -0.0201216,  0.40407312,  -0.39005592, -0.0631946,  0.37963012,  -0.64611685, 0.1349397,
-        -0.54113752, 0.28533003,  0.27667275,  -0.16442731, -0.181494,   0.30564839,  0.58744538,
-        0.32015014,  0.24969585,  -0.27367792, -0.53308117, 0.41236052,  0.26136363,  -0.01489828,
-        0.57652152,  -0.38506854, 0.119615,    0.0437076,   0.04779706,  0.57887721,  0.23126155,
-        0.05695833,  -0.68200272, 0.02063358,  -0.10267162, 0.8062973,   -0.38149622, -0.40134856,
-        -0.03353126, 0.38991132,  -0.3478111,  0.03661491,  0.25783631,  0.62772679,  -0.1961118,
-        0.76423508,  -0.36241418, -0.20994355, -0.12368261, -0.9406727,  0.02340185,  -0.08793129,
-        -0.02471633, -0.58163726, -0.02211772, -0.42014724, 0.77525634,  0.504951,    -0.20537445,
-        -0.20369984, -0.83037728, -1.40423918, -0.46160448, -0.22944322, 0.36074194,  0.49579027,
-        0.46527559};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-
-    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-
-    p.add_instruction(migraphx::op::convolution{{{1, 1}}, {{1, 1}}}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(64);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(conv2d_padding_stride_test)
-{
-    migraphx::program p;
-    std::vector<float> a = {
-        2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
-        -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
-        0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
-        0.947339,    0.41949373,  -0.70814759, 0.25892952,  1.07311416,  1.2571274,   -0.62318051,
-        -0.19951548, -0.94232577, -0.29393643, 0.42292568,  -0.80230367, 1.40909171,  0.63617158,
-        0.13900366,  1.09253144,  -0.15265895, 1.54781747,  0.72780299,  1.09189606,  -0.38068101,
-        0.97057933,  -0.58958799, 1.56188643,  0.21474874,  0.58725154,  -1.27097559, -0.03024297,
-        1.09437096,  -0.4897908,  0.34838957,  -1.31042492, -1.69069934, 0.86956722,  -0.40457946,
-        0.46691212,  1.29273605,  0.26464137,  0.22073045,  -1.02178168, 0.22163901,  -1.84387338,
-        0.75522131,  -0.45775682, -0.42241111, -1.50944722, 1.07256448,  -1.95876884, -0.28106022,
-        0.3341668,   2.13129425,  -1.14728117, -1.06555498, -0.298444,   -0.88322699, -0.65866792,
-        -2.06007552, 0.01374334,  0.45612028,  0.52715492,  1.01914406,  -1.72659791, 0.80650896,
-        0.16860051,  2.24112225,  -0.78620857, 0.36566174,  -0.07020134, -0.47976932, -0.68230027,
-        -0.94711417, -0.54506505, 1.66504931,  -0.71860826, 0.61132306};
-
-    std::vector<float> c = {
-        -0.14601797, -0.13000923, 0.06521662,  0.06178288,  -0.11083675, 0.10154136,  0.09990512,
-        0.06030385,  -0.11374587, -0.17523311, -0.14344215, 0.17802463,  0.06300922,  -0.15325832,
-        0.07066704,  0.05166031,  0.00615084,  -0.02606523, 0.08083995,  -0.17913306, 0.0624622,
-        0.0735731,   -0.04198661, -0.0164391,  -0.06374192, 0.16569914,  0.10681538,  0.07370754,
-        0.02802075,  0.00282027,  0.15104802,  -0.11084409, -0.00197773, 0.07924436,  0.03528272,
-        0.04765259,  -0.15896152, 0.07917164,  0.12125669,  -0.1154705,  -0.11999125, 0.12749968,
-        -0.06269585, 0.18658121,  -0.03944227, 0.0111798,   -0.17731084, 0.11789055,  -0.09982193,
-        0.08142821,  0.0729029,   0.11303909,  0.12735154,  0.03885292};
-
-    std::vector<float> s = {-0.20817225,
-                            0.87965256,
-                            0.14958936,
-                            -1.24887264,
-                            -0.06540672,
-                            0.20778663,
-                            0.40456355,
-                            -0.99900877,
-                            0.4917807,
-                            0.1994698,
-                            0.64205718,
-                            0.37798831,
-                            -0.25315839,
-                            0.44276932,
-                            -0.16138598,
-                            0.79344082};
-
-    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-
-    migraphx::shape c_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-
-    p.add_instruction(migraphx::op::convolution{{{1, 1}}, {{2, 2}}}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(quant_conv2d_test)
-{
-    migraphx::program p;
-    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
-    std::vector<int8_t> a(2 * 3 * 4 * 4);
-    std::iota(a.begin(), a.end(), 0);
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-
-    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
-    std::vector<int8_t> c(2 * 3 * 3 * 3);
-    std::iota(c.begin(), c.end(), 0);
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-
-    p.add_instruction(migraphx::op::quant_convolution{}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<int32_t> s = {10197,
-                              10548,
-                              11601,
-                              11952,
-                              25506,
-                              26586,
-                              29826,
-                              30906,
-                              27045,
-                              27396,
-                              28449,
-                              28800,
-                              77346,
-                              78426,
-                              81666,
-                              82746};
-
-    std::vector<int32_t> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(quant_conv2d_padding_test)
-{
-    migraphx::program p;
-    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
-    std::vector<int8_t> a(2 * 3 * 4 * 4);
-    std::iota(a.begin(), a.end(), 0);
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
-    std::vector<int8_t> c(2 * 3 * 3 * 3);
-    std::iota(c.begin(), c.end(), 0);
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-    p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{1, 1}}}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result            = p.eval({}).back();
-    std::vector<int32_t> s = {
-        4521,  6753,  7014,  4635,  6858,  10197, 10548, 6939,  7830,  11601, 11952, 7839,  5007,
-        7383,  7590,  4953,  10515, 15987, 16734, 11277, 16821, 25506, 26586, 17874, 19737, 29826,
-        30906, 20718, 13593, 20505, 21198, 14187, 13161, 19281, 19542, 12699, 18522, 27045, 27396,
-        17739, 19494, 28449, 28800, 18639, 11919, 17319, 17526, 11289, 34707, 51843, 52590, 34893,
-        51813, 77346, 78426, 52002, 54729, 81666, 82746, 54846, 36057, 53769, 54462, 36075};
-
-    std::vector<int32_t> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(quant_conv2d_padding_stride_test)
-{
-    migraphx::program p;
-    migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
-    std::vector<int8_t> a(2 * 3 * 4 * 4);
-    std::iota(a.begin(), a.end(), 0);
-    auto al = p.add_literal(migraphx::literal{a_shape, a});
-    migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
-    std::vector<int8_t> c(2 * 3 * 3 * 3);
-    std::iota(c.begin(), c.end(), 0);
-    auto cl = p.add_literal(migraphx::literal{c_shape, c});
-    p.add_instruction(migraphx::op::quant_convolution{{{1, 1}}, {{2, 2}}}, al, cl);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<int32_t> s = {4521,
-                              7014,
-                              7830,
-                              11952,
-                              10515,
-                              16734,
-                              19737,
-                              30906,
-                              13161,
-                              19542,
-                              19494,
-                              28800,
-                              34707,
-                              52590,
-                              54729,
-                              82746};
-    std::vector<int32_t> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
-}
-
-TEST_CASE(deconv_test)
-{
-    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    std::vector<float> x_data{0, 1, 2, 3, 4, 5, 6, 7, 8};
-    std::vector<float> w_data{1, 1, 1, 1, 1, 1, 1, 1, 1};
-
-    std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
-                            27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
-
-    migraphx::program p;
-    auto x = p.add_literal(migraphx::literal{s, x_data});
-    auto w = p.add_literal(migraphx::literal{s, w_data});
-
-    p.add_instruction(migraphx::op::deconvolution{}, x, w);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(deconv_1d_test)
-{
-    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3}};
-    std::vector<float> x_data{0, 0.5, 1};
-    std::vector<float> w_data{0.5, 0.5, 0.5};
-
-    std::vector<float> gold{0, 0.25, 0.75, 0.75, 0.5};
-
-    migraphx::program p;
-    auto x = p.add_literal(migraphx::literal{s, x_data});
-    auto w = p.add_literal(migraphx::literal{s, w_data});
-
-    p.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, x, w);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(deconv_3d_test)
-{
-    migraphx::shape s_1{migraphx::shape::float_type, {1, 1, 1, 2, 3}};
-    migraphx::shape s_2{migraphx::shape::float_type, {1, 1, 3, 2, 3}};
-    std::vector<float> x_data{0.8471, -0.4195, -2.2749, 1.2491, 0.1722, 0.3246};
-    std::vector<float> w_data{0.6478,
-                              -0.1985,
-                              0.0633,
-                              -0.3479,
-                              2.7056,
-                              -0.1440,
-                              -1.1229,
-                              -0.7507,
-                              -1.3151,
-                              0.8884,
-                              -0.1859,
-                              -0.3407,
-                              -1.1544,
-                              -1.5893,
-                              1.6265,
-                              -1.4624,
-                              0.3812,
-                              -1.5378};
-
-    std::vector<float> gold{0.5488,  -0.4399, -1.3369, 0.4251,  -0.1439, 0.5145,  2.3015,  -0.2104,
-                            -6.1482, 0.3482,  -0.4346, 3.3197,  0.1731,  0.8533,  -0.0467, -0.9512,
-                            -0.1649, 1.7553,  2.2594,  2.9917,  -0.6500, -1.6612, -4.3680, 0.0957,
-                            0.3482,  1.1097,  -0.0792, -0.1692, -0.1190, -0.1106, -0.9779, -0.8621,
-                            4.6707,  2.9332,  -3.7001, -2.6808, -1.2476, 3.2475,  -0.4578, 4.0263,
-                            -1.8267, 0.2243,  -2.3299, -0.1411, -0.4991};
-
-    migraphx::program p;
-    auto x = p.add_literal(migraphx::literal{s_1, x_data});
-    auto w = p.add_literal(migraphx::literal{s_2, w_data});
-
-    p.add_instruction(migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, x, w);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(transpose_test)
-{
-    migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
-
-    {
-        migraphx::program p;
-        auto l                    = p.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> perm = {0, 3, 1, 2};
-        p.add_instruction(migraphx::op::transpose{perm}, l);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-
-        result.visit([&](auto output) {
-            std::vector<size_t> new_lens = {1, 3, 2, 2};
-            EXPECT(bool{output.get_shape().lens() == new_lens});
+        ops.emplace(name, [=](auto&&... xs) {
+            return std::vector<instruction_ref>{f(std::forward<decltype(xs)>(xs)...)};
         });
     }
+
+    // Multi output op
+    template <class F>
+    void add_multi_op(std::string name, F f)
     {
-        migraphx::program p;
-        auto l                    = p.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> perm = {0, 3, 1, 2};
-        auto result               = p.add_instruction(migraphx::op::transpose{perm}, l);
-        p.add_instruction(migraphx::op::contiguous{}, result);
-        p.compile(migraphx::cpu::target{});
-        auto result2 = p.eval({}).back();
-
-        std::vector<float> results_vector(12);
-        result2.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-        EXPECT(migraphx::verify_range(results_vector, gold));
+        ops.emplace(name, f);
     }
-}
 
-TEST_CASE(contiguous_test)
-{
-    migraphx::shape a_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
-    std::vector<float> data(12);
-    std::iota(data.begin(), data.end(), 0);
+    template <class F>
+    void add_mem_op(const std::string& name, F f)
+    {
+        add_op(name, [=](auto&&... xs) {
+            return std::mem_fn(f)(*this, name, std::forward<decltype(xs)>(xs)...);
+        });
+    }
 
-    migraphx::program p;
-    auto l = p.add_literal(migraphx::literal{a_shape, data});
-    p.add_instruction(migraphx::op::contiguous{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
+    template <class F>
+    void add_mem_op(const std::string& onnx_name, const std::string& op_name, F f)
+    {
+        add_op(onnx_name, [=](auto&&... xs) {
+            return std::mem_fn(f)(*this, onnx_name, op_name, std::forward<decltype(xs)>(xs)...);
+        });
+    }
 
-    std::vector<float> results_vector(12);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<size_t> new_lens    = {1, 3, 2, 2};
-    std::vector<size_t> new_strides = {12, 1, 6, 3};
-    EXPECT(migraphx::verify_range(results_vector, data));
-}
+    void add_binary_op(const std::string& onnx_name, const std::string& op_name)
+    {
+        add_op(onnx_name, [this, op_name](node_info info, std::vector<instruction_ref> args) {
+            if(args.size() != 2)
+                MIGRAPHX_THROW("binary operators should have 2 operands");
+            if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
+            {
+                uint64_t broadcasted = parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+                if(broadcasted != 0)
+                {
+                    uint64_t axis = parse_value(info.attributes.at("axis")).at<uint64_t>();
+                    auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
+                                                  args[1]);
+                    return prog.add_instruction(make_op(op_name), args[0], l);
+                }
+                return prog.add_instruction(make_op(op_name), args);
+            }
+            else
+            {
+                return add_broadcastable_binary_op(args[0], args[1], op_name);
+            }
+        });
+    }
 
-TEST_CASE(identity_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    std::vector<int> data{1, 2, 3, 4};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::identity{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(std::equal(data.begin(), data.end(), results_vector.begin()));
-}
+    std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
+                                                      std::vector<std::size_t> s1)
+    {
+        // Example:
+        // s0 = (3,2,4,5) and s1 = (2,1,1)
+        //
+        // In this case we need to broadcast (:,1,1) portion of
+        // s1 plus broadcast the 1st dimension of s1
+        // giving output_lens = (3,2,4,5)
+        //
+        // Another example:
+        // s0 = (3,2,1,5) and s1 = (2,7,5)
+        // In this case we need to broadcast the (:,:,1:,:) axis
+        // of s0 plus the 1st dimension of s1 giving
+        // output_lens = (3,2,7,5)
+        if(s0.size() > s1.size())
+        {
+            s0.swap(s1);
+        }
 
-TEST_CASE(abs_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
-    p.add_instruction(migraphx::op::abs{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 2, 3, 4};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+        std::vector<std::size_t> out_lens(s1);
+        auto offset = s1.size() - s0.size();
+        std::transform(s0.begin(),
+                       s0.end(),
+                       s1.begin() + offset,
+                       out_lens.begin() + offset,
+                       [&](auto a, auto b) {
+                           if(a != b and a != 1 and b != 1)
+                           {
+                               MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" +
+                                              to_string_range(s0) + "} and {" +
+                                              to_string_range(s1) + "} mismatch!");
+                           }
+                           return std::max(a, b);
+                       });
 
-TEST_CASE(sigmoid_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = p.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
-    p.add_instruction(migraphx::op::sigmoid{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{sigmoid(-1), sigmoid(2), sigmoid(-3), sigmoid(4)};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+        return out_lens;
+    }
 
-TEST_CASE(sinh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
-    p.add_instruction(migraphx::op::sinh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{sinhf(-1), sinhf(2), sinhf(-3), sinhf(4)};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    instruction_ref make_contiguous(instruction_ref ins)
+    {
+        if(ins->get_shape().standard())
+        {
+            return ins;
+        }
 
-TEST_CASE(cosh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
-    p.add_instruction(migraphx::op::cosh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{coshf(-1), coshf(2), coshf(-3), coshf(4)};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+        return prog.add_instruction(make_op("contiguous"), ins);
+    }
 
-TEST_CASE(tanh_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
-    p.add_instruction(migraphx::op::tanh{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{tanhf(-1), tanhf(2), tanhf(-3), tanhf(4)};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    instruction_ref
+    add_broadcastable_binary_op(instruction_ref arg0, instruction_ref arg1, const std::string& name)
+    {
+        if(arg0->get_shape().lens() != arg1->get_shape().lens())
+        {
+            // Get lengths for both arguments
+            auto s0       = arg0->get_shape().lens();
+            auto s1       = arg1->get_shape().lens();
+            auto out_lens = compute_broadcasted_lens(s0, s1);
 
-TEST_CASE(elu_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l      = p.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
-    float alpha = 0.5;
-    p.add_instruction(migraphx::op::elu{alpha}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{elu(alpha, -1), elu(alpha, 2), elu(alpha, -3), elu(alpha, 4)};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+            auto l0 = arg0;
+            if(arg0->get_shape().lens() != out_lens)
+                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
 
-TEST_CASE(max_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l0       = p.add_literal(migraphx::literal{s, {1, 4, 3}});
-    auto l1       = p.add_literal(migraphx::literal{s, {2, 8, 6}});
-    auto l2       = p.add_literal(migraphx::literal{s, {7, 5, 9}});
-    auto curr_max = p.add_instruction(migraphx::op::max{}, l0, l1);
-    p.add_instruction(migraphx::op::max{}, curr_max, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{7, 8, 9};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+            auto l1 = arg1;
+            if(arg1->get_shape().lens() != out_lens)
+                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
 
-TEST_CASE(min_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l0       = p.add_literal(migraphx::literal{s, {1, 4, 3}});
-    auto l1       = p.add_literal(migraphx::literal{s, {2, 8, 6}});
-    auto l2       = p.add_literal(migraphx::literal{s, {7, 5, 9}});
-    auto curr_min = p.add_instruction(migraphx::op::min{}, l0, l1);
-    p.add_instruction(migraphx::op::min{}, curr_min, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(4);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 4, 3};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+            return prog.add_instruction(make_op(name), l0, l1);
+        }
+        else
+        {
+            return prog.add_instruction(make_op(name), {arg0, arg1});
+        }
+    }
 
-TEST_CASE(pad_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {2, 2}};
-    auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    void add_generic_op(const std::string& onnx_name,
+                        const std::string& op_name,
+                        bool contiguous = false)
+    {
+        add_op(
+            onnx_name,
+            [this, op_name, contiguous](const node_info& info, std::vector<instruction_ref> args) {
+                auto op = load(op_name, info);
+                if(contiguous)
+                {
+                    std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
+                        return this->make_contiguous(arg);
+                    });
+                }
+                return prog.add_instruction(op, args);
+            });
+    }
 
-TEST_CASE(pad_test_lowest_half)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
-    auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::lowest()}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    const float x = std::numeric_limits<migraphx::half>::lowest();
-    std::vector<float> gold{x, x, x, x, x, 1, 2, x, x, 3, 4, x, x, x, x, x};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    void add_variadic_op(const std::string& onnx_name, const std::string& op_name)
+    {
+        add_op(onnx_name, [this, op_name](const node_info&, std::vector<instruction_ref> args) {
+            return std::accumulate(std::next(args.begin()),
+                                   args.end(),
+                                   args.front(),
+                                   [this, op_name](instruction_ref a, instruction_ref b) {
+                                       return add_broadcastable_binary_op(a, b, op_name);
+                                   });
+        });
+    }
 
-TEST_CASE(pad_test_highest_half)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::half_type, {2, 2}};
-    auto l0 = p.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    p.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::max()}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(16);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    const float x = std::numeric_limits<migraphx::half>::max();
-    std::vector<float> gold{x, x, x, x, x, 1, 2, x, x, 3, 4, x, x, x, x, x};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    template <class T>
+    std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
+    {
+        std::vector<int64_t> output_vector(input_vector.begin(), input_vector.end());
+        return output_vector;
+    }
 
-TEST_CASE(fp16_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::half_type, {1}};
-    migraphx::half a{1.5};
-    migraphx::half b{2.5};
-    migraphx::half c{4.0};
-    auto l0 = p.add_literal(migraphx::literal{s, {a}});
-    auto l1 = p.add_literal(migraphx::literal{s, {b}});
-    p.add_instruction(migraphx::op::add{}, l0, l1);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<migraphx::half> results_vector(1);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<migraphx::half> gold{c};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
+    instruction_ref
+    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis)
+    {
+        if(args.size() == 3)
+        {
+            auto bias_bcast =
+                prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            return prog.add_instruction(make_op("add"), curr_ins, bias_bcast);
+        }
+        return curr_ins;
+    }
 
-TEST_CASE(fp32_fp16_test)
-{
-    auto create_program = [] {
-        migraphx::program p;
-        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        std::vector<float> data(2 * 3);
-        std::iota(data.begin(), data.end(), 1.0f);
-        auto l1 = p.add_literal(migraphx::literal(s, data));
-        auto l2 = p.add_literal(migraphx::literal(s, data));
-        p.add_instruction(migraphx::op::add{}, l1, l2);
-        return p;
+    static bool is_asym_padding(const std::vector<int64_t>& padding)
+    {
+        assert(padding.size() % 2 == 0);
+        size_t pad_ndims = padding.size() / 2;
+
+        for(size_t i = 0; i < pad_ndims; i++)
+        {
+            if(padding[i] != padding[i + pad_ndims])
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void check_asym_padding(instruction_ref& ins,
+                            const std::vector<int64_t>& padding,
+                            value& v,
+                            int count_include_pad = 0,
+                            float pad_val         = 0)
+    {
+        size_t pad_ndims  = padding.size() / 2;
+        auto left_pad_it  = padding.begin();
+        auto right_pad_it = left_pad_it + pad_ndims;
+
+        if(is_asym_padding(padding) or count_include_pad == 1)
+        {
+            std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
+            // add left pads
+            asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
+            // add right pads
+            asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
+            ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
+        }
+        else
+        {
+            v["padding"] = std::vector<size_t>(left_pad_it, right_pad_it);
+        }
+    }
+
+    instruction_ref
+    parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto input_lens = args[0]->get_shape().lens();
+        instruction_ref min_arg;
+        instruction_ref max_arg;
+        bool min_used = false;
+        bool max_used = false;
+
+        if(args.size() == 3 and args[2]->name() != "undefined")
+        {
+            max_arg  = args[2];
+            max_used = true;
+        }
+
+        if(args.size() >= 2 and args[1]->name() != "undefined")
+        {
+            min_arg  = args[1];
+            min_used = true;
+        }
+        // if using previous opset for attributes
+        else if(contains(info.attributes, "min") and contains(info.attributes, "max"))
+        {
+
+            float min_val = parse_value(info.attributes.at("min")).at<float>();
+            float max_val = parse_value(info.attributes.at("max")).at<float>();
+            min_arg       = prog.add_literal(min_val);
+            max_arg       = prog.add_literal(max_val);
+            min_used      = true;
+            max_used      = true;
+        }
+
+        if(min_used)
+        {
+            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+        }
+
+        if(max_used)
+        {
+            max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+        }
+
+        if(min_used and max_used)
+        {
+            return prog.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
+        }
+        else if(max_used)
+        {
+            return prog.add_instruction(make_op("min"), args[0], max_arg);
+        }
+        else if(min_used)
+        {
+            return prog.add_instruction(make_op("max"), args[0], min_arg);
+        }
+        else
+        {
+            return prog.add_instruction(make_op("identity"), args[0]);
+        }
+    }
+
+    instruction_ref parse_arg_op(const std::string&,
+                                 const std::string& op_name,
+                                 node_info info,
+                                 std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = static_cast<int64_t>(parse_value(info.attributes.at("axis")).at<int>());
+        }
+
+        int keep_dims = 1;
+        if(contains(info.attributes, "keepdims"))
+        {
+            keep_dims = parse_value(info.attributes.at("keepdims")).at<int>();
+        }
+
+        if(keep_dims == 0)
+        {
+            auto ins = prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
+            return prog.add_instruction(op::squeeze{{axis}}, ins);
+        }
+        else
+        {
+            return prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
+        }
+    }
+
+    void calc_reflect_indices(std::vector<int>& indices, const int64_t num_dims)
+    {
+        int k         = 0;
+        bool reversed = false;
+        // in reflect padding, if the num_pads > num_dims,
+        // compute the extra pad indices periodically, ex. ( 1, 2, 3, 2, 1, 0)
+        for(int& idx : indices)
+        {
+            if(k == num_dims - 1)
+                reversed = true;
+            if(k == 0)
+                reversed = false;
+            if(reversed)
+                k--;
+            else
+                k++;
+            idx = k;
+        }
+    }
+
+    instruction_ref reflect_pad(const std::vector<int64_t>& pads, instruction_ref input)
+    {
+        size_t num_dims = pads.size() / 2;
+        std::vector<int> ldims(pads.begin(), pads.begin() + num_dims);
+        std::vector<int> rdims(pads.begin() + num_dims, pads.end());
+        assert(ldims.size() == rdims.size());
+
+        std::vector<int64_t> axes(num_dims);
+        std::iota(axes.begin(), axes.end(), int64_t{0});
+
+        // iterate over dimensions, starting from lowest dimension
+        for(int64_t i = num_dims - 1; i >= 0; i--)
+        {
+            auto axis   = i;
+            auto lcount = ldims.at(i);
+            auto rcount = rdims.at(i);
+            if(lcount == 0 and rcount == 0) // no padding for current dim
+                continue;
+
+            // calculate starts and ends for each iteration since shape may change
+            std::vector<size_t> dims = input->get_shape().lens();
+            std::vector<int64_t> starts(axes.size(), 0);
+            std::vector<int64_t> ends(dims.begin(), dims.end());
+            std::vector<instruction_ref> slices;
+
+            auto starts_it = starts.begin() + i;
+            auto ends_it   = ends.begin() + i;
+            auto dims_it   = dims.begin() + i;
+
+            std::vector<int> l_indices(lcount);
+            std::vector<int> r_indices(rcount);
+
+            // compute slice indices in a periodic fashion
+            calc_reflect_indices(l_indices, *dims_it);
+            calc_reflect_indices(r_indices, *dims_it);
+
+            for(int idx : l_indices)
+            {
+                *starts_it = idx;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            // when padding on the left side, the outermost pad should be at the beginning
+            std::reverse(slices.begin(), slices.end());
+            slices.push_back(input);
+            for(int idx : r_indices)
+            {
+                *starts_it = *dims_it - idx - 1;
+                *ends_it   = *starts_it + 1;
+                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+            }
+            input = prog.add_instruction(op::concat{axis}, slices);
+        }
+        return input;
+    }
+
+    void check_attr_sizes(size_t kdims, size_t attr_size, const std::string& error_msg)
+    {
+        if(kdims != attr_size)
+        {
+            MIGRAPHX_THROW(error_msg + " k-dims: " + to_string(kdims) +
+                           " attribute size: " + to_string(attr_size));
+        }
+    }
+
+    void recalc_conv_attributes(value& v, size_t kdims)
+    {
+        if(v["padding"].size() != kdims)
+        {
+            v["padding"].resize(kdims);
+            std::fill_n(v["padding"].begin(), kdims, 0);
+        }
+        if(v["stride"].size() != kdims)
+        {
+            v["stride"].resize(kdims);
+            std::fill_n(v["stride"].begin(), kdims, 1);
+        }
+        if(v["dilation"].size() != kdims)
+        {
+            v["dilation"].resize(kdims);
+            std::fill_n(v["dilation"].begin(), kdims, 1);
+        }
+    }
+
+    static void cal_auto_padding_size(node_info info,
+                                      value& v,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      const std::vector<std::size_t>& in_lens,
+                                      std::vector<int64_t>& paddings)
+    {
+        size_t kdims = in_lens.size() - 2;
+        assert(k_lens.size() == kdims and dilation.size() == kdims);
+
+        if(!contains(info.attributes, "auto_pad"))
+        {
+            return;
+        }
+
+        auto auto_pad = info.attributes["auto_pad"].s();
+        if(auto_pad.find("SAME") != std::string::npos)
+        {
+            bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);
+            paddings.resize(2 * kdims);
+
+            for(size_t i = 0; i < paddings.size() / 2; i++)
+            {
+                calculate_padding(i,
+                                  paddings,
+                                  in_lens[i + 2],
+                                  v["stride"][i].to<int64_t>(),
+                                  dilation[i],
+                                  k_lens[i],
+                                  is_same_upper);
+            }
+        }
+    }
+
+    static void check_padding_mode(node_info info, const std::string& op_name)
+    {
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        if(contains(info.attributes, "pads") and contains(info.attributes, "auto_pad"))
+        {
+            auto s = info.attributes["auto_pad"].s();
+            if(to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("PARSE_" + op_name +
+                               ": auto_pad and padding cannot be specified simultaneously");
+            }
+        }
+    }
+
+    instruction_ref parse_conv(const std::string&,
+                               const std::string& op_name,
+                               node_info info,
+                               std::vector<instruction_ref> args)
+    {
+        auto op      = make_op(op_name);
+        auto values  = op.to_value();
+        auto l0      = args[0];
+        auto weights = args[1];
+        auto in_lens = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV");
+
+        if(contains(info.attributes, "strides"))
+        {
+            values["stride"].clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
+            check_attr_sizes(kdims, values["stride"].size(), "PARSE_CONV: inconsistent strides");
+        }
+        if(contains(info.attributes, "dilations"))
+        {
+            values["dilation"].clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(values["dilation"]));
+            check_attr_sizes(
+                kdims, values["dilation"].size(), "PARSE_CONV: inconsistent dilations");
+        }
+
+        std::vector<int64_t> padding;
+        if(contains(info.attributes, "pads"))
+        {
+            values["padding"].clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
+        }
+
+        if(contains(info.attributes, "auto_pad"))
+        {
+            auto weight_lens = weights->get_shape().lens();
+            std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
+            cal_auto_padding_size(info,
+                                  values,
+                                  k_lens,
+                                  values["dilation"].to_vector<std::size_t>(),
+                                  in_lens,
+                                  padding);
+            auto auto_pad = info.attributes["auto_pad"].s();
+            if(auto_pad.find("SAME") != std::string::npos)
+            {
+                values["padding_mode"] = to_value(op::padding_mode_t::same);
+            }
+        }
+        check_asym_padding(l0, padding, values);
+
+        if(contains(info.attributes, "group"))
+        {
+            values["group"] = parse_value(info.attributes.at("group")).at<int>();
+        }
+
+        recalc_conv_attributes(values, kdims);
+
+        op.from_value(values);
+        auto l1 = prog.add_instruction(op, l0, args[1]);
+        return add_bias(args, l1, 1);
+    }
+
+    instruction_ref
+    parse_conv_transpose(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        operation op = make_op("deconvolution");
+        value values = op.to_value();
+        // op::deconvolution op;
+        auto l0 = args[0];
+        std::vector<std::int64_t> padding;
+        bool asym_padding = false;
+        auto in_lens      = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "CONV_TRANSPOSE");
+
+        if(contains(info.attributes, "pads"))
+        {
+            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
+
+            asym_padding = is_asym_padding(padding);
+
+            if(not asym_padding)
+            {
+                size_t pad_ndims = padding.size() / 2;
+                check_attr_sizes(kdims, pad_ndims, "PARSE_CONV_TRANSPOSE: inconsistent paddings");
+                values["padding"].clear();
+                std::transform(padding.begin(),
+                               padding.begin() + pad_ndims,
+                               std::back_inserter(values["padding"]),
+                               [](auto pad_val) { return pad_val; });
+            }
+        }
+        if(contains(info.attributes, "strides"))
+        {
+            values["stride"].clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
+            check_attr_sizes(
+                kdims, values["stride"].size(), "PARSE_CONV_TRANSPOSE: inconsistent strides");
+        }
+        if(contains(info.attributes, "dilations"))
+        {
+            values["dilation"].clear();
+            copy(info.attributes["dilations"].ints(), std::back_inserter(values["dilation"]));
+            check_attr_sizes(
+                kdims, values["dilation"].size(), "PARSE_CONV_TRANSPOSE: inconsistent dilations");
+        }
+        if(contains(info.attributes, "auto_pad"))
+        {
+            auto s = info.attributes["auto_pad"].s();
+            if(contains(info.attributes, "pads") and to_upper(s) != "NOTSET")
+            {
+                MIGRAPHX_THROW("PARSE_CONV_TRANSPOSE: auto_pad and padding cannot be specified "
+                               "simultaneously");
+            }
+
+            if(s.find("SAME") != std::string::npos)
+            {
+                values["padding_mode"] = to_value(op::padding_mode_t::same);
+            }
+        }
+
+        if(contains(info.attributes, "group"))
+        {
+            values["group"] = parse_value(info.attributes.at("group")).at<int>();
+        }
+
+        recalc_conv_attributes(values, kdims);
+
+        op.from_value(values);
+        auto l1                   = prog.add_instruction(op, l0, args[1]);
+        std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
+        std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
+        if(asym_padding)
+        {
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2); // ignore first 2 dims
+
+            auto pad_kdim_start = padding.begin() + kdims;
+            std::vector<int64_t> starts(padding.begin(), pad_kdim_start);
+
+            std::vector<int64_t> ends{};
+            std::transform(curr_shape.begin(),
+                           curr_shape.end(),
+                           pad_kdim_start,
+                           std::back_inserter(ends),
+                           [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
+
+            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
+        }
+
+        if(contains(info.attributes, "output_padding"))
+        {
+            size_t non_kdims = dims.size() * 2 - kdims;
+            std::vector<int64_t> output_padding(non_kdims, 0);
+            copy(info.attributes["output_padding"].ints(), std::back_inserter(output_padding));
+            check_attr_sizes(kdims,
+                             output_padding.size() - non_kdims,
+                             "PARSE_CONV_TRANSPOSE: inconsistent output padding");
+            l1 = prog.add_instruction(op::pad{output_padding}, l1);
+        }
+
+        if(contains(info.attributes, "output_shape"))
+        {
+            std::vector<int64_t> output_shape;
+            copy(info.attributes["output_shape"].ints(), std::back_inserter(output_shape));
+            check_attr_sizes(
+                kdims, output_shape.size(), "PARSE_CONV_TRANSPOSE: inconsistent output shape");
+            dims = to_int64_vector(l1->get_shape().lens());
+            copy(dims.begin() + 2, dims.end(), curr_shape.begin());
+            if(curr_shape != output_shape)
+            {
+                std::vector<int64_t> target_padding(dims.size() * 2 - kdims, 0);
+                std::transform(output_shape.begin(),
+                               output_shape.end(),
+                               curr_shape.begin(),
+                               std::back_inserter(target_padding),
+                               [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
+                l1 = prog.add_instruction(op::pad{target_padding}, l1);
+            }
+        }
+
+        return add_bias(args, l1, 1);
+    }
+
+    static void
+    tune_padding_to_symmetric(int64_t& left, int64_t& right, const int stride, int64_t& s_start)
+    {
+        s_start = 0;
+        if(left > right)
+        {
+            right = left;
+        }
+        else if(left < right)
+        {
+            auto diff = right - left;
+            s_start   = (diff + stride - 1) / stride;
+            left      = left + s_start * stride;
+            right     = left;
+        }
+    }
+
+    static void tune_padding_size(const value& v,
+                                  std::vector<int64_t>& padding,
+                                  int count_include_pad,
+                                  std::vector<int64_t>& s_start)
+    {
+        // maxpooling or count_include_pad is 1, no change is required.
+        if(v.at("mode").to<std::string>() == "max" or count_include_pad == 1)
+        {
+            return;
+        }
+
+        // if padding is symmetric, return directly
+        if(!is_asym_padding(padding))
+        {
+            return;
+        }
+
+        // asymmetric padding, make it symmetric
+        std::size_t n_dims = padding.size() / 2;
+        s_start.resize(n_dims);
+        for(std::size_t i = 0; i < n_dims; ++i)
+        {
+            tune_padding_to_symmetric(
+                padding[i], padding[i + n_dims], v.at("stride")[i].to<int64_t>(), s_start[i]);
+        }
+    }
+
+    instruction_ref
+    parse_pooling(const std::string& name, node_info info, std::vector<instruction_ref> args)
+    {
+        std::string mode = ends_with(name, "MaxPool") ? "max" : "average";
+        operation op     = make_op("pooling", {{"mode", mode}});
+        value values     = op.to_value();
+        auto l0          = args[0];
+        auto in_lens     = l0->get_shape().lens();
+        assert(in_lens.size() > 2);
+        auto kdims = in_lens.size() - 2;
+
+        if(starts_with(name, "Global"))
+        {
+            values["lengths"] = std::vector<size_t>(in_lens.begin() + 2, in_lens.end());
+        }
+
+        // does not support ceil_mode
+        if(contains(info.attributes, "ceil_mode"))
+        {
+            values["ceil_mode"] = static_cast<bool>(info.attributes.at("ceil_mode").i());
+        }
+
+        // count include padding, if count include pad is 1, we always use
+        // explicit pad
+        int count_include_pad = 0;
+        if(contains(info.attributes, "count_include_pad"))
+        {
+            count_include_pad = info.attributes.at("count_include_pad").i();
+        }
+
+        if(contains(info.attributes, "strides"))
+        {
+            values["stride"].clear();
+            copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
+            check_attr_sizes(kdims, values["stride"].size(), "PARSE_POOLING: inconsistent strides");
+        }
+        if(contains(info.attributes, "kernel_shape"))
+        {
+            values["lengths"].clear();
+            copy(info.attributes["kernel_shape"].ints(), std::back_inserter(values["lengths"]));
+            check_attr_sizes(
+                kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
+        }
+
+        // ensure pads availabe only when auto_pad is "NOT_SET"
+        check_padding_mode(info, "POOLING");
+
+        std::vector<int64_t> paddings;
+        float pad_val = ((mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
+        if(contains(info.attributes, "pads"))
+        {
+            values["padding"].clear();
+            copy(info.attributes["pads"].ints(), std::back_inserter(paddings));
+            check_attr_sizes(
+                kdims, paddings.size() / 2, "PARSE_POOLING: inconsistent explicit paddings");
+        }
+
+        if(contains(info.attributes, "auto_pad"))
+        {
+            values["padding"].clear();
+            // return paddings could be empty, then setting to 0 for no padding
+            cal_auto_padding_size(info,
+                                  values,
+                                  values["lengths"].to_vector<std::size_t>(),
+                                  {1, 1},
+                                  in_lens,
+                                  paddings);
+        }
+
+        if(paddings.size() != 2 * kdims)
+        {
+            paddings.resize(kdims * 2);
+            std::fill_n(paddings.begin(), 2 * kdims, 0);
+        }
+
+        if(values["padding"].size() != kdims)
+        {
+            values["padding"].resize(kdims);
+            std::fill_n(values["padding"].begin(), kdims, 0);
+        }
+
+        if(values["stride"].size() != kdims)
+        {
+            values["stride"].resize(kdims);
+            std::fill_n(values["stride"].begin(), kdims, 1);
+        }
+        // used to calculate the supposed output shape
+        std::vector<int64_t> orig_padding(paddings.begin(), paddings.end());
+
+        std::vector<int64_t> slice_start;
+        std::vector<int64_t> slice_end;
+        tune_padding_size(values, paddings, count_include_pad, slice_start);
+
+        if(!slice_start.empty())
+        {
+            // calculate expected output shape
+            orig_padding.insert(orig_padding.begin() + kdims, 2, 0);
+            orig_padding.insert(orig_padding.begin(), 2, 0);
+            op::pad pad{orig_padding, 0.0f};
+            shape padded_shape = pad.compute_shape({l0->get_shape()});
+            auto out_lens      = make_op("pooling", values).compute_shape({padded_shape}).lens();
+
+            // compute slice_end information
+            slice_end.resize(slice_start.size());
+            std::transform(out_lens.begin() + 2,
+                           out_lens.end(),
+                           slice_start.begin(),
+                           slice_end.begin(),
+                           [](auto i, auto j) { return i + j; });
+        }
+
+        check_asym_padding(l0, paddings, values, count_include_pad, pad_val);
+        in_lens = l0->get_shape().lens();
+        for(size_t i = 0; i < kdims; i++)
+        {
+            if(values["lengths"][i].to<int64_t>() >
+               in_lens[i + 2] + 2 * values["padding"][i].to<int64_t>())
+            {
+                MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
+            }
+        }
+        op.from_value(values);
+        auto l1 = prog.add_instruction(op, l0);
+        if(!slice_start.empty())
+        {
+            std::vector<int64_t> axes(kdims);
+            std::iota(axes.begin(), axes.end(), 2);
+            l1 = prog.add_instruction(op::slice{axes, slice_start, slice_end}, l1);
+        }
+
+        return l1;
+    }
+
+    instruction_ref
+    parse_reshape(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        op::reshape op;
+        if(args.size() == 1)
+        {
+            literal s = parse_value(info.attributes.at("shape"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
+        }
+        if(args.size() == 2)
+        {
+            auto s = args[1]->eval();
+            check_arg_empty(s, "Reshape: dynamic shape is not supported");
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
+        }
+
+        return prog.add_instruction(op, make_contiguous(args[0]));
+    }
+
+    instruction_ref
+    parse_gather_elements(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        // standardize input data and index
+        auto arg_data = make_contiguous(args[0]);
+        auto arg_ind  = make_contiguous(args[1]);
+
+        auto data_s = arg_data->get_shape();
+        auto ind_s  = arg_ind->get_shape();
+
+        if(data_s.lens().size() != ind_s.lens().size())
+        {
+            MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
+        }
+
+        int n_rank     = static_cast<int>(data_s.lens().size());
+        int tuned_axis = (axis < 0) ? (axis + n_rank) : axis;
+
+        auto axis_stride      = data_s.strides()[tuned_axis];
+        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        // reshape the input data as one dimension and used as input data
+        // to the gather operator
+        arg_data = prog.add_instruction(op::reshape{{data_elem_num}}, arg_data);
+
+        std::size_t elem_num = ind_s.elements();
+        std::vector<int> ind_index(elem_num);
+        std::iota(ind_index.begin(), ind_index.end(), 0);
+
+        // convert index in input indices to that in input data
+        std::vector<int> data_indices(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), data_indices.begin(), [&](auto i) {
+            return data_s.index(ind_s.multi(i));
+        });
+
+        std::vector<int> vec_axis_ind(elem_num);
+        std::transform(ind_index.begin(), ind_index.end(), vec_axis_ind.begin(), [&](auto i) {
+            return ind_s.multi(i)[tuned_axis];
+        });
+
+        auto l_shape_idx =
+            prog.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
+        auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
+        auto l_stride  = prog.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
+        l_stride       = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
+        auto dim_diff  = prog.add_instruction(make_op("sub"), arg_ind, l_dim_idx);
+        auto delta     = prog.add_instruction(make_op("mul"), dim_diff, l_stride);
+        auto ind       = prog.add_instruction(make_op("add"), l_shape_idx, delta);
+
+        op::gather op{0};
+        return prog.add_instruction(op, arg_data, ind);
+    }
+
+    instruction_ref
+    parse_slice(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        op::slice op;
+
+        // slice can have up to 5 inputs, we first check the 5th one
+        // to decide whether MIGRAPHX can handle this slice
+        if(args.size() == 5)
+        {
+            migraphx::argument step_arg = args.back()->eval();
+            check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
+            std::vector<int> steps;
+            step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            {
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+            }
+        }
+
+        if(args.size() >= 4)
+        {
+            migraphx::argument axes_arg = args.at(3)->eval();
+            check_arg_empty(axes_arg, "PARSE_SLICE: cannot handle variable axes for slice");
+            axes_arg.visit([&](auto s) { op.axes.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "axes"))
+        {
+            literal s = parse_value(info.attributes.at("axes"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.axes)); });
+        }
+
+        if(args.size() >= 3)
+        {
+            migraphx::argument end_arg = args.at(2)->eval();
+            check_arg_empty(end_arg, "PARSE_SLICE: cannot handle variable ends for slice");
+            end_arg.visit([&](auto s) { op.ends.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "ends"))
+        {
+            literal s = parse_value(info.attributes.at("ends"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.ends)); });
+        }
+
+        if(args.size() >= 2)
+        {
+            migraphx::argument start_arg = args.at(1)->eval();
+            check_arg_empty(start_arg, "PARSE_SLICE: cannot handle variable starts for slice");
+            start_arg.visit([&](auto s) { op.starts.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "starts"))
+        {
+            literal s = parse_value(info.attributes.at("starts"));
+            s.visit([&](auto v) { copy(v, std::back_inserter(op.starts)); });
+        }
+
+        if(op.axes.empty())
+        {
+            std::vector<int64_t> axes(args[0]->get_shape().lens().size());
+            std::iota(axes.begin(), axes.end(), int64_t{0});
+            op.axes = axes;
+        }
+
+        return prog.add_instruction(op, args[0]);
+    }
+
+    instruction_ref
+    parse_constant(const std::string&, node_info info, const std::vector<instruction_ref>&)
+    {
+        literal v = parse_value(info.attributes.at("value"));
+        // return empty literal
+        if(v.get_shape().elements() == 0)
+        {
+            return prog.add_literal(literal{});
+        }
+
+        auto dim_size = info.attributes.at("value").t().dims_size();
+        // if dim_size is 0, it is a scalar
+        if(dim_size == 0)
+        {
+            migraphx::shape scalar_shape{v.get_shape().type()};
+            return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
+        }
+
+        return prog.add_literal(v);
+    }
+
+    instruction_ref
+    parse_gemm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float alpha = 1.0f;
+        float beta  = 1.0f;
+        bool transa = false;
+        bool transb = false;
+        if(contains(info.attributes, "alpha"))
+        {
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
+        }
+        if(contains(info.attributes, "beta"))
+        {
+            beta = parse_value(info.attributes.at("beta")).at<float>();
+        }
+        if(contains(info.attributes, "transA"))
+        {
+            transa = parse_value(info.attributes.at("transA")).at<bool>();
+        }
+        if(contains(info.attributes, "transB"))
+        {
+            transb = parse_value(info.attributes.at("transB")).at<bool>();
+        }
+
+        std::vector<int64_t> perm(args[0]->get_shape().lens().size());
+        std::iota(perm.begin(), perm.end(), int64_t{0});
+        // swap the last two elements
+        std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
+
+        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
+        if(args.size() == 3)
+        {
+            if(beta != 0.f && args[2]->get_shape().elements() > 0)
+            {
+                auto out_lens   = l1->get_shape().lens();
+                out_lens.back() = l2->get_shape().lens().back();
+                auto l3         = args[2];
+                auto l3_lens    = l3->get_shape().lens();
+                if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
+                {
+                    l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
+                }
+                return prog.add_instruction(
+                    make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
+            }
+        }
+
+        return prog.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
+    }
+
+    instruction_ref parse_matmul(const std::string&,
+                                 const std::string& op_name,
+                                 const node_info&,
+                                 std::vector<instruction_ref> args)
+    {
+        auto l0      = args[0];
+        auto l1      = args[1];
+        auto l0_lens = l0->get_shape().lens();
+        auto l1_lens = l1->get_shape().lens();
+
+        // args[0] is a vector, prepend 1 to the shape
+        bool is_a_prepended = false;
+        if(l0_lens.size() == 1)
+        {
+            is_a_prepended = true;
+            l0_lens.insert(l0_lens.begin(), 1);
+            l0 = prog.add_instruction(op::unsqueeze{{0}}, args[0]);
+        }
+
+        bool is_b_appended = false;
+        if(l1_lens.size() == 1)
+        {
+            is_b_appended = true;
+            l1_lens.push_back(1);
+            l1 = prog.add_instruction(op::unsqueeze{{1}}, args[1]);
+        }
+
+        instruction_ref bl0 = l0;
+        instruction_ref bl1 = l1;
+        if(!std::equal(l0_lens.rbegin() + 2, l0_lens.rend(), l1_lens.rbegin() + 2, l1_lens.rend()))
+        {
+            auto l0_it = l0_lens.begin() + l0_lens.size() - 2;
+            std::vector<std::size_t> l0_broadcasted_lens(l0_lens.begin(), l0_it);
+            auto l1_it = l1_lens.begin() + l1_lens.size() - 2;
+            std::vector<std::size_t> l1_broadcasted_lens(l1_lens.begin(), l1_it);
+            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+            l0_broadcasted_lens = output_lens;
+            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, l0_lens.end());
+            l1_broadcasted_lens = output_lens;
+            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, l1_lens.end());
+            if(l0_lens != l0_broadcasted_lens)
+            {
+                bl0 = prog.add_instruction(op::multibroadcast{l0_broadcasted_lens}, l0);
+            }
+            if(l1_lens != l1_broadcasted_lens)
+            {
+                bl1 = prog.add_instruction(op::multibroadcast{l1_broadcasted_lens}, l1);
+            }
+        }
+
+        auto dot_res =
+            prog.add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
+        if(is_a_prepended)
+        {
+            dot_res = prog.add_instruction(op::squeeze{{num_axis - 2}}, dot_res);
+            --num_axis;
+        }
+        if(is_b_appended)
+        {
+            dot_res = prog.add_instruction(op::squeeze{{num_axis - 1}}, dot_res);
+        }
+
+        return dot_res;
+    }
+
+    instruction_ref
+    parse_batchnorm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float epsilon                                     = 1e-5f;
+        float momentum                                    = 0.9f;
+        op::batch_norm_inference::bn_infer_mode_t bn_mode = op::batch_norm_inference::spatial;
+        if(contains(info.attributes, "epsilon"))
+        {
+            epsilon = parse_value(info.attributes.at("epsilon")).at<float>();
+        }
+        if(contains(info.attributes, "momentum"))
+        {
+            momentum = parse_value(info.attributes.at("momentum")).at<float>();
+        }
+        if(contains(info.attributes, "spatial"))
+        {
+            bn_mode = (parse_value(info.attributes.at("spatial")).at<uint64_t>() > 0)
+                          ? op::batch_norm_inference::spatial
+                          : op::batch_norm_inference::per_activation;
+        }
+        op::batch_norm_inference op{epsilon, momentum, bn_mode};
+        return prog.add_instruction(op, std::move(args));
+    }
+
+    instruction_ref
+    parse_instancenorm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
+        // mean = reduce_mean({D1, D2, ... Dk}, x)
+        // variance = reduce_mean({D1, D2, ... Dk}, (x - mean)^2)
+
+        float epsilon = 1e-5f;
+        if(contains(info.attributes, "epsilon"))
+        {
+            epsilon = parse_value(info.attributes.at("epsilon")).at<float>();
+        }
+        auto x     = args[0];
+        auto scale = args[1];
+        auto bias  = args[2];
+        auto dims  = x->get_shape().lens();
+        auto ndims = dims.size();
+        assert(ndims >= 2);
+        auto kdims = ndims - 2;
+
+        std::vector<int64_t> axes(kdims);
+        std::iota(axes.begin(), axes.end(), 2);
+
+        auto mean            = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
+        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = prog.add_instruction(make_op("sqdiff"), x, mean_bcast);
+        auto variance        = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
+        auto l1              = prog.add_instruction(make_op("sub"), x, mean_bcast);
+        auto epsilon_literal = prog.add_literal(epsilon);
+        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = prog.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
+        auto l3              = prog.add_instruction(make_op("rsqrt"), l2);
+        auto l4              = prog.add_instruction(make_op("mul"), l1, l3);
+        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        ;
+        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = prog.add_instruction(make_op("mul"), l4, scale_bcast);
+        return prog.add_instruction(make_op("add"), l5, bias_bcast);
+    }
+
+    instruction_ref
+    parse_leaky_relu(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float alpha = 0.01; // default alpha val for leaky relu
+        if(contains(info.attributes, "alpha"))
+        {
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
+        }
+        auto op = make_op("leaky_relu", {{"alpha", alpha}});
+        return prog.add_instruction(op, args.front());
+    }
+
+    instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float alpha = 1.0; // default alpha val for elu
+        if(contains(info.attributes, "alpha"))
+        {
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
+        }
+        auto op = make_op("elu", {{"alpha", alpha}});
+        return prog.add_instruction(op, args.front());
+    }
+
+    instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float alpha = 0.0001;
+        float beta  = 0.75;
+        float bias  = 1.0;
+        int size    = 1;
+        if(contains(info.attributes, "alpha"))
+            alpha = parse_value(info.attributes.at("alpha")).at<float>();
+        if(contains(info.attributes, "beta"))
+            beta = parse_value(info.attributes.at("beta")).at<float>();
+        if(contains(info.attributes, "bias"))
+            bias = parse_value(info.attributes.at("bias")).at<float>();
+        if(contains(info.attributes, "size"))
+            size = parse_value(info.attributes.at("size")).at<int>();
+        op::lrn op{alpha, beta, bias, size};
+        return prog.add_instruction(op, args.front());
+    }
+
+    instruction_ref
+    parse_imagescaler(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        float scale = 1.0;
+        std::vector<float> bias{};
+        if(contains(info.attributes, "scale"))
+        {
+            scale = parse_value(info.attributes.at("scale")).at<float>();
+        }
+
+        if(contains(info.attributes, "bias"))
+        {
+            auto&& bias_floats = info.attributes["bias"].floats();
+            bias               = std::vector<float>(bias_floats.begin(), bias_floats.end());
+        }
+        auto input_shape       = args.front()->get_shape();
+        auto const& input_lens = input_shape.lens();
+        auto input_type        = input_shape.type();
+
+        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
+
+        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
+        auto img_scaled =
+            prog.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
+        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
+        return prog.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
+    }
+
+    instruction_ref
+    parse_transpose(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> perm{};
+        if(contains(info.attributes, "perm"))
+        {
+            auto&& perm_vals = info.attributes["perm"].ints();
+            perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
+        }
+        return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
+    }
+
+    instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        std::vector<int64_t> pads{};
+        if(args.size() >= 2)
+        {
+            auto pad_arg = args.at(1)->eval();
+            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
+            pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
+        }
+        else if(contains(info.attributes, "pads"))
+        {
+            auto&& pad_vals = info.attributes["pads"].ints();
+            pads            = std::vector<int64_t>(pad_vals.begin(), pad_vals.end());
+        }
+        else
+        {
+            MIGRAPHX_THROW("PARSE_PAD: pad must be available");
+        }
+
+        // check if padding is actually being done (at least one value is nonzero)
+        if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
+        {
+            return prog.add_instruction(make_op("identity"), args.front());
+        }
+
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode == "reflect")
+                return reflect_pad(pads, args.front());
+            if(mode != "constant")
+            {
+                MIGRAPHX_THROW(
+                    "PARSE_PAD: migraphx currently only supports constant and reflect padding");
+            }
+        }
+
+        float value = 0.0f;
+        // third input is the value
+        if(args.size() == 3)
+        {
+            auto val_ins = args.at(2);
+            if(!val_ins->can_eval())
+            {
+                MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
+            }
+            auto val_arg = val_ins->eval();
+            if(val_arg.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
+            }
+            value = val_arg.at<float>();
+        }
+        else if(contains(info.attributes, "value"))
+        {
+            value = parse_value(info.attributes.at("value")).at<float>();
+        }
+
+        return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
+    }
+
+    instruction_ref
+    parse_selu(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        auto type   = args[0]->get_shape().type();
+        auto lens   = args[0]->get_shape().lens();
+        float alpha = 1.67326f;
+        if(contains(info.attributes, "alpha"))
+        {
+            alpha = info.attributes.at("alpha").f();
+        }
+
+        float gamma = 1.0507f;
+        if(contains(info.attributes, "gamma"))
+        {
+            gamma = info.attributes.at("gamma").f();
+        }
+
+        auto l_alpha = prog.add_literal({{type, {1}}, {alpha}});
+        auto l_gamma = prog.add_literal({{type, {1}}, {gamma / 2.0f}});
+        if(lens != std::vector<std::size_t>{1})
+        {
+            l_alpha =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
+            l_gamma =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
+        }
+
+        auto sign_x = prog.add_instruction(make_op("sign"), args[0]);
+        auto exp_x  = prog.add_instruction(make_op("exp"), args[0]);
+
+        auto alpha_ex  = prog.add_instruction(make_op("mul"), l_alpha, exp_x);
+        auto aex_alpha = prog.add_instruction(make_op("sub"), alpha_ex, l_alpha);
+
+        auto ins1 = prog.add_instruction(make_op("add"), aex_alpha, args[0]);
+        auto ins2 = prog.add_instruction(make_op("sub"), aex_alpha, args[0]);
+
+        auto sign2   = prog.add_instruction(make_op("mul"), sign_x, ins2);
+        auto ins_sub = prog.add_instruction(make_op("sub"), ins1, sign2);
+
+        return prog.add_instruction(make_op("mul"), ins_sub, l_gamma);
+    }
+
+    // Use a literal instruction to replace the shape since, output of
+    // shape operator are literals in migraphx
+    instruction_ref
+    parse_shape(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        if(args.size() != 1)
+            MIGRAPHX_THROW("Shape: operator should have 1 operand");
+        std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
+        std::vector<int64_t> vec_shape(arg_shape.size());
+        migraphx::shape s(migraphx::shape::int64_type, {arg_shape.size()});
+        std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
+            return int64_t(i);
+        });
+        return prog.add_literal(migraphx::literal{s, vec_shape});
+    }
+
+    // Use a literal instruction to replace the constantFill operator. In RNN, input shape
+    // and value are fixed, so no need to do the actual computation for the constantFill
+    // operator
+    instruction_ref
+    parse_constant_fill(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int input_as_shape = 0;
+        int dtype          = 1;
+        float value        = 0.0f;
+
+        if(contains(info.attributes, "dtype"))
+        {
+            dtype = parse_value(info.attributes.at("dtype")).at<int>();
+        }
+        shape::type_t type = get_type(dtype);
+
+        if(contains(info.attributes, "input_as_shape"))
+        {
+            input_as_shape = parse_value(info.attributes.at("input_as_shape")).at<int>();
+        }
+
+        if(contains(info.attributes, "value"))
+        {
+            value = parse_value(info.attributes.at("value")).at<float>();
+        }
+
+        if(contains(info.attributes, "extra_shape"))
+        {
+            MIGRAPHX_THROW("ConstantFill: cannot handle extra shape attribute");
+        }
+
+        if(input_as_shape == 1)
+        {
+            if(args.size() != 1)
+            {
+                MIGRAPHX_THROW("ConstantFill: need an input argument as output shape");
+            }
+
+            if(contains(info.attributes, "shape"))
+            {
+                MIGRAPHX_THROW("ConstantFill: cannot set the shape argument and pass in an input "
+                               "at the same time");
+            }
+
+            migraphx::argument in = args[0]->eval();
+            check_arg_empty(in, "ConstantFill: dynamic shape is not supported");
+
+            std::vector<std::size_t> dims;
+            in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+            migraphx::shape s(type, dims);
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
+        }
+        else if(input_as_shape == 0)
+        {
+            if(!contains(info.attributes, "shape"))
+            {
+                MIGRAPHX_THROW("ConstantFill: attribute output shape is needed");
+            }
+
+            literal ls = parse_value(info.attributes.at("shape"));
+            std::vector<std::size_t> dims;
+            ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
+            migraphx::shape s{type, dims};
+            std::vector<float> values(s.elements(), value);
+            return prog.add_literal(migraphx::literal(s, values));
+        }
+        else
+        {
+            MIGRAPHX_THROW("ConstantFill: wrong value of attribute input_as_shape");
+        }
+    }
+
+    instruction_ref
+    parse_constant_of_shape(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        literal l_val{};
+        if(contains(info.attributes, "value"))
+        {
+            l_val = parse_value(info.attributes.at("value"));
+            if(l_val.get_shape().elements() != 1)
+            {
+                MIGRAPHX_THROW("ConstantOfShape: attribute value can contain only 1 elements!");
+            }
+        }
+        else
+        {
+            l_val = literal({shape::float_type, {1}, {0}}, {0.0f});
+        }
+
+        // input is empty, output is a scalar
+        auto type = l_val.get_shape().type();
+
+        if(args.empty())
+        {
+            MIGRAPHX_THROW("ConstantOfShape : must have 1 input!");
+        }
+        else
+        {
+            migraphx::shape s;
+            // empty input tensor, output is a scalar
+            if(args[0]->get_shape().elements() == 0)
+            {
+                s = migraphx::shape{type, {1}, {0}};
+            }
+            else
+            {
+                migraphx::argument in = args[0]->eval();
+                check_arg_empty(in, "ConstantOfShape: dynamic shape is not supported");
+
+                std::vector<std::size_t> dims;
+                in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+                s = migraphx::shape{type, dims};
+            }
+
+            literal l_out{};
+            l_val.visit([&](auto val) {
+                using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
+                // l_val contains only one element
+                std::vector<val_type> out_vec(s.elements(), val.front());
+                l_out = literal(s, out_vec);
+            });
+
+            return prog.add_literal(l_out);
+        }
+    }
+
+    instruction_ref
+    parse_expand(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto in_lens             = args[0]->get_shape().lens();
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "Expand: dynamic shape is not supported");
+        std::vector<std::size_t> dims;
+        arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+        auto out_lens = compute_broadcasted_lens(in_lens, dims);
+        return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
+    }
+
+    std::vector<instruction_ref>
+    parse_rnn(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[1]->get_shape().lens()[1];
+
+        if(contains(info.attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("RNN: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(info.attributes, "direction"))
+        {
+            direction = info.attributes.at("direction").s();
+        }
+
+        op::rnn_direction dirct = op::rnn_direction::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn_direction::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn_direction::reverse;
+        }
+
+        std::vector<std::string> vec_names{"tanh"};
+        if(contains(info.attributes, "activations"))
+        {
+            auto names = info.attributes.at("activations").strings();
+            vec_names.clear();
+            vec_names.resize(names.size());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
+        }
+
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if(name_it != vec_names.end())
+        {
+            MIGRAPHX_THROW("RNN: activation function " + std::string(*name_it) + " not supported");
+        }
+
+        // bidirectional case should have two activation functions.
+        // one is for forward, and the other is for reverse.
+        // if only one actv function is provided, we use it in both
+        // forward and reverse direction
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            if(vec_names.size() == 1)
+            {
+                vec_names.push_back(vec_names.at(0));
+            }
+        }
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& fn) { return map_actv_funcs[fn]; });
+
+        // To be added later
+        float clip = 0.0;
+        if(contains(info.attributes, "clip"))
+        {
+            clip = parse_value(info.attributes.at("clip")).at<float>();
+        }
+
+        // if the number of arguments is less than 6, append
+        // undefined operator to have 6 arguments
+        if(args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), (6 - args.size()), ins);
+        }
+
+        // first output for the concatenation of hidden states
+        auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
+                                                  std::move(args));
+
+        // second output for the last hidden state
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+
+        return {hidden_states, last_output};
+    }
+
+    std::vector<instruction_ref>
+    parse_gru(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[2]->get_shape().lens()[2];
+
+        if(contains(info.attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(info.attributes, "direction"))
+        {
+            direction = info.attributes.at("direction").s();
+        }
+
+        op::rnn_direction dirct = op::rnn_direction::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn_direction::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn_direction::reverse;
+        }
+
+        std::vector<std::string> vec_names = {"sigmoid", "tanh"};
+        if(contains(info.attributes, "activations"))
+        {
+            auto names = info.attributes.at("activations").strings();
+            vec_names.clear();
+            vec_names.resize(names.size());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
+        }
+
+        // need 4 activation functions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 4 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1 four times. If 2 actv functins are provided,
+            // assume forward and reverse use the same pair of actv
+            // functions. For the case of 3 actv functions provided,
+            // assume the 3rd one is repeated once and used by the
+            // reverse direction.
+            // This may need change later
+            if(vec_names.size() == 1)
+            {
+                vec_names.insert(vec_names.end(), 3, vec_names.at(0));
+            }
+            else if(vec_names.size() == 2)
+            {
+                // repeat the activation functions
+                vec_names.push_back(vec_names.at(0));
+                vec_names.push_back(vec_names.at(1));
+            }
+            else if(vec_names.size() == 3)
+            {
+                vec_names.push_back(vec_names.at(2));
+            }
+        }
+        else
+        {
+            if(vec_names.size() == 1)
+            {
+                vec_names.push_back(vec_names.at(0));
+            }
+        }
+
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if(name_it != vec_names.end())
+        {
+            MIGRAPHX_THROW("GRU: activation function " + std::string(*name_it) + " not supported");
+        }
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
+
+        float clip = 0.0;
+        if(contains(info.attributes, "clip"))
+        {
+            clip = parse_value(info.attributes.at("clip")).at<float>();
+        }
+
+        int linear_before_reset = 0;
+        if(contains(info.attributes, "linear_before_reset"))
+        {
+            linear_before_reset = parse_value(info.attributes.at("linear_before_reset")).at<int>();
+        }
+
+        // append undefined opeator to make 6 arguments
+        if(args.size() < 6)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), 6 - args.size(), ins);
+        }
+
+        // first output for concatenation of hidden states
+        auto hidden_states = prog.add_instruction(
+            op::gru{hidden_size, vec_actv_funcs, dirct, clip, linear_before_reset},
+            std::move(args));
+
+        // second output for last gru output
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+
+        return {hidden_states, last_output};
+    }
+
+    void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+    {
+        // need 6 activation functions for bidirectional directions
+        if(dirct == op::rnn_direction::bidirectional)
+        {
+            // 6 activation functions are used in the bidirectional
+            // scenario. No spec is provided in onnx::operator. we
+            // use the algorithm that: if 1 actv function is provided,
+            // repeat 1st six times. If 2 actv functins are provided,
+            // repeat 2nd once, then repeat all three once
+            // if 3 actv funcs are provide, repeat all three once.
+            // the same algorithm is used for 4, 5, and 6 actv funcions
+            // provided. This may need change later
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, then repeat all three another time
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(1)};
+                break;
+
+            case 3:
+                // repeat all three actv funcs once
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2)};
+                break;
+
+            case 4:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(3)};
+                break;
+
+            case 5:
+                actv_func_names = {actv_func_names.at(0),
+                                   actv_func_names.at(1),
+                                   actv_func_names.at(2),
+                                   actv_func_names.at(3),
+                                   actv_func_names.at(4),
+                                   actv_func_names.at(4)};
+                break;
+
+            default: break;
+            }
+        }
+        else
+        {
+            switch(actv_func_names.size())
+            {
+            case 1:
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
+                break;
+
+            case 2:
+                // repeat the 2nd actv func once, so we have 3 actv funcs
+                actv_func_names = {
+                    actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
+                break;
+
+            default: break;
+            }
+        }
+    }
+
+    std::vector<instruction_ref>
+    parse_lstm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::shape input_shape = args[0]->get_shape();
+        std::size_t hidden_size     = args[2]->get_shape().lens()[2];
+
+        if(contains(info.attributes, "hidden_size"))
+        {
+            std::size_t hidden_size_att = parse_value(info.attributes.at("hidden_size")).at<int>();
+            if(hidden_size != hidden_size_att)
+            {
+                MIGRAPHX_THROW("LSTM: hidden size mismatch in input and attribute");
+            }
+        }
+
+        // Handling of direction to be added later
+        std::string direction{"forward"};
+        if(contains(info.attributes, "direction"))
+        {
+            direction = info.attributes.at("direction").s();
+        }
+
+        op::rnn_direction dirct = op::rnn_direction::forward;
+        if(direction == "bidirectional")
+        {
+            dirct = op::rnn_direction::bidirectional;
+        }
+        else if(direction == "reverse")
+        {
+            dirct = op::rnn_direction::reverse;
+        }
+        else if(direction == "forward")
+        {
+            dirct = op::rnn_direction::forward;
+        }
+        else
+        {
+            MIGRAPHX_THROW("LSTM: incorrect direction attribute");
+        }
+
+        std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
+        if(contains(info.attributes, "activations"))
+        {
+            auto names = info.attributes.at("activations").strings();
+            vec_names.clear();
+            vec_names.resize(names.size());
+            std::transform(names.begin(), names.end(), vec_names.begin(), [](auto name) {
+                return to_lower(name);
+            });
+        }
+
+        lstm_actv_functions(dirct, vec_names);
+
+        auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
+            return (map_actv_funcs.count(name) == 0);
+        });
+        if(name_it != vec_names.end())
+        {
+            MIGRAPHX_THROW("LSTM: activation function " + std::string(*name_it) + " not supported");
+        }
+
+        std::vector<operation> vec_actv_funcs(vec_names.size());
+        std::transform(vec_names.begin(),
+                       vec_names.end(),
+                       vec_actv_funcs.begin(),
+                       [&](const auto& name) { return map_actv_funcs[name]; });
+
+        float clip = 0.0;
+        if(contains(info.attributes, "clip"))
+        {
+            clip = parse_value(info.attributes.at("clip")).at<float>();
+        }
+
+        int input_forget = 0;
+        if(contains(info.attributes, "input_forget"))
+        {
+            input_forget = parse_value(info.attributes.at("input_forget")).at<int>();
+        }
+
+        // append undefined opeator to make 6 arguments
+        if(args.size() < 8)
+        {
+            auto ins = prog.add_instruction(op::undefined{});
+            args.insert(args.end(), 8 - args.size(), ins);
+        }
+
+        // first output for concatenation of hidden states
+        auto hidden_states = prog.add_instruction(
+            op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
+
+        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+
+        // third output for last cell output
+        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
+
+        return {hidden_states, last_output, last_cell_output};
+    }
+
+    instruction_ref parse_reduce_oper(const std::string&,
+                                      const std::string& op_name,
+                                      node_info info,
+                                      std::vector<instruction_ref> args)
+    {
+        std::size_t n_dim = args.front()->get_shape().lens().size();
+
+        // default to reduce over all dimensions
+        std::vector<int64_t> axes(n_dim);
+        std::iota(axes.begin(), axes.end(), 0);
+        if(contains(info.attributes, "axes"))
+        {
+            axes.clear();
+            auto&& attr_axes = info.attributes["axes"].ints();
+            axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
+        }
+
+        int keep_dims = 1;
+        if(contains(info.attributes, "keepdims"))
+        {
+            keep_dims = parse_value(info.attributes.at("keepdims")).at<int>();
+        }
+
+        if(keep_dims == 1)
+        {
+            return prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+        }
+        else
+        {
+            auto ins = prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+            return prog.add_instruction(op::squeeze{axes}, ins);
+        }
+    }
+
+    instruction_ref
+    parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto abs_ins = prog.add_instruction(make_op("abs"), args[0]);
+        return parse_reduce_oper({}, "reduce_sum", std::move(info), {abs_ins});
+    }
+
+    instruction_ref
+    parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
+        auto sum_ins    = parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
+        return prog.add_instruction(make_op("sqrt"), sum_ins);
+    }
+
+    instruction_ref
+    parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
+        return prog.add_instruction(make_op("log"), sum_ins);
+    }
+
+    instruction_ref
+    parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto exp_ins = prog.add_instruction(make_op("exp"), args[0]);
+        auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
+        return prog.add_instruction(make_op("log"), sum_ins);
+    }
+
+    instruction_ref
+    parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
+        return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
+    }
+
+    instruction_ref
+    parse_cast(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        if(!contains(info.attributes, "to"))
+        {
+            MIGRAPHX_THROW("PARSE_CAST: missing to type attribute!");
+        }
+
+        int to_type        = parse_value(info.attributes.at("to")).at<int>();
+        shape::type_t type = get_type(to_type);
+        return prog.add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
+    }
+
+    std::vector<instruction_ref>
+    parse_split(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        int64_t axis = 0;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        auto lens      = args[0]->get_shape().lens();
+        int64_t n_rank = static_cast<int64_t>(lens.size());
+        if((axis < -n_rank) || (axis >= n_rank))
+        {
+            MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");
+        }
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+
+        std::vector<int64_t> vec_splits;
+        if(contains(info.attributes, "split"))
+        {
+            literal s = parse_value(info.attributes.at("split"));
+            s.visit([&](auto v) { vec_splits.assign(v.begin(), v.end()); });
+
+            if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
+               static_cast<int64_t>(lens[tuned_axis]))
+            {
+                MIGRAPHX_THROW("PARSE_SPLIT: sum of split attribute unequal to dim size of axis!");
+            }
+        }
+        // no split attribute, input is equally divided
+        else
+        {
+            if((lens[tuned_axis] % info.num_outputs) != 0)
+            {
+                MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
+                               to_string(info.num_outputs) + " splits!");
+            }
+            auto dl = lens[tuned_axis] / info.num_outputs;
+            vec_splits.resize(info.num_outputs, dl);
+        }
+
+        std::vector<instruction_ref> ret_ins;
+        int64_t start = 0;
+        for(auto sl : vec_splits)
+        {
+            ret_ins.push_back(
+                prog.add_instruction(op::slice{{axis}, {start}, {start + sl}}, args[0]));
+            start += sl;
+        }
+
+        return ret_ins;
+    }
+
+    instruction_ref
+    parse_onehot(const std::string&, node_info info, std::vector<instruction_ref> args)
+    {
+        migraphx::argument depth_arg = args[1]->eval();
+        check_arg_empty(depth_arg, "PARSE_ONEHOT: depth - dynamic shape not supported");
+        size_t depth = depth_arg.at<size_t>();
+
+        int64_t axis = -1;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = info.attributes.at("axis").i();
+        }
+
+        std::vector<float> depth_input(depth * depth, 0.0f);
+        for(int i = 0; i < depth; i++)
+        {
+            depth_input[depth * i + i] = 1.0f;
+        }
+
+        auto type = args[2]->get_shape().type();
+        shape s{type, {depth, depth}};
+        auto l_val      = prog.add_literal({s, depth_input});
+        auto gather_out = prog.add_instruction(op::gather{0}, {l_val, args[0]});
+
+        // Finally, we need a transpose to move the inner most dim to the axis dim
+        int n_rank = gather_out->get_shape().lens().size();
+        if(axis < -n_rank or axis >= n_rank)
+        {
+            MIGRAPHX_THROW("PARSE_ONEHOT: axis out of range");
+        }
+        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+        std::vector<int64_t> perm(n_rank - 1);
+        std::iota(perm.begin(), perm.end(), 0);
+        perm.insert(perm.begin() + tuned_axis, n_rank - 1);
+        auto tr_out = prog.add_instruction(op::transpose{perm}, gather_out);
+        auto lens   = tr_out->get_shape().lens();
+
+        auto off_val       = prog.add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
+        auto on_val        = prog.add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
+        auto diff          = prog.add_instruction(make_op("sub"), on_val, off_val);
+        auto unsq_off_val  = prog.add_instruction(op::multibroadcast{lens}, off_val);
+        auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
+        auto l_mul         = prog.add_instruction(make_op("mul"), tr_out, unsq_diff_val);
+        return prog.add_instruction(make_op("add"), l_mul, unsq_off_val);
+    }
+
+    instruction_ref
+    parse_tile(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument arg_s = args[1]->eval();
+        check_arg_empty(arg_s, "PARSE_TILE: dynamic shape is not supported");
+        std::vector<std::int64_t> repeats;
+        arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
+
+        auto l0 = args[0];
+        for(int i = 0; i < repeats.size(); i++)
+        {
+            auto l1 = l0;
+            for(int j = 1; j < repeats[i]; j++)
+            {
+                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+            }
+        }
+        return l0;
+    }
+
+    instruction_ref
+    parse_range(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+
+        auto start_arg = args[0]->eval();
+        check_arg_empty(start_arg, "PARSE_RANGE: start arg dynamic shape is not supported");
+        auto limit_arg = args[1]->eval();
+        check_arg_empty(limit_arg, "PARSE_RANGE: limit arg dynamic shape is not supported");
+        auto delta_arg = args[2]->eval();
+        check_arg_empty(delta_arg, "PARSE_RANGE: delta arg dynamic shape is not supported");
+
+        assert(args[0]->get_shape().elements() == 1 and args[1]->get_shape().elements() == 1 and
+               args[2]->get_shape().elements() == 1);
+
+        instruction_ref l0;
+
+        visit_all(start_arg, limit_arg, delta_arg)([&](auto start, auto limit, auto delta) {
+            auto start_val = start.front();
+            auto limit_val = limit.front();
+            auto delta_val = delta.front();
+
+            size_t num_elements = static_cast<size_t>(
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+
+            assert(num_elements > 0);
+
+            using type = decltype(start_val);
+
+            std::vector<type> range_vals(num_elements);
+
+            std::generate(range_vals.begin(), range_vals.end(), [&]() {
+                auto result = start_val;
+                start_val += delta_val;
+                return result;
+            });
+
+            l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+        });
+        return l0;
+    }
+
+    enum class reduce_mode_t
+    {
+        sum  = 0,
+        mean = 1,
+        max  = 2
     };
 
-    auto test_case = [&](std::vector<std::string>&& op_names) {
-        std::vector<float> gold_res = {2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
-        auto p                      = create_program();
-        migraphx::quantize_fp16(p, op_names);
-        p.compile(migraphx::cpu::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> res;
-        result.visit([&](auto output) { res.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify_range(res, gold_res));
-    };
+    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(args[2]->get_shape().elements() != 1)
+            MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
+        reduce_mode_t reduce_mode = reduce_mode_t::sum;
+        if(contains(info.attributes, "mode"))
+        {
+            reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
+        }
 
-    test_case({"all"});
-    test_case({"add"});
-}
+        auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
+        switch(reduce_mode)
+        {
+        case reduce_mode_t::sum:
+            l0 = prog.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0);
+            break;
+        case reduce_mode_t::mean:
+            l0 = prog.add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0);
+            break;
+        case reduce_mode_t::max:
+            l0 = prog.add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0);
+            break;
+        }
+        return l0;
+    }
 
-TEST_CASE(clip_test)
+    instruction_ref
+    parse_aten(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "operator"))
+        {
+            auto op_name = info.attributes.at("operator").s();
+            if(op_name.find("embedding_bag") != std::string::npos)
+            {
+                return parse_embedding_bag(info, std::move(args));
+            }
+        }
+        MIGRAPHX_THROW("PARSE_ATEN: unsupported custom operator");
+    }
+
+    std::vector<instruction_ref>
+    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto out = prog.add_instruction(make_op("identity"), args[0]);
+        auto s   = args[0]->get_shape();
+        std::vector<int8_t> vec(s.elements(), 1);
+        shape mask_s{shape::bool_type, s.lens()};
+        auto mask = prog.add_literal(literal(mask_s, vec));
+
+        return {out, mask};
+    }
+
+    template <class T>
+    std::vector<std::size_t> nonzero_indices(const std::vector<T>& data)
+    {
+        std::vector<std::size_t> indices;
+        for(std::size_t i = 0; i < data.size(); ++i)
+        {
+            if(!float_equal(data[i], 0))
+                indices.push_back(i);
+        }
+
+        return indices;
+    }
+
+    instruction_ref
+    parse_nonzero(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        migraphx::argument data_arg = args.back()->eval();
+        check_arg_empty(data_arg, "PARSE_NONZERO: cannot support non-constant input!");
+
+        std::vector<std::size_t> indices;
+        data_arg.visit([&](auto val) {
+            using val_type = std::remove_cv_t<typename decltype(val)::value_type>;
+            std::vector<val_type> vec_data;
+            vec_data.assign(val.begin(), val.end());
+            indices = this->nonzero_indices(vec_data);
+        });
+
+        shape in_s = args[0]->get_shape();
+        shape out_s{shape::int64_type, {in_s.lens().size(), indices.size()}};
+
+        std::vector<int64_t> out_data(out_s.elements());
+        for(std::size_t i = 0; i < indices.size(); ++i)
+        {
+            auto idx = in_s.multi(indices[i]);
+            for(std::size_t j = 0; j < in_s.lens().size(); ++j)
+            {
+                out_data[out_s.index({j, i})] = idx[j];
+            }
+        }
+
+        return prog.add_literal(literal(out_s, out_data));
+    }
+
+    instruction_ref
+    parse_compare_op(const std::string&, const std::string& op_name, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto l = add_broadcastable_binary_op(args[0], args[1], op_name);
+        if(l->get_shape().type() != shape::bool_type)
+        {
+            l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
+        }
+        return l;
+    }
+
+    instruction_ref
+    parse_upsample(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode != "nearest")
+            {
+                MIGRAPHX_THROW("PARSE_UPSAMPLE: only nearest mode is supported!");
+            }
+        }
+
+        auto arg_scale = args[1]->eval();
+        check_arg_empty(arg_scale, "PARSE_UPSAMPLE: only constant scale is supported!");
+        std::vector<float> vec_scale;
+        arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+
+        auto in_s    = args[0]->get_shape();
+        auto in_lens = in_s.lens();
+        if(in_lens.size() != vec_scale.size())
+        {
+            MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
+        }
+
+        std::vector<std::size_t> out_lens(in_lens.size());
+        std::transform(in_lens.begin(),
+                       in_lens.end(),
+                       vec_scale.begin(),
+                       out_lens.begin(),
+                       [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+
+        std::vector<float> idx_scale(in_lens.size());
+        std::transform(
+            out_lens.begin(),
+            out_lens.end(),
+            in_lens.begin(),
+            idx_scale.begin(),
+            [](auto od, auto id) { return (od == id) ? 1.0f : (id - 1.0f) / (od - 1.0f); });
+
+        shape out_s{in_s.type(), out_lens};
+        std::vector<int> ind(out_s.elements());
+
+        // map out_idx to in_idx
+        shape_for_each(out_s, [&](auto idx) {
+            auto in_idx = idx;
+            std::transform(idx.begin(),
+                           idx.end(),
+                           idx_scale.begin(),
+                           in_idx.begin(),
+                           // nearest mode
+                           [](auto index, auto scale) {
+                               return static_cast<std::size_t>(std::round(index * scale));
+                           });
+
+            ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
+        });
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        shape ind_s{shape::int32_type, out_lens};
+        auto rsp     = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto ins_ind = prog.add_literal(literal(ind_s, ind));
+        return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+    }
+
+    instruction_ref
+    parse_where(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    {
+        auto type = args[1]->get_shape().type();
+        // the operation of if cond == 1 select x; else select y,
+        // is equivalent to cond * (x - y) + y
+        auto cond = prog.add_instruction(make_op("convert", {{"target_type", type}}), args[0]);
+        auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
+        auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
+        return add_broadcastable_binary_op(cd, args[2], "add");
+    }
+
+    void parse_from(std::istream& is)
+    {
+        onnx::ModelProto model;
+        if(model.ParseFromIstream(&is))
+        {
+            if(model.has_graph())
+            {
+                this->parse_graph(model.graph());
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("Failed reading onnx file.");
+        }
+    }
+
+    void parse_from(const void* data, std::size_t size)
+    {
+        onnx::ModelProto model;
+        if(model.ParseFromArray(data, size))
+        {
+            if(model.has_graph())
+            {
+                this->parse_graph(model.graph());
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("Failed reading onnx file.");
+        }
+    }
+
+    void parse_graph(const onnx::GraphProto& graph)
+    {
+        for(auto&& f : graph.initializer())
+            instructions[f.name()] = prog.add_literal(parse_tensor(f));
+
+        for(auto&& input : graph.input())
+        {
+            const std::string& name = input.name();
+            // input not in initializer_data, so it is a real input
+            if(!contains(instructions, name))
+            {
+                std::vector<std::size_t> dims;
+                if(map_input_dims.count(name) > 0)
+                {
+                    dims = map_input_dims.at(name);
+                }
+
+                shape s            = parse_type(input.type(), dims);
+                instructions[name] = prog.add_parameter(name, s);
+            }
+        }
+
+        for(auto&& node : graph.node())
+        {
+            std::vector<instruction_ref> args;
+            for(auto&& input : node.input())
+            {
+                if(input.empty())
+                {
+                    this->parse_undefined(input);
+                }
+                if(instructions.count(input) == 0)
+                {
+                    MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
+                                   "\" is unavailable due to unordered nodes!");
+                }
+                args.push_back(instructions.at(input));
+            }
+
+            std::vector<instruction_ref> result;
+            std::size_t output_num = static_cast<std::size_t>(node.output().size());
+            if(ops.count(node.op_type()) == 0)
+            {
+                if(skip_unknown_operators)
+                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                else
+                    MIGRAPHX_THROW("Unknown operator: " + node.op_type());
+            }
+            else
+            {
+                result = ops[node.op_type()]({get_attributes(node), output_num}, args);
+            }
+
+            output_num = std::min<std::size_t>(output_num, result.size());
+            std::transform(node.output().begin(),
+                           node.output().begin() + output_num,
+                           result.begin(),
+                           std::inserter(instructions, instructions.end()),
+                           [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+        }
+
+        // Find instructions corresponding to the output
+        auto prog_output = graph.output();
+        std::vector<std::string> all_output_names;
+        std::vector<std::string> prog_output_names;
+        std::transform(prog_output.begin(),
+                       prog_output.end(),
+                       std::back_inserter(all_output_names),
+                       [](auto& node) { return node.name(); });
+        std::copy_if(
+            all_output_names.begin(),
+            all_output_names.end(),
+            std::back_inserter(prog_output_names),
+            [&](const auto& name) { return !(name.empty() or instructions.count(name) == 0); });
+
+        std::vector<instruction_ref> output_ins;
+        std::transform(prog_output_names.begin(),
+                       prog_output_names.end(),
+                       std::back_inserter(output_ins),
+                       [&](const auto& name) { return instructions[name]; });
+
+        // add the return instuction
+        prog.add_return(output_ins);
+    }
+
+    void parse_undefined(const std::string& name)
+    {
+        if(!contains(instructions, name))
+        {
+            auto ins           = prog.add_instruction(op::undefined{});
+            instructions[name] = ins;
+        }
+    }
+
+    static attribute_map get_attributes(const onnx::NodeProto& node)
+    {
+        std::unordered_map<std::string, onnx::AttributeProto> result;
+        for(auto&& attr : node.attribute())
+        {
+            result[attr.name()] = attr;
+        }
+        return result;
+    }
+
+    static shape::type_t get_type(int dtype)
+    {
+        switch(dtype)
+        {
+        case 1: return shape::float_type;
+        case 2: return shape::uint8_type;
+        case 3: return shape::int8_type;
+        case 4: return shape::uint16_type;
+        case 5: return shape::int16_type;
+        case 6: return shape::int32_type;
+        case 7: return shape::int64_type;
+        case 9: return shape::bool_type;
+        case 10: return shape::half_type;
+        case 11: return shape::double_type;
+        case 12: return shape::uint32_type;
+        case 13: return shape::uint64_type;
+        default:
+        {
+            MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+        }
+        }
+    }
+
+    template <class T>
+    static literal from_repeated(shape::type_t t, const T& r)
+    {
+        std::size_t size = r.size();
+        return literal{{t, {size}}, r.begin(), r.end()};
+    }
+
+    static literal parse_value(const onnx::AttributeProto& attr)
+    {
+        switch(attr.type())
+        {
+        case onnx::AttributeProto::FLOAT: return literal{attr.f()};
+        case onnx::AttributeProto::INT: return literal{attr.i()};
+        case onnx::AttributeProto::TENSOR: return parse_tensor(attr.t());
+        case onnx::AttributeProto::FLOATS: return from_repeated(shape::float_type, attr.floats());
+        case onnx::AttributeProto::INTS: return from_repeated(shape::int64_type, attr.ints());
+        case onnx::AttributeProto::UNDEFINED:
+        case onnx::AttributeProto::GRAPH:
+        case onnx::AttributeProto::STRING:
+        case onnx::AttributeProto::STRINGS:
+        case onnx::AttributeProto::TENSORS:
+        case onnx::AttributeProto::SPARSE_TENSOR:
+        case onnx::AttributeProto::SPARSE_TENSORS:
+        case onnx::AttributeProto::GRAPHS: return {};
+        }
+        MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
+    }
+
+    static literal parse_tensor(const onnx::TensorProto& t)
+    {
+        std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
+        if(t.has_raw_data())
+        {
+            const std::string& s = t.raw_data();
+            auto type            = get_type(t.data_type());
+            return create_literal(type, dims, s.data());
+        }
+
+        switch(t.data_type())
+        {
+        case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+        case onnx::TensorProto::INT8: return create_literal(shape::int8_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT8:
+            return create_literal(shape::uint8_type, dims, t.int32_data());
+        case onnx::TensorProto::INT16:
+            return create_literal(shape::int16_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT16:
+            return create_literal(shape::uint16_type, dims, t.int32_data());
+        case onnx::TensorProto::INT32:
+            return create_literal(shape::int32_type, dims, t.int32_data());
+        case onnx::TensorProto::UINT32:
+            return create_literal(shape::uint32_type, dims, t.uint64_data());
+        case onnx::TensorProto::INT64:
+            return create_literal(shape::int64_type, dims, t.int64_data());
+        case onnx::TensorProto::UINT64:
+            return create_literal(shape::uint64_type, dims, t.uint64_data());
+        case onnx::TensorProto::FLOAT16:
+        {
+            std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
+            std::vector<half> data_half;
+            std::transform(data_uint16.begin(),
+                           data_uint16.end(),
+                           std::back_inserter(data_half),
+                           [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
+            return create_literal(shape::half_type, dims, data_half);
+        }
+        case onnx::TensorProto::DOUBLE:
+            return create_literal(shape::double_type, dims, t.double_data());
+        case onnx::TensorProto::FLOAT:
+            return create_literal(shape::float_type, dims, t.float_data());
+        case onnx::TensorProto::UNDEFINED:
+        case onnx::TensorProto::STRING:
+        case onnx::TensorProto::COMPLEX64:
+        case onnx::TensorProto::COMPLEX128: throw std::runtime_error("");
+        }
+        MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
+    }
+
+    static literal
+    create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
+    {
+        // in case of scalar constants in onnx file, use dims=1 to fill initializer data
+        if(dims.empty())
+            return literal{{shape_type}, data};
+        return literal{{shape_type, dims}, data};
+    }
+
+    template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
+    static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
+    {
+        if(dims.empty())
+            return literal{{shape_type}, data.begin(), data.end()};
+        return literal{{shape_type, dims}, data.begin(), data.end()};
+    }
+
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
+    {
+        shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+        if(!input_dims.empty())
+        {
+            return {shape_type, input_dims};
+        }
+
+        std::vector<std::size_t> dims;
+        auto&& tensor_dims = t.tensor_type().shape().dim();
+        std::transform(tensor_dims.begin(),
+                       tensor_dims.end(),
+                       std::back_inserter(dims),
+                       [&](auto&& d) -> std::size_t {
+                           if(d.has_dim_value())
+                           {
+                               if(static_cast<int>(d.dim_value()) <= 0)
+                               {
+                                   return default_dim_value;
+                               }
+                               return d.dim_value();
+                           }
+                           else
+                           {
+                               return default_dim_value;
+                           }
+                       });
+
+        if(dims.empty())
+            return {shape_type};
+
+        return {shape_type, dims};
+    }
+
+    void check_arg_empty(const argument& arg, const std::string& msg)
+    {
+        if(arg.empty())
+        {
+            MIGRAPHX_THROW(msg);
+        }
+    }
+};
+
+template <class... Ts>
+program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l       = p.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
-    auto min_val = p.add_literal(0.0f);
-    auto max_val = p.add_literal(6.0f);
-    min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
-    max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
-    p.add_instruction(migraphx::op::clip{}, l, min_val, max_val);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.0, 0.0, 6.0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    onnx_parser parser;
+    parser.map_input_dims         = options.map_input_dims;
+    parser.default_dim_value      = options.default_dim_value;
+    parser.skip_unknown_operators = options.skip_unknown_operators;
+
+    if(options.print_program_on_error)
+    {
+        // Log the program when it can't be parsed
+        try
+        {
+            parser.parse_from(std::forward<Ts>(xs)...);
+        }
+        catch(...)
+        {
+            std::cerr << parser.prog << std::endl;
+            throw;
+        }
+    }
+    else
+    {
+        parser.parse_from(std::forward<Ts>(xs)...);
+    }
+    return std::move(parser.prog);
 }
 
-TEST_CASE(reduce_prod_axis0)
+program parse_onnx(const std::string& name, const onnx_options& options)
 {
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {4, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 3, 2, 3}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_prod{{0}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{6, 18, 12, 18};
-    EXPECT(results_vector == gold);
+    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
+    return parse_onnx_from(options, input);
 }
 
-TEST_CASE(reduce_sum_axis0)
+program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)
 {
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_sum{{0}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{15, 18, 21, 24};
-    EXPECT(results_vector == gold);
+    return parse_onnx_from(options, buffer.data(), buffer.size());
 }
 
-TEST_CASE(reduce_sum_axis1)
+program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options)
 {
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_sum{{1}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{4, 6, 12, 14, 20, 22};
-    EXPECT(results_vector == gold);
+    return parse_onnx_from(options, data, size);
 }
 
-TEST_CASE(reduce_sum_axis2)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_sum{{2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{3, 7, 11, 15, 19, 23};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_sum_axis02)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_sum{{0, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{33, 45};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_sum_axis12)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_sum{{1, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{10, 26, 42};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(rsqrt_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = p.add_literal(migraphx::literal{s, {4.0, 16.0, 64.0}});
-    p.add_instruction(migraphx::op::rsqrt{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.5, 0.25, 0.125};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(reduce_mean_axis1)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_mean{{1}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{2, 3, 6, 7, 10, 11};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_mean_axis2)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_mean{{2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1.5f, 3.5f, 5.5f, 7.5f, 9.5f, 11.5f};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_mean_axis02)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_mean{{0, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{5.5, 7.5};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_mean_axis12)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{2.5f, 6.5f, 10.5f};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_mean_int)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::int32_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_mean{{1, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<int> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<int> gold{2, 6, 10};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_min_axis1)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_min{{1}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 2, 5, 6, 9, 10};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_min_axis02)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_min{{0, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 3};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_min_axis12)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_min{{1, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{1, 5, 9};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_max_axis0)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_max{{0}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{9, 10, 11, 12};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_max_axis01)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_max{{0, 1}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{11, 12};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(reduce_max_axis02)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
-    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
-    auto l0    = p.add_literal(input);
-    p.add_instruction(migraphx::op::reduce_max{{0, 2}}, l0);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold{10, 12};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(sqdiff_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l1 = p.add_literal(migraphx::literal{s, {-1, 0, 1}});
-    auto l2 = p.add_literal(migraphx::literal{s, {1, 2, 3}});
-    p.add_instruction(migraphx::op::sqdiff{}, l1, l2);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {4, 4, 4};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(round_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
-    p.add_instruction(migraphx::op::round{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(ceil_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
-    p.add_instruction(migraphx::op::ceil{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {2.0, 2.0, 2.0, -1.0, -1.0, -1.0, 0.0, 2.0, -2.0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(floor_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.6, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    p.add_instruction(migraphx::op::floor{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0, 1.0, 0.0, -2.0, -2.0, -1.0, -0.0, 2.0, -2.0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(op_capture)
-{
-    migraphx::program p;
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
-    std::vector<float> d1(s1.elements());
-    std::vector<float> d2(s2.elements());
-    std::iota(d1.begin(), d1.end(), 0.0f);
-    std::iota(d2.begin(), d2.end(), 0.0f);
-
-    auto p1 = p.add_literal(s1, d1);
-    auto p2 = p.add_literal(s1, d1);
-    auto pb = p.add_literal(s2, d2);
-    auto pc = p.add_literal(s2, d2);
-    auto pa = p.add_instruction(migraphx::op::add{}, p1, p2);
-    auto ps = p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
-    p.add_instruction(migraphx::op::dot{}, pa, ps);
-
-    migraphx::program capture_p = p;
-    migraphx::target t          = migraphx::cpu::target{};
-    migraphx::capture_arguments(capture_p, t, {"dot"});
-
-    p.compile(migraphx::cpu::target{});
-    capture_p.compile(migraphx::cpu::target{});
-
-    auto cap_res = capture_p.eval({}).back();
-    auto res     = p.eval({}).back();
-
-    std::vector<float> vec;
-    std::vector<float> cap_vec;
-    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
-    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(vec, cap_vec));
-}
-
-TEST_CASE(recip_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::double_type, {3}};
-    std::vector<float> data{-0.5f, 0.1f, 0.5f};
-    auto l = p.add_literal(migraphx::literal{s, data});
-    p.add_instruction(migraphx::op::recip{}, l);
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-2.0f, 10.0f, 2.0f};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
-TEST_CASE(equal_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
-    auto eq = p.add_instruction(migraphx::op::equal{}, l0, l1);
-    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {true, false, false, false, true, false, true, false, false};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(equal_brcst_test)
-{
-    migraphx::program p;
-    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
-    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
-    auto eq  = p.add_instruction(migraphx::op::equal{}, l0, bl1);
-    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {true, false, false, false, true, false, true, false, false};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(greater_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
-    auto gr = p.add_instruction(migraphx::op::greater{}, l0, l1);
-    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {false, false, true, true, false, true, false, false, true};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(greater_brcst_test)
-{
-    migraphx::program p;
-    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
-    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
-    auto gr  = p.add_instruction(migraphx::op::greater{}, l0, bl1);
-    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {false, true, false, true, false, true, false, true, false};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(less_test)
-{
-    migraphx::program p;
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
-    auto le = p.add_instruction(migraphx::op::less{}, l0, l1);
-    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {false, true, false, false, false, false, false, true, false};
-    EXPECT(results_vector == gold);
-}
-
-TEST_CASE(less_brcst_test)
-{
-    migraphx::program p;
-    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
-    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
-    auto le  = p.add_instruction(migraphx::op::less{}, l0, bl1);
-    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
-    p.add_return({r});
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<bool> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {false, false, true, false, false, false, false, false, true};
-    EXPECT(results_vector == gold);
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

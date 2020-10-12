@@ -151,12 +151,13 @@ program
 
     :rtype: shape
 
-.. py:method:: compile(t, offload_copy=True)
+.. py:method:: compile(t, offload_copy=True, fast_math=True)
 
     Compiles the program for the target and optimizes it.
 
     :param target t: This is the target to compile the program for.
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
+    :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
 
 .. py:method:: run(params)
 

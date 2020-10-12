@@ -51,7 +51,13 @@ RUN pip3 install -r /doc-requirements.txt
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-RUN rbuild prepare --cxx /opt/rocm/llvm/bin/clang++ -d $PREFIX -S /
+# Manually ignore rocm dependencies
+RUN cget -p $PREFIX ignore \
+    RadeonOpenCompute/clang-ocl \
+    ROCm-Developer-Tools/HIP \
+    ROCmSoftwarePlatform/MIOpen \
+    ROCmSoftwarePlatform/MIOpenGEMM \
+    ROCmSoftwarePlatform/rocBLAS
+RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
+RUN cget -p $PREFIX install -f dev-requirements.txt
 
-# Install rocm-cmake
-RUN cget -p $PREFIX install -U RadeonOpenCompute/rocm-cmake@master

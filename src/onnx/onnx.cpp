@@ -2478,8 +2478,10 @@ struct onnx_parser
         return prog.add_literal(literal(out_s, out_data));
     }
 
-    instruction_ref
-    parse_compare_op(const std::string&, const std::string& op_name, const node_info&, std::vector<instruction_ref> args)
+    instruction_ref parse_compare_op(const std::string&,
+                                     const std::string& op_name,
+                                     const node_info&,
+                                     std::vector<instruction_ref> args)
     {
         auto l = add_broadcastable_binary_op(args[0], args[1], op_name);
         if(l->get_shape().type() != shape::bool_type)

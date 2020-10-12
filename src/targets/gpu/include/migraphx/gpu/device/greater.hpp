@@ -11,7 +11,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void greater(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
+void greater(hipStream_t stream,
+             const argument& result,
+             const argument& arg1,
+             const argument& arg2);
 
 } // namespace device
 } // namespace gpu

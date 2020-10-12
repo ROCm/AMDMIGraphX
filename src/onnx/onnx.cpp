@@ -3043,7 +3043,7 @@ TEST_CASE(greater_brcst_test)
     auto result = p.eval({}).back();
     std::vector<bool> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {false, true, false, true, false, true, false, true, false}; 
+    std::vector<bool> gold = {false, true, false, true, false, true, false, true, false};
     EXPECT(results_vector == gold);
 }
 

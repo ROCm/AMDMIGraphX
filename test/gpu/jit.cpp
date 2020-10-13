@@ -17,7 +17,7 @@ __global__ void write(int* data)
 
 migraphx::gpu::src_file make_src_file(const std::string& name, const std::string& content)
 {
-    return {name, std::make_pair(content.data(), content.data()+content.size())};
+    return {name, std::make_pair(content.data(), content.data() + content.size())};
 }
 
 std::string get_device_name()
@@ -31,7 +31,8 @@ std::string get_device_name()
 
 TEST_CASE(simple_compile_hip)
 {
-    auto binaries = migraphx::gpu::compile_hip_src({make_src_file("main.cpp", write_2s)}, "", get_device_name());
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", write_2s)}, "", get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int32_type, {5}}};

@@ -24,13 +24,9 @@ struct kernel
                 std::size_t local,
                 const std::vector<kernel_argument>& args);
 
-    auto launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local)
+    auto launch(hipStream_t stream, std::size_t global, std::size_t local)
     {
-        return [=](auto&&... xs) {
-            launch(stream, global, local, {xs...});
-        };
+        return [=](auto&&... xs) { launch(stream, global, local, {xs...}); };
     }
 
     private:

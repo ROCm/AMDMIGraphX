@@ -19,6 +19,7 @@
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/read_buffer.hpp>
 
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -53,6 +54,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     std::string filename;
+    std::string path;
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {
@@ -190,7 +192,7 @@ struct onnx_parser
         map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
     }
 
-    static operation load(const std::string& name, const node_info& info)
+    operation load(const std::string& name, const node_info& info)
     {
         auto op = make_op(name);
         auto v  = op.to_value();
@@ -2565,9 +2567,18 @@ struct onnx_parser
         return add_broadcastable_binary_op(cd, args[2], "add");
     }
 
+    void get_abs_path()
+    {
+        path = filename.substr(0, filename.find_last_of("/"));
+        if(path.empty())
+            path = ".";
+    }
+
     void parse_from(std::istream& is, std::string name = "")
     {
         this->filename = name;
+        get_abs_path();
+
         onnx::ModelProto model;
         if(model.ParseFromIstream(&is))
         {
@@ -2602,10 +2613,6 @@ struct onnx_parser
     {
         for(auto&& f : graph.initializer())
         {
-            std::string f_name = f.name();
-
-            if(not f.external_data().empty())
-                std::cout << f_name << std::endl;
             instructions[f.name()] = prog.add_literal(parse_tensor(f));
         }
 
@@ -2738,21 +2745,9 @@ struct onnx_parser
         return literal{{t, {size}}, r.begin(), r.end()};
     }
 
-    static std::vector<char> read_buffer(const std::string& filename)
-    {
-        std::ifstream is(filename, std::ios::binary | std::ios::ate);
-        std::streamsize size = is.tellg();
-        is.seekg(0, std::ios::beg);
+    
 
-        std::vector<char> buffer(size);
-        if(!is.read(buffer.data(), size))
-        {
-            MIGRAPHX_THROW("Error reading file: " + filename);
-        }
-        return buffer;
-    }
-
-    static literal parse_value(const onnx::AttributeProto& attr)
+    literal parse_value(const onnx::AttributeProto& attr)
     {
         switch(attr.type())
         {
@@ -2773,13 +2768,13 @@ struct onnx_parser
         MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
     }
 
-    static literal parse_tensor(const onnx::TensorProto& t)
+    literal parse_tensor(const onnx::TensorProto& t)
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
         if(not t.external_data().empty())
         {
-            const std::string& filename = t.external_data().at(0).value();
-            auto raw_buffer             = read_buffer(filename);
+            const std::string& data_file = t.external_data().at(0).value();
+            auto raw_buffer             = read_buffer(path + "/" + data_file);
             std::string s(raw_buffer.begin(), raw_buffer.end());
             auto type = get_type(t.data_type());
             return create_literal(type, dims, s.data());

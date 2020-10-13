@@ -130,6 +130,7 @@ add_library(migraphx_gpu
     rnn_variable_seq_lens.cpp
     sync_device.cpp
     pack_args.cpp
+    compile_hip.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 function(register_migraphx_gpu_ops PREFIX)

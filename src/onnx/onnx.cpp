@@ -1093,7 +1093,7 @@ struct onnx_parser
 
         if(!contains(nearest_ops, mode))
         {
-            MIGRAPHX_THROW("PRASE_RESIZE: nearest_mode " + mode + " not supported!");
+            MIGRAPHX_THROW("PARSE_RESIZE: nearest_mode " + mode + " not supported!");
         }
 
         return nearest_ops.at(mode);
@@ -1122,7 +1122,7 @@ struct onnx_parser
 
         if(!contains(idx_ops, mode))
         {
-            MIGRAPHX_THROW("PRASE_RESIZE: coordinate_transformation_mode " + mode +
+            MIGRAPHX_THROW("PARSE_RESIZE: coordinate_transformation_mode " + mode +
                            " not supported!");
         }
 

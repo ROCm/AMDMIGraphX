@@ -2745,8 +2745,6 @@ struct onnx_parser
         return literal{{t, {size}}, r.begin(), r.end()};
     }
 
-    
-
     literal parse_value(const onnx::AttributeProto& attr)
     {
         switch(attr.type())
@@ -2774,7 +2772,7 @@ struct onnx_parser
         if(not t.external_data().empty())
         {
             const std::string& data_file = t.external_data().at(0).value();
-            auto raw_buffer             = read_buffer(path + "/" + data_file);
+            auto raw_buffer              = read_buffer(path + "/" + data_file);
             std::string s(raw_buffer.begin(), raw_buffer.end());
             auto type = get_type(t.data_type());
             return create_literal(type, dims, s.data());

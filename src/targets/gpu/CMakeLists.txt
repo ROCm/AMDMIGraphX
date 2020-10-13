@@ -96,6 +96,7 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    analyze_streams.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp

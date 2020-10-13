@@ -155,7 +155,7 @@ operation create_op(const char* name, const char* attributes)
 
 const char* op_name(const operation& op)
 {
-    const auto name = std::make_unique<std::string>(op.name());
+    const auto name = std::make_shared<std::string>(op.name());
     return name->c_str();
 }
 

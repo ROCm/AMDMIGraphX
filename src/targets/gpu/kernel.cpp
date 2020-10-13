@@ -55,7 +55,7 @@ kernel::kernel(const std::vector<char>& image, const std::string& name)
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
                     std::size_t local,
-                    const std::vector<std::pair<std::size_t, void*>>& args)
+                    const std::vector<kernel_argument>& args)
 {
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();

@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_KERNEL_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/pack_args.hpp>
 #include <hip/hip_runtime_api.h>
 #include <memory>
 #include <string>
@@ -21,7 +22,7 @@ struct kernel
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                const std::vector<std::pair<std::size_t, void*>>& args);
+                const std::vector<kernel_argument>& args);
 
     private:
     std::shared_ptr<kernel_impl> impl;

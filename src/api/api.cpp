@@ -155,8 +155,8 @@ operation create_op(const char* name, const char* attributes)
 
 const char* op_name(const operation& op)
 {
-    const auto& name = op.name();
-    return name.c_str();
+    const auto name = std::make_unique<std::string>(op.name());
+    return name->c_str();
 }
 
 template <class T>

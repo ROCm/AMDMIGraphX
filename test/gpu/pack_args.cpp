@@ -26,7 +26,8 @@ std::size_t padding()
     return sizes<Ts...>() - packed_sizes<Ts...>();
 }
 
-struct float_struct {
+struct float_struct
+{
     float x, y;
 };
 

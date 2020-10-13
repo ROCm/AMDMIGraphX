@@ -12,9 +12,12 @@ namespace gpu {
 
 struct kernel_argument
 {
-    template<class T, class U = std::remove_reference_t<T>, MIGRAPHX_REQUIRES(not std::is_base_of<kernel_argument, T>{})>
+    template <class T,
+              class U = std::remove_reference_t<T>,
+              MIGRAPHX_REQUIRES(not std::is_base_of<kernel_argument, T>{})>
     kernel_argument(T&& x) : size(sizeof(U)), align(alignof(U)), data(&x)
-    {}
+    {
+    }
     std::size_t size;
     std::size_t align;
     void* data;

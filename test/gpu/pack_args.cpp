@@ -1,31 +1,31 @@
 #include <test.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 
-template<class T>
+template <class T>
 std::pair<std::size_t, void*> make_arg(T&& x)
 {
     return {sizeof(T), &x};
 }
 
-template<class T>
+template <class T>
 std::size_t packed_sizes()
 {
     return sizeof(T);
 }
 
-template<class T, class U, class... Ts>
+template <class T, class U, class... Ts>
 std::size_t packed_sizes()
 {
     return sizeof(T) + packed_sizes<U, Ts...>();
 }
 
-template<class... Ts>
+template <class... Ts>
 std::size_t sizes()
 {
     return migraphx::gpu::pack_args({make_arg(Ts{})...}).size();
 }
 
-template<class... Ts>
+template <class... Ts>
 std::size_t padding()
 {
     return sizes<Ts...>() - packed_sizes<Ts...>();

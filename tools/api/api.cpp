@@ -154,8 +154,6 @@ operation create_op(const char* name, const char* attributes)
     return op;
 }
 
-std::string op_name(const operation& op) { return op.name(); }
-
 template <class T>
 bool equal(const T& x, const T& y)
 {

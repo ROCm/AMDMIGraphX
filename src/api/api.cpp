@@ -154,8 +154,6 @@ operation create_op(const char* name, const char* attributes)
     return op;
 }
 
-std::string op_name(const operation& op) { return op.name(); }
-
 template <class T>
 bool equal(const T& x, const T& y)
 {
@@ -726,7 +724,7 @@ migraphx_operation_name(char* out, size_t& out_size, migraphx_operation_t operat
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
-        auto&& api_result = migraphx::op_name((operation->object));
+        auto&& api_result = (operation->object).name();
         out_size          = std::min(api_result.size(), out_size);
         std::copy_n(api_result.begin(), out_size, out);
     });

@@ -2570,13 +2570,13 @@ struct onnx_parser
     void get_abs_path()
     {
         path = ".";
-        if(contains(filename, "/"))
-            path = filename.substr(0, filename.find_last_of("/"));
+        if(contains(filename, '/'))
+            path = filename.substr(0, filename.find_last_of('/'));
     }
 
     void parse_from(std::istream& is, std::string name = "")
     {
-        this->filename = name;
+        this->filename = std::move(name);
         get_abs_path();
 
         onnx::ModelProto model;

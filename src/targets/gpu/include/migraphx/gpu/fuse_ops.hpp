@@ -12,7 +12,8 @@ namespace gpu {
 
 struct fuse_ops
 {
-    context* ctx = nullptr;
+    context* ctx   = nullptr;
+    bool fast_math = true;
     std::string name() const { return "gpu::fuse_ops"; }
     void apply(program& p) const;
 };

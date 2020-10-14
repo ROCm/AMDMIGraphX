@@ -8,6 +8,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/analyze_streams.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -130,6 +131,19 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     }
 }
 
+inline void check_gpu_streams(const migraphx::program& p)
+{
+    auto races = migraphx::gpu::analyze_streams(p);
+    for(auto&& race : races)
+    {
+        std::cout << "FAILED: " << std::endl;
+        std::cout << "Race condition detected for: ";
+        p.debug_print(race.ins);
+        std::cout << "Should happen after: ";
+        p.debug_print(race.before);
+    }
+}
+
 template <class V>
 std::vector<migraphx::argument> run_cpu(migraphx::program& p)
 {
@@ -152,6 +166,7 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
     p = v.create_program();
     auto_print pp{p, 1};
     compile_check(p, migraphx::gpu::target{}, migraphx::enabled(MIGRAPHX_TRACE_GPU_COMPILE{}));
+    check_gpu_streams(p);
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {

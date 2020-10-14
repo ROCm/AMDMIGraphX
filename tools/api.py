@@ -736,12 +736,12 @@ def string_c_wrap(p):
             p.write = ['*${name} = ${result}.c_str()']
         else:
             p.add_param(t)
-            p.add_param('size_t&', p.name + '_size')
+            p.add_param('size_t', p.name + '_size')
             p.bad_param('${name} == nullptr', 'Null pointer')
             p.cpp_write = '${type}(${name})'
             p.write = [
-                '${name}_size = std::min(${result}.size(), ${name}_size);'
-                'std::copy_n(${result}.begin(), ${name}_size, ${name})'
+                'auto it = std::copy_n(${result}.begin(), std::min(${result}.size() + 1, ${name}_size), ${name});'
+                '*it = \'\\0\''
             ]
     else:
         p.add_param(t)

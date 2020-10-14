@@ -717,7 +717,7 @@ migraphx_operation_create(migraphx_operation_t* operation, const char* name, con
 }
 
 extern "C" migraphx_status
-migraphx_operation_name(char* out, size_t& out_size, migraphx_operation_t operation)
+migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operation)
 {
     return migraphx::try_([&] {
         if(out == nullptr)
@@ -725,8 +725,8 @@ migraphx_operation_name(char* out, size_t& out_size, migraphx_operation_t operat
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = (operation->object).name();
-        out_size          = std::min(api_result.size(), out_size);
-        std::copy_n(api_result.begin(), out_size, out);
+        auto it = std::copy_n(api_result.begin(), std::min(api_result.size() + 1, out_size), out);
+        *it     = '\0';
     });
 }
 

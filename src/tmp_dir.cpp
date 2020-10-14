@@ -60,7 +60,7 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 {
     std::string cd  = "cd " + this->path.string() + "; ";
     std::string cmd = cd + exe + " " + args; // + " > /dev/null";
-    if (enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+    if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
         std::cout << cmd << std::endl;
     system_cmd(cmd);
 }

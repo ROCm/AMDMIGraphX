@@ -25,8 +25,9 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<std::vector<char>> hsacos;
-    if (not is_hcc_compiler() and not is_hip_clang_compiler())
-        MIGRAPHX_THROW("Unknown hip compiler: " + std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
+    if(not is_hcc_compiler() and not is_hip_clang_compiler())
+        MIGRAPHX_THROW("Unknown hip compiler: " +
+                       std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
     assert(not srcs.empty());
     tmp_dir td{};
     if(params.find("-std=") == std::string::npos)

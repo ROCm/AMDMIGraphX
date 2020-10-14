@@ -733,9 +733,7 @@ def string_c_wrap(p):
             p.add_param(t.add_pointer())
             p.bad_param('${name} == nullptr', 'Null pointer')
             p.cpp_write = '${type}(${name})'
-            p.write = [
-                '*${name} = ${result}.c_str()'
-            ]
+            p.write = ['*${name} = ${result}.c_str()']
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')

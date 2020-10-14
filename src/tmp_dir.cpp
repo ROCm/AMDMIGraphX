@@ -5,6 +5,7 @@
 #include <random>
 #include <thread>
 #include <sstream>
+#include <iostream>
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
@@ -13,6 +14,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SAVE_TEMP_DIR)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
 std::string random_string(std::string::size_type length)
 {
@@ -58,6 +60,8 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 {
     std::string cd  = "cd " + this->path.string() + "; ";
     std::string cmd = cd + exe + " " + args; // + " > /dev/null";
+    if (enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+        std::cout << cmd << std::endl;
     system_cmd(cmd);
 }
 

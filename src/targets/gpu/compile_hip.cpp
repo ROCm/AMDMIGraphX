@@ -2,6 +2,8 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/errors.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -23,18 +25,22 @@ std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
     std::vector<std::vector<char>> hsacos;
+    if (not is_hcc_compiler() and not is_hip_clang_compiler())
+        MIGRAPHX_THROW("Unknown hip compiler: " + std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
+    assert(not srcs.empty());
     tmp_dir td{};
+    if(params.find("-std=") == std::string::npos)
+        params += " --std=c++17";
+    params += " -fno-gpu-rdc";
+    params += " -c";
     if(is_hcc_compiler())
     {
         params += " -amdgpu-target=" + arch;
     }
     else if(is_hip_clang_compiler())
     {
-        if(params.find("-std=") == std::string::npos)
-            params += " --std=c++17";
         params += " --cuda-gpu-arch=" + arch;
         params += " --cuda-device-only";
-        params += " -c";
         params += " -O3 ";
     }
 
@@ -50,6 +56,8 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
     params += " -Wno-unused-command-line-argument -I. ";
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
+
+    td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER), params);
 
     for(auto entry : fs::directory_iterator{td.path})
     {

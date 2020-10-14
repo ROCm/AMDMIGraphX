@@ -7,11 +7,16 @@
 const std::string write_2s = R"migraphx(
 #include <hip/hip_runtime.h>
 
+extern "C" {
 __global__ void write(int* data) 
 {
     int num = hipThreadIdx_x + hipBlockDim_x * hipBlockIdx_x;
     data[num] = 2;
 }
+    
+}
+
+int main() {}
 
 )migraphx";
 

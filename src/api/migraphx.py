@@ -193,7 +193,7 @@ def operation(h):
     h.constructor('create',
                   api.params(name='const char*', attributes='const char*'),
                   fname='migraphx::create_op')
-    h.method('name', invoke='migraphx::op_name($@)', returns='std::string&')
+    h.method('name', invoke='migraphx::op_name($@)', returns='const std::vector<char>&')
 
 
 api.add_function('migraphx_load',

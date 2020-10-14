@@ -727,7 +727,7 @@ def vector_c_wrap(p):
 
 @cwrap('std::string')
 def string_c_wrap(p):
-    t = Type('const char*')
+    t = Type('char*')
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())

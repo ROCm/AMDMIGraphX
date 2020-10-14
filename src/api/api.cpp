@@ -717,14 +717,17 @@ migraphx_operation_create(migraphx_operation_t* operation, const char* name, con
     });
 }
 
-extern "C" migraphx_status migraphx_operation_name(const char** out, migraphx_operation_t operation)
+extern "C" migraphx_status
+migraphx_operation_name(const char** out, size_t* out_size, migraphx_operation_t operation)
 {
     return migraphx::try_([&] {
-        if(out == nullptr)
+        if(out == nullptr or out_size == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
-        *out = migraphx::op_name((operation->object)).c_str();
+        auto&& api_result = migraphx::op_name((operation->object));
+        *out              = api_result.data();
+        *out_size         = api_result.size();
     });
 }
 

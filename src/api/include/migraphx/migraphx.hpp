@@ -530,9 +530,10 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
     std::string name()
     {
-        const char* out;
-        call(&migraphx_operation_name, &out, this->get_handle_ptr());
-        return std::string(out);
+        const char* out_name;
+        std::size_t size;
+        call(&migraphx_operation_name, &out_name, &size, this->get_handle_ptr());
+        return std::string(out_name, out_name + size);
     }
 };
 

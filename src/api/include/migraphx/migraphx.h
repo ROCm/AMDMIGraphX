@@ -203,7 +203,8 @@ migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
                                           const char* name,
                                           const char* attributes);
 
-migraphx_status migraphx_operation_name(const char** out, migraphx_operation_t operation);
+migraphx_status
+migraphx_operation_name(const char** out, size_t* out_size, migraphx_operation_t operation);
 
 migraphx_status
 migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options* options);

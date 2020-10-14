@@ -29,7 +29,7 @@ struct scalar
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        assert(check_shapes{inputs}.has(1).only_dims(1).size() == 1);
+        check_shapes{inputs, *this}.has(1).only_dims(1).nelements(1);
         auto t = inputs.at(0).type();
         std::vector<std::size_t> strides(scalar_bcast_lens.size(), 0);
         return {t, scalar_bcast_lens, strides};

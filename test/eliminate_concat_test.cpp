@@ -65,7 +65,7 @@ struct allocate
     std::string name() const { return "allocate"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        migraphx::check_shapes{inputs}.has(0);
+        migraphx::check_shapes{inputs, *this}.has(0);
         return s;
     }
     migraphx::argument compute(migraphx::context&,
@@ -81,7 +81,7 @@ struct simple_op
     std::string name() const { return "simple_op"; }
     migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
     {
-        migraphx::check_shapes{inputs}.has(1);
+        migraphx::check_shapes{inputs, *this}.has(1);
         return inputs.at(0);
     }
     migraphx::argument compute(migraphx::context&,

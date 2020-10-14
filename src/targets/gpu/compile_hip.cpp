@@ -84,9 +84,9 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
     for(auto entry : fs::directory_iterator{td.path})
     {
-        if(not entry.is_regular_file())
-            continue;
         auto obj_path = entry.path();
+        if(not fs::is_regular_file(obj_path))
+            continue;
         if(obj_path.extension() != ".hsaco")
             continue;
         fs::path full_path = td.path / obj_path;

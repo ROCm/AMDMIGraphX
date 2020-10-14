@@ -27,7 +27,7 @@ struct load
     std::string name() const { return "load"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         return s;
     }
     argument compute(const shape&, const std::vector<argument>& args) const

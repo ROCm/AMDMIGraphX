@@ -5,6 +5,7 @@ include(RegisterOp)
 include(CheckCXXLinkerFlag)
 
 add_library(migraphx 
+    analyze_streams.cpp
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
     decompose.cpp

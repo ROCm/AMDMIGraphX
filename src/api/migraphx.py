@@ -195,7 +195,7 @@ def operation(h):
                   fname='migraphx::create_op')
     h.method('name',
              invoke='migraphx::op_name($@)',
-             returns='const std::vector<char>&')
+             returns='std::string')
 
 
 api.add_function('migraphx_load',

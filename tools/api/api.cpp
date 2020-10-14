@@ -11,6 +11,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <algorithm>
 
 namespace migraphx {
 

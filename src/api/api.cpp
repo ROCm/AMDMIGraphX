@@ -11,6 +11,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <algorithm>
 
 namespace migraphx {
 
@@ -718,16 +719,16 @@ migraphx_operation_create(migraphx_operation_t* operation, const char* name, con
 }
 
 extern "C" migraphx_status
-migraphx_operation_name(const char** out, size_t* out_size, migraphx_operation_t operation)
+migraphx_operation_name(char* out, size_t& out_size, migraphx_operation_t operation)
 {
     return migraphx::try_([&] {
-        if(out == nullptr or out_size == nullptr)
+        if(out == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = migraphx::op_name((operation->object));
-        *out              = api_result.data();
-        *out_size         = api_result.size();
+        out_size          = std::min(api_result.size(), out_size);
+        std::copy_n(api_result.begin(), out_size, out);
     });
 }
 

@@ -153,10 +153,9 @@ operation create_op(const char* name, const char* attributes)
     return op;
 }
 
-const char* op_name(const operation& op)
+std::string op_name(const operation& op)
 {
-    const auto name = std::make_shared<std::string>(op.name());
-    return name->c_str();
+    return op.name();
 }
 
 template <class T>

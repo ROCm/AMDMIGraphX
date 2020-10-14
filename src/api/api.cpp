@@ -153,11 +153,7 @@ operation create_op(const char* name, const char* attributes)
     return op;
 }
 
-const char* op_name(const operation& op)
-{
-    const auto name = std::make_shared<std::string>(op.name());
-    return name->c_str();
-}
+std::string op_name(const operation& op) { return op.name(); }
 
 template <class T>
 bool equal(const T& x, const T& y)
@@ -724,9 +720,11 @@ migraphx_operation_create(migraphx_operation_t* operation, const char* name, con
 extern "C" migraphx_status migraphx_operation_name(const char** out, migraphx_operation_t operation)
 {
     return migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
-        *out = migraphx::op_name((operation->object));
+        *out = migraphx::op_name((operation->object)).c_str();
     });
 }
 

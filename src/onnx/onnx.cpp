@@ -135,16 +135,18 @@ struct onnx_parser
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
-        add_mem_op("Equal", &onnx_parser::parse_equal);
+        add_mem_op("Equal", "equal", &onnx_parser::parse_compare_op);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("Greater", "greater", &onnx_parser::parse_compare_op);
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Less", "less", &onnx_parser::parse_compare_op);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("MatMul", "dot", &onnx_parser::parse_matmul);
@@ -2476,10 +2478,12 @@ struct onnx_parser
         return prog.add_literal(literal(out_s, out_data));
     }
 
-    instruction_ref
-    parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    instruction_ref parse_compare_op(const std::string&,
+                                     const std::string& op_name,
+                                     const node_info&,
+                                     std::vector<instruction_ref> args)
     {
-        auto l = add_broadcastable_binary_op(args[0], args[1], "equal");
+        auto l = add_broadcastable_binary_op(args[0], args[1], op_name);
         if(l->get_shape().type() != shape::bool_type)
         {
             l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);

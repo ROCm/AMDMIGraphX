@@ -84,10 +84,12 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    greater
     gru
     identity
     im2col
     leaky_relu
+    less
     load
     log
     logsoftmax

@@ -17,8 +17,8 @@ struct test_rnn_forward : verify_program<test_rnn_forward>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -32,16 +32,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto hs  = main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                      migraphx::op::rnn_direction::forward,
-                                                      clip},
-                                    seq,
-                                    w,
-                                    r,
-                                    bias,
-                                    und,
-                                    ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, lho});
 
@@ -60,8 +61,8 @@ struct test_rnn_forward10 : verify_program<test_rnn_forward10>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -75,16 +76,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto hs  = main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                      migraphx::op::rnn_direction::forward,
-                                                      clip},
-                                    seq,
-                                    w,
-                                    r,
-                                    bias,
-                                    und,
-                                    ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, lho});
 
@@ -103,8 +105,8 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -120,16 +122,17 @@ migraphx::module& main_module = p.get_main_module();
         auto sql = main_module.add_literal(migraphx::literal{s_shape, sl_data});
         auto ih  = main_module.add_parameter("ih", ih_shape);
 
-        auto hs      = main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                      migraphx::op::rnn_direction::forward,
-                                                      clip},
-                                    seq,
-                                    w,
-                                    r,
-                                    bias,
-                                    sql,
-                                    ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
         auto last_hs = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, last_hs});
 
@@ -148,8 +151,8 @@ struct test_rnn_sql_2 : verify_program<test_rnn_sql_2>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -169,16 +172,17 @@ migraphx::module& main_module = p.get_main_module();
         auto sql = main_module.add_literal(migraphx::literal{s_shape, sl_data});
         auto ih  = main_module.add_parameter("ih", ih_shape);
 
-        auto hs      = main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                      migraphx::op::rnn_direction::forward,
-                                                      clip},
-                                    seq,
-                                    w,
-                                    r,
-                                    bias,
-                                    sql,
-                                    ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
         auto last_hs = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, last_hs});
 
@@ -197,8 +201,8 @@ struct test_rnn_reverse : verify_program<test_rnn_reverse>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -213,15 +217,15 @@ migraphx::module& main_module = p.get_main_module();
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
         main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::reverse,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    und,
+                                    ih);
 
         return p;
     }
@@ -238,8 +242,8 @@ struct test_rnn_reverse2 : verify_program<test_rnn_reverse2>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -254,15 +258,15 @@ migraphx::module& main_module = p.get_main_module();
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
         main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::reverse,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    und,
+                                    ih);
 
         return p;
     }
@@ -279,8 +283,8 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -290,12 +294,12 @@ migraphx::module& main_module = p.get_main_module();
         auto r   = main_module.add_parameter("r", r_shape);
 
         main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::reverse,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r);
 
         return p;
     }
@@ -312,8 +316,8 @@ struct test_rnn_4args : verify_program<test_rnn_4args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -325,13 +329,13 @@ migraphx::module& main_module = p.get_main_module();
         auto bias = main_module.add_parameter("bias", b_shape);
 
         main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias);
+                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                      migraphx::op::rnn_direction::reverse,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias);
 
         return p;
     }
@@ -348,8 +352,8 @@ struct test_rnn_5args : verify_program<test_rnn_5args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -361,16 +365,16 @@ migraphx::module& main_module = p.get_main_module();
         auto bias = main_module.add_parameter("bias", b_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und);
+        auto output = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und);
         main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;
@@ -388,8 +392,8 @@ struct test_rnn_bidirectional : verify_program<test_rnn_bidirectional>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
@@ -403,17 +407,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto output = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;
@@ -431,31 +435,31 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
-        auto seq  = main_module.add_parameter("seq", in_shape);
-        auto w    = main_module.add_parameter("w", w_shape);
-        auto r    = main_module.add_parameter("r", r_shape);
-        auto bias = main_module.add_parameter("bias", b_shape);
-        auto ih   = main_module.add_parameter("ih", ih_shape);
-        auto und  = main_module.add_instruction(migraphx::op::undefined{});
-        auto output =
-            main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto seq    = main_module.add_parameter("seq", in_shape);
+        auto w      = main_module.add_parameter("w", w_shape);
+        auto r      = main_module.add_parameter("r", r_shape);
+        auto bias   = main_module.add_parameter("bias", b_shape);
+        auto ih     = main_module.add_parameter("ih", ih_shape);
+        auto und    = main_module.add_instruction(migraphx::op::undefined{});
+        auto output = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;
@@ -473,25 +477,25 @@ struct test_rnn_bi_3args : verify_program<test_rnn_bi_3args>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
-        auto seq = main_module.add_parameter("seq", in_shape);
-        auto w   = main_module.add_parameter("w", w_shape);
-        auto r   = main_module.add_parameter("r", r_shape);
-        auto output =
-            main_module.add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+        auto seq    = main_module.add_parameter("seq", in_shape);
+        auto w      = main_module.add_parameter("w", w_shape);
+        auto r      = main_module.add_parameter("r", r_shape);
+        auto output = main_module.add_instruction(
+            migraphx::op::rnn{hidden_size,
+                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r);
         main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;
@@ -509,8 +513,8 @@ struct test_gru_forward : verify_program<test_gru_forward>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -526,17 +530,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto hs =
-            main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({lho, hs});
 
@@ -555,8 +559,8 @@ struct test_gru_forward_3args_und : verify_program<test_gru_forward_3args_und>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -566,16 +570,17 @@ migraphx::module& main_module = p.get_main_module();
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
         auto und = main_module.add_instruction(migraphx::op::undefined{});
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          und,
-                          und,
-                          und);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und);
 
         return p;
     }
@@ -592,8 +597,8 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -611,17 +616,17 @@ migraphx::module& main_module = p.get_main_module();
         std::vector<int> sl_data{3, 2, 1};
         auto sql = main_module.add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs =
-            main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              sql,
-                              ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({lho, hs});
 
@@ -640,8 +645,8 @@ struct test_gru_forward_3args : verify_program<test_gru_forward_3args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -650,13 +655,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -673,8 +679,8 @@ struct test_gru_forward_seq1 : verify_program<test_gru_forward_seq1>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -683,13 +689,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::forward,
+                              clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -706,8 +713,8 @@ struct test_gru_forward_default_actv : verify_program<test_gru_forward_default_a
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -737,8 +744,8 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -770,8 +777,8 @@ struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -812,8 +819,8 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -829,17 +836,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto output =
-            main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::reverse,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto output = main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::reverse,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;
@@ -857,8 +864,8 @@ struct test_gru_reverse_3args : verify_program<test_gru_reverse_3args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -867,13 +874,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::reverse,
+                              clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -890,8 +898,8 @@ struct test_gru_bidirct : verify_program<test_gru_bidirct>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -907,17 +915,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        auto hs =
-            main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, lho});
 
@@ -936,8 +944,8 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -955,17 +963,17 @@ migraphx::module& main_module = p.get_main_module();
         std::vector<int> sl_data{2, 1, 3};
         auto sql = main_module.add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs =
-            main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              sql,
-                              ih);
+        auto hs = main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
         auto lho = main_module.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         main_module.add_return({hs, lho});
 
@@ -984,8 +992,8 @@ struct test_gru_bidirct_3args_und : verify_program<test_gru_bidirct_3args_und>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -995,16 +1003,17 @@ migraphx::module& main_module = p.get_main_module();
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
         auto und = main_module.add_instruction(migraphx::op::undefined{});
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          und,
-                          und,
-                          und);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und);
 
         return p;
     }
@@ -1021,8 +1030,8 @@ struct test_gru_bidirct_3args : verify_program<test_gru_bidirct_3args>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -1031,13 +1040,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -1054,8 +1064,8 @@ struct test_gru_bidirct_seq1 : verify_program<test_gru_bidirct_seq1>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -1064,13 +1074,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::gru{hidden_size,
+                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                              migraphx::op::rnn_direction::bidirectional,
+                              clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -1087,8 +1098,8 @@ struct test_gru_bidirct_default_actv : verify_program<test_gru_bidirct_default_a
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -1118,8 +1129,8 @@ struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
@@ -1136,15 +1147,15 @@ migraphx::module& main_module = p.get_main_module();
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
         main_module.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                                      {migraphx::op::sigmoid{}},
+                                                      migraphx::op::rnn_direction::bidirectional,
+                                                      clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    und,
+                                    ih);
 
         return p;
     }
@@ -1161,8 +1172,8 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1214,8 +1225,8 @@ struct test_lstm_forward_hs : verify_program<test_lstm_forward_hs>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1265,8 +1276,8 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1306,8 +1317,8 @@ struct test_lstm_forward_3args : verify_program<test_lstm_forward_3args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1341,8 +1352,8 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1378,8 +1389,8 @@ struct test_lstm_three_outputs : verify_program<test_lstm_three_outputs>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1416,8 +1427,8 @@ struct test_lstm_forward_seq1 : verify_program<test_lstm_forward_seq1>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1451,8 +1462,8 @@ struct test_lstm_forward_default_actv : verify_program<test_lstm_forward_default
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1482,8 +1493,8 @@ struct test_lstm_forward_default_actv1 : verify_program<test_lstm_forward_defaul
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1524,8 +1535,8 @@ struct test_lstm_reverse_last : verify_program<test_lstm_reverse_last>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1576,8 +1587,8 @@ struct test_lstm_reverse_3args : verify_program<test_lstm_reverse_3args>
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1611,8 +1622,8 @@ struct test_lstm_reverse_3args_cell_output : verify_program<test_lstm_reverse_3a
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1647,8 +1658,8 @@ struct test_lstm_bidirct_last : verify_program<test_lstm_bidirct_last>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1699,8 +1710,8 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1718,16 +1729,17 @@ migraphx::module& main_module = p.get_main_module();
         std::vector<int> sl_data{3, 2};
         auto sql = main_module.add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
 
-        main_module.add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          sql,
-                          ih);
+        main_module.add_instruction(
+            migraphx::op::lstm{hidden_size,
+                               {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                               migraphx::op::rnn_direction::bidirectional,
+                               clip},
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
 
         return p;
     }
@@ -1744,8 +1756,8 @@ struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1784,8 +1796,8 @@ struct test_lstm_bidirct_3args : verify_program<test_lstm_bidirct_3args>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1794,13 +1806,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::lstm{hidden_size,
+                               {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                               migraphx::op::rnn_direction::bidirectional,
+                               clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -1817,8 +1830,8 @@ struct test_lstm_bidirct_seq1 : verify_program<test_lstm_bidirct_seq1>
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1827,13 +1840,14 @@ migraphx::module& main_module = p.get_main_module();
         auto seq = main_module.add_parameter("seq", in_shape);
         auto w   = main_module.add_parameter("w", w_shape);
         auto r   = main_module.add_parameter("r", r_shape);
-        main_module.add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r);
+        main_module.add_instruction(
+            migraphx::op::lstm{hidden_size,
+                               {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                               migraphx::op::rnn_direction::bidirectional,
+                               clip},
+            seq,
+            w,
+            r);
 
         return p;
     }
@@ -1850,8 +1864,8 @@ struct test_lstm_bidirct_default_actv : verify_program<test_lstm_bidirct_default
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1881,8 +1895,8 @@ struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_defaul
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1901,15 +1915,15 @@ migraphx::module& main_module = p.get_main_module();
         auto sql = main_module.add_literal(migraphx::literal{sl_shape, sl_data});
 
         main_module.add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::sigmoid{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          sql,
-                          ih);
+                                                       {migraphx::op::sigmoid{}},
+                                                       migraphx::op::rnn_direction::bidirectional,
+                                                       clip},
+                                    seq,
+                                    w,
+                                    r,
+                                    bias,
+                                    sql,
+                                    ih);
 
         return p;
     }
@@ -1926,8 +1940,8 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
 
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -1943,16 +1957,17 @@ migraphx::module& main_module = p.get_main_module();
         auto ih   = main_module.add_parameter("ih", ih_shape);
         auto und  = main_module.add_instruction(migraphx::op::undefined{});
 
-        main_module.add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+        main_module.add_instruction(
+            migraphx::op::lstm{hidden_size,
+                               {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                               migraphx::op::rnn_direction::bidirectional,
+                               clip},
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
 
         return p;
     }

@@ -18,8 +18,8 @@ float elu(float a, float x) { return x > 0 ? x : a * std::expm1(x); }
 TEST_CASE(slice_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<int> data(2 * 2 * 3);
         std::iota(data.begin(), data.end(), 0);
         migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
@@ -37,8 +37,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(result.get_shape() == sresult);
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<int> data(2 * 2 * 3);
         std::iota(data.begin(), data.end(), 0);
         migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
@@ -60,12 +60,12 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(concat_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        int axis               = 1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        int axis                      = 1;
+        std::vector<int> data0        = {0, 1, 5, 6};
+        std::vector<int> data1        = {2, 3, 4, 7, 8, 9};
+        std::vector<int> data2        = {10, 20};
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
@@ -85,12 +85,12 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        int axis               = -1;
-        std::vector<int> data0 = {0, 1, 5, 6};
-        std::vector<int> data1 = {2, 3, 4, 7, 8, 9};
-        std::vector<int> data2 = {10, 20};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        int axis                      = -1;
+        std::vector<int> data0        = {0, 1, 5, 6};
+        std::vector<int> data1        = {2, 3, 4, 7, 8, 9};
+        std::vector<int> data2        = {10, 20};
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
@@ -110,12 +110,12 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        int axis               = 0;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        int axis                      = 0;
+        std::vector<int> data0        = {0, 1, 2, 3};
+        std::vector<int> data1        = {4, 5, 6, 7, 8, 9};
+        std::vector<int> data2        = {10, 11};
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
@@ -135,12 +135,12 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        int axis               = -2;
-        std::vector<int> data0 = {0, 1, 2, 3};
-        std::vector<int> data1 = {4, 5, 6, 7, 8, 9};
-        std::vector<int> data2 = {10, 11};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        int axis                      = -2;
+        std::vector<int> data0        = {0, 1, 2, 3};
+        std::vector<int> data1        = {4, 5, 6, 7, 8, 9};
+        std::vector<int> data2        = {10, 11};
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
@@ -163,8 +163,8 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(gather_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -184,8 +184,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -205,8 +205,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -226,8 +226,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -247,8 +247,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -269,8 +269,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3 * 3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -291,8 +291,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
 
         std::vector<float> data(3);
         std::iota(data.begin(), data.end(), 0.5);
@@ -316,8 +316,8 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(squeeze_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
@@ -328,8 +328,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(result.get_shape() == s2);
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
@@ -341,8 +341,8 @@ migraphx::module& main_module = p.get_main_module();
     }
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {4, 3, 3}};
@@ -357,8 +357,8 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(unsqueeze_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
@@ -369,8 +369,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(result.get_shape() == s2);
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
@@ -386,13 +386,13 @@ TEST_CASE(avgpool_test)
 {
     // 1D case 1, input is 3D
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"average"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {1};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto s                        = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op                       = migraphx::op::pooling{"average"};
+        op.lengths                    = {2};
+        op.padding                    = {0};
+        op.stride                     = {1};
 
         std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
         auto l0 = main_module.add_literal(migraphx::literal{s, data});
@@ -408,13 +408,13 @@ migraphx::module& main_module = p.get_main_module();
 
     // 1D case 2, stride 2
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{"average"};
-        op.lengths = {2};
-        op.padding = {1};
-        op.stride  = {2};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto s                        = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
+        auto op                       = migraphx::op::pooling{"average"};
+        op.lengths                    = {2};
+        op.padding                    = {1};
+        op.stride                     = {2};
 
         std::vector<float> data{1.6321,
                                 -2.4186,
@@ -455,8 +455,8 @@ migraphx::module& main_module = p.get_main_module();
 
     // 3D, input is 5D
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
         auto op    = migraphx::op::pooling{"average"};
         op.lengths = {2, 2, 2};
@@ -493,13 +493,13 @@ TEST_CASE(maxpool_test_1D_3D)
 {
     // 1D case 1, input is 3D
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"max"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {1};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto s                        = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op                       = migraphx::op::pooling{"max"};
+        op.lengths                    = {2};
+        op.padding                    = {0};
+        op.stride                     = {1};
 
         std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
         auto l0 = main_module.add_literal(migraphx::literal{s, data});
@@ -515,13 +515,13 @@ migraphx::module& main_module = p.get_main_module();
 
     // 1D case 2, input is 3D
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op    = migraphx::op::pooling{"max"};
-        op.lengths = {2};
-        op.padding = {0};
-        op.stride  = {2};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto s                        = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
+        auto op                       = migraphx::op::pooling{"max"};
+        op.lengths                    = {2};
+        op.padding                    = {0};
+        op.stride                     = {2};
 
         std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
                                 0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
@@ -539,14 +539,14 @@ migraphx::module& main_module = p.get_main_module();
 
     // 1D case 2, input is 3D, ceil mode
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op      = migraphx::op::pooling{"max"};
-        op.lengths   = {2};
-        op.padding   = {0};
-        op.stride    = {2};
-        op.ceil_mode = true;
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto s                        = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
+        auto op                       = migraphx::op::pooling{"max"};
+        op.lengths                    = {2};
+        op.padding                    = {0};
+        op.stride                     = {2};
+        op.ceil_mode                  = true;
 
         std::vector<float> data{0.4975, -0.1226, -0.0405, -0.2861, -0.1227, -0.6186, -0.9618,
                                 0.6022, -0.1912, 1.1925,  0.5493,  0.1692,  -0.8039, -1.0281,
@@ -575,8 +575,8 @@ migraphx::module& main_module = p.get_main_module();
 
     // 3D, input is 5D
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
         auto op    = migraphx::op::pooling{"max"};
         op.lengths = {2, 2, 2};
@@ -609,12 +609,12 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(globalavgpool_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"average"};
-    auto lens  = s.lens();
-    op.lengths = {lens[2], lens[3]};
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto s                        = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
+    auto op                       = migraphx::op::pooling{"average"};
+    auto lens                     = s.lens();
+    op.lengths                    = {lens[2], lens[3]};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = main_module.add_literal(migraphx::literal{s, data});
@@ -630,12 +630,12 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(globalmaxpool_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"max"};
-    auto lens  = s.lens();
-    op.lengths = {lens[2], lens[3]};
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto s                        = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
+    auto op                       = migraphx::op::pooling{"max"};
+    auto lens                     = s.lens();
+    op.lengths                    = {lens[2], lens[3]};
 
     std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
     auto l0 = main_module.add_literal(migraphx::literal{s, data});
@@ -662,13 +662,14 @@ TEST_CASE(im2col_3x3_no_pad_identity_test)
     std::vector<int32_t> input(channels * size[0] * size[1]);
     std::iota(input.begin(), input.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_image   = main_module.add_literal(migraphx::literal{s_image, input});
     auto l_weights = main_module.add_literal(migraphx::literal{s_weights, weights});
-    main_module.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
+    main_module.add_instruction(
+        migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -692,13 +693,14 @@ TEST_CASE(im2col_3x3_no_pad_test)
     std::vector<int32_t> input(channels * size[0] * size[1]);
     std::iota(input.begin(), input.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_image   = main_module.add_literal(migraphx::literal{s_image, input});
     auto l_weights = main_module.add_literal(migraphx::literal{s_weights, weights});
-    main_module.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
+    main_module.add_instruction(
+        migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -725,13 +727,14 @@ TEST_CASE(im2col_3x3_stride_2_no_pad_test)
     std::vector<int32_t> input(channels * size[0] * size[1]);
     std::iota(input.begin(), input.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_image   = main_module.add_literal(migraphx::literal{s_image, input});
     auto l_weights = main_module.add_literal(migraphx::literal{s_weights, weights});
-    main_module.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
+    main_module.add_instruction(
+        migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -759,13 +762,14 @@ TEST_CASE(im2col_3x3_with_padding_test)
     std::vector<int32_t> input(channels * size[0] * size[1]);
     std::iota(input.begin(), input.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_image   = main_module.add_literal(migraphx::literal{s_image, input});
     auto l_weights = main_module.add_literal(migraphx::literal{s_weights, weights});
-    main_module.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
+    main_module.add_instruction(
+        migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -781,8 +785,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(batch_norm_1d_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3, 4}};
     migraphx::shape c_shape(migraphx::shape::float_type, {3});
 
@@ -801,7 +805,8 @@ migraphx::module& main_module = p.get_main_module();
     auto mean     = main_module.add_literal(migraphx::literal{c_shape, mean_data});
     auto variance = main_module.add_literal(migraphx::literal{c_shape, variance_data});
 
-    main_module.add_instruction(migraphx::op::batch_norm_inference{1e-5}, x, scale, bias, mean, variance);
+    main_module.add_instruction(
+        migraphx::op::batch_norm_inference{1e-5}, x, scale, bias, mean, variance);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -816,8 +821,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(batch_norm_1d_per_actv_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 4}};
     migraphx::shape c_shape(migraphx::shape::float_type, {2, 4});
 
@@ -886,17 +891,17 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(batch_norm_inference_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    const size_t width       = 2;
-    const size_t height      = 2;
-    const size_t channels    = 4;
-    const size_t batches     = 2;
-    const float x_val        = 8.0;
-    const float mean_val     = 2.0;
-    const float variance_val = 4.0;
-    const float scale_val    = 2.0f;
-    const float bias_val     = 1.0f;
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    const size_t width            = 2;
+    const size_t height           = 2;
+    const size_t channels         = 4;
+    const size_t batches          = 2;
+    const float x_val             = 8.0;
+    const float mean_val          = 2.0;
+    const float variance_val      = 4.0;
+    const float scale_val         = 2.0f;
+    const float bias_val          = 1.0f;
     const float output_val = scale_val * (x_val - mean_val) / (std::sqrt(variance_val)) + bias_val;
 
     migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
@@ -919,7 +924,8 @@ migraphx::module& main_module = p.get_main_module();
     auto mean     = main_module.add_literal(migraphx::literal{vars, mean_data});
     auto variance = main_module.add_literal(migraphx::literal{vars, variance_data});
 
-    main_module.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+    main_module.add_instruction(
+        migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -933,8 +939,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(batch_norm_3d_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2, 2, 2}};
     migraphx::shape c_shape(migraphx::shape::float_type, {2});
 
@@ -954,7 +960,8 @@ migraphx::module& main_module = p.get_main_module();
     auto mean     = main_module.add_literal(migraphx::literal{c_shape, mean_data});
     auto variance = main_module.add_literal(migraphx::literal{c_shape, variance_data});
 
-    main_module.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+    main_module.add_instruction(
+        migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
     std::vector<float> result_vector;
@@ -980,13 +987,14 @@ TEST_CASE(im2col_3x3_with_channels_identity_test)
     std::vector<int32_t> input(channels * size[0] * size[1]);
     std::iota(input.begin(), input.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s_image{migraphx::shape::int32_type, {1, channels, size[0], size[1]}};
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_image   = main_module.add_literal(migraphx::literal{s_image, input});
     auto l_weights = main_module.add_literal(migraphx::literal{s_weights, weights});
-    main_module.add_instruction(migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
+    main_module.add_instruction(
+        migraphx::op::im2col{padding, stride, dilation}, l_image, l_weights);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
 
@@ -999,8 +1007,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(exp_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     main_module.add_instruction(migraphx::op::exp{}, l);
@@ -1014,11 +1022,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(erf_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {4}};
-    auto l =
-        main_module.add_literal(migraphx::literal{s, {0.73785057, 1.58165966, -0.43597795, -0.01677432}});
+    auto l = main_module.add_literal(
+        migraphx::literal{s, {0.73785057, 1.58165966, -0.43597795, -0.01677432}});
     main_module.add_instruction(migraphx::op::erf{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
@@ -1030,8 +1038,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sqrt_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {5}};
     auto l = main_module.add_literal(
         migraphx::literal{s, {1.02481645, 0.85643062, 0.03404123, 0.92791926, 0.10569184}});
@@ -1046,8 +1054,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sign_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {5}};
     auto l = main_module.add_literal(
         migraphx::literal{s, {1.02481645, 0.85643062, -0.03404123, -0.92791926, 0.0}});
@@ -1062,8 +1070,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(log_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
     main_module.add_instruction(migraphx::op::log{}, l);
@@ -1077,8 +1085,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(prelu_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto x     = main_module.add_literal(migraphx::literal{s, {-1, 0, 2}});
     auto slope = main_module.add_literal(migraphx::literal{s, {2, 1, 2}});
@@ -1093,8 +1101,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(pow_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto b = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
     auto e = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
@@ -1109,8 +1117,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sin_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     main_module.add_instruction(migraphx::op::sin{}, l);
@@ -1124,8 +1132,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(cos_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     main_module.add_instruction(migraphx::op::cos{}, l);
@@ -1139,8 +1147,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(tan_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     main_module.add_instruction(migraphx::op::tan{}, l);
@@ -1154,8 +1162,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(asin_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     std::vector<float> data{-0.5f, 0.0f, 0.9f};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -1170,8 +1178,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(acos_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {3}};
     std::vector<float> data{-0.8f, 0.0f, 1.0f};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -1186,8 +1194,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(atan_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     main_module.add_instruction(migraphx::op::atan{}, l);
@@ -1201,8 +1209,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(asinh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     std::vector<float> data{-0.5f, 0.0f, 0.9f};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -1217,8 +1225,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(acosh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {3}};
     std::vector<float> data{1.1f, 1.2f, 2.0f};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -1233,8 +1241,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(atanh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {0.4435683, 0.6223626, 0.316958}});
     main_module.add_instruction(migraphx::op::atanh{}, l);
@@ -1248,8 +1256,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(add_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l1 = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     auto l2 = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
@@ -1264,8 +1272,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(broadcast_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape a_shape{migraphx::shape::int32_type, {2, 2}};
     std::vector<int32_t> a_data{0, 0, 0, 0};
     migraphx::shape b_shape{migraphx::shape::int32_type, {2}};
@@ -1285,8 +1293,8 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(add_broadcast_test)
 {
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3}};
         std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 2}};
@@ -1294,7 +1302,8 @@ migraphx::module& main_module = p.get_main_module();
         uint64_t axis = 0;
         auto l1       = main_module.add_literal(migraphx::literal{a_shape, a_data});
         auto l2       = main_module.add_literal(migraphx::literal{b_shape, b_data});
-        auto l3 = main_module.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
+        auto l3 =
+            main_module.add_instruction(migraphx::op::broadcast{axis, l1->get_shape().lens()}, l2);
         main_module.add_instruction(migraphx::op::add{}, l1, l3);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({}).back();
@@ -1305,8 +1314,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3}};
         std::vector<float> a_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 2, 1}};
@@ -1328,8 +1337,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sub_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l1 = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     auto l2 = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
@@ -1344,8 +1353,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(mul_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l1 = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     auto l2 = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
@@ -1360,8 +1369,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(div_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l1 = main_module.add_literal(migraphx::literal{s, {-1.0f, 0.5f, 1.0f}});
     auto l2 = main_module.add_literal(migraphx::literal{s, {1.0f, 2.0f, 4.0f}});
@@ -1376,8 +1385,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(relu_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
     main_module.add_instruction(migraphx::op::relu{}, l);
@@ -1391,8 +1400,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(leaky_relu_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
     main_module.add_instruction(migraphx::op::leaky_relu{0.01}, l);
@@ -1406,8 +1415,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(lrn_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {1, 5, 1, 1}};
     auto l = main_module.add_literal(migraphx::literal{s, {-2.0f, 1.0f, 0.f, 1.0f, 2.0f}});
     main_module.add_instruction(migraphx::op::lrn{0.0001, 0.75, 1, 5}, l);
@@ -1421,24 +1430,24 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(imagescaler_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 2, 2}};
     auto img           = main_module.add_literal(migraphx::literal{s,
-                                               {0.2,
-                                                0.3,
-                                                0.5,
-                                                0.4,
+                                                         {0.2,
+                                                          0.3,
+                                                          0.5,
+                                                          0.4,
 
-                                                0.7,
-                                                0.8,
-                                                0.1,
-                                                0.9,
+                                                          0.7,
+                                                          0.8,
+                                                          0.1,
+                                                          0.9,
 
-                                                0.15,
-                                                0.25,
-                                                0.35,
-                                                0.45}});
+                                                          0.15,
+                                                          0.25,
+                                                          0.35,
+                                                          0.45}});
     auto scale_val     = main_module.add_literal(2.f);
     auto scaled_tensor = main_module.add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
     auto img_scaled    = main_module.add_instruction(migraphx::op::mul{}, img, scaled_tensor);
@@ -1473,8 +1482,8 @@ TEST_CASE(reshape_test)
     std::vector<float> data(24);
     std::iota(data.begin(), data.end(), -3);
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module  = p.get_main_module();
         auto l                         = main_module.add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {8, 3, 1, 1};
         main_module.add_instruction(migraphx::op::reshape{new_shape}, l);
@@ -1485,8 +1494,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(migraphx::verify_range(results_vector, data));
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module  = p.get_main_module();
         auto l                         = main_module.add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
         main_module.add_instruction(migraphx::op::reshape{new_shape}, l);
@@ -1497,8 +1506,8 @@ migraphx::module& main_module = p.get_main_module();
         EXPECT(migraphx::verify_range(results_vector, data));
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module  = p.get_main_module();
         auto l                         = main_module.add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
         main_module.add_instruction(migraphx::op::reshape{new_shape}, l);
@@ -1512,9 +1521,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(maxpool_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         -2.1314404,  -1.63041711, 1.54562736,  1.04625261,  -1.42931843, -0.48703974, 0.4065806,
         -0.1524526,  1.30775225,  0.45538983,  -0.06631992, -1.75332725, 1.33493888,  0.47327688,
         0.36873096,  1.18358743,  -0.34640595, 1.22098756,  0.01946825,  -0.20238149, 0.43348005,
@@ -1564,10 +1573,10 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(softmax_simple_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {0.25, 0.75};
-    std::vector<float> s = {0.377541, 0.622459};
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {0.25, 0.75};
+    std::vector<float> s          = {0.377541, 0.622459};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2}};
     auto al = main_module.add_literal(migraphx::literal{a_shape, a});
     main_module.add_instruction(migraphx::op::softmax{1}, al);
@@ -1580,9 +1589,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(softmax_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         -5.61869681e-01, 9.07827199e-01,  1.29255986e+00,  3.18533443e-02,  -1.22183852e-03,
         -2.83830553e-01, -1.03245842e+00, -9.28322077e-01, -8.82696748e-01, 1.11327164e-01,
         -9.20038462e-01, 8.47388089e-01,  2.51734018e-01,  1.50563884e+00,  2.23056650e+00,
@@ -1640,9 +1649,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(logsoftmax_test_axis_0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
         -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
         -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
@@ -1674,9 +1683,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(logsoftmax_test_axis_1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
         -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
         -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
@@ -1708,9 +1717,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(logsoftmax_test_axis_2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
         -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
         -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
@@ -1742,9 +1751,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(logsoftmax_test_axis_3)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         1.93885877,  -1.20006269, 0.90960855,  0.42108916,  -1.50797544, -1.31047913, 1.07816336,
         -1.13288733, -0.86411064, 0.97800238,  0.76631385,  2.07962834,  -0.8940665,  -1.62855592,
         -0.53763057, -1.48165117, -0.64154112, 0.42486547,  0.89330917,  -2.42022666, 0.192611,
@@ -1776,8 +1785,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmax_test_0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1795,8 +1804,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmax_test_1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1814,8 +1823,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmax_test_neg_2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1833,8 +1842,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmax_test_2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1852,8 +1861,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmin_test_0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1871,8 +1880,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmin_test_1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1890,8 +1899,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmin_test_2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1909,8 +1918,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(argmin_test_neg_1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
                                -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
@@ -1928,8 +1937,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(neg_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {1.0f, 1.3f, -1.2f, 0.0f, -100.f, 200.f};
     auto input              = main_module.add_literal(migraphx::literal(s, data));
@@ -1946,9 +1955,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(conv2d_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
         0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
@@ -2010,9 +2019,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(conv3d_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
         0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
@@ -2074,9 +2083,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(conv2d_padding_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
         0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
@@ -2131,9 +2140,9 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(conv2d_padding_stride_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    std::vector<float> a = {
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    std::vector<float> a          = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
         0.02345525,  -0.33579525, 0.38901961,  1.05473483,  -1.31188095, 1.8963089,   -0.07265259,
@@ -2193,8 +2202,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(quant_conv2d_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
     std::vector<int8_t> a(2 * 3 * 4 * 4);
     std::iota(a.begin(), a.end(), 0);
@@ -2233,8 +2242,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(quant_conv2d_padding_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
     std::vector<int8_t> a(2 * 3 * 4 * 4);
     std::iota(a.begin(), a.end(), 0);
@@ -2260,8 +2269,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(quant_conv2d_padding_stride_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
     std::vector<int8_t> a(2 * 3 * 4 * 4);
     std::iota(a.begin(), a.end(), 0);
@@ -2304,10 +2313,10 @@ TEST_CASE(deconv_test)
     std::vector<float> gold{0,  1,  3, 3,  2,  3,  8,  15, 12, 7,  9,  21, 36,
                             27, 15, 9, 20, 33, 24, 13, 6,  13, 21, 15, 8};
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto x = main_module.add_literal(migraphx::literal{s, x_data});
-    auto w = main_module.add_literal(migraphx::literal{s, w_data});
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto x                        = main_module.add_literal(migraphx::literal{s, x_data});
+    auto w                        = main_module.add_literal(migraphx::literal{s, w_data});
 
     main_module.add_instruction(migraphx::op::deconvolution{}, x, w);
     p.compile(migraphx::cpu::target{});
@@ -2326,10 +2335,10 @@ TEST_CASE(deconv_1d_test)
 
     std::vector<float> gold{0, 0.25, 0.75, 0.75, 0.5};
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto x = main_module.add_literal(migraphx::literal{s, x_data});
-    auto w = main_module.add_literal(migraphx::literal{s, w_data});
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto x                        = main_module.add_literal(migraphx::literal{s, x_data});
+    auto w                        = main_module.add_literal(migraphx::literal{s, w_data});
 
     main_module.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, x, w);
     p.compile(migraphx::cpu::target{});
@@ -2371,10 +2380,10 @@ TEST_CASE(deconv_3d_test)
                             4.6707,  2.9332,  -3.7001, -2.6808, -1.2476, 3.2475,  -0.4578, 4.0263,
                             -1.8267, 0.2243,  -2.3299, -0.1411, -0.4991};
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto x = main_module.add_literal(migraphx::literal{s_1, x_data});
-    auto w = main_module.add_literal(migraphx::literal{s_2, w_data});
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto x                        = main_module.add_literal(migraphx::literal{s_1, x_data});
+    auto w                        = main_module.add_literal(migraphx::literal{s_2, w_data});
 
     main_module.add_instruction(migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, x, w);
     p.compile(migraphx::cpu::target{});
@@ -2392,10 +2401,10 @@ TEST_CASE(transpose_test)
     std::iota(data.begin(), data.end(), 0);
 
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto l                    = main_module.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> perm = {0, 3, 1, 2};
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto l                        = main_module.add_literal(migraphx::literal{a_shape, data});
+        std::vector<int64_t> perm     = {0, 3, 1, 2};
         main_module.add_instruction(migraphx::op::transpose{perm}, l);
         p.compile(migraphx::cpu::target{});
         auto result = p.eval({}).back();
@@ -2406,11 +2415,11 @@ migraphx::module& main_module = p.get_main_module();
         });
     }
     {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-        auto l                    = main_module.add_literal(migraphx::literal{a_shape, data});
-        std::vector<int64_t> perm = {0, 3, 1, 2};
-        auto result               = main_module.add_instruction(migraphx::op::transpose{perm}, l);
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
+        auto l                        = main_module.add_literal(migraphx::literal{a_shape, data});
+        std::vector<int64_t> perm     = {0, 3, 1, 2};
+        auto result = main_module.add_instruction(migraphx::op::transpose{perm}, l);
         main_module.add_instruction(migraphx::op::contiguous{}, result);
         p.compile(migraphx::cpu::target{});
         auto result2 = p.eval({}).back();
@@ -2428,9 +2437,9 @@ TEST_CASE(contiguous_test)
     std::vector<float> data(12);
     std::iota(data.begin(), data.end(), 0);
 
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
-    auto l = main_module.add_literal(migraphx::literal{a_shape, data});
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
+    auto l                        = main_module.add_literal(migraphx::literal{a_shape, data});
     main_module.add_instruction(migraphx::op::contiguous{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
@@ -2444,8 +2453,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(identity_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     std::vector<int> data{1, 2, 3, 4};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -2459,8 +2468,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(abs_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
     main_module.add_instruction(migraphx::op::abs{}, l);
@@ -2474,8 +2483,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sigmoid_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1, 2, -3, 4}});
     main_module.add_instruction(migraphx::op::sigmoid{}, l);
@@ -2489,8 +2498,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sinh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
     main_module.add_instruction(migraphx::op::sinh{}, l);
@@ -2504,8 +2513,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(cosh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
     main_module.add_instruction(migraphx::op::cosh{}, l);
@@ -2519,8 +2528,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(tanh_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l = main_module.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
     main_module.add_instruction(migraphx::op::tanh{}, l);
@@ -2534,8 +2543,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(elu_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l      = main_module.add_literal(migraphx::literal{s, {-1.0, 2.0, -3.0, 4.0}});
     float alpha = 0.5;
@@ -2550,8 +2559,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(max_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l0       = main_module.add_literal(migraphx::literal{s, {1, 4, 3}});
     auto l1       = main_module.add_literal(migraphx::literal{s, {2, 8, 6}});
@@ -2568,8 +2577,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(min_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l0       = main_module.add_literal(migraphx::literal{s, {1, 4, 3}});
     auto l1       = main_module.add_literal(migraphx::literal{s, {2, 8, 6}});
@@ -2586,8 +2595,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(pad_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     auto l0 = main_module.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
     main_module.add_instruction(migraphx::op::pad{{1, 1, 1, 1}}, l0);
@@ -2601,11 +2610,12 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(pad_test_lowest_half)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::half_type, {2, 2}};
     auto l0 = main_module.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    main_module.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::lowest()}, l0);
+    main_module.add_instruction(
+        migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::lowest()}, l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(16);
@@ -2617,11 +2627,12 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(pad_test_highest_half)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::half_type, {2, 2}};
     auto l0 = main_module.add_literal(migraphx::literal{s, {1, 2, 3, 4}});
-    main_module.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::max()}, l0);
+    main_module.add_instruction(migraphx::op::pad{{1, 1, 1, 1}, std::numeric_limits<float>::max()},
+                                l0);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(16);
@@ -2633,8 +2644,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(fp16_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::half_type, {1}};
     migraphx::half a{1.5};
     migraphx::half b{2.5};
@@ -2653,8 +2664,8 @@ migraphx::module& main_module = p.get_main_module();
 TEST_CASE(fp32_fp16_test)
 {
     auto create_program = [] {
-        migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+        migraphx::program p;
+        migraphx::module& main_module = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         std::vector<float> data(2 * 3);
         std::iota(data.begin(), data.end(), 1.0f);
@@ -2681,8 +2692,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(clip_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l       = main_module.add_literal(migraphx::literal{s, {-1.0, 0.0, 10.0}});
     auto min_val = main_module.add_literal(0.0f);
@@ -2700,8 +2711,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_prod_axis0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {4, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 3, 2, 3}};
     auto l0    = main_module.add_literal(input);
@@ -2716,8 +2727,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_sum_axis0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2732,8 +2743,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_sum_axis1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2748,8 +2759,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_sum_axis2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2764,8 +2775,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_sum_axis02)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2780,8 +2791,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_sum_axis12)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2796,8 +2807,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(rsqrt_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l = main_module.add_literal(migraphx::literal{s, {4.0, 16.0, 64.0}});
     main_module.add_instruction(migraphx::op::rsqrt{}, l);
@@ -2811,8 +2822,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_mean_axis1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2827,8 +2838,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_mean_axis2)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2843,8 +2854,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_mean_axis02)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2859,8 +2870,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_mean_axis12)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2875,8 +2886,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_mean_int)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2891,8 +2902,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_min_axis1)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2907,8 +2918,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_min_axis02)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2923,8 +2934,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_min_axis12)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2939,8 +2950,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_max_axis0)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2955,8 +2966,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_max_axis01)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2971,8 +2982,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(reduce_max_axis02)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}};
     auto l0    = main_module.add_literal(input);
@@ -2987,8 +2998,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(sqdiff_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3}};
     auto l1 = main_module.add_literal(migraphx::literal{s, {-1, 0, 1}});
     auto l2 = main_module.add_literal(migraphx::literal{s, {1, 2, 3}});
@@ -3003,10 +3014,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(round_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
+    auto l = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
     main_module.add_instruction(migraphx::op::round{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
@@ -3018,10 +3030,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(ceil_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
+    auto l = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
     main_module.add_instruction(migraphx::op::ceil{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
@@ -3033,10 +3046,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(floor_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l = main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 0.6, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 0.6, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     main_module.add_instruction(migraphx::op::floor{}, l);
     p.compile(migraphx::cpu::target{});
     auto result = p.eval({}).back();
@@ -3048,8 +3062,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(op_capture)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
     std::vector<float> d1(s1.elements());
@@ -3065,7 +3079,7 @@ migraphx::module& main_module = p.get_main_module();
     auto ps = main_module.add_instruction(migraphx::op::dot{}, pa, pb, pc);
     main_module.add_instruction(migraphx::op::dot{}, pa, ps);
 
-    migraphx::program capture_p = p; 
+    migraphx::program capture_p = p;
     migraphx::target t          = migraphx::cpu::target{};
     migraphx::capture_arguments(capture_p, t, {"dot"});
 
@@ -3085,8 +3099,8 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(recip_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::double_type, {3}};
     std::vector<float> data{-0.5f, 0.1f, 0.5f};
     auto l = main_module.add_literal(migraphx::literal{s, data});
@@ -3101,13 +3115,13 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(equal_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
     auto eq = main_module.add_instruction(migraphx::op::equal{}, l0, l1);
     auto r  = main_module.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, eq);
     main_module.add_return({r});
@@ -3122,11 +3136,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(equal_brcst_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1  = main_module.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 = main_module.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
@@ -3144,13 +3158,13 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(greater_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
     auto gr = main_module.add_instruction(migraphx::op::greater{}, l0, l1);
     auto r  = main_module.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
     main_module.add_return({r});
@@ -3165,11 +3179,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(greater_brcst_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1  = main_module.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 = main_module.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
@@ -3187,13 +3201,13 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(less_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
-    auto l1 =
-        main_module.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 = main_module.add_literal(
+        migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
     auto le = main_module.add_instruction(migraphx::op::less{}, l0, l1);
     auto r  = main_module.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
     main_module.add_return({r});
@@ -3208,11 +3222,11 @@ migraphx::module& main_module = p.get_main_module();
 
 TEST_CASE(less_brcst_test)
 {
-    migraphx::program p; 
-migraphx::module& main_module = p.get_main_module();
+    migraphx::program p;
+    migraphx::module& main_module = p.get_main_module();
     migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-    auto l0 =
-        main_module.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l0 = main_module.add_literal(
+        migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1  = main_module.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 = main_module.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);

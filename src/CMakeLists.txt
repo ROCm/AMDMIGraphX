@@ -15,6 +15,7 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
+    file_buffer.cpp
     rewrite_batchnorm.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
@@ -26,7 +27,6 @@ add_library(migraphx
     msgpack.cpp
     program.cpp
     quantization.cpp
-    read_buffer.cpp
     reduce_dims.cpp
     remap.cpp
     shape.cpp

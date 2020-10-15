@@ -19,7 +19,7 @@
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
-#include <migraphx/read_buffer.hpp>
+#include <migraphx/file_buffer.hpp>
 
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -2766,7 +2766,7 @@ struct onnx_parser
         MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
     }
 
-    literal parse_tensor(const onnx::TensorProto& t)
+    literal parse_tensor(const onnx::TensorProto& t) const
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
         if(not t.external_data().empty())

@@ -1,21 +1,11 @@
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/msgpack.hpp>
-#include <migraphx/read_buffer.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <fstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-void write_buffer(const std::string& filename, const char* buffer, std::size_t size)
-{
-    std::ofstream os(filename);
-    os.write(buffer, size);
-}
-void write_buffer(const std::string& filename, const std::vector<char>& buffer)
-{
-    write_buffer(filename, buffer.data(), buffer.size());
-}
 
 program load(const std::string& filename, const file_options& options)
 {

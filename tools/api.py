@@ -740,7 +740,7 @@ def string_c_wrap(p):
             p.bad_param('${name} == nullptr', 'Null pointer')
             p.cpp_write = '${type}(${name})'
             p.write = [
-                'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size() + 1, ${name}_size), ${name});'
+                'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
                 '*it = \'\\0\''
             ]
     else:

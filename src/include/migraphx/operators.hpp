@@ -35,10 +35,12 @@
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
 #include <migraphx/op/gather.hpp>
+#include <migraphx/op/greater.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
+#include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
 #include <migraphx/op/logsoftmax.hpp>

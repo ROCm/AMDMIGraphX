@@ -1028,6 +1028,38 @@ TEST_CASE(globalmaxpool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(greater_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    auto input1 = p.add_literal(migraphx::literal(s, data));
+    auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto gr     = p.add_instruction(migraphx::op::greater{}, input1, input2);
+    auto ret    = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("greater_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(greater_bool_test)
+{
+    migraphx::program p;
+    migraphx::shape sf{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape sb{migraphx::shape::bool_type, {2, 3}};
+
+    auto input1 = p.add_parameter("x1", sf);
+    auto input2 = p.add_parameter("x2", sb);
+    auto cin1   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, input1);
+    auto ret    = p.add_instruction(migraphx::op::greater{}, cin1, input2);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("greater_bool_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(group_conv_test)
 {
     migraphx::program p;
@@ -1188,6 +1220,38 @@ TEST_CASE(leaky_relu_test)
 
     auto prog = optimize_onnx("leaky_relu_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(less_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+
+    auto input1 = p.add_literal(migraphx::literal(s, data));
+    auto input2 = p.add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {2, 3}});
+    auto le     = p.add_instruction(migraphx::op::less{}, input1, input2);
+    auto ret    = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("less_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(less_bool_test)
+{
+    migraphx::program p;
+    migraphx::shape sf{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape sb{migraphx::shape::bool_type, {2, 3}};
+
+    auto input1 = p.add_parameter("x1", sf);
+    auto input2 = p.add_parameter("x2", sb);
+    auto cin1   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, input1);
+    auto ret    = p.add_instruction(migraphx::op::less{}, cin1, input2);
+    p.add_return({ret});
+
+    auto prog = migraphx::parse_onnx("less_bool_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -2185,6 +2249,28 @@ TEST_CASE(unknown_aten_test)
 TEST_CASE(unknown_test_throw)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+}
+
+TEST_CASE(upsample_test)
+{
+    migraphx::program p;
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    p.add_literal(migraphx::literal(ss, {1.0f, 1.0f, 2.0f, 3.0f}));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto ix = p.add_parameter("X", sx);
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+
+    auto li  = p.add_literal(migraphx::literal(si, ind));
+    auto rsp = p.add_instruction(migraphx::op::reshape{{4}}, ix);
+    auto r   = p.add_instruction(migraphx::op::gather{0}, rsp, li);
+    p.add_return({r});
+
+    auto prog = migraphx::parse_onnx("upsample_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(unknown_test_throw_print_error)

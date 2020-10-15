@@ -3006,4 +3006,86 @@ TEST_CASE(equal_brcst_test)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(greater_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto gr = p.add_instruction(migraphx::op::greater{}, l0, l1);
+    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {false, false, true, true, false, true, false, false, true};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(greater_brcst_test)
+{
+    migraphx::program p;
+    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
+    auto gr  = p.add_instruction(migraphx::op::greater{}, l0, bl1);
+    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, gr);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {false, true, false, true, false, true, false, true, false};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(less_test)
+{
+    migraphx::program p;
+    migraphx::shape s{migraphx::shape::float_type, {9}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    auto l1 =
+        p.add_literal(migraphx::literal{s, {1.1, 1.6, -0.1, -1.2, -1.5, -0.7, 0.0, 2.3, -2.1}});
+    auto le = p.add_instruction(migraphx::op::less{}, l0, l1);
+    auto r  = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {false, true, false, false, false, false, false, true, false};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(less_brcst_test)
+{
+    migraphx::program p;
+    migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+    auto l0 =
+        p.add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
+    migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+    auto l1  = p.add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto bl1 = p.add_instruction(migraphx::op::multibroadcast{{3, 3}}, l1);
+    auto le  = p.add_instruction(migraphx::op::less{}, l0, bl1);
+    auto r   = p.add_instruction(migraphx::op::convert{migraphx::shape::bool_type}, le);
+    p.add_return({r});
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<bool> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<bool> gold = {false, false, true, false, false, false, false, false, true};
+    EXPECT(results_vector == gold);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

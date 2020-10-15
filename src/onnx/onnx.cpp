@@ -135,16 +135,18 @@ struct onnx_parser
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
         add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
-        add_mem_op("Equal", &onnx_parser::parse_equal);
+        add_mem_op("Equal", "equal", &onnx_parser::parse_compare_op);
         add_mem_op("Expand", &onnx_parser::parse_expand);
         add_mem_op("GatherElements", &onnx_parser::parse_gather_elements);
         add_mem_op("Gemm", &onnx_parser::parse_gemm);
         add_mem_op("GlobalAveragePool", &onnx_parser::parse_pooling);
         add_mem_op("GlobalMaxPool", &onnx_parser::parse_pooling);
+        add_mem_op("Greater", "greater", &onnx_parser::parse_compare_op);
         add_mem_op("GRU", &onnx_parser::parse_gru);
         add_mem_op("ImageScaler", &onnx_parser::parse_imagescaler);
         add_mem_op("InstanceNormalization", &onnx_parser::parse_instancenorm);
         add_mem_op("LeakyRelu", &onnx_parser::parse_leaky_relu);
+        add_mem_op("Less", "less", &onnx_parser::parse_compare_op);
         add_mem_op("LRN", &onnx_parser::parse_lrn);
         add_mem_op("LSTM", &onnx_parser::parse_lstm);
         add_mem_op("MatMul", "dot", &onnx_parser::parse_matmul);
@@ -172,6 +174,7 @@ struct onnx_parser
         add_mem_op("Split", &onnx_parser::parse_split);
         add_mem_op("Tile", &onnx_parser::parse_tile);
         add_mem_op("Transpose", &onnx_parser::parse_transpose);
+        add_mem_op("Upsample", &onnx_parser::parse_upsample);
         add_mem_op("Where", &onnx_parser::parse_where);
 
         // init the activation function map
@@ -2475,15 +2478,82 @@ struct onnx_parser
         return prog.add_literal(literal(out_s, out_data));
     }
 
-    instruction_ref
-    parse_equal(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    instruction_ref parse_compare_op(const std::string&,
+                                     const std::string& op_name,
+                                     const node_info&,
+                                     std::vector<instruction_ref> args)
     {
-        auto l = add_broadcastable_binary_op(args[0], args[1], "equal");
+        auto l = add_broadcastable_binary_op(args[0], args[1], op_name);
         if(l->get_shape().type() != shape::bool_type)
         {
             l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
         }
         return l;
+    }
+
+    instruction_ref
+    parse_upsample(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {
+        if(contains(info.attributes, "mode"))
+        {
+            auto mode = info.attributes.at("mode").s();
+            if(mode != "nearest")
+            {
+                MIGRAPHX_THROW("PARSE_UPSAMPLE: only nearest mode is supported!");
+            }
+        }
+
+        auto arg_scale = args[1]->eval();
+        check_arg_empty(arg_scale, "PARSE_UPSAMPLE: only constant scale is supported!");
+        std::vector<float> vec_scale;
+        arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+
+        auto in_s    = args[0]->get_shape();
+        auto in_lens = in_s.lens();
+        if(in_lens.size() != vec_scale.size())
+        {
+            MIGRAPHX_THROW("PARSE_UPSAMPLE: ranks of input and scale are different!");
+        }
+
+        std::vector<std::size_t> out_lens(in_lens.size());
+        std::transform(in_lens.begin(),
+                       in_lens.end(),
+                       vec_scale.begin(),
+                       out_lens.begin(),
+                       [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+
+        std::vector<float> idx_scale(in_lens.size());
+        std::transform(
+            out_lens.begin(),
+            out_lens.end(),
+            in_lens.begin(),
+            idx_scale.begin(),
+            [](auto od, auto id) { return (od == id) ? 1.0f : (id - 1.0f) / (od - 1.0f); });
+
+        shape out_s{in_s.type(), out_lens};
+        std::vector<int> ind(out_s.elements());
+
+        // map out_idx to in_idx
+        shape_for_each(out_s, [&](auto idx) {
+            auto in_idx = idx;
+            std::transform(idx.begin(),
+                           idx.end(),
+                           idx_scale.begin(),
+                           in_idx.begin(),
+                           // nearest mode
+                           [](auto index, auto scale) {
+                               return static_cast<std::size_t>(std::round(index * scale));
+                           });
+
+            ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
+        });
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        shape ind_s{shape::int32_type, out_lens};
+        auto rsp     = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto ins_ind = prog.add_literal(literal(ind_s, ind));
+        return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
     instruction_ref

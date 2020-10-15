@@ -37,8 +37,10 @@ add_library(migraphx_device
     device/floor.cpp
     device/gather.cpp
     device/gelu.cpp
+    device/greater.cpp
     device/int8_gemm_pack.cpp
     device/layernorm.cpp
+    device/less.cpp
     device/log.cpp
     device/logsoftmax.cpp
     device/max.cpp
@@ -94,6 +96,7 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    analyze_streams.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp
@@ -157,6 +160,8 @@ register_migraphx_gpu_ops(hip_
     exp
     floor
     gather
+    greater
+    less
     log
     logsoftmax
     max

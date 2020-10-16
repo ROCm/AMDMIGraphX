@@ -194,7 +194,7 @@ struct onnx_parser
         map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
     }
 
-    operation load(const std::string& name, const node_info& info)
+    operation load(const std::string& name, const node_info& info) const
     {
         auto op = make_op(name);
         auto v  = op.to_value();
@@ -2749,7 +2749,7 @@ struct onnx_parser
         return literal{{t, {size}}, r.begin(), r.end()};
     }
 
-    literal parse_value(const onnx::AttributeProto& attr)
+    literal parse_value(const onnx::AttributeProto& attr) const
     {
         switch(attr.type())
         {
@@ -2845,7 +2845,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const
     {
         shape::type_t shape_type = get_type(t.tensor_type().elem_type());
         if(!input_dims.empty())

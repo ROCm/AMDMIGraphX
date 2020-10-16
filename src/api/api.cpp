@@ -151,6 +151,8 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
+migraphx::module main_module(migraphx::program& prog) { return prog.get_main_module(); }
+
 void print(const program& p) { std::cout << p << std::endl; }
 
 } // namespace migraphx
@@ -246,6 +248,16 @@ struct migraphx_shapes
     {
     }
     std::vector<migraphx::shape> object;
+};
+
+extern "C" struct migraphx_module;
+struct migraphx_module
+{
+    template <class... Ts>
+    migraphx_module(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::module object;
 };
 
 extern "C" struct migraphx_program;
@@ -590,9 +602,35 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
     });
 }
 
+extern "C" migraphx_status migraphx_module_destroy(migraphx_module_t module)
+{
+    return migraphx::try_([&] { destroy((module)); });
+}
+
+extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module,
+                                                  migraphx_program_t prog)
+{
+    return migraphx::try_([&] {
+        if(prog == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
+        *module = object_cast<migraphx_module_t>(
+            allocate<migraphx::module>(migraphx::main_module((prog->object))));
+    });
+}
+
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)
 {
     return migraphx::try_([&] { destroy((program)); });
+}
+
+extern "C" migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,
+                                                            migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        *out = allocate<migraphx_module_t>((program->object).get_main_module());
+    });
 }
 
 extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,

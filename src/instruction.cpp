@@ -221,7 +221,7 @@ void instruction::finalize(context& ctx)
 
 static void debug_name(std::ostream& os, const instruction& ins)
 {
-    if (ins.name() == "@literal")
+    if(ins.name() == "@literal")
     {
         os << "@literal";
         if(ins.get_literal().get_shape().elements() > 10)
@@ -239,13 +239,13 @@ void instruction::debug_print() const
 {
     debug_name(std::cout, *this);
     std::string delim = "(";
-    for(auto arg:this->inputs())
+    for(auto arg : this->inputs())
     {
         std::cout << delim;
         debug_name(std::cout, *arg);
         delim = ", ";
     }
-    if (not this->inputs().empty())
+    if(not this->inputs().empty())
         std::cout << ")";
     std::cout << " -> " << this->get_shape() << std::endl;
 }

@@ -626,7 +626,8 @@ inline auto has_value(T x, float tolerance = 1e-6)
             return false;
         bool b = false;
         l.visit([&](auto v) {
-            if(std::all_of(v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
+            if(std::all_of(
+                   v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
                 b = true;
         });
         return b;

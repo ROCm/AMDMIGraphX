@@ -31,7 +31,7 @@ struct matcher_context
     template <class M>
     auto lazy_match(M m, instruction_ref ins)
     {
-        return [=]{ return this->matched(m, ins); };
+        return [=] { return this->matched(m, ins); };
     }
 
     private:
@@ -542,14 +542,15 @@ inline auto any_arg(std::size_t i, std::size_t j)
     return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
 }
 
-template<std::size_t N>
-std::size_t tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, instruction_ref ins)
+template <std::size_t N>
+std::size_t
+tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, instruction_ref ins)
 {
     std::size_t idx = 0;
     fix([&](auto self, auto i) {
-        if (idx == leafs.size())
+        if(idx == leafs.size())
             return;
-        if (i->name() == s and i->inputs().size() >= 2)
+        if(i->name() == s and i->inputs().size() >= 2)
         {
             self(i->inputs()[0]);
             self(i->inputs()[1]);
@@ -561,39 +562,38 @@ std::size_t tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::st
     return idx;
 }
 
-template<class... Ms>
+template <class... Ms>
 auto tree(std::string s, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
         std::size_t idx = tree_leafs_impl(leafs, s, ins);
-        if (idx != leafs.size())
+        if(idx != leafs.size())
             return ctx.not_found();
-        bool found = sequence_c<sizeof...(Ms)>([&](auto... is) {
-            return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)();
-        });
-        if (not found)
+        bool found = sequence_c<sizeof...(Ms)>(
+            [&](auto... is) { return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)(); });
+        if(not found)
             return ctx.not_found();
         return ins;
     });
 }
 
-template<class... Ms>
+template <class... Ms>
 auto unordered_tree(std::string s, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
         std::size_t idx = tree_leafs_impl(leafs, s, ins);
-        if (idx != leafs.size())
+        if(idx != leafs.size())
             return ctx.not_found();
         bool found = sequence_c<sizeof...(Ms)>([&](auto... is) {
             return by(fold(lazy_and{}), [&](auto m) {
                 return fold(lazy_or{})(ctx.lazy_match(m, leafs[is])...);
             })(ms...)();
         });
-        if (not found)
+        if(not found)
             return ctx.not_found();
         return ins;
     });

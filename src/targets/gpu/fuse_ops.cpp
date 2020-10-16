@@ -357,14 +357,11 @@ struct find_gelu
     static auto add_erf()
     {
         return match::name("gpu::add")(
-                match::used_once(),
-                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
+            match::used_once(),
+            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
     }
 
-    static auto one_half()
-    {
-        return match::any_arg(0, 1)(match::args(match::has_value(0.5f)));
-    }
+    static auto one_half() { return match::any_arg(0, 1)(match::args(match::has_value(0.5f))); }
 
     auto matcher() const
     {

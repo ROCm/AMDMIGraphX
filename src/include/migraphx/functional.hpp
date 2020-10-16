@@ -131,19 +131,14 @@ auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
-inline auto pack_join()
-{
-    return pack();
-}
+inline auto pack_join() { return pack(); }
 
-template<class P, class... Ps>
+template <class P, class... Ps>
 auto pack_join(P p, Ps... ps)
 {
     return [=](auto f) {
         return p([&](auto... xs) {
-            return pack_join(ps...)([&](auto... ys) {
-                return f(xs..., ys...);
-            });
+            return pack_join(ps...)([&](auto... ys) { return f(xs..., ys...); });
         });
     };
 }

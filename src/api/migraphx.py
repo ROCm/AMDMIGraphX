@@ -162,11 +162,13 @@ def shapes(h):
              cpp_name='operator[]',
              returns='const migraphx::shape&')
 
+
 @auto_handle
 def module(h):
     h.constructor('create',
                   api.params(prog='migraphx::program'),
                   fname='migraphx::main_module')
+
 
 @auto_handle
 def program(h):

@@ -422,7 +422,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
         {
             const_migraphx_argument_t pout;
             call(&migraphx_arguments_get, &pout, self, pidx);
-      
+
             return argument(pout);
         }
     };
@@ -472,7 +472,7 @@ struct module : MIGRAPHX_HANDLE_BASE(module)
     {
         migraphx_module_t modu;
         call(&migraphx_module_create, this->get_handle_ptr());
-        return *this; 
+        return *this;
     }
 };
 

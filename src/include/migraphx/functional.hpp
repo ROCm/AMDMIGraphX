@@ -131,10 +131,27 @@ auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
+inline auto pack_join()
+{
+    return pack();
+}
+
+template<class P, class... Ps>
+auto pack_join(P p, Ps... ps)
+{
+    return [=](auto f) {
+        return p([&](auto... xs) {
+            return pack_join(ps...)([&](auto... ys) {
+                return f(xs..., ys...);
+            });
+        });
+    };
+}
+
 template <class F, class T>
 auto fold_impl(F&&, T&& x)
 {
-    return x;
+    return std::move(x);
 }
 
 template <class F, class T, class U, class... Ts>

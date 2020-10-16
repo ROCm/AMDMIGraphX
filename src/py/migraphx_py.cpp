@@ -185,10 +185,7 @@ PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
-        .def("get_main_module",
-             [](migraphx::program& p) {
-                 return p.get_main_module();
-             })
+        .def("get_main_module", [](migraphx::program& p) { return p.get_main_module(); })
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::program::parameter_map pm;

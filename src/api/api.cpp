@@ -151,8 +151,6 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-migraphx::module main_module(migraphx::program& prog) { return prog.get_main_module(); }
-
 void print(const program& p) { std::cout << p << std::endl; }
 
 } // namespace migraphx
@@ -607,15 +605,10 @@ extern "C" migraphx_status migraphx_module_destroy(migraphx_module_t module)
     return migraphx::try_([&] { destroy((module)); });
 }
 
-extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module,
-                                                  migraphx_program_t prog)
+extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module)
 {
-    return migraphx::try_([&] {
-        if(prog == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
-        *module = object_cast<migraphx_module_t>(
-            allocate<migraphx::module>(migraphx::main_module((prog->object))));
-    });
+    return migraphx::try_(
+        [&] { *module = object_cast<migraphx_module_t>(allocate<migraphx::module>()); });
 }
 
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)

@@ -467,13 +467,6 @@ struct module : MIGRAPHX_HANDLE_BASE(module)
     module(migraphx_module* p, own) { this->set_handle(p, own{}); }
 
     module(migraphx_module* p, borrow) { this->set_handle(p, borrow{}); }
-
-    module main_module()
-    {
-        migraphx_module_t modu;
-        call(&migraphx_module_create, this->get_handle_ptr());
-        return *this;
-    }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)
@@ -534,7 +527,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     module get_main_module()
     {
         migraphx_module_t p_modu;
-        call(&migraphx_module_create, &p_modu, this->get_handle_ptr());
+        call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
         return module(p_modu, own{});
     }
 

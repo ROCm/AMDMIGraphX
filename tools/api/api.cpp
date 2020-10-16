@@ -151,8 +151,6 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-migraphx::module main_module(migraphx::program& prog) { return prog.get_main_module(); }
-
 void print(const program& p) { std::cout << p << std::endl; }
 
 } // namespace migraphx

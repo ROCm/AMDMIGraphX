@@ -176,7 +176,7 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
 
 migraphx_status migraphx_module_destroy(migraphx_module_t module);
 
-migraphx_status migraphx_module_create(migraphx_module_t* module, migraphx_program_t prog);
+migraphx_status migraphx_module_create(migraphx_module_t* module);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 

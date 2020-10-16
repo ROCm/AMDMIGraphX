@@ -165,9 +165,7 @@ def shapes(h):
 
 @auto_handle
 def module(h):
-    h.constructor('create',
-                  api.params(prog='migraphx::program'),
-                  fname='migraphx::main_module')
+    h.constructor('create')
 
 
 @auto_handle

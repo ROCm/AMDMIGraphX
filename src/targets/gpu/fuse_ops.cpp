@@ -361,7 +361,7 @@ struct find_gelu
             match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
     }
 
-    static auto one_half() { return match::any_arg(0, 1)(match::args(match::has_value(0.5f))); }
+    static auto one_half() { return match::args(match::has_value(0.5f)); }
 
     auto matcher() const
     {

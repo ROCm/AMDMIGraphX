@@ -30,7 +30,7 @@ struct gather
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
-        auto lens = inputs[0].lens();
+        auto lens     = inputs[0].lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
         if(axis >= n_dim || axis < -n_dim)
         {
@@ -61,7 +61,7 @@ struct gather
     {
         argument result{output_shape};
         // negative axis means counting dimensions from back
-        auto lens      = args[0].get_shape().lens();
+        auto lens                 = args[0].get_shape().lens();
         std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
@@ -74,13 +74,13 @@ struct gather
                 }
                 else
                 {
-                    auto out_lens        = data.get_shape().lens();
+                    auto out_lens  = data.get_shape().lens();
                     out_lens[axis] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                     shape_for_each(out_comp_shape, [&](const auto& out_idx) {
-                        auto data_idx        = out_idx;
-                        auto in_index        = indices[data_idx[axis]];
-                        in_index             = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                        auto data_idx  = out_idx;
+                        auto in_index  = indices[data_idx[axis]];
+                        in_index       = (in_index < 0) ? in_index + axis_dim_size : in_index;
                         data_idx[axis] = in_index;
                         output[out_comp_shape.index(out_idx.begin(), out_idx.end())] =
                             data(data_idx.begin(), data_idx.end());

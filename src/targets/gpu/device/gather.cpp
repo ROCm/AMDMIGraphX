@@ -15,7 +15,7 @@ argument gather(hipStream_t stream, argument result, argument arg1, argument arg
     const auto& input_shape = arg1.get_shape();
     auto lens               = input_shape.lens();
     auto axis_dim_size      = lens[axis];
-    lens[axis]        = arg2.get_shape().elements();
+    lens[axis]              = arg2.get_shape().elements();
     shape out_comp_shape{result.get_shape().type(), lens};
     std::size_t nelements = result.get_shape().elements();
 
@@ -25,11 +25,11 @@ argument gather(hipStream_t stream, argument result, argument arg1, argument arg
                 const auto* indices_ptr = device_cast(indices.data());
                 auto* output_ptr        = device_cast(output.data());
                 gs_launch(stream, nelements, 256)([=](auto i) __device__ {
-                    auto idx        = out_comp.multi(i);
-                    auto in_index   = indices_ptr[idx[axis]];
-                    in_index        = (in_index < 0) ? in_index + axis_dim_size : in_index;
-                    idx[axis] = in_index;
-                    output_ptr[i]   = input[idx];
+                    auto idx      = out_comp.multi(i);
+                    auto in_index = indices_ptr[idx[axis]];
+                    in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                    idx[axis]     = in_index;
+                    output_ptr[i] = input[idx];
                 });
             });
         });

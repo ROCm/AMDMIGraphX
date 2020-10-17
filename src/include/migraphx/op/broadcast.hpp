@@ -35,10 +35,16 @@ struct broadcast
     std::string name() const { return "broadcast"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto t     = inputs.at(0).type();
         auto input = inputs.at(0);
+        auto t     = input.type();
 
         std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
+        // the broacast op is deprecated now, so not handling the negative 
+        // value of axis anymore
+        if (axis >= broadcast_lens.size())
+        {
+            MIGRAPHX_THROW("BROADCAST : axis is out of range");
+        }
 
         if(std::all_of(
                broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) { return x == 1; }))
@@ -49,9 +55,15 @@ struct broadcast
         }
         else
         {
-            assert(broadcast_lens.size() - axis >= input.lens().size());
-            if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+            if (broadcast_lens.size() - axis < input.lens().size())
+            {
                 MIGRAPHX_THROW("BROADCAST: when broadcasting success sizes must match");
+            }
+
+            if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+            {
+                MIGRAPHX_THROW("BROADCAST: when broadcasting success sizes must match");
+            }
             std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
             return {t, broadcast_lens, std::move(bcast_strides)};
         }

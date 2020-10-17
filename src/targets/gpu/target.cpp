@@ -30,6 +30,7 @@
 #include <migraphx/decompose.hpp>
 #include <migraphx/remap.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/normalize_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +44,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
+        normalize_ops{},
+        dead_code_elimination{},
         decompose{},
         dead_code_elimination{},
         simplify_reshapes{},

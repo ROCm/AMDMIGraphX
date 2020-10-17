@@ -85,27 +85,22 @@ struct slice
 
     auto compute_offset(const shape& s) const
     {
-        std::vector<int64_t> tuned_axes      = axes;
-        std::vector<int64_t> tuned_starts    = starts;
-        std::vector<int64_t> tuned_ends      = ends;
         const std::vector<std::size_t>& lens = s.lens();
-        tune_attributes(tuned_axes, tuned_starts, tuned_ends, lens);
-
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(!tuned_axes.empty())
+        if(!axes.empty())
         {
-            for(std::size_t i = 0; i < tuned_axes.size(); i++)
+            for(std::size_t i = 0; i < axes.size(); i++)
             {
-                auto axis = tuned_axes[i];
-                offset += fix_index(lens, axis, tuned_starts[i]) * strides[axis];
+                auto axis = axes[i];
+                offset += fix_index(lens, axis, starts[i]) * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += fix_index(lens, axis, tuned_starts[axis]) * strides[axis];
+                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
             }
         }
         return offset;

@@ -130,12 +130,12 @@ migraphx::shape to_shape(const py::buffer_info& info)
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct module_wrap {
-    migraphx::program *prog;
+struct module_wrap
+{
+    migraphx::program* prog;
 };
-}
-}
-    
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 PYBIND11_MODULE(migraphx, m)
 {
@@ -194,10 +194,11 @@ PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
-        .def("get_main_module", [](migraphx::program& p) { 
-            auto& modu = p.get_main_module(); 
-            return migraphx::module_wrap{&modu};
-            })
+        .def("get_main_module",
+             [](migraphx::program& p) {
+                 auto& modu = p.get_main_module();
+                 return migraphx::module_wrap{&modu};
+             })
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::program::parameter_map pm;

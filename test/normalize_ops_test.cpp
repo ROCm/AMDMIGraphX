@@ -17,7 +17,7 @@ migraphx::program create_gather(int64_t axis)
     migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
     auto di = p.add_parameter("data", sd);
     auto ii = p.add_parameter("ind", si);
-    auto r = p.add_instruction(migraphx::make_op("gather", {{"axis", axis}}), di, ii);
+    auto r  = p.add_instruction(migraphx::make_op("gather", {{"axis", axis}}), di, ii);
     p.add_return({r});
 
     return p;
@@ -47,7 +47,7 @@ migraphx::program create_reduce_mean(const std::vector<int64_t>& axes)
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
     auto si = p.add_parameter("data", s);
-    auto r = p.add_instruction(migraphx::make_op("reduce_mean", {{"axes", axes}}), si);
+    auto r  = p.add_instruction(migraphx::make_op("reduce_mean", {{"axes", axes}}), si);
     p.add_return({r});
 
     return p;
@@ -71,12 +71,15 @@ TEST_CASE(reduce_mean_test_1)
     EXPECT(p1 == p2);
 }
 
-migraphx::program create_slice(const std::vector<int64_t>& axes, const std::vector<int64_t>& starts, const std::vector<int64_t>& ends)
+migraphx::program create_slice(const std::vector<int64_t>& axes,
+                               const std::vector<int64_t>& starts,
+                               const std::vector<int64_t>& ends)
 {
     migraphx::program p;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
     auto si = p.add_parameter("data", s);
-    auto r = p.add_instruction(migraphx::make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), si);
+    auto r  = p.add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), si);
     p.add_return({r});
 
     return p;

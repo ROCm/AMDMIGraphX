@@ -128,6 +128,15 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+struct module_wrap {
+    migraphx::program *prog;
+};
+}
+}
+    
+
 PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
@@ -167,7 +176,7 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module>(m, "module");
+    py::class_<migraphx::module_wrap>(m, "module");
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
@@ -185,7 +194,10 @@ PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
-        .def("get_main_module", [](migraphx::program& p) { return p.get_main_module(); })
+        .def("get_main_module", [](migraphx::program& p) { 
+            auto& modu = p.get_main_module(); 
+            return migraphx::module_wrap{&modu};
+            })
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::program::parameter_map pm;

@@ -159,7 +159,7 @@ struct loader
         os.write(buffer.data(), buffer.size());
     }
 
-    void save(const program& p)
+    void save(const program& p) const
     {
         auto* os = &std::cout;
         std::ofstream fs;
@@ -221,6 +221,7 @@ struct compiler
     program_params parameters;
     bool gpu          = true;
     bool offload_copy = false;
+    bool fast_math    = true;
     int quantize      = 0;
 
     std::vector<std::string> fill0;
@@ -235,6 +236,10 @@ struct compiler
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
+        ap(fast_math,
+           {"--disable-fast-math"},
+           ap.help("Disable fast math optimization"),
+           ap.set_value(false));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
@@ -261,6 +266,7 @@ struct compiler
         }
         compile_options options;
         options.offload_copy = offload_copy;
+        options.fast_math    = fast_math;
         p.compile(t, options);
         l.save(p);
         return p;
@@ -300,6 +306,7 @@ struct verify : command<verify>
     bool per_instruction = false;
     bool reduce          = false;
     bool offload_copy    = false;
+    bool fast_math       = true;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
@@ -308,6 +315,10 @@ struct verify : command<verify>
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
+        ap(fast_math,
+           {"--disable-fast-math"},
+           ap.help("Disable fast math optimization"),
+           ap.set_value(false));
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
@@ -324,8 +335,8 @@ struct verify : command<verify>
 
         compile_options options;
         options.offload_copy = offload_copy;
-
-        auto m = parameters.generate(p, false);
+        options.fast_math    = fast_math;
+        auto m               = parameters.generate(p, false);
 
         if(per_instruction)
         {

@@ -2914,4 +2914,68 @@ struct test_equal_brcst : verify_program<test_equal_brcst>
     };
 };
 
+struct test_greater : verify_program<test_greater>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto input1 = p.add_parameter("x", s);
+        auto input2 = p.add_parameter("y", s);
+        auto r      = p.add_instruction(migraphx::op::greater{}, input1, input2);
+        p.add_return({r});
+        return p;
+    };
+};
+
+struct test_greater_brcst : verify_program<test_greater_brcst>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+        auto l0 = p.add_parameter("x", s0);
+        migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+        auto l1  = p.add_parameter("y", s1);
+        auto bl1 = p.add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
+        auto r   = p.add_instruction(migraphx::op::greater{}, l0, bl1);
+        p.add_return({r});
+
+        return p;
+    };
+};
+
+struct test_less : verify_program<test_less>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+
+        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        auto input1 = p.add_parameter("x", s);
+        auto input2 = p.add_parameter("y", s);
+        auto r      = p.add_instruction(migraphx::op::less{}, input1, input2);
+        p.add_return({r});
+        return p;
+    };
+};
+
+struct test_less_brcst : verify_program<test_less_brcst>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
+        auto l0 = p.add_parameter("x", s0);
+        migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
+        auto l1  = p.add_parameter("y", s1);
+        auto bl1 = p.add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
+        auto r   = p.add_instruction(migraphx::op::less{}, l0, bl1);
+        p.add_return({r});
+
+        return p;
+    };
+};
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

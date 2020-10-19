@@ -26,7 +26,7 @@ struct record_event
         return {};
     }
 
-    void finalize(context& ctx, const shape&, const std::vector<shape>&)
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
         ctx.create_events(event);
     }
@@ -66,7 +66,10 @@ struct set_stream
         ctx.set_stream(stream);
         return {};
     }
-    void finalize(context& ctx, const shape&, const std::vector<shape>&) { ctx.set_stream(stream); }
+    void finalize(context& ctx, const shape&, const std::vector<shape>&) const
+    {
+        ctx.set_stream(stream);
+    }
 };
 
 MIGRAPHX_REGISTER_OP(record_event)
@@ -112,7 +115,7 @@ static std::unordered_map<std::string, std::size_t> create_weight_map()
 
 static const std::unordered_map<std::string, std::size_t>& weight_map()
 {
-    static std::unordered_map<std::string, std::size_t> m = create_weight_map();
+    static const std::unordered_map<std::string, std::size_t> m = create_weight_map();
     return m;
 }
 

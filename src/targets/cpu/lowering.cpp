@@ -605,7 +605,7 @@ struct cpu_gemm
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}}.not_broadcasted();
+            check_shapes{{c_shape}, *this}.not_broadcasted();
         }
         return op.compute_shape(inputs);
     }
@@ -658,7 +658,7 @@ struct cpu_quant_gemm
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}}.not_broadcasted();
+            check_shapes{{c_shape}, *this}.not_broadcasted();
         }
         return op.compute_shape(inputs);
     }
@@ -751,7 +751,7 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
     std::string name() const { return op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto s = inputs.at(0);
         return {s.type(), s.lens()};
     }
@@ -939,7 +939,7 @@ struct cpu_apply
         }
     }
 
-    void apply_cpu_op(instruction_ref ins)
+    void apply_cpu_op(instruction_ref ins) const
     {
         prog->replace_instruction(ins, cpu_op{ins->get_operator()}, ins->inputs());
     }
@@ -957,7 +957,7 @@ struct cpu_apply
         prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
-    void apply_pooling(instruction_ref ins)
+    void apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")

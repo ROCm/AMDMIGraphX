@@ -8,6 +8,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/gpu/target.hpp>
+#include <migraphx/gpu/analyze_streams.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -33,6 +34,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_GPU_COMPILE)
 
 static std::array<std::function<void()>, 2>& handlers()
 {
+    // NOLINTNEXTLINE
     static std::array<std::function<void()>, 2> r = {};
     return r;
 };
@@ -57,6 +59,7 @@ struct auto_print
 {
     static void set_terminate_handler(const std::string& name)
     {
+        // NOLINTNEXTLINE
         static std::string pname;
         pname = name;
         std::set_terminate(+[] {
@@ -128,6 +131,19 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     }
 }
 
+inline void check_gpu_streams(const migraphx::program& p)
+{
+    auto races = migraphx::gpu::analyze_streams(p);
+    for(auto&& race : races)
+    {
+        std::cout << "FAILED: " << std::endl;
+        std::cout << "Race condition detected for: ";
+        p.debug_print(race.ins);
+        std::cout << "Should happen after: ";
+        p.debug_print(race.before);
+    }
+}
+
 template <class V>
 std::vector<migraphx::argument> run_cpu(migraphx::program& p)
 {
@@ -150,6 +166,7 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
     p = v.create_program();
     auto_print pp{p, 1};
     compile_check(p, migraphx::gpu::target{}, migraphx::enabled(MIGRAPHX_TRACE_GPU_COMPILE{}));
+    check_gpu_streams(p);
     migraphx::program::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -218,7 +235,7 @@ int auto_register_verify_program()
 template <class T>
 struct verify_program
 {
-    static int static_register;
+    static const int static_register;
     // This typedef ensures that the static member will be instantiated if
     // the class itself is instantiated
     using static_register_type =
@@ -226,6 +243,6 @@ struct verify_program
 };
 
 template <class T>
-int verify_program<T>::static_register = auto_register_verify_program<T>(); // NOLINT
+const int verify_program<T>::static_register = auto_register_verify_program<T>(); // NOLINT
 
 #endif

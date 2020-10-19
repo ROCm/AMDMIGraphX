@@ -66,7 +66,7 @@ struct program
     }
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
-                                        std::vector<instruction_ref> args);
+                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
@@ -141,8 +141,6 @@ struct program
 
     private:
     void assign(const program& p);
-
-    private:
     std::unique_ptr<program_impl> impl;
 };
 

@@ -191,7 +191,7 @@ instruction_ref program::insert_instruction(instruction_ref ins,
 
 instruction_ref program::replace_instruction(instruction_ref ins,
                                              const operation& op,
-                                             std::vector<instruction_ref> args)
+                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -394,7 +394,7 @@ std::vector<shape> program::get_output_shapes() const
     auto last_ins = impl->instructions.back();
     if(last_ins.name() == "@return")
     {
-        auto& output_ins = last_ins.inputs();
+        const auto& output_ins = last_ins.inputs();
         std::vector<shape> output_shapes;
         std::transform(output_ins.begin(),
                        output_ins.end(),

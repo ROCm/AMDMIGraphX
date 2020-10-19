@@ -37,8 +37,10 @@ add_library(migraphx_device
     device/floor.cpp
     device/gather.cpp
     device/gelu.cpp
+    device/greater.cpp
     device/int8_gemm_pack.cpp
     device/layernorm.cpp
+    device/less.cpp
     device/log.cpp
     device/logsoftmax.cpp
     device/max.cpp
@@ -94,6 +96,7 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    analyze_streams.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp
@@ -157,6 +160,8 @@ register_migraphx_gpu_ops(hip_
     exp
     floor
     gather
+    greater
+    less
     log
     logsoftmax
     max
@@ -214,6 +219,7 @@ rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
+target_compile_options(migraphx_gpu PRIVATE -std=c++17)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 

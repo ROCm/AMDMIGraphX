@@ -10,6 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct compile_options
 {
     bool offload_copy = false;
+    bool fast_math    = true;
     tracer trace{};
 };
 

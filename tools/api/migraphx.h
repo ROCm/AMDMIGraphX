@@ -42,6 +42,7 @@ typedef enum {
 typedef struct
 {
     bool offload_copy;
+    bool fast_math;
 } migraphx_compile_options;
 
 typedef struct

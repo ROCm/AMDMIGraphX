@@ -25,8 +25,6 @@ struct check_shapes
     {
     }
 
-    check_shapes(const std::vector<shape>& s) : begin(s.data()), end(s.data() + s.size()) {}
-
     template <class Op>
     check_shapes(const std::vector<shape>& s, const Op& op)
         : begin(s.data()), end(s.data() + s.size()), name(op.name())
@@ -56,6 +54,13 @@ struct check_shapes
         if(migraphx::none_of({ns...}, [&](auto i) { return this->size() == i; }))
             MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected " +
                            to_string_range({ns...}) + " but given " + std::to_string(size()));
+        return *this;
+    }
+
+    const check_shapes& nelements(std::size_t n) const
+    {
+        if(!this->all_of([&](const shape& s) { return s.elements() == n; }))
+            MIGRAPHX_THROW(prefix() + "Shapes must have only " + std::to_string(n) + " elements");
         return *this;
     }
 
@@ -188,7 +193,7 @@ struct check_shapes
         return std::all_of(begin, end, p);
     }
 
-    const shape* get(long i)
+    const shape* get(long i) const
     {
         if(i >= size())
             MIGRAPHX_THROW(prefix() + "Accessing shape out of bounds");
@@ -199,9 +204,9 @@ struct check_shapes
         return begin + i;
     }
 
-    check_shapes slice(long start) { return {get(start), end, name}; }
+    check_shapes slice(long start) const { return {get(start), end, name}; }
 
-    check_shapes slice(long start, long last) { return {get(start), get(last), name}; }
+    check_shapes slice(long start, long last) const { return {get(start), get(last), name}; }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -46,6 +46,9 @@ struct stream_info
                 auto&& op          = ins->get_operator();
                 if(not is_context_free(op) and op.name()[0] != '@')
                     weight = model.weight(op);
+                // This will ensure a stream will be assigned to return
+                if(op.name() == "@return")
+                    weight = 1;
                 iweights[ins] = weight;
                 weights[ins] =
                     std::accumulate(ins->inputs().begin(),
@@ -332,7 +335,7 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions(program& p)
+    find_concurrent_instructions(program& p) const
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
@@ -350,7 +353,7 @@ struct stream_info
             auto streams = this->get_streams(ins);
 
             // Collect concur instructions for each merge point.
-            for(auto& merge : merge_from[ins])
+            for(const auto& merge : merge_from[ins])
             {
                 for(auto stream : streams)
                 {

@@ -12,11 +12,11 @@ namespace device {
 
 argument gather(hipStream_t stream, argument result, argument arg1, argument arg2, int axis)
 {
-    auto axis_index    = (axis < 0) ? (axis + arg1.get_shape().lens().size()) : axis;
-    auto& input_shape  = arg1.get_shape();
-    auto lens          = input_shape.lens();
-    auto axis_dim_size = lens[axis_index];
-    lens[axis_index]   = arg2.get_shape().elements();
+    auto axis_index         = (axis < 0) ? (axis + arg1.get_shape().lens().size()) : axis;
+    const auto& input_shape = arg1.get_shape();
+    auto lens               = input_shape.lens();
+    auto axis_dim_size      = lens[axis_index];
+    lens[axis_index]        = arg2.get_shape().elements();
     shape out_comp_shape{result.get_shape().type(), lens};
     std::size_t nelements = result.get_shape().elements();
 

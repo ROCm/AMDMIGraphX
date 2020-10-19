@@ -12,8 +12,8 @@ struct test_literals : verify_program<test_literals>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto& mm = p.get_main_module();
-        auto input                    = mm.add_literal(
+        auto& mm   = p.get_main_module();
+        auto input = mm.add_literal(
             generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}}));
         auto weights = mm.add_literal(
             generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}}));
@@ -72,8 +72,7 @@ struct test_exp : verify_program<test_exp>
         migraphx::program p;
         auto& mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        auto x =
-            mm.add_instruction(migraphx::op::abs{}, mm.add_parameter("x", s));
+        auto x = mm.add_instruction(migraphx::op::abs{}, mm.add_parameter("x", s));
         mm.add_instruction(migraphx::op::exp{}, x);
         return p;
     }
@@ -126,8 +125,7 @@ struct test_log : verify_program<test_log>
         migraphx::program p;
         auto& mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        auto x =
-            mm.add_instruction(migraphx::op::abs{}, mm.add_parameter("x", s));
+        auto x = mm.add_instruction(migraphx::op::abs{}, mm.add_parameter("x", s));
         mm.add_instruction(migraphx::op::log{}, x);
         return p;
     }
@@ -235,8 +233,7 @@ struct test_tanh : verify_program<test_tanh>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::tanh{}, x);
         return p;
     }
@@ -248,9 +245,8 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx    = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x  = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = mm.add_instruction(migraphx::op::tanh{}, tx);
         auto r     = mm.add_instruction(migraphx::op::add{}, tanhx, tanhx);
         mm.add_instruction(migraphx::op::contiguous{}, r);
@@ -265,9 +261,8 @@ struct test_trans_tanh1 : verify_program<test_trans_tanh1>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx    = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x  = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = mm.add_instruction(migraphx::op::tanh{}, tx);
         auto r     = mm.add_instruction(migraphx::op::add{}, tanhx, tanhx);
         mm.add_return({tx, r});
@@ -282,9 +277,8 @@ struct test_slice_sin : verify_program<test_slice_sin>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto l =
-            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-        auto t = mm.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
+        auto l   = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+        auto t   = mm.add_instruction(migraphx::op::slice{{1}, {1}, {2}}, l);
         mm.add_instruction(migraphx::op::sin{}, t);
 
         return p;
@@ -545,10 +539,10 @@ struct test_triadd_broadcast : verify_program<test_triadd_broadcast>
         migraphx::program p;
         auto& mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {3}};
-        auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
-        auto y  = mm.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
-        auto z  = mm.add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
-        auto by = mm.add_instruction(migraphx::op::broadcast{0, x->get_shape().lens()}, y);
+        auto x   = mm.add_parameter("x", {migraphx::shape::float_type, {2, 2, 3}});
+        auto y   = mm.add_parameter("y", {migraphx::shape::float_type, {2, 2}});
+        auto z   = mm.add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
+        auto by  = mm.add_instruction(migraphx::op::broadcast{0, x->get_shape().lens()}, y);
         auto sum = mm.add_instruction(migraphx::op::add{}, x, by);
         mm.add_instruction(migraphx::op::add{}, sum, z);
         return p;
@@ -562,20 +556,17 @@ struct test_gelu : verify_program<test_gelu>
         migraphx::program p;
         auto& mm = p.get_main_module();
         std::vector<size_t> input_lens{1, 1, 5};
-        auto x     = mm.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto half  = mm.add_literal(0.5f);
-        auto one   = mm.add_literal(1.0f);
-        auto sqrt2 = mm.add_literal(static_cast<float>(M_SQRT2));
-        auto half_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, half);
-        auto mul_half = mm.add_instruction(migraphx::op::mul{}, x, half_mbcast);
-        auto sqrt2_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, sqrt2);
-        auto div = mm.add_instruction(migraphx::op::div{}, x, sqrt2_mbcast);
-        auto erf = mm.add_instruction(migraphx::op::erf{}, div);
-        auto one_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, one);
-        auto add_one = mm.add_instruction(migraphx::op::add{}, erf, one_mbcast);
+        auto x            = mm.add_parameter("x", {migraphx::shape::float_type, input_lens});
+        auto half         = mm.add_literal(0.5f);
+        auto one          = mm.add_literal(1.0f);
+        auto sqrt2        = mm.add_literal(static_cast<float>(M_SQRT2));
+        auto half_mbcast  = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, half);
+        auto mul_half     = mm.add_instruction(migraphx::op::mul{}, x, half_mbcast);
+        auto sqrt2_mbcast = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, sqrt2);
+        auto div          = mm.add_instruction(migraphx::op::div{}, x, sqrt2_mbcast);
+        auto erf          = mm.add_instruction(migraphx::op::erf{}, div);
+        auto one_mbcast   = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, one);
+        auto add_one      = mm.add_instruction(migraphx::op::add{}, erf, one_mbcast);
         mm.add_instruction(migraphx::op::mul{}, mul_half, add_one);
         return p;
     }
@@ -588,22 +579,19 @@ struct test_add_gelu : verify_program<test_add_gelu>
         migraphx::program p;
         auto& mm = p.get_main_module();
         std::vector<size_t> input_lens{1, 1, 5};
-        auto x     = mm.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto y     = mm.add_parameter("y", {migraphx::shape::float_type, input_lens});
-        auto half  = mm.add_literal(0.5f);
-        auto one   = mm.add_literal(1.0f);
-        auto sqrt2 = mm.add_literal(static_cast<float>(M_SQRT2));
-        auto add   = mm.add_instruction(migraphx::op::add{}, x, y);
-        auto half_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, half);
-        auto mul_half = mm.add_instruction(migraphx::op::mul{}, add, half_mbcast);
-        auto sqrt2_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, sqrt2);
-        auto div = mm.add_instruction(migraphx::op::div{}, add, sqrt2_mbcast);
-        auto erf = mm.add_instruction(migraphx::op::erf{}, div);
-        auto one_mbcast =
-            mm.add_instruction(migraphx::op::multibroadcast{input_lens}, one);
-        auto add_one = mm.add_instruction(migraphx::op::add{}, erf, one_mbcast);
+        auto x            = mm.add_parameter("x", {migraphx::shape::float_type, input_lens});
+        auto y            = mm.add_parameter("y", {migraphx::shape::float_type, input_lens});
+        auto half         = mm.add_literal(0.5f);
+        auto one          = mm.add_literal(1.0f);
+        auto sqrt2        = mm.add_literal(static_cast<float>(M_SQRT2));
+        auto add          = mm.add_instruction(migraphx::op::add{}, x, y);
+        auto half_mbcast  = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, half);
+        auto mul_half     = mm.add_instruction(migraphx::op::mul{}, add, half_mbcast);
+        auto sqrt2_mbcast = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, sqrt2);
+        auto div          = mm.add_instruction(migraphx::op::div{}, add, sqrt2_mbcast);
+        auto erf          = mm.add_instruction(migraphx::op::erf{}, div);
+        auto one_mbcast   = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, one);
+        auto add_one      = mm.add_instruction(migraphx::op::add{}, erf, one_mbcast);
         mm.add_instruction(migraphx::op::mul{}, mul_half, add_one);
         return p;
     }
@@ -683,8 +671,7 @@ struct test_softmax1 : verify_program<test_softmax1>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {5, 3, 3, 4}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 3, 3, 4}});
         mm.add_instruction(migraphx::op::softmax{0}, x);
         return p;
     }
@@ -696,8 +683,8 @@ struct test_softmax2 : verify_program<test_softmax2>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 1000, 1, 1}});
+        auto x =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1000, 1, 1}});
         mm.add_instruction(migraphx::op::softmax{}, x);
         return p;
     }
@@ -762,10 +749,10 @@ struct test_conv : verify_program<test_conv>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::convolution{}, input, weights);
         return p;
     }
@@ -777,12 +764,11 @@ struct test_conv2 : verify_program<test_conv2>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 512, 28, 28}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {256, 512, 1, 1}});
-        mm.add_instruction(
-            migraphx::op::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 512, 28, 28}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {256, 512, 1, 1}});
+        mm.add_instruction(migraphx::op::convolution{{0, 0}, {1, 1}, {1, 1}}, input, weights);
         return p;
     }
 };
@@ -793,10 +779,10 @@ struct test_conv3d : verify_program<test_conv3d>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3, 3}});
         mm.add_instruction(
             migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
         return p;
@@ -809,10 +795,10 @@ struct test_group_conv : verify_program<test_group_conv>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
         migraphx::op::convolution op;
         op.group = 4;
         mm.add_instruction(op, input, weights);
@@ -826,10 +812,10 @@ struct test_deconv : verify_program<test_deconv>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
         mm.add_instruction(migraphx::op::deconvolution{}, input, weights);
         return p;
     }
@@ -841,12 +827,11 @@ struct test_deconv_2x3 : verify_program<test_deconv_2x3>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 6, 7}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {3, 4, 3, 3}});
-        mm.add_instruction(
-            migraphx::op::deconvolution{{1, 1}, {2, 3}, {1, 1}}, input, weights);
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 6, 7}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {3, 4, 3, 3}});
+        mm.add_instruction(migraphx::op::deconvolution{{1, 1}, {2, 3}, {1, 1}}, input, weights);
         return p;
     }
 };
@@ -856,9 +841,8 @@ struct test_deconv_1d : verify_program<test_deconv_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto& mm = p.get_main_module();
-        auto input =
-            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        auto& mm   = p.get_main_module();
+        auto input = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
         auto weights =
             mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
         mm.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
@@ -872,10 +856,10 @@ struct test_deconv_3d : verify_program<test_deconv_3d>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
         mm.add_instruction(
             migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
         return p;
@@ -888,10 +872,10 @@ struct test_conv_relu : verify_program<test_conv_relu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv = mm.add_instruction(migraphx::op::convolution{}, input, weights);
         mm.add_instruction(migraphx::op::relu{}, conv);
         return p;
@@ -904,10 +888,10 @@ struct test_conv_relu_half : verify_program<test_conv_relu_half>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
         auto conv = mm.add_instruction(migraphx::op::convolution{}, input, weights);
         mm.add_instruction(migraphx::op::relu{}, conv);
         return p;
@@ -921,10 +905,10 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         migraphx::program p;
         auto& mm = p.get_main_module();
         std::vector<size_t> input_lens{4, 3, 3, 3};
-        auto input = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto l0   = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
                                     {2.0f, 2.0f, 2.0f, 2.0f}};
         auto bias = mm.add_literal(l0);
@@ -934,8 +918,8 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         auto bias_add = mm.add_instruction(migraphx::op::add{}, conv, bcast_add);
         auto min_val  = mm.add_literal(0.0f);
         auto max_val  = mm.add_literal(6.0f);
-        min_val = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
-        max_val = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        min_val       = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val       = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
         mm.add_instruction(migraphx::op::clip{}, bias_add, min_val, max_val);
         return p;
     }
@@ -947,8 +931,8 @@ struct test_conv_add : verify_program<test_conv_add>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x = mm.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-        auto w = mm.add_literal(
+        auto x   = mm.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto w   = mm.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 1));
         auto y = mm.add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto v = mm.add_literal(
@@ -967,8 +951,8 @@ struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_st
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x = mm.add_parameter("x", {migraphx::shape::float_type, {1, 8, 2, 2}});
-        auto w = mm.add_literal(
+        auto x   = mm.add_parameter("x", {migraphx::shape::float_type, {1, 8, 2, 2}});
+        auto w   = mm.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 1, 1}}, 1));
         auto y = mm.add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto v = mm.add_literal(
@@ -1028,10 +1012,8 @@ struct test_add_relu : verify_program<test_add_relu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto add = mm.add_instruction(migraphx::op::add{}, x, y);
         mm.add_instruction(migraphx::op::relu{}, add);
         return p;
@@ -1044,10 +1026,8 @@ struct test_add_sigmoid : verify_program<test_add_sigmoid>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto add = mm.add_instruction(migraphx::op::add{}, x, y);
         mm.add_instruction(migraphx::op::sigmoid{}, add);
         return p;
@@ -1060,10 +1040,8 @@ struct test_add_tanh : verify_program<test_add_tanh>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto add = mm.add_instruction(migraphx::op::add{}, x, y);
         mm.add_instruction(migraphx::op::tanh{}, add);
         return p;
@@ -1076,12 +1054,9 @@ struct test_triadd_relu : verify_program<test_triadd_relu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto z = mm.add_parameter(
-            "z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z = mm.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto sum    = mm.add_instruction(migraphx::op::add{}, x, y);
         auto triadd = mm.add_instruction(migraphx::op::add{}, sum, z);
         mm.add_instruction(migraphx::op::relu{}, triadd);
@@ -1095,12 +1070,9 @@ struct test_triadd_sigmoid : verify_program<test_triadd_sigmoid>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto z = mm.add_parameter(
-            "z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z = mm.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto sum    = mm.add_instruction(migraphx::op::add{}, x, y);
         auto triadd = mm.add_instruction(migraphx::op::add{}, sum, z);
         mm.add_instruction(migraphx::op::sigmoid{}, triadd);
@@ -1114,12 +1086,9 @@ struct test_triadd_tanh : verify_program<test_triadd_tanh>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y = mm.add_parameter(
-            "y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto z = mm.add_parameter(
-            "z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto z = mm.add_parameter("z", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto sum    = mm.add_instruction(migraphx::op::add{}, x, y);
         auto triadd = mm.add_instruction(migraphx::op::add{}, sum, z);
         mm.add_instruction(migraphx::op::tanh{}, triadd);
@@ -1130,21 +1099,20 @@ struct test_triadd_tanh : verify_program<test_triadd_tanh>
 migraphx::instruction_ref add_layernorm(migraphx::program& p, std::vector<size_t> dims)
 {
     auto& mm = p.get_main_module();
-    auto x     = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
-    auto scale = mm.add_parameter(
-        "scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
-    auto bias = mm.add_parameter(
-        "bias", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
+    auto x   = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+    auto scale =
+        mm.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
+    auto bias =
+        mm.add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
     auto epsilon  = mm.add_literal(1e-12f);
     auto exponent = mm.add_literal(2.0f);
 
-    auto mean        = mm.add_instruction(migraphx::op::reduce_mean({2}), x);
-    auto mean_mbcast = mm.add_instruction(migraphx::op::multibroadcast{{dims}}, mean);
-    auto sub         = mm.add_instruction(migraphx::op::sub{}, x, mean_mbcast);
-    auto exponent_mbcast =
-        mm.add_instruction(migraphx::op::multibroadcast{{dims}}, exponent);
-    auto pow = mm.add_instruction(migraphx::op::pow{}, sub, exponent_mbcast);
-    auto var = mm.add_instruction(migraphx::op::reduce_mean({2}), pow);
+    auto mean            = mm.add_instruction(migraphx::op::reduce_mean({2}), x);
+    auto mean_mbcast     = mm.add_instruction(migraphx::op::multibroadcast{{dims}}, mean);
+    auto sub             = mm.add_instruction(migraphx::op::sub{}, x, mean_mbcast);
+    auto exponent_mbcast = mm.add_instruction(migraphx::op::multibroadcast{{dims}}, exponent);
+    auto pow             = mm.add_instruction(migraphx::op::pow{}, sub, exponent_mbcast);
+    auto var             = mm.add_instruction(migraphx::op::reduce_mean({2}), pow);
     auto epsilon_mbcast =
         mm.add_instruction(migraphx::op::multibroadcast{{1, dims.at(1), 1}}, epsilon);
     auto add_epsilon  = mm.add_instruction(migraphx::op::add{}, var, epsilon_mbcast);
@@ -1183,8 +1151,7 @@ struct test_sigmoid : verify_program<test_sigmoid>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::sigmoid{}, x);
         return p;
     }
@@ -1196,8 +1163,7 @@ struct test_abs : verify_program<test_abs>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::abs{}, x);
         return p;
     }
@@ -1209,9 +1175,8 @@ struct test_trans_abs : verify_program<test_trans_abs>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx   = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x  = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto absx = mm.add_instruction(migraphx::op::abs{}, tx);
         auto r    = mm.add_instruction(migraphx::op::add{}, absx, absx);
         mm.add_instruction(migraphx::op::contiguous{}, r);
@@ -1226,8 +1191,7 @@ struct test_leaky_relu : verify_program<test_leaky_relu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::leaky_relu{0.01}, x);
         return p;
     }
@@ -1239,8 +1203,7 @@ struct test_elu : verify_program<test_elu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         mm.add_instruction(migraphx::op::leaky_relu{1.0}, x);
         return p;
     }
@@ -1252,8 +1215,7 @@ struct test_relu_lrn : verify_program<test_relu_lrn>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 5, 2, 2}});
+        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 5, 2, 2}});
         auto y = mm.add_instruction(migraphx::op::relu{}, x);
         mm.add_instruction(migraphx::op::lrn{0.0001, 0.75, 1.0, 5}, y);
         return p;
@@ -1266,10 +1228,10 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 32, 32}});
-        auto weights = mm.add_parameter(
-            "w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 32, 32}});
+        auto weights =
+            mm.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv    = mm.add_instruction(migraphx::op::convolution{}, input, weights);
         auto pooling = mm.add_instruction(migraphx::op::pooling{"max"}, conv);
         mm.add_instruction(migraphx::op::relu{}, pooling);
@@ -1283,14 +1245,14 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 256, 8, 8}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 256, 8, 8}});
         auto transpose = mm.add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, input);
         auto concat    = mm.add_instruction(migraphx::op::concat{3}, transpose);
         auto concat_t  = mm.add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, concat);
 
-        auto pooling = mm.add_instruction(
-            migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
+        auto pooling =
+            mm.add_instruction(migraphx::op::pooling{"average", {0, 0}, {1, 1}, {8, 8}}, concat_t);
         mm.add_instruction(migraphx::op::relu{}, pooling);
         return p;
     }
@@ -1302,8 +1264,8 @@ struct test_global_avg_pooling : verify_program<test_global_avg_pooling>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
         auto op    = migraphx::op::pooling{"average"};
         auto lens  = input->get_shape().lens();
         op.lengths = {lens[2], lens[3]};
@@ -1318,8 +1280,8 @@ struct test_global_max_pooling : verify_program<test_global_max_pooling>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
         auto op    = migraphx::op::pooling{"max"};
         auto lens  = input->get_shape().lens();
         op.lengths = {lens[2], lens[3]};
@@ -1334,8 +1296,8 @@ struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
         auto op = migraphx::op::pooling{"max", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, true};
         mm.add_instruction(op, input);
         return p;
@@ -1347,10 +1309,9 @@ struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto& mm = p.get_main_module();
-        auto input =
-            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
-        auto op = migraphx::op::pooling{"average", {0}, {1}, {3}};
+        auto& mm   = p.get_main_module();
+        auto input = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto op    = migraphx::op::pooling{"average", {0}, {1}, {3}};
         mm.add_instruction(op, input);
         return p;
     }
@@ -1362,8 +1323,8 @@ struct test_avg_pooling_3d : verify_program<test_avg_pooling_3d>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
         auto op = migraphx::op::pooling{"average", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}};
         mm.add_instruction(op, input);
         return p;
@@ -1376,8 +1337,8 @@ struct test_avg_pooling_ceil_3d : verify_program<test_avg_pooling_ceil_3d>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
         auto op = migraphx::op::pooling{"average", {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, true};
         mm.add_instruction(op, input);
         return p;
@@ -1390,8 +1351,8 @@ struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto input                    = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 2, 3, 3, 3}});
+        auto input =
+            mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 2, 3, 3, 3}});
         auto op = migraphx::op::pooling{"average", {0, 0, 0}, {1, 1, 1}, {3, 3, 3}};
         mm.add_instruction(op, input);
         return p;
@@ -1404,10 +1365,8 @@ struct test_gemm : verify_program<test_gemm>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
         mm.add_instruction(migraphx::op::dot{}, a, b);
         return p;
     }
@@ -1438,10 +1397,8 @@ struct test_gemm_ex : verify_program<test_gemm_ex>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a                        = mm.add_parameter(
-            "a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
-        auto b = mm.add_parameter(
-            "b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto a = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 4, 5}});
+        auto b = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
         mm.add_instruction(migraphx::op::dot{}, a, b);
         return p;
     }
@@ -1453,10 +1410,8 @@ struct test_gemm_half : verify_program<test_gemm_half>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::half_type, {4, 5}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::half_type, {5, 3}});
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::half_type, {4, 5}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::half_type, {5, 3}});
         mm.add_instruction(migraphx::op::dot{}, a, b);
         return p;
     }
@@ -1468,10 +1423,10 @@ struct test_gemm_ld //: verify_program<test_gemm_ld>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a                        = mm.add_parameter(
-            "a", migraphx::shape{migraphx::shape::float_type, {4, 5}, {10, 1}});
-        auto b = mm.add_parameter(
-            "b", migraphx::shape{migraphx::shape::float_type, {5, 3}, {20, 1}});
+        auto a =
+            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}, {10, 1}});
+        auto b =
+            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}, {20, 1}});
         mm.add_instruction(migraphx::op::dot{}, a, b);
         return p;
     }
@@ -1483,11 +1438,9 @@ struct test_gemm_transposeb : verify_program<test_gemm_transposeb>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3, 5}});
-        auto bt = mm.add_instruction(migraphx::op::transpose{{1, 0}}, b);
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3, 5}});
+        auto bt  = mm.add_instruction(migraphx::op::transpose{{1, 0}}, b);
         mm.add_instruction(migraphx::op::dot{}, a, bt);
         return p;
     }
@@ -1499,11 +1452,9 @@ struct test_gemm_transposeb_ex : verify_program<test_gemm_transposeb_ex>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
-        auto bt = mm.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 4, 5}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto bt  = mm.add_instruction(migraphx::op::transpose{{0, 2, 1}}, b);
         mm.add_instruction(migraphx::op::dot{}, a, bt);
         return p;
     }
@@ -1515,11 +1466,9 @@ struct test_gemm_transposea : verify_program<test_gemm_transposea>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
-        auto at = mm.add_instruction(migraphx::op::transpose{{1, 0}}, a);
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
+        auto at  = mm.add_instruction(migraphx::op::transpose{{1, 0}}, a);
         mm.add_instruction(migraphx::op::dot{}, at, b);
         return p;
     }
@@ -1531,10 +1480,8 @@ struct test_gemm_transposea_ex : verify_program<test_gemm_transposea_ex>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a                        = mm.add_parameter(
-            "a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto b = mm.add_parameter(
-            "b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto a  = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b  = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
         auto at = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
         mm.add_instruction(migraphx::op::dot{}, at, b);
         return p;
@@ -1547,12 +1494,10 @@ struct test_gemm_transposeab : verify_program<test_gemm_transposeab>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto a =
-            mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
-        auto b =
-            mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3, 5}});
-        auto at = mm.add_instruction(migraphx::op::transpose{{1, 0}}, a);
-        auto bt = mm.add_instruction(migraphx::op::transpose{{1, 0}}, b);
+        auto a   = mm.add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
+        auto b   = mm.add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3, 5}});
+        auto at  = mm.add_instruction(migraphx::op::transpose{{1, 0}}, a);
+        auto bt  = mm.add_instruction(migraphx::op::transpose{{1, 0}}, b);
         mm.add_instruction(migraphx::op::dot{}, at, bt);
         return p;
     }
@@ -2099,8 +2044,7 @@ struct test_trans_ret : verify_program<test_trans_ret>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        auto x                        = mm.add_parameter(
-            "x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x  = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = mm.add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         mm.add_return({tx});
 
@@ -2127,8 +2071,7 @@ struct test_batchnorm_inference_2 : verify_program<test_batchnorm_inference_2>
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm.add_instruction(
-            migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        mm.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2152,8 +2095,7 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm.add_instruction(
-            migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        mm.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2176,8 +2118,7 @@ struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm.add_instruction(
-            migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        mm.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2202,8 +2143,7 @@ struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm.add_instruction(
-            migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        mm.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2306,8 +2246,8 @@ struct test_clip : verify_program<test_clip>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto& mm = p.get_main_module();
-        auto x = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto& mm     = p.get_main_module();
+        auto x       = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
         auto min_val = mm.add_literal(0.0f);
         auto max_val = mm.add_literal(6.0f);
         min_val      = mm.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
@@ -2327,16 +2267,14 @@ struct test_conv_bn : verify_program<test_conv_bn>
         migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
         migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
         migraphx::shape vars{migraphx::shape::float_type, {64}};
-        auto x = mm.add_parameter("x", xs);
-        auto w = mm.add_parameter("w", ws);
-        auto conv =
-            mm.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto x        = mm.add_parameter("x", xs);
+        auto w        = mm.add_parameter("w", ws);
+        auto conv     = mm.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
         auto scale    = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm.add_instruction(
-            migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        mm.add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2351,10 +2289,9 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
         migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
         migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
         migraphx::shape vars{migraphx::shape::float_type, {64}};
-        auto x = mm.add_parameter("x", xs);
-        auto w = mm.add_parameter("w", ws);
-        auto conv =
-            mm.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto x        = mm.add_parameter("x", xs);
+        auto w        = mm.add_parameter("w", ws);
+        auto conv     = mm.add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
         auto scale    = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
         auto bias     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
@@ -2455,7 +2392,7 @@ struct test_concat_axis_1 : verify_program<test_concat_axis_1>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
@@ -2473,7 +2410,7 @@ struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = -1;
+        int axis = -1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 1}};
@@ -2491,7 +2428,7 @@ struct test_concat_axis_0 : verify_program<test_concat_axis_0>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 0;
+        int axis = 0;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {1, 2}};
@@ -2509,7 +2446,7 @@ struct test_concat_transpose : verify_program<test_concat_transpose>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {2, 4}};
@@ -2528,7 +2465,7 @@ struct test_concat_transpose2 : verify_program<test_concat_transpose2>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
@@ -2547,7 +2484,7 @@ struct test_concat_transpose3 : verify_program<test_concat_transpose3>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 1;
+        int axis = 1;
         migraphx::shape s0{migraphx::shape::int32_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::int32_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::int32_type, {5, 2}};
@@ -2567,7 +2504,7 @@ struct test_concat_relu : verify_program<test_concat_relu>
     {
         migraphx::program p;
         auto& mm = p.get_main_module();
-        int axis                      = 0;
+        int axis = 0;
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
         migraphx::shape s2{migraphx::shape::float_type, {1, 2}};
@@ -2622,8 +2559,8 @@ struct test_pad_int8 : verify_program<test_pad_int8>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto& mm = p.get_main_module();
-        std::vector<int8_t> data0     = {0, 1, 2, 3};
+        auto& mm                  = p.get_main_module();
+        std::vector<int8_t> data0 = {0, 1, 2, 3};
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         auto l0 = mm.add_literal(migraphx::literal{s0, data0});
         migraphx::op::pad op{};
@@ -2791,8 +2728,8 @@ struct test_gather_1d_index : verify_program<test_gather_1d_index>
 void manual_identity()
 {
     migraphx::program p;
-    auto& mm = p.get_main_module();
-    std::vector<float> data0      = {0, 1, 2, 3};
+    auto& mm                 = p.get_main_module();
+    std::vector<float> data0 = {0, 1, 2, 3};
     migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
     auto l0 = mm.add_literal(migraphx::literal{s0, data0});
     mm.add_instruction(migraphx::op::identity{}, l0);
@@ -2809,11 +2746,11 @@ void manual_identity()
 void manual_test_concat_relu()
 {
     migraphx::program p;
-    auto& mm = p.get_main_module();
-    int axis                      = 0;
-    std::vector<float> data0      = {0, 1, 2, 3};
-    std::vector<float> data1      = {4, 5, 6, 7, 8, 9};
-    std::vector<float> data2      = {10, 11};
+    auto& mm                 = p.get_main_module();
+    int axis                 = 0;
+    std::vector<float> data0 = {0, 1, 2, 3};
+    std::vector<float> data1 = {4, 5, 6, 7, 8, 9};
+    std::vector<float> data2 = {10, 11};
     migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
     migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 2}};
@@ -2843,12 +2780,9 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
     {
         auto& mm = p.get_main_module();
         migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto scale =
-            mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + channels)));
-        auto bias =
-            mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + channels)));
-        auto mean =
-            mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + channels)));
+        auto scale = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + channels)));
+        auto bias  = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + channels)));
+        auto mean  = mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + channels)));
         auto variance =
             mm.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + channels)));
         return mm.add_instruction(
@@ -2863,18 +2797,16 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
         migraphx::shape xs2{migraphx::shape::float_type, {1, 1024, 14, 14}};
         migraphx::shape ws1{migraphx::shape::float_type, {2048, 512, 1, 1}};
         migraphx::shape ws2{migraphx::shape::float_type, {2048, 1024, 1, 1}};
-        auto x1 = mm.add_parameter("x1", xs1);
-        auto w1 = mm.add_parameter("w1", ws1);
-        auto conv1 =
-            mm.add_instruction(migraphx::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x1, w1);
-        auto bn1 = add_bn(p, conv1, 2048);
-        auto x2  = mm.add_parameter("x2", xs2);
-        auto w2  = mm.add_parameter("w2", ws2);
-        auto conv2 =
-            mm.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}, {1, 1}}, x2, w2);
-        auto bn2  = add_bn(p, conv2, 2048);
-        auto add  = mm.add_instruction(migraphx::op::add{}, bn1, bn2);
-        auto relu = mm.add_instruction(migraphx::op::relu{}, add);
+        auto x1    = mm.add_parameter("x1", xs1);
+        auto w1    = mm.add_parameter("w1", ws1);
+        auto conv1 = mm.add_instruction(migraphx::op::convolution{{0, 0}, {1, 1}, {1, 1}}, x1, w1);
+        auto bn1   = add_bn(p, conv1, 2048);
+        auto x2    = mm.add_parameter("x2", xs2);
+        auto w2    = mm.add_parameter("w2", ws2);
+        auto conv2 = mm.add_instruction(migraphx::op::convolution{{0, 0}, {2, 2}, {1, 1}}, x2, w2);
+        auto bn2   = add_bn(p, conv2, 2048);
+        auto add   = mm.add_instruction(migraphx::op::add{}, bn1, bn2);
+        auto relu  = mm.add_instruction(migraphx::op::relu{}, add);
         mm.add_instruction(migraphx::op::pooling{"average", {1, 1}, {2, 2}, {3, 3}}, relu);
         return p;
     }
@@ -3031,9 +2963,9 @@ struct test_rsqrt : verify_program<test_rsqrt>
         auto x       = mm.add_parameter("x", s);
         auto min_val = mm.add_literal(1.0f);
         auto max_val = mm.add_literal(std::numeric_limits<float>::max());
-        min_val = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
-        max_val = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
-        auto l0 = mm.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
+        min_val      = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
+        max_val      = mm.add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
+        auto l0      = mm.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         mm.add_instruction(migraphx::op::rsqrt{}, l0);
         return p;
     };
@@ -3091,10 +3023,8 @@ struct test_convert : verify_program<test_convert>
         migraphx::shape sb{migraphx::shape::float_type, {24, 6}};
         auto pa = mm.add_parameter("a", sa);
         auto pb = mm.add_parameter("b", sb);
-        auto ia =
-            mm.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pa);
-        auto ib =
-            mm.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pb);
+        auto ia = mm.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pa);
+        auto ib = mm.add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pb);
         mm.add_instruction(migraphx::op::quant_dot{}, ia, ib);
 
         return p;

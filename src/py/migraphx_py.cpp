@@ -12,6 +12,8 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/make_op.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -19,6 +21,70 @@
 
 using half   = half_float::half;
 namespace py = pybind11;
+
+namespace migraphx {
+
+migraphx::value to_value(py::kwargs kwargs);
+migraphx::value to_value(py::list lst);
+
+template <class T, class F>
+void visit_py(T x, F f)
+{
+    if(py::isinstance<py::kwargs>(x))
+    {
+        f(to_value(x.template cast<py::kwargs>()));
+    }
+    else if(py::isinstance<py::list>(x))
+    {
+        f(to_value(x.template cast<py::list>()));
+    }
+    else if(py::isinstance<py::bool_>(x))
+    {
+        f(x.template cast<bool>());
+    }
+    else if(py::isinstance<py::int_>(x))
+    {
+        f(x.template cast<int>());
+    }
+    else if(py::isinstance<py::float_>(x))
+    {
+        f(x.template cast<float>());
+    }
+    else if(py::isinstance<py::str>(x))
+    {
+        f(x.template cast<std::string>());
+    }
+    else
+    {
+        MIGRAPHX_THROW("VISIT_PY: Unsupported data type!");
+    }
+}
+
+migraphx::value to_value(py::list lst)
+{
+    migraphx::value v = migraphx::value::array{};
+    for(auto val : lst)
+    {
+        visit_py(val, [&](auto py_val) { v.push_back(py_val); });
+    }
+
+    return v;
+}
+
+migraphx::value to_value(py::kwargs kwargs)
+{
+    migraphx::value v = migraphx::value::object{};
+
+    for(auto arg : kwargs)
+    {
+        auto&& key = py::str(arg.first);
+        auto&& val = arg.second;
+        visit_py(val, [&](auto py_val) { v[key] = py_val; });
+    }
+
+    return v;
+}
+} // namespace migraphx
 
 namespace pybind11 {
 namespace detail {
@@ -215,6 +281,18 @@ PYBIND11_MODULE(migraphx, m)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
+
+    py::class_<migraphx::operation>(m, "op")
+        .def(py::init([](const std::string& name, py::kwargs kwargs) {
+            migraphx::value v = migraphx::value::object{};
+            if(kwargs)
+            {
+                v = migraphx::to_value(kwargs);
+            }
+            return migraphx::make_op(name, v);
+        }))
+
+        .def("name", &migraphx::operation::name);
 
     m.def("parse_tf",
           [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {

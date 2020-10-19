@@ -2551,8 +2551,7 @@ TEST_CASE(gru_bidirectional_seq_1)
     float clip = 0.0f;
     migraphx::program p;
     migraphx::module& main_module = p.get_main_module();
-    migraphx::shape in_shape_one{migraphx::shape::float_type,
-                                    {seq_len, batch_size, input_size}};
+    migraphx::shape in_shape_one{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
     std::vector<float> input_one{-0.8432, -0.9887, 1.3041, -2.6430, -0.3306, -0.8504};
     auto seq  = main_module.add_literal(migraphx::literal{in_shape_one, input_one});
     auto w    = main_module.add_literal(migraphx::literal{w_shape, w_data});
@@ -2560,18 +2559,17 @@ TEST_CASE(gru_bidirectional_seq_1)
     auto bias = main_module.add_literal(migraphx::literal{b_shape, bias_data});
     auto und  = main_module.add_instruction(migraphx::op::undefined{});
     auto ih   = main_module.add_literal(migraphx::literal{ih_shape, ih_data});
-    main_module.add_instruction(
-        migraphx::op::gru{hidden_size,
-                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                            migraphx::op::rnn_direction::bidirectional,
-                            clip,
-                            1},
-        seq,
-        w,
-        r,
-        bias,
-        und,
-        ih);
+    main_module.add_instruction(migraphx::op::gru{hidden_size,
+                                                  {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::bidirectional,
+                                                  clip,
+                                                  1},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und,
+                                ih);
 
     p.compile(migraphx::cpu::target{});
     auto hs_concat = p.eval({}).back();

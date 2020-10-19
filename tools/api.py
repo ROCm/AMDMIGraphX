@@ -725,6 +725,30 @@ def vector_c_wrap(p):
         p.read = '${type}(${name}, ${name}+${size})'
 
 
+@cwrap('std::string')
+def string_c_wrap(p):
+    t = Type('char*')
+    if p.returns:
+        if p.type.is_reference():
+            p.add_param(t.add_pointer())
+            p.bad_param('${name} == nullptr', 'Null pointer')
+            p.cpp_write = '${type}(${name})'
+            p.write = ['*${name} = ${result}.c_str()']
+        else:
+            p.add_param(t)
+            p.add_param('size_t', p.name + '_size')
+            p.bad_param('${name} == nullptr', 'Null pointer')
+            p.cpp_write = '${type}(${name})'
+            p.write = [
+                'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
+                '*it = \'\\0\''
+            ]
+    else:
+        p.add_param(t)
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.read = '${type}(${name})'
+
+
 class Handle:
     def __init__(self, name, ctype, cpptype):
         self.name = name

@@ -571,8 +571,9 @@ auto tree(std::string s, Ms... ms)
         if(idx != leafs.size())
             return ctx.not_found();
         // Use explicit captures to workaround ICE on gcc
-        bool found = sequence_c<sizeof...(Ms)>(
-            [&ms..., &ctx, &leafs](auto... is) { return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)(); });
+        bool found = sequence_c<sizeof...(Ms)>([&ms..., &ctx, &leafs](auto... is) {
+            return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)();
+        });
         if(not found)
             return ctx.not_found();
         return ins;

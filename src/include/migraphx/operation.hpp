@@ -97,11 +97,11 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 
 } // namespace operation_operators
 
-template<class T>
+template <class T>
 void normalize_op(T& op, const std::vector<shape>& inputs)
 {
     int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
-    value val = op.to_value();
+    value val     = op.to_value();
     if(val.contains("axis"))
     {
         auto axis = val["axis"].without_key().to<int64_t>();
@@ -126,7 +126,7 @@ void normalize_op(T& op, const std::vector<shape>& inputs)
     }
 }
 
-template<class T>
+template <class T>
 shape normalize_compute_shape_op(T&& x, const std::vector<shape>& inputs)
 {
     T y = x;

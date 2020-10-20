@@ -7,6 +7,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/argument.hpp>
@@ -95,6 +96,43 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 }
 
 } // namespace operation_operators
+
+template<class T>
+void normalize_op(T& op, const std::vector<shape>& inputs)
+{
+    int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
+    value val = op.to_value();
+    if(val.contains("axis"))
+    {
+        auto axis = val["axis"].without_key().to<int64_t>();
+        if(axis < 0)
+        {
+            axis        = axis < 0 ? axis + n_dim : axis;
+            val["axis"] = axis;
+            op.from_value(val);
+        }
+    }
+    else if(val.contains("axes"))
+    {
+        auto axes = val["axes"].without_key().to_vector<int64_t>();
+        if(std::any_of(axes.begin(), axes.end(), [=](auto i) { return i < 0; }))
+        {
+            std::transform(axes.begin(), axes.end(), axes.begin(), [&](auto i) {
+                return ((i < 0) ? i + n_dim : i);
+            });
+            val["axes"] = axes;
+            op.from_value(val);
+        }
+    }
+}
+
+template<class T>
+shape normalize_compute_shape_op(T&& x, const std::vector<shape>& inputs)
+{
+    T y = x;
+    normalize_op(y, inputs);
+    return y.normalize_compute_shape(inputs);
+}
 
 template <class T>
 auto compute_op(rank<2>,

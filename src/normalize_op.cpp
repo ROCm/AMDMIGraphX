@@ -21,12 +21,57 @@ void normalize_op(operation& op, std::vector<shape> inputs)
     else if(val.contains("axes"))
     {
         auto axes = val["axes"].without_key().to_vector<int64_t>();
+        bool tuned = false;
         if(std::any_of(axes.begin(), axes.end(), [=](auto i) { return i < 0; }))
         {
             std::transform(axes.begin(), axes.end(), axes.begin(), [&](auto i) {
                 return ((i < 0) ? i + n_dim : i);
             });
             val["axes"] = axes;
+            tuned = true;
+        }
+
+        // for slice
+        if (val.contains("starts") or val.contains("ends"))
+        {
+            auto lens = inputs[0].lens();
+            std::vector<int64_t> axis_lens(axes.size());
+            std::transform(
+                axes.begin(), axes.end(), axis_lens.begin(), [&](auto axis) { return lens[axis]; });
+
+            if (val.contains("starts"))
+            {
+                auto starts = val["starts"].without_key().to_vector<int64_t>();
+                if(std::any_of(starts.begin(), starts.end(), [&](auto i) { return i < 0; }) or
+                !std::equal(starts.begin(), starts.end(), axis_lens.begin(), std::less_equal<>{}))
+                {
+                    std::transform(
+                        starts.begin(), starts.end(), axis_lens.begin(), starts.begin(), [=](auto i, auto dim) {
+                            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
+                            return (i < 0) ? (i + dim) : i;
+                        });
+                    tuned = true;
+                }
+            }
+
+            if (val.contains("ends"))
+            {
+                auto ends = val["ends"].without_key().to_vector<int64_t>();
+                if(std::any_of(ends.begin(), ends.end(), [&](auto i) { return i < 0; }) or
+                !std::equal(ends.begin(), ends.end(), axis_lens.begin(), std::less_equal<>{}))
+                {
+                    std::transform(
+                        ends.begin(), ends.end(), axis_lens.begin(), ends.begin(), [=](auto i, auto dim) {
+                            i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
+                            return (i < 0) ? (i + dim) : i;
+                        });
+                    tuned = true;
+                }
+            }
+        }
+
+        if (tuned)
+        {
             op.from_value(val);
         }
     }

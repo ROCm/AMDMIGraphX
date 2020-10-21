@@ -179,18 +179,15 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
-auto need_normalization_op(rank<1>,
-                        const T& x,
-                        const std::vector<shape>& inputs)
+auto need_normalization_op(rank<1>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs), std::true_type{});
 
 template <class T>
-auto need_normalization_op(rank<0>, const T&, const std::vector<shape>&)
-    -> std::false_type;
+auto need_normalization_op(rank<0>, const T&, const std::vector<shape>&) -> std::false_type;
 
 template <class T>
-auto need_normalization_op(const T& x) -> decltype(need_normalization_op(
-    rank<1>{}, x, std::declval<std::vector<shape>>()))
+auto need_normalization_op(const T& x)
+    -> decltype(need_normalization_op(rank<1>{}, x, std::declval<std::vector<shape>>()))
 {
     return {};
 }
@@ -265,8 +262,10 @@ void from_value_op(T& x, const value& v)
      virtual('name', returns = 'std::string', const = True),
      virtual(
          'is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
-     virtual(
-         'need_normalization', returns = 'bool', const = True, default = 'detail::need_normalization_op'),
+     virtual('need_normalization',
+             returns = 'bool',
+             const   = True,
+             default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',

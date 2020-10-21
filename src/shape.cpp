@@ -1,9 +1,11 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/serialize.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
+#include <unordered_map>
 #include <iostream>
 
 namespace migraphx {
@@ -13,7 +15,7 @@ struct shape_impl
 {
     static std::shared_ptr<shape_impl> default_shape()
     {
-        static std::shared_ptr<shape_impl> result = std::make_shared<shape_impl>();
+        static const std::shared_ptr<shape_impl> result = std::make_shared<shape_impl>();
         return result;
     }
 
@@ -229,6 +231,29 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     os << "{" << to_string_range(x.lens()) << "}, ";
     os << "{" << to_string_range(x.strides()) << "}";
     return os;
+}
+
+shape::type_t shape::parse_type(const std::string& s)
+{
+    static const std::unordered_map<std::string, shape::type_t> m = {
+#define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)};
+    return m.at(s);
+}
+
+void migraphx_to_value(value& v, const shape& s)
+{
+    value result;
+    result["type"]    = migraphx::to_value(s.type_string());
+    result["lens"]    = migraphx::to_value(s.lens());
+    result["strides"] = migraphx::to_value(s.strides());
+    v                 = result;
+}
+void migraphx_from_value(const value& v, shape& s)
+{
+    s = shape{shape::parse_type(v.at("type").get_string()),
+              v.at("lens").to_vector<std::size_t>(),
+              v.at("strides").to_vector<std::size_t>()};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

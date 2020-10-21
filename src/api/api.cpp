@@ -3,14 +3,15 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
 #include <migraphx/quantization.hpp>
-
-#ifdef HAVE_GPU
-#include <migraphx/gpu/target.hpp>
-#endif
+#include <migraphx/cpu/target.hpp>
+#include <migraphx/load_save.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <algorithm>
 
 namespace migraphx {
 
@@ -67,24 +68,20 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }
 
-target get_target(const std::string& name)
-{
-    migraphx::target t;
-    if(name == "cpu")
-        t = migraphx::cpu::target();
-#ifdef HAVE_GPU
-    else if(name == "gpu")
-        t = migraphx::gpu::target();
-#endif
-    else
-        MIGRAPHX_THROW(migraphx_status_unknown_target, "Unknown target: " + name);
-    return t;
-}
+target get_target(const std::string& name) { return make_target(name); }
 
 migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    result.fast_math    = options.fast_math;
+    return result;
+}
+
+migraphx::file_options to_file_options(const migraphx_file_options& options)
+{
+    migraphx::file_options result{};
+    result.format = options.format;
     return result;
 }
 
@@ -143,6 +140,18 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     }
 
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
+}
+
+operation create_op(const char* name, const char* attributes)
+{
+    value v = value::object{};
+    if(attributes != nullptr)
+    {
+        v = from_json_string(convert_to_json(std::string(attributes)));
+    }
+    auto op = make_op(name, v);
+
+    return op;
 }
 
 template <class T>
@@ -263,6 +272,16 @@ struct migraphx_program
     {
     }
     migraphx::program object;
+};
+
+extern "C" struct migraphx_operation;
+struct migraphx_operation
+{
+    template <class... Ts>
+    migraphx_operation(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::operation object;
 };
 
 extern "C" struct migraphx_onnx_options;
@@ -649,6 +668,15 @@ extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t progr
     });
 }
 
+extern "C" migraphx_status migraphx_program_sort(migraphx_program_t program)
+{
+    return migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        (program->object).sort();
+    });
+}
+
 extern "C" migraphx_status migraphx_program_run(migraphx_arguments_t* out,
                                                 migraphx_program_t program,
                                                 migraphx_program_parameters_t params)
@@ -671,6 +699,57 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((program->object), (x->object));
+    });
+}
+
+extern "C" migraphx_status migraphx_operation_destroy(migraphx_operation_t operation)
+{
+    return migraphx::try_([&] { destroy((operation)); });
+}
+
+extern "C" migraphx_status
+migraphx_operation_create(migraphx_operation_t* operation, const char* name, const char* attributes)
+{
+    return migraphx::try_([&] {
+        *operation = object_cast<migraphx_operation_t>(
+            allocate<migraphx::operation>(migraphx::create_op((name), (attributes))));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operation)
+{
+    return migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(operation == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
+        auto&& api_result = (operation->object).name();
+        auto* it = std::copy_n(api_result.begin(), std::min(api_result.size(), out_size - 1), out);
+        *it      = '\0';
+    });
+}
+
+extern "C" migraphx_status
+migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options* options)
+{
+    return migraphx::try_([&] {
+        *out = allocate<migraphx_program_t>(migraphx::load(
+            (name),
+            (options == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*options))));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options* options)
+{
+    return migraphx::try_([&] {
+        if(p == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
+        migraphx::save(
+            (p->object),
+            (name),
+            (options == nullptr ? migraphx::file_options{} : migraphx::to_file_options(*options)));
     });
 }
 

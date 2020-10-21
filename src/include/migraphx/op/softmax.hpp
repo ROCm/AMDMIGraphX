@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SOFTMAX_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SOFTMAX_HPP
 
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 
@@ -22,7 +21,7 @@ struct softmax
     std::string name() const { return "softmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1).standard();
+        check_shapes{inputs, *this}.has(1).standard();
         int64_t n_dim = inputs[0].lens().size();
         if(axis < -n_dim || axis >= n_dim)
         {

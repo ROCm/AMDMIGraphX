@@ -173,4 +173,35 @@ TEST_CASE(check_run_finalize_throw)
     EXPECT(test::throws([&] { op.finalize(ctx, {}, {}); }));
 }
 
+TEST_CASE(check_to_value1)
+{
+    migraphx::operation op = simple_operation{};
+    auto v                 = op.to_value();
+    EXPECT(v == migraphx::value{{"data", 1}});
+}
+
+TEST_CASE(check_to_value2)
+{
+    migraphx::operation op = simple_operation{};
+    auto v                 = migraphx::to_value(op);
+    EXPECT(v == migraphx::value{{"data", 1}});
+}
+
+TEST_CASE(check_from_value1)
+{
+    migraphx::operation op1 = simple_operation{};
+    migraphx::operation op2 = simple_operation{3};
+
+    op1.from_value({{"data", 3}});
+    EXPECT(op1 == op2);
+}
+
+TEST_CASE(check_from_value2)
+{
+    migraphx::operation op1 = migraphx::from_value<simple_operation>({{"data", 3}});
+    migraphx::operation op2 = simple_operation{3};
+
+    EXPECT(op1 == op2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

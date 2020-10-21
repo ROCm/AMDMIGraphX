@@ -2,6 +2,10 @@
 #define MIGRAPHX_GUARD_OPERATORS_BINARY_HPP
 
 #include <migraphx/op/name.hpp>
+#include <migraphx/check_shapes.hpp>
+#include <migraphx/shape_for_each.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -10,9 +14,11 @@ namespace op {
 template <class Derived>
 struct binary : op_name<Derived>
 {
+    value base_attributes() const { return {{"pointwise", true}}; }
+    value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(2).same_type().same_dims();
+        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(2).same_type().same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0 == s1 and s0.packed())

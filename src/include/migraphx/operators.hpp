@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_HPP
 
-#include <migraphx/op/abnormal_ops.hpp>
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/acosh.hpp>
@@ -13,7 +12,7 @@
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
-#include <migraphx/op/batch_norm.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/op/binary.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
@@ -30,15 +29,18 @@
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/equal.hpp>
 #include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
 #include <migraphx/op/gather.hpp>
+#include <migraphx/op/greater.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
+#include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
 #include <migraphx/op/logsoftmax.hpp>
@@ -86,6 +88,8 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 
 #endif

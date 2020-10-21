@@ -31,6 +31,8 @@ argument miopen_abs::compute(context& ctx,
     return args[1];
 }
 
+void miopen_abs::finalize(context&, const shape&, const std::vector<shape>&) { ad = make_abs(); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

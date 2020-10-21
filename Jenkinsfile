@@ -1,5 +1,12 @@
 
-def rocmtestnode(variant, name, body, args, pre) {
+// def rocmtestnode(variant, name, body, args, pre) {
+def rocmtestnode(Map conf) {
+    def variant = conf.get("variant")
+    def name = conf.get("node")
+    def body = conf.get("body")
+    def docker_args = conf.get("docker_args", "")
+    def docker_build_args = conf.get("docker_build_args", "")
+    def pre = conf.get("pre", {})
     def image = 'migraphxlib'
     def cmake_build = { compiler, flags ->
         def cmd = """
@@ -25,24 +32,25 @@ def rocmtestnode(variant, name, body, args, pre) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            pre()
-            stage("image ${variant}") {
-                try {
-                    docker.build("${image}", '.')
-                } catch(Exception ex) {
-                    docker.build("${image}", '--no-cache .')
+            gitStatusWrapper(credentialsId: 'github-app-rocm-mici', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+                pre()
+                stage("image ${variant}") {
+                    try {
+                        docker.build("${image}", "${docker_build_args} .")
+                    } catch(Exception ex) {
+                        docker.build("${image}", "${docker_build_args} --no-cache .")
 
+                    }
                 }
-            }
-            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${args}") {
-                timeout(time: 1, unit: 'HOURS') {
-                    body(cmake_build)
+                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
+                    timeout(time: 1, unit: 'HOURS') {
+                        body(cmake_build)
+                    }
                 }
             }
         }
     }
 }
-// @NonCPS
 def rocmtest(m) {
     def builders = [:]
     m.each { e ->
@@ -55,8 +63,7 @@ def rocmtest(m) {
     parallel builders
 }
 
-// @NonCPS
-def rocmnode(name, args, pre, body) {
+def rocmnodename(name) {
     def node_name = 'rocmtest || rocm'
     if(name == 'fiji') {
         node_name = 'rocmtest && fiji';
@@ -65,18 +72,19 @@ def rocmnode(name, args, pre, body) {
     } else {
         node_name = name
     }
-    return { label ->
-        rocmtestnode(label, node_name, body, args, pre)
-    }
+    return node_name
 }
 
 def rocmnode(name, body) {
-    rocmnode(name, '', {}, body)
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), body: body)
+    }
 }
 
-// @NonCPS
-def rocmnode(body) {
-    rocmnode('rocmtest', '', {}, body)
+def rocmhipclangnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_build_args: '-f hip-clang.docker', body: body)
+    }
 }
 
 // Static checks
@@ -123,6 +131,21 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release Python 3') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }
+}, hip_clang_release: rocmhipclangnode('vega') { cmake_build ->
+    stage('Hip Clang Release') {
+        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
+        // stash includes: 'build/*.deb', name: 'migraphx-package'
+    }
+}, hip_clang_tidy: rocmhipclangnode('rocmtest') { cmake_build ->
+    stage('Hip Clang Tidy') {
+        sh '''
+            rm -rf build
+            mkdir build
+            cd build
+            CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
+            make -j$(nproc) -k analyze
+        '''
+    }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
@@ -153,10 +176,16 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     }
 }
 
-rocmtest onnx: rocmnode('rocmtest', '-u root', { 
-    sh 'rm -rf ./build/*.deb'
-    unstash 'migraphx-package' 
-}) { cmake_build ->
+def onnxnode(name, body) {
+    return { label ->
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
+            sh 'rm -rf ./build/*.deb'
+            unstash 'migraphx-package' 
+        })
+    }
+}
+
+rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             ls -lR

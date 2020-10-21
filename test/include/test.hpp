@@ -85,6 +85,17 @@ inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
     return s;
 }
 
+inline std::ostream& operator<<(std::ostream& s, const std::vector<bool>& v)
+{
+    s << "{ ";
+    for(auto x : v)
+    {
+        s << x << ", ";
+    }
+    s << "}";
+    return s;
+}
+
 template <class T, class U, class Operator>
 struct expression
 {
@@ -251,6 +262,7 @@ string_map parse(std::vector<std::string> as, Keyword keyword)
 
 inline auto& get_test_cases()
 {
+    // NOLINTNEXTLINE
     static std::vector<std::pair<std::string, std::function<void()>>> cases;
     return cases;
 }

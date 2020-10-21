@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_CONCAT_GPU_OPT_HPP
 
 #include <migraphx/gpu/concat.hpp>
+#include <migraphx/operation.hpp>
 
 namespace migraphx {
 namespace gpu {

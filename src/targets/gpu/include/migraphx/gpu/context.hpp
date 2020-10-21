@@ -1,12 +1,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
+#include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <unordered_map>
+#include <memory>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +37,7 @@ struct hip_device
 
         stream(std::size_t device_number) : id(device_number) {}
 
-        void setup() { set_device(id); }
+        void setup() const { set_device(id); }
 
         static hip_stream_ptr create_stream()
         {
@@ -167,11 +169,36 @@ struct context
         return hip_event_ptr{event};
     }
 
+    value to_value() const
+    {
+        value result;
+        result["events"]  = events.size();
+        result["streams"] = current_device->nstreams();
+
+        return result;
+    }
+
+    void from_value(const value& v)
+    {
+        auto v_events        = v.at("events");
+        std::size_t n_events = v_events.without_key().to<std::size_t>();
+        this->create_events(n_events - 1);
+
+        auto v_streams        = v.at("streams");
+        std::size_t n_streams = v_streams.without_key().to<std::size_t>();
+
+        this->current_device = std::make_shared<hip_device>(0, n_streams);
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
 };
+
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

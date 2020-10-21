@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
 #include <migraphx/shape.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/op/quant_dot.hpp>
@@ -38,7 +39,7 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
-        check_shapes{in_shapes}.not_broadcasted();
+        check_shapes{in_shapes, *this}.not_broadcasted();
         batch_not_transposed(inputs[0].strides());
         batch_not_transposed(inputs[1].strides());
 

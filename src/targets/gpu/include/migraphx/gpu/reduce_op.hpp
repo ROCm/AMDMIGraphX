@@ -4,6 +4,7 @@
 #include <migraphx/gpu/name.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -32,7 +33,7 @@ struct reduce_op : oper<Derived>
     {
         std::vector<shape> in_shapes{inputs};
         in_shapes.pop_back();
-        check_shapes{in_shapes}.standard();
+        check_shapes{in_shapes, *this}.standard();
         return op.compute_shape(in_shapes);
     }
 

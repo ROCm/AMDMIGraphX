@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_OPERATORS_FLATTEN_HPP
 
 #include <array>
-#include <migraphx/operation.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -29,7 +28,7 @@ struct flatten
     std::string name() const { return "flatten"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1);
+        check_shapes{inputs, *this}.has(1);
         auto&& lens   = inputs.front().lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
         if(axis > n_dim or axis < -n_dim)

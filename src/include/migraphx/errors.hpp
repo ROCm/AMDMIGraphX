@@ -44,16 +44,17 @@ make_exception(const std::string& context, unsigned int e, const std::string& me
  *
  * @return A string that represents the file location
  */
-inline std::string make_source_context(const std::string& file, int line)
+inline std::string make_source_context(const std::string& file, int line, const std::string& fname)
 {
-    return file + ":" + std::to_string(line);
+    return file + ":" + std::to_string(line) + ": " + fname;
 }
 
 /**
  * @brief Throw an exception with context information
  */
-#define MIGRAPHX_THROW(...) \
-    throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__), __VA_ARGS__)
+#define MIGRAPHX_THROW(...)                                                                     \
+    throw migraphx::make_exception(migraphx::make_source_context(__FILE__, __LINE__, __func__), \
+                                   __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

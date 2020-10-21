@@ -17,7 +17,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
-    for(auto& p : passes)
+    for(const auto& p : passes)
     {
         trace("Pass: ", p.name());
         p.apply(prog);

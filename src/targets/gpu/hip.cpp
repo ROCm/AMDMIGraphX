@@ -2,6 +2,7 @@
 #include <migraphx/gpu/hip.hpp>
 
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
 #include <miopen/miopen.h>
@@ -11,6 +12,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_REGISTER_OP(hip_allocate)
+MIGRAPHX_REGISTER_OP(hip_sync_device)
+MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
+MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
+MIGRAPHX_REGISTER_OP(hip_copy)
+MIGRAPHX_REGISTER_OP(hip_allocate_memory)
+MIGRAPHX_REGISTER_OP(hip_copy_literal)
 
 using hip_ptr      = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
@@ -130,7 +139,12 @@ void set_device(std::size_t id)
         MIGRAPHX_THROW("Error setting device");
 }
 
-void gpu_sync() { hipDeviceSynchronize(); }
+void gpu_sync()
+{
+    auto status = hipDeviceSynchronize();
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("hip device synchronization failed: " + hip_error(status));
+}
 
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {
@@ -163,6 +177,11 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 argument get_preallocation(context& ctx, const std::string& id)
 {
     return ctx.get_current_device().preallocations.at(id);
+}
+
+void store_preallocated_param(context& ctx, const std::string& id, const argument& a)
+{
+    ctx.get_current_device().preallocations[id] = a;
 }
 
 // clang-format off

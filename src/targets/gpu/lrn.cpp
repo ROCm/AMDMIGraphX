@@ -33,6 +33,11 @@ argument miopen_lrn::compute(context& ctx,
     return args[1];
 }
 
+void miopen_lrn::finalize(context&, const shape&, const std::vector<shape>&)
+{
+    ldesc = make_lrn(op);
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

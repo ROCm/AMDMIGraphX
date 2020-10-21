@@ -37,7 +37,10 @@ add_library(migraphx_device
     device/floor.cpp
     device/gather.cpp
     device/gelu.cpp
+    device/greater.cpp
     device/int8_gemm_pack.cpp
+    device/layernorm.cpp
+    device/less.cpp
     device/log.cpp
     device/logsoftmax.cpp
     device/max.cpp
@@ -68,6 +71,7 @@ add_library(migraphx_device
     device/tan.cpp
     device/tanh.cpp
     device/rnn_variable_seq_lens.cpp
+    device/equal.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -92,6 +96,7 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    analyze_streams.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp
@@ -105,10 +110,9 @@ add_library(migraphx_gpu
     quant_convolution.cpp
     softmax.cpp
     logsoftmax.cpp
-    contiguous.cpp
     concat.cpp
     leaky_relu.cpp
-    batchnorm.cpp
+    batch_norm_inference.cpp
     write_literals.cpp
     rocblas.cpp
     abs.cpp
@@ -126,12 +130,96 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     preallocate_param.cpp
     rnn_variable_seq_lens.cpp
+    sync_device.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+function(register_migraphx_gpu_ops PREFIX)
+    foreach(OP ${ARGN})
+        register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
+    endforeach()
+endfunction()
+register_migraphx_gpu_ops(hip_
+    acosh
+    acos
+    add
+    argmax
+    argmin
+    asinh
+    asin
+    atanh
+    atan
+    ceil
+    clip
+    concat
+    convert
+    cosh
+    cos
+    div
+    equal
+    erf
+    exp
+    floor
+    gather
+    greater
+    less
+    log
+    logsoftmax
+    max
+    min
+    mul
+    pad
+    pow
+    prelu
+    recip
+    reduce_max
+    reduce_mean
+    reduce_min
+    reduce_prod
+    reduce_sum
+    relu
+    round
+    rsqrt
+    sigmoid
+    sign
+    sinh
+    sin
+    softmax
+    sqdiff
+    sqrt
+    sub
+    tanh
+    tan
+)
+register_migraphx_gpu_ops(miopen_
+    abs
+    batch_norm_inference
+    contiguous
+    convolution
+    deconvolution
+    elu
+    int8_conv_pack
+    leaky_relu
+    lrn
+    pooling
+    quant_convolution
+)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp 
+    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
+    INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/int8_gemm_pack.hpp 
+    OPERATORS gpu::hip_int8_gemm_pack_a gpu::hip_int8_gemm_pack_b
+    INCLUDES migraphx/gpu/context.hpp)
+register_op(migraphx_gpu 
+    HEADER migraphx/gpu/gemm.hpp 
+    OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+    INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
+target_compile_options(migraphx_gpu PRIVATE -std=c++17)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 

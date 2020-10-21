@@ -59,6 +59,8 @@ struct operation
 
 /// Returns true if operation does not require a context to run compute
 bool is_context_free(const operation& x);
+/// Returns true if operation needs normalization before running compute
+bool need_normalization(const operation& x);
 /// Returns true if the operation has a finalize method
 bool has_finalize(const operation& x);
 
@@ -177,6 +179,23 @@ auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
 }
 
 template <class T>
+auto need_normalization_op(rank<1>,
+                        const T& x,
+                        const std::vector<shape>& inputs)
+    -> decltype(x.normalize_compute_shape(inputs), std::true_type{});
+
+template <class T>
+auto need_normalization_op(rank<0>, const T&, const std::vector<shape>&)
+    -> std::false_type;
+
+template <class T>
+auto need_normalization_op(const T& x) -> decltype(need_normalization_op(
+    rank<1>{}, x, std::declval<std::vector<shape>>()))
+{
+    return {};
+}
+
+template <class T>
 std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
 {
     return -1;
@@ -246,6 +265,8 @@ void from_value_op(T& x, const value& v)
      virtual('name', returns = 'std::string', const = True),
      virtual(
          'is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
+     virtual(
+         'need_normalization', returns = 'bool', const = True, default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
@@ -300,6 +321,14 @@ template <class T>
 bool is_context_free(const T& x)
 {
     return detail::is_context_free_op(x);
+}
+
+inline bool need_normalization(const operation& op) { return op.need_normalization(); }
+
+template <class T>
+bool need_normalization(const T& x)
+{
+    return detail::need_normalization_op(x);
 }
 
 inline bool has_finalize(const operation& op) { return op.has_finalize(); }

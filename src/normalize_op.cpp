@@ -34,4 +34,3 @@ void normalize_op(operation& op, std::vector<shape> inputs)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

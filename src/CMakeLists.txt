@@ -155,6 +155,9 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
+add_library(migraphx_all_targets INTERFACE)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
@@ -167,10 +170,12 @@ add_subdirectory(targets/cpu)
 if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
 endif()
 
 rocm_export_targets(
-  TARGETS migraphx::migraphx
+  TARGETS migraphx::migraphx migraphx_all_targets
   NAMESPACE migraphx::
   DEPENDS
     ${PACKAGE_DEPENDS}

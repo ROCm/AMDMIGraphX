@@ -27,25 +27,22 @@ struct gather
 
     std::string name() const { return "gather"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
         auto lens     = inputs[0].lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis >= n_dim || axis < -n_dim)
+        if(axis >= n_dim || axis < 0)
         {
             MIGRAPHX_THROW("Gather: axis is out of range.");
         }
 
-        // negative axis means counting dimensions from back
-        int64_t axis_index = (axis < 0) ? (n_dim + axis) : axis;
-
         auto type = inputs[0].type();
-        lens.erase(lens.begin() + axis_index);
+        lens.erase(lens.begin() + axis);
         if(!inputs[1].scalar())
         {
             auto ind_lens = inputs[1].lens();
-            lens.insert(lens.begin() + axis_index, ind_lens.begin(), ind_lens.end());
+            lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
         }
 
         // for scalar output

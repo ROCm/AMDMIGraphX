@@ -43,6 +43,7 @@ add_library(migraphx
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
     normalize_ops.cpp
+    normalize_op.cpp
 )
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)

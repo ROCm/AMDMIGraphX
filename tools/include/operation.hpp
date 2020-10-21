@@ -13,6 +13,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/normalize_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -256,7 +257,7 @@ void from_value_op(T& x, const value& v)
              output  = 'const shape&',
              input   = 'const std::vector<shape>&',
              default = 'detail::finalize_op'),
-     virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True),
+     virtual('compute_shape', returns = 'shape', input = 'const std::vector<shape>&', const = True, default = 'normalize_compute_shape_op'),
      virtual('compute',
              returns = 'argument',
              ctx     = 'context&',

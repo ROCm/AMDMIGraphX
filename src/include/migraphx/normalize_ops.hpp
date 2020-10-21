@@ -15,6 +15,7 @@ struct program;
 /**
  * Process negative axis attributes of ops
  */
+
 struct normalize_ops
 {
     std::string name() const { return "normalize_ops"; }

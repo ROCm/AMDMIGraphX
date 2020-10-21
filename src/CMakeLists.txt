@@ -156,7 +156,7 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 
 set(PACKAGE_DEPENDS)
 
@@ -166,7 +166,7 @@ add_subdirectory(onnx)
 add_subdirectory(tf)
 
 add_subdirectory(py)
-add_subdirectory(targets/cpu)
+add_subdirectory(targets/ref)
 if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)

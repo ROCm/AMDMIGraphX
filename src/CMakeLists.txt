@@ -42,6 +42,7 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
     json.cpp
+    convert_to_json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
 )

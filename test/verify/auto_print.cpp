@@ -12,8 +12,8 @@ using handler_map = std::map<std::string, std::function<void()>>;
 static handler_map create_handlers()
 {
     handler_map m;
-    for(auto name:get_targets())
-        m[name] = []{};
+    for(auto name : get_targets())
+        m[name] = [] {};
     return m;
 }
 
@@ -40,7 +40,7 @@ static void auto_print::set_terminate_handler(const std::string& name)
             std::cout << "    what(): " << e.what() << std::endl;
         }
         std::cout << std::endl;
-        for(auto name:get_targets())
+        for(auto name : get_targets())
             get_handler(name)();
     });
 }

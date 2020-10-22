@@ -22,9 +22,9 @@ struct register_verify_program_action
     {
         T x;
         program_info pi;
-        pi.name = migraphx::get_type_name<T>();
-        pi.section = x.section();
-        pi.get_program = [x]{ return x.create_program(); };
+        pi.name        = migraphx::get_type_name<T>();
+        pi.section     = x.section();
+        pi.get_program = [x] { return x.create_program(); };
         register_program_info(pi);
     }
 };
@@ -32,7 +32,7 @@ struct register_verify_program_action
 template <class T>
 using auto_register_verify_program = migraphx::auto_register<register_verify_program_action, T>;
 
-template<class T>
+template <class T>
 struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };

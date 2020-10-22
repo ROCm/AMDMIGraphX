@@ -55,7 +55,7 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
 target_info run_verify::get_target_info(const std::string& name) const
 {
     auto it = info.find(t.name());
-    if (it != info.end())
+    if(it != info.end())
         return it->second;
     else
         return {};
@@ -64,18 +64,20 @@ target_info run_verify::get_target_info(const std::string& name) const
 void run_verify::validate(const target& t, const migraphx::program& p) const
 {
     auto ti = get_target_info(t.name());
-    if (ti.validate)
+    if(ti.validate)
         ti.validate(p);
 }
 
-std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p, migraphx::program::parameter_map inputs) const
+std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
+                                                    migraphx::program::parameter_map inputs) const
 {
     migraphx::ref::target t{};
     auto_print pp{p, t.name()};
     compile_check(p, t);
     return p.eval(inputs);
 }
-std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(const target& t, migraphx::program p, migraphx::program::parameter_map inputs) const
+std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
+    const target& t, migraphx::program p, migraphx::program::parameter_map inputs) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
@@ -85,9 +87,9 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     {
         m[input.first] = t.copy_to(input.second);
     }
-    for(auto&& x:p.get_parameter_shapes())
+    for(auto&& x : p.get_parameter_shapes())
     {
-        if (m.count(x.first) == 0)
+        if(m.count(x.first) == 0)
             m[x.first] = t.allocate(m.second);
     }
     validate(t, p);
@@ -95,9 +97,8 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
 
     auto tres = p.eval(m);
     std::vector<migraphx::argument> res(tres.size());
-    std::transform(tres.begin(), tres.end(), res.begin(), [&](auto& argu) {
-        return t.copy_from(argu);
-    });
+    std::transform(
+        tres.begin(), tres.end(), res.begin(), [&](auto& argu) { return t.copy_from(argu); });
 
     return res;
 }
@@ -110,7 +111,8 @@ auto get_hash(const T& x)
 
 void run_verify::verify(const std::string& name, const program& p) const
 {
-    using result_future = std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
+    using result_future =
+        std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     std::cout << "[   RUN    ] " << name << std::endl;
     auto_print::set_terminate_handler(name);
     std::vector<std::pair<std::string, result_future>> results;
@@ -121,22 +123,22 @@ void run_verify::verify(const std::string& name, const program& p) const
     }
 
     auto gold_f = detach_async([=] { return run_ref(p, m); });
-    for(auto name:get_targets())
+    for(auto name : get_targets())
     {
-        if (name == "ref")
+        if(name == "ref")
             continue;
         target_info ti = get_target_info(name);
-        auto t = make_target(name);
+        auto t         = make_target(name);
         results.emplace_back(name, detach_async([=] { return run_target(t, p, m); }, ti.parallel));
     }
 
     auto gold = gold_f.get();
 
-    for(auto&& p:results)
+    for(auto&& p : results)
     {
-        auto name = p.first;
-        auto x = p.second.get();
-        auto cp = x.first;
+        auto name   = p.first;
+        auto x      = p.second.get();
+        auto cp     = x.first;
         auto result = x.second;
 
         bool passed = true;
@@ -163,21 +165,18 @@ void run_verify::run(int argc, const char* argv[]) const
 {
     std::set<std::string> args(argv + 1, argv + argc);
     const auto& ps = get_programs();
-    for(auto&& p:ps)
+    for(auto&& p : ps)
     {
-        if (not args.empty())
+        if(not args.empty())
         {
-            if (args.count(p.name) == 0 and args.count(p.section) == 0)
+            if(args.count(p.name) == 0 and args.count(p.section) == 0)
                 continue;
         }
         verify(p.name, p.get_program());
     }
 }
 
-void disable_parallel_for(const std::string& name)
-{
-    info[name].parallel = false;
-}
+void disable_parallel_for(const std::string& name) { info[name].parallel = false; }
 void add_validation_for(const std::string& name, std::function<void(const migraphx::program& p)> v)
 {
     info[name] = v;

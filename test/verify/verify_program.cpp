@@ -6,11 +6,5 @@ std::vector<program_info>& get_programs_vector()
     return result;
 }
 
-void register_program_info(const program_info& pi)
-{
-    get_programs_vector().push_back(pi);
-}
-const std::vector<program_info>& get_programs()
-{
-    return get_programs_vector();
-}
+void register_program_info(const program_info& pi) { get_programs_vector().push_back(pi); }
+const std::vector<program_info>& get_programs() { return get_programs_vector(); }

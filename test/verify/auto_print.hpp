@@ -17,7 +17,7 @@ struct auto_print
 
     ~auto_print()
     {
-        get_handler(name) = []{};
+        get_handler(name) = [] {};
     }
 };
 

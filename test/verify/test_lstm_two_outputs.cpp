@@ -40,5 +40,3 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
     }
     std::string section() const { return "rnn"; }
 };
-
-

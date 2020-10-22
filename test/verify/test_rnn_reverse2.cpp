@@ -44,5 +44,3 @@ struct test_rnn_reverse2 : verify_program<test_rnn_reverse2>
     }
     std::string section() const { return "rnn"; }
 };
-
-

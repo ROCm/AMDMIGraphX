@@ -38,5 +38,3 @@ struct test_lstm_forward_seq1 : verify_program<test_lstm_forward_seq1>
     }
     std::string section() const { return "rnn"; }
 };
-
-

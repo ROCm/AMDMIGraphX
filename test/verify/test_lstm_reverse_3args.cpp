@@ -38,5 +38,3 @@ struct test_lstm_reverse_3args : verify_program<test_lstm_reverse_3args>
     }
     std::string section() const { return "rnn"; }
 };
-
-

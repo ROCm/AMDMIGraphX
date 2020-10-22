@@ -34,5 +34,3 @@ struct test_gru_forward_default_actv : verify_program<test_gru_forward_default_a
     }
     std::string section() const { return "rnn"; }
 };
-
-

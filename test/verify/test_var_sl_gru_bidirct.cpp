@@ -51,5 +51,3 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
     }
     std::string section() const { return "rnn"; }
 };
-
-

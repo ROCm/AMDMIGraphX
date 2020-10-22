@@ -36,5 +36,3 @@ struct test_lstm_bidirct_seq1 : verify_program<test_lstm_bidirct_seq1>
     }
     std::string section() const { return "rnn"; }
 };
-
-

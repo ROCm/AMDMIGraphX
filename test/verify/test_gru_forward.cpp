@@ -49,5 +49,3 @@ struct test_gru_forward : verify_program<test_gru_forward>
     }
     std::string section() const { return "rnn"; }
 };
-
-

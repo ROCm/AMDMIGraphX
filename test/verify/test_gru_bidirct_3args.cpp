@@ -36,5 +36,3 @@ struct test_gru_bidirct_3args : verify_program<test_gru_bidirct_3args>
     }
     std::string section() const { return "rnn"; }
 };
-
-

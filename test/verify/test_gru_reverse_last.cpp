@@ -48,5 +48,3 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
     }
     std::string section() const { return "rnn"; }
 };
-
-

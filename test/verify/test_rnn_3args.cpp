@@ -36,5 +36,3 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
     }
     std::string section() const { return "rnn"; }
 };
-
-

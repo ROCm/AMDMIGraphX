@@ -36,5 +36,3 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
     }
     std::string section() const { return "rnn"; }
 };
-
-

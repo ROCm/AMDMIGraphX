@@ -46,5 +46,3 @@ struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_
     }
     std::string section() const { return "rnn"; }
 };
-
-

@@ -44,5 +44,3 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
     }
     std::string section() const { return "rnn"; }
 };
-
-

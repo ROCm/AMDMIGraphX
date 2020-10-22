@@ -46,5 +46,3 @@ struct test_rnn_forward10 : verify_program<test_rnn_forward10>
     }
     std::string section() const { return "rnn"; }
 };
-
-

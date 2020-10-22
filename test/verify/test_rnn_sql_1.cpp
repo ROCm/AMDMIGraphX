@@ -48,5 +48,3 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1>
     }
     std::string section() const { return "rnn"; }
 };
-
-

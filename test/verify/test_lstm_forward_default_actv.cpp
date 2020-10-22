@@ -34,5 +34,3 @@ struct test_lstm_forward_default_actv : verify_program<test_lstm_forward_default
     }
     std::string section() const { return "rnn"; }
 };
-
-

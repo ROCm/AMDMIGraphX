@@ -48,5 +48,3 @@ struct test_lstm_bidirct_default_actv1 : verify_program<test_lstm_bidirct_defaul
     }
     std::string section() const { return "rnn"; }
 };
-
-

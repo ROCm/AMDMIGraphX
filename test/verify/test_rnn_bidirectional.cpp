@@ -46,5 +46,3 @@ struct test_rnn_bidirectional : verify_program<test_rnn_bidirectional>
     }
     std::string section() const { return "rnn"; }
 };
-
-

@@ -16,8 +16,8 @@ void normalize_ops::apply(program& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        auto inputs   = ins->inputs();
-        if (inputs.empty())
+        auto inputs = ins->inputs();
+        if(inputs.empty())
             continue;
 
         auto lens     = inputs[0]->get_shape().lens();

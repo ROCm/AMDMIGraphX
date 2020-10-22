@@ -112,7 +112,7 @@ void normalize_ops::apply(program& p) const
         if(contains(ops_name, ins->name()))
         {
             auto inputs   = ins->inputs();
-            auto lens = inputs[0]->get_shape().lens();
+            auto lens     = inputs[0]->get_shape().lens();
             auto tuned_op = ins->get_operator();
             normalize_axes(tuned_op, lens);
             p.replace_instruction(ins, tuned_op, inputs);

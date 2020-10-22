@@ -54,7 +54,7 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
                                        return (i < 0) ? (i + dim) : i;
                                    });
                     val["starts"] = starts;
-                    tuned = true;
+                    tuned         = true;
                 }
             }
 
@@ -73,7 +73,7 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
                                        return (i < 0) ? (i + dim) : i;
                                    });
                     val["ends"] = ends;
-                    tuned = true;
+                    tuned       = true;
                 }
             }
         }

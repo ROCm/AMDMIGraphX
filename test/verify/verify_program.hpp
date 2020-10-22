@@ -36,6 +36,6 @@ template <class T>
 struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
-}
+};
 
 #endif

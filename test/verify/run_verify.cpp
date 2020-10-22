@@ -2,6 +2,13 @@
 #include "auto_print.hpp"
 #include "verify_program.hpp"
 #include <migraphx/env.hpp>
+#include <migraphx/ref/target.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/verify_args.hpp>
+#include <set>
+
+#include <future>
+#include <thread>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST_COMPILE)
 
@@ -54,14 +61,14 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
 
 target_info run_verify::get_target_info(const std::string& name) const
 {
-    auto it = info.find(t.name());
+    auto it = info.find(name);
     if(it != info.end())
         return it->second;
     else
         return {};
 }
 
-void run_verify::validate(const target& t, const migraphx::program& p) const
+void run_verify::validate(const migraphx::target& t, const migraphx::program& p) const
 {
     auto ti = get_target_info(t.name());
     if(ti.validate)
@@ -77,10 +84,10 @@ std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
     return p.eval(inputs);
 }
 std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
-    const target& t, migraphx::program p, migraphx::program::parameter_map inputs) const
+    const migraphx::target& t, migraphx::program p, migraphx::program::parameter_map inputs) const
 {
     auto_print pp{p, t.name()};
-    auto trace_target = string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, (trace_target == t.name()));
     migraphx::program::parameter_map m;
     for(auto&& input : inputs)
@@ -90,7 +97,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     for(auto&& x : p.get_parameter_shapes())
     {
         if(m.count(x.first) == 0)
-            m[x.first] = t.allocate(m.second);
+            m[x.first] = t.allocate(x.second);
     }
     validate(t, p);
     p.eval(m);
@@ -100,7 +107,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     std::transform(
         tres.begin(), tres.end(), res.begin(), [&](auto& argu) { return t.copy_from(argu); });
 
-    return res;
+    return std::make_pair(p, res);
 }
 
 template <class T>
@@ -109,52 +116,60 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name, const program& p) const
+void run_verify::verify(const std::string& name, const migraphx::program& p) const
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     std::cout << "[   RUN    ] " << name << std::endl;
     auto_print::set_terminate_handler(name);
     std::vector<std::pair<std::string, result_future>> results;
-    migraphx::program::parameter_map m;
-    for(auto&& x : p.get_parameter_shapes())
+    std::vector<std::string> target_names;
+    for(auto tname : migraphx::get_targets())
     {
-        m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
-    }
-
-    auto gold_f = detach_async([=] { return run_ref(p, m); });
-    for(auto name : get_targets())
-    {
-        if(name == "ref")
+        if(tname == "ref")
             continue;
-        target_info ti = get_target_info(name);
-        auto t         = make_target(name);
-        results.emplace_back(name, detach_async([=] { return run_target(t, p, m); }, ti.parallel));
+        target_names.push_back(tname);
     }
-
-    auto gold = gold_f.get();
-
-    for(auto&& p : results)
+    if (not target_names.empty())
     {
-        auto name   = p.first;
-        auto x      = p.second.get();
-        auto cp     = x.first;
-        auto result = x.second;
-
-        bool passed = true;
-        passed &= (gold.size() == result.size());
-        std::size_t num = gold.size();
-        for(std::size_t i = 0; ((i < num) and passed); ++i)
+        migraphx::program::parameter_map m;
+        for(auto&& x : p.get_parameter_shapes())
         {
-            passed &= verify_args(name, gold[i], result[i]);
+            m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
         }
 
-        if(not passed)
+        auto gold_f = detach_async([=] { return run_ref(p, m); });
+        for(auto tname : target_names)
         {
-            std::cout << p << std::endl;
-            std::cout << "ref:\n" << p << std::endl;
-            std::cout << name << ":\n" << cp << std::endl;
-            std::cout << std::endl;
+            target_info ti = get_target_info(tname);
+            auto t         = migraphx::make_target(tname);
+            results.emplace_back(tname, detach_async([=] { return run_target(t, p, m); }, ti.parallel));
+        }
+
+        auto gold = gold_f.get();
+
+        for(auto&& pp : results)
+        {
+            auto tname   = pp.first;
+            auto x      = pp.second.get();
+            auto cp     = x.first;
+            auto result = x.second;
+
+            bool passed = true;
+            passed &= (gold.size() == result.size());
+            std::size_t num = gold.size();
+            for(std::size_t i = 0; ((i < num) and passed); ++i)
+            {
+                passed &= migraphx::verify_args(tname, gold[i], result[i]);
+            }
+
+            if(not passed)
+            {
+                std::cout << p << std::endl;
+                std::cout << "ref:\n" << p << std::endl;
+                std::cout << tname << ":\n" << cp << std::endl;
+                std::cout << std::endl;
+            }
         }
     }
     std::set_terminate(nullptr);
@@ -176,8 +191,8 @@ void run_verify::run(int argc, const char* argv[]) const
     }
 }
 
-void disable_parallel_for(const std::string& name) { info[name].parallel = false; }
-void add_validation_for(const std::string& name, std::function<void(const migraphx::program& p)> v)
+void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }
+void run_verify::add_validation_for(const std::string& name, std::function<void(const migraphx::program& p)> v)
 {
-    info[name] = v;
+    info[name].validate = v;
 }

@@ -1,4 +1,4 @@
-#include "auto_register_verify_program.hpp"
+#include "verify_program.hpp"
 
 std::vector<program_info>& get_programs_vector()
 {

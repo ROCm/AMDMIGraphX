@@ -16,14 +16,15 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-program::parameter_map fill_param_map(program::parameter_map& m, const program& p, const target& t, bool offload)
+program::parameter_map
+fill_param_map(program::parameter_map& m, const program& p, const target& t, bool offload)
 {
     for(auto&& x : p.get_parameter_shapes())
     {
         argument& arg = m[x.first];
         if(arg.empty())
             arg = generate_argument(x.second, get_hash(x.first));
-        if (not offload)
+        if(not offload)
             arg = t.copy_to(arg);
     }
     return m;
@@ -52,7 +53,7 @@ program::parameter_map create_param_map(const program& p, const target& t, bool 
     for(auto&& x : p.get_parameter_shapes())
     {
         auto arg = generate_argument(x.second, get_hash(x.first));
-        if (offload)
+        if(offload)
             m[x.first] = arg;
         else
             m[x.first] = t.copy_to(arg);

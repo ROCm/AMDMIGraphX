@@ -226,13 +226,13 @@ struct compiler_target
     {
         ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
         ap(target_name, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value("cpu"));
-        ap(target_name, {"--ref"}, ap.help("Compile on the reference implementation"), ap.set_value("ref"));
+        ap(target_name,
+           {"--ref"},
+           ap.help("Compile on the reference implementation"),
+           ap.set_value("ref"));
     }
 
-    target get_target() const
-    {
-        return make_target(target_name);
-    }
+    target get_target() const { return make_target(target_name); }
 };
 
 struct compiler
@@ -265,10 +265,7 @@ struct compiler
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
 
-    auto params(const program& p)
-    {
-        return parameters.generate(p, ct.get_target(), offload_copy);
-    }
+    auto params(const program& p) { return parameters.generate(p, ct.get_target(), offload_copy); }
 
     program compile()
     {

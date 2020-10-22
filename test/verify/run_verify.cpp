@@ -68,11 +68,11 @@ target_info run_verify::get_target_info(const std::string& name) const
         return {};
 }
 
-void run_verify::validate(const migraphx::target& t, const migraphx::program& p) const
+void run_verify::validate(const migraphx::target& t, const migraphx::program& p, const migraphx::program::parameter_map& m) const
 {
     auto ti = get_target_info(t.name());
     if(ti.validate)
-        ti.validate(p);
+        ti.validate(p, m);
 }
 
 std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
@@ -99,7 +99,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
         if(m.count(x.first) == 0)
             m[x.first] = t.allocate(x.second);
     }
-    validate(t, p);
+    validate(t, p, m);
     p.eval(m);
 
     auto tres = p.eval(m);
@@ -194,7 +194,7 @@ void run_verify::run(int argc, const char* argv[]) const
 
 void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }
 void run_verify::add_validation_for(const std::string& name,
-                                    std::function<void(const migraphx::program& p)> v)
+                                    target_info::validation_function v)
 {
     info[name].validate = v;
 }

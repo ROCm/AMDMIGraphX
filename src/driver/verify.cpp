@@ -19,8 +19,10 @@ std::vector<argument> run_ref(program p, const program::parameter_map& inputs)
     return out;
 }
 
-std::vector<argument>
-run_target(program p, const target& t, const compile_options& options, const program::parameter_map& inputs)
+std::vector<argument> run_target(program p,
+                                 const target& t,
+                                 const compile_options& options,
+                                 const program::parameter_map& inputs)
 {
     p.compile(t, options);
 
@@ -37,7 +39,6 @@ run_target(program p, const target& t, const compile_options& options, const pro
         return options.offload_copy ? argu : t.copy_from(argu);
     });
     return output;
-
 }
 
 void verify_program(const std::string& name,
@@ -59,7 +60,10 @@ void verify_program(const std::string& name,
     // std::cout << "gpu: " << y << std::endl;
 }
 
-void verify_instructions(const program& prog, const target& t, compile_options options, double tolerance)
+void verify_instructions(const program& prog,
+                         const target& t,
+                         compile_options options,
+                         double tolerance)
 {
     for(auto&& ins : prog)
     {

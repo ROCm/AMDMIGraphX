@@ -14,7 +14,7 @@ void verify_program(const std::string& name,
                     const program::parameter_map& inputs = {},
                     double tolerance                     = 100);
 void verify_instructions(const program& prog,
-                        const target& t,
+                         const target& t,
                          compile_options options = compile_options{},
                          double tolerance        = 80);
 void verify_reduced_program(const program& p,

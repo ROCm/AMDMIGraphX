@@ -164,7 +164,13 @@ def shapes(h):
 
 
 @auto_handle
+def module(h):
+    h.constructor('create')
+
+
+@auto_handle
 def program(h):
+    h.method('get_main_module', returns='migraphx::module')
     h.method(
         'compile',
         api.params(target='migraphx::target',

@@ -71,6 +71,9 @@ typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 typedef struct migraphx_shapes* migraphx_shapes_t;
 typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
+typedef struct migraphx_module* migraphx_module_t;
+typedef const struct migraphx_module* const_migraphx_module_t;
+
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
 
@@ -174,7 +177,14 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
 
+migraphx_status migraphx_module_destroy(migraphx_module_t module);
+
+migraphx_status migraphx_module_create(migraphx_module_t* module);
+
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
+
+migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,
+                                                 migraphx_program_t program);
 
 migraphx_status migraphx_program_compile(migraphx_program_t program,
                                          migraphx_target_t target,

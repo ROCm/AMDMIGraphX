@@ -1,4 +1,5 @@
 #include <unordered_set>
+#include <migraphx/normalize_op.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
@@ -101,6 +102,7 @@ void normalize_ops::apply(program& p) const
                                                 "reduce_min",
                                                 "reduce_prod",
                                                 "reduce_sum",
+                                                "slice",
                                                 "softmax",
                                                 "squeeze",
                                                 "unsqueeze"};
@@ -110,32 +112,10 @@ void normalize_ops::apply(program& p) const
         if(contains(ops_name, ins->name()))
         {
             auto inputs   = ins->inputs();
-            int64_t n_dim = static_cast<int64_t>(inputs[0]->get_shape().lens().size());
-            auto val      = ins->get_operator().to_value();
-            if(tune_axis(val, n_dim))
-            {
-                auto oper_tuned = make_op(ins->name(), val);
-                p.replace_instruction(ins, oper_tuned, inputs);
-            }
-        }
-        else if(ins->name() == "slice")
-        {
-            auto inputs  = ins->inputs();
-            auto val     = ins->get_operator().to_value();
-            auto axes    = val["axes"].to_vector<int64_t>();
-            auto sstarts = val["starts"].to_vector<int64_t>();
-            auto sends   = val["ends"].to_vector<int64_t>();
-            auto lens    = inputs[0]->get_shape().lens();
-
-            if(tune_slice_inputs(axes, sstarts, sends, lens))
-            {
-                val["axes"]   = axes;
-                val["starts"] = sstarts;
-                val["ends"]   = sends;
-
-                auto tuned_slice = make_op("slice", val);
-                p.replace_instruction(ins, tuned_slice, inputs);
-            }
+            auto lens = inputs[0]->get_shape().lens();
+            auto tuned_op = ins->get_operator();
+            normalize_axes(tuned_op, lens);
+            p.replace_instruction(ins, tuned_op, inputs);
         }
     }
 }

@@ -4,9 +4,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void normalize_op(operation& op, std::vector<shape> inputs)
+void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
 {
-    int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
+    int64_t n_dim = static_cast<int64_t>(lens.size());
     value val     = op.to_value();
     if(val.contains("axis"))
     {
@@ -34,7 +34,6 @@ void normalize_op(operation& op, std::vector<shape> inputs)
         // for slice
         if(val.contains("starts") or val.contains("ends"))
         {
-            auto lens = inputs[0].lens();
             std::vector<int64_t> axis_lens(axes.size());
             std::transform(
                 axes.begin(), axes.end(), axis_lens.begin(), [&](auto axis) { return lens[axis]; });
@@ -54,6 +53,7 @@ void normalize_op(operation& op, std::vector<shape> inputs)
                                        i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
                                        return (i < 0) ? (i + dim) : i;
                                    });
+                    val["starts"] = starts;
                     tuned = true;
                 }
             }
@@ -72,6 +72,7 @@ void normalize_op(operation& op, std::vector<shape> inputs)
                                        i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
                                        return (i < 0) ? (i + dim) : i;
                                    });
+                    val["ends"] = ends;
                     tuned = true;
                 }
             }

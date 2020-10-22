@@ -100,6 +100,14 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
+shape normalize_compute_shape_op(T&& x, std::vector<shape> inputs)
+{
+    dependent_type<operation, T> y = x;
+    normalize_axes(y, inputs[0].lens());
+    return any_cast<T>(y).normalize_compute_shape(inputs);
+}
+
+template <class T>
 auto compute_op(rank<2>,
                 const T& x,
                 context& ctx,
@@ -281,7 +289,7 @@ void from_value_op(T& x, const value& v)
              returns = 'shape',
              input   = 'const std::vector<shape>&',
              const   = True,
-             default = 'normalize_compute_shape_op'),
+             default = 'detail::normalize_compute_shape_op'),
      virtual('compute',
              returns = 'argument',
              ctx     = 'context&',

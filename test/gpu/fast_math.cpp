@@ -1,8 +1,6 @@
 #include <test.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/iterator_for.hpp>
-#include "test_utils.hpp"
-#include "test.hpp"
 
 migraphx::program create_gelu()
 {

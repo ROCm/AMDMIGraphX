@@ -2781,15 +2781,6 @@ struct onnx_parser
         }
     }
 
-    bool is_unused_input(const onnx::TypeProto& t)
-    {
-        // This is the scenario used in the resize operator the second
-        // and third inputs are put there, but is empty, so unused.
-        // note that scalar input has dims.size() 0
-        auto&& dims = t.tensor_type().shape().dim();
-        return (dims.size() == 1 and dims[0].has_dim_value() and dims[0].dim_value() == 0);
-    }
-
     void parse_graph(const onnx::GraphProto& graph)
     {
         for(auto&& f : graph.initializer())
@@ -2807,15 +2798,8 @@ struct onnx_parser
                     dims = map_input_dims.at(name);
                 }
 
-                if(is_unused_input(input.type()))
-                {
-                    this->parse_undefined(name);
-                }
-                else
-                {
-                    shape s            = parse_type(input.type(), dims);
-                    instructions[name] = prog.add_parameter(name, s);
-                }
+                shape s            = parse_type(input.type(), dims);
+                instructions[name] = prog.add_parameter(name, s);
             }
         }
 

@@ -1832,7 +1832,7 @@ TEST_CASE(resize_downsample_f_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = p.add_parameter("X", sx);
 
-    p.add_parameter("rio", {migraphx::shape::float_type});
+    p.add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {4, 7};
@@ -1858,7 +1858,7 @@ TEST_CASE(resize_downsample_c_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = p.add_parameter("X", sx);
 
-    p.add_parameter("rio", {migraphx::shape::float_type});
+    p.add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {0, 2};
@@ -1884,8 +1884,7 @@ TEST_CASE(resize_outsize_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto inx = p.add_parameter("X", sx);
 
-    p.add_parameter("rio", {migraphx::shape::float_type});
-    p.add_parameter("scales", {migraphx::shape::float_type});
+    p.add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3};
@@ -1911,7 +1910,7 @@ TEST_CASE(resize_upsample_pc_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto inx = p.add_parameter("X", sx);
 
-    p.add_parameter("rio", {migraphx::shape::float_type});
+    p.add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 4, 5, 5, 6, 7, 7};
@@ -1937,7 +1936,7 @@ TEST_CASE(resize_upsample_pf_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto inx = p.add_parameter("X", sx);
 
-    p.add_parameter("rio", {migraphx::shape::float_type});
+    p.add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};

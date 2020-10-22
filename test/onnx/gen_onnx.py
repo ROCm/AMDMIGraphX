@@ -2475,18 +2475,17 @@ def resize_downsample_f_test():
                                       vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
-    R = helper.make_tensor_value_info('rio', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
 
     node = onnx.helper.make_node(
         'Resize',
-        inputs=['X', 'rio', 'scales'],
+        inputs=['X', '', 'scales'],
         outputs=['Y'],
         coordinate_transformation_mode='align_corners',
         mode='nearest',
         nearest_mode='floor')
 
-    return ([node], [X, R], [Y], [scale_tensor])
+    return ([node], [X], [Y], [scale_tensor])
 
 
 @onnx_test
@@ -2498,17 +2497,16 @@ def resize_downsample_c_test():
                                       vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
-    R = helper.make_tensor_value_info('rio', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
 
     node = onnx.helper.make_node('Resize',
-                                 inputs=['X', 'rio', 'scales'],
+                                 inputs=['X', '', 'scales'],
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
                                  nearest_mode='ceil')
 
-    return ([node], [X, R], [Y], [scale_tensor])
+    return ([node], [X], [Y], [scale_tensor])
 
 
 @onnx_test
@@ -2521,19 +2519,17 @@ def resize_outsize_test():
                                              np.int64))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
-    R = helper.make_tensor_value_info('rio', TensorProto.FLOAT, [])
-    S = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
 
     node = onnx.helper.make_node(
         'Resize',
-        inputs=['X', 'rio', 'scales', 'out_lens'],
+        inputs=['X', '', '', 'out_lens'],
         outputs=['Y'],
         coordinate_transformation_mode='tf_half_pixel_for_nn',
         mode='nearest',
         nearest_mode='round_prefer_floor')
 
-    return ([node], [X, R, S], [Y], [out_lens_tensor])
+    return ([node], [X], [Y], [out_lens_tensor])
 
 
 @onnx_test
@@ -2545,15 +2541,14 @@ def resize_upsample_pf_test():
                                       vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
-    R = helper.make_tensor_value_info('rio', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
 
     node = onnx.helper.make_node('Resize',
-                                 inputs=['X', 'rio', 'scales'],
+                                 inputs=['X', '', 'scales'],
                                  outputs=['Y'],
                                  mode='nearest')
 
-    return ([node], [X, R], [Y], [scale_tensor])
+    return ([node], [X], [Y], [scale_tensor])
 
 
 def resize_upsample_pc_test():
@@ -2564,18 +2559,18 @@ def resize_upsample_pc_test():
                                       vals=scales.flatten().astype(np.float32))
 
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
-    R = helper.make_tensor_value_info('rio', TensorProto.FLOAT, [])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
 
     node = onnx.helper.make_node(
         'Resize',
-        inputs=['X', 'rio', 'scales'],
+        inputs=['X', '', 'scales'],
         outputs=['Y'],
         coordinate_transformation_mode='pytorch_half_pixel',
         mode='nearest',
+        exclude_outside=0,
         nearest_mode='round_prefer_ceil')
 
-    return ([node], [X, R], [Y], [scale_tensor])
+    return ([node], [X], [Y], [scale_tensor])
 
 
 @onnx_test

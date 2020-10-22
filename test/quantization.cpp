@@ -4,7 +4,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -298,7 +298,7 @@ TEST_CASE(op_capture)
     {
         auto p             = create_program_float();
         auto op_capture_p  = create_program_op();
-        migraphx::target t = migraphx::cpu::target{};
+        migraphx::target t = migraphx::ref::target{};
         migraphx::capture_arguments(p, t, {"dot", "convolution"});
         EXPECT(p == op_capture_p);
     }
@@ -947,7 +947,7 @@ TEST_CASE(target_copy)
         migraphx::shape s{migraphx::shape::float_type, {3, 3}};
         m["x"] = migraphx::generate_argument(s);
         std::vector<float> cpu_result;
-        migraphx::target cpu_t = migraphx::cpu::target{};
+        migraphx::target cpu_t = migraphx::ref::target{};
         run_prog(p, cpu_t, m, cpu_result);
 
         std::vector<float> orig_result;
@@ -1009,7 +1009,7 @@ TEST_CASE(int8_quantization_dot)
         m["a"] = migraphx::generate_argument(sa);
         m["c"] = migraphx::generate_argument(sc);
         std::vector<float> quant_result;
-        migraphx::target cpu_t = migraphx::cpu::target{};
+        migraphx::target cpu_t = migraphx::ref::target{};
         run_prog(p, cpu_t, m, quant_result, true);
 
         std::vector<float> no_quant_result;
@@ -1052,7 +1052,7 @@ TEST_CASE(int8_quantization_conv)
     {
         auto p = create_program();
         std::vector<float> quant_result;
-        migraphx::target cpu_t = migraphx::cpu::target{};
+        migraphx::target cpu_t = migraphx::ref::target{};
         run_prog(p, cpu_t, quant_result, true);
 
         std::vector<float> no_quant_result;

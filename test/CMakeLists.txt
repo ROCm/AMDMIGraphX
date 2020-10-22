@@ -172,7 +172,7 @@ function(test_headers PREFIX)
 endfunction()
 
 test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
-test_headers(migraphx/cpu ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp)
+test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
 if(MIGRAPHX_ENABLE_GPU)
 test_headers(migraphx/gpu ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
 endif()

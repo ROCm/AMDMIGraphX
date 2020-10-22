@@ -9,7 +9,7 @@
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
@@ -85,7 +85,7 @@ TEST_CASE(rnn_forward)
                                     ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         auto res_hs  = outputs.front();
@@ -151,7 +151,7 @@ TEST_CASE(rnn_forward)
             ih);
         auto last_out = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, last_out});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
 
@@ -202,7 +202,7 @@ TEST_CASE(rnn_forward)
             ih);
         auto last_out = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, last_out});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
 
@@ -248,7 +248,7 @@ TEST_CASE(rnn_forward)
             w,
             r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_output = p.eval({}).back();
         std::vector<float> last_output_data;
@@ -284,7 +284,7 @@ TEST_CASE(rnn_forward)
                           bias,
                           und,
                           ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -365,7 +365,7 @@ TEST_CASE(rnn_reverse)
             bias,
             und,
             ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -409,7 +409,7 @@ TEST_CASE(rnn_reverse)
             ih);
 
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_output = p.eval({}).back();
         std::vector<float> last_output_data;
@@ -453,7 +453,7 @@ TEST_CASE(rnn_reverse)
 
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         std::vector<float> hs_data;
@@ -507,7 +507,7 @@ TEST_CASE(rnn_reverse)
 
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         std::vector<float> hs_data;
@@ -606,7 +606,7 @@ TEST_CASE(rnn_bidirectional)
             ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         auto arg_hs  = outputs.front();
@@ -671,7 +671,7 @@ TEST_CASE(rnn_bidirectional)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         p.add_return({out_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         auto arg_hs  = outputs.front();
@@ -727,7 +727,7 @@ TEST_CASE(rnn_bidirectional)
                               bias);
 
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_output = p.eval({}).back();
         std::vector<float> last_output_data;
@@ -767,7 +767,7 @@ TEST_CASE(rnn_bidirectional)
                           seq,
                           w,
                           r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_output = p.eval({}).back();
         std::vector<float> last_output_data;
@@ -804,7 +804,7 @@ TEST_CASE(rnn_bidirectional)
             bias,
             und,
             ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -907,7 +907,7 @@ TEST_CASE(gru_forward)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -944,7 +944,7 @@ TEST_CASE(gru_forward)
                               und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -986,7 +986,7 @@ TEST_CASE(gru_forward)
                               ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1027,7 +1027,7 @@ TEST_CASE(gru_forward)
                               und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1119,7 +1119,7 @@ TEST_CASE(gru_forward_args)
                           w,
                           r);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1151,7 +1151,7 @@ TEST_CASE(gru_forward_args)
                           r,
                           bias);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1186,7 +1186,7 @@ TEST_CASE(gru_forward_args)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1277,7 +1277,7 @@ TEST_CASE(gru_forward_actv_funcs)
             und,
             ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1316,7 +1316,7 @@ TEST_CASE(gru_forward_actv_funcs)
                           bias,
                           und,
                           ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1350,7 +1350,7 @@ TEST_CASE(gru_forward_actv_funcs)
             und,
             ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1394,7 +1394,7 @@ TEST_CASE(gru_forward_actv_funcs)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1494,7 +1494,7 @@ TEST_CASE(gru_reverse)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({lho, hs});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs = p.eval({});
 
         auto res_hs  = outputs.back();
@@ -1551,7 +1551,7 @@ TEST_CASE(gru_reverse)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({lho, hs});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs = p.eval({});
 
         auto res_hs  = outputs.back();
@@ -1603,7 +1603,7 @@ TEST_CASE(gru_reverse)
                               und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1639,7 +1639,7 @@ TEST_CASE(gru_reverse)
             bias,
             und,
             ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1679,7 +1679,7 @@ TEST_CASE(gru_reverse)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -1797,7 +1797,7 @@ TEST_CASE(gru_bidirectional)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         p.add_return({hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs   = p.eval({});
         auto hs_concat = outputs.front();
         auto res_lho   = outputs.back();
@@ -1855,7 +1855,7 @@ TEST_CASE(gru_bidirectional)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.add_return({concat_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs   = p.eval({});
         auto hs_concat = outputs.front();
         auto res_lho   = outputs.back();
@@ -1915,7 +1915,7 @@ TEST_CASE(gru_bidirectional)
                               ih);
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
         p.add_return({concat_hs, lho});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs   = p.eval({});
         auto hs_concat = outputs.front();
         auto res_lho   = outputs.back();
@@ -1965,7 +1965,7 @@ TEST_CASE(gru_bidirectional)
                               und,
                               ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2069,7 +2069,7 @@ TEST_CASE(gru_bidirectional_args)
                           w,
                           r);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2105,7 +2105,7 @@ TEST_CASE(gru_bidirectional_args)
                           r,
                           bias);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2144,7 +2144,7 @@ TEST_CASE(gru_bidirectional_args)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2256,7 +2256,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             und,
             ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2289,7 +2289,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                           bias,
                           und,
                           ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2326,7 +2326,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                           bias,
                           und,
                           ih);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2367,7 +2367,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
             und,
             ih);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, concat_hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2403,7 +2403,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2447,7 +2447,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                           und,
                           ih);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
         hs_concat.visit([&](auto output) { hs_data.assign(output.begin(), output.end()); });
@@ -2570,7 +2570,7 @@ TEST_CASE(lstm_forward)
             ih,
             ic,
             und);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2614,7 +2614,7 @@ TEST_CASE(lstm_forward)
             ic,
             und);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_hs = p.eval({}).back();
         std::vector<float> output_data;
@@ -2662,7 +2662,7 @@ TEST_CASE(lstm_forward)
             ic,
             und);
         p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_hs = p.eval({}).back();
         std::vector<float> output_data;
@@ -2783,7 +2783,7 @@ TEST_CASE(lstm_forward_more)
             seq,
             w,
             r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_hs = p.eval({}).back();
         std::vector<float> output_data;
@@ -2827,7 +2827,7 @@ TEST_CASE(lstm_forward_more)
             ih,
             ic,
             pph);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -2880,7 +2880,7 @@ TEST_CASE(lstm_forward_more)
             ic,
             und);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto last_hs = p.eval({}).back();
         std::vector<float> output_data;
@@ -2933,7 +2933,7 @@ TEST_CASE(lstm_forward_more)
             ic,
             pph);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto hs_concat = p.eval({}).back();
         std::vector<float> hs_data;
@@ -3064,7 +3064,7 @@ TEST_CASE(lstm_reverse)
             ih,
             ic,
             pph);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3113,7 +3113,7 @@ TEST_CASE(lstm_reverse)
             ih,
             ic,
             pph);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3162,7 +3162,7 @@ TEST_CASE(lstm_reverse)
             ih,
             ic,
             pph);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3195,7 +3195,7 @@ TEST_CASE(lstm_reverse)
             r);
         p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3227,7 +3227,7 @@ TEST_CASE(lstm_reverse)
             r);
         p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
 
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3344,7 +3344,7 @@ TEST_CASE(lstm_reverse_actv)
                           seq,
                           w,
                           r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3375,7 +3375,7 @@ TEST_CASE(lstm_reverse_actv)
                               w,
                               r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3416,7 +3416,7 @@ TEST_CASE(lstm_reverse_actv)
             seq,
             w,
             r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3535,7 +3535,7 @@ TEST_CASE(lstm_bidirectional)
             ih,
             ic,
             pph);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3584,7 +3584,7 @@ TEST_CASE(lstm_bidirectional)
             ic,
             pph);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3622,7 +3622,7 @@ TEST_CASE(lstm_bidirectional)
             ic,
             pph);
         p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3649,7 +3649,7 @@ TEST_CASE(lstm_bidirectional)
             seq,
             w,
             r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3691,7 +3691,7 @@ TEST_CASE(lstm_bidirectional)
             seq,
             w,
             r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -3809,7 +3809,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, out_hs);
         auto lco = p.add_instruction(migraphx::op::rnn_last_cell_output{}, out_hs);
         p.add_return({out_hs, lho, lco});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
 
         auto outputs = p.eval({});
         auto arg_hs  = outputs.front();
@@ -3888,7 +3888,7 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
         auto lho = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         auto lco = p.add_instruction(migraphx::op::rnn_last_cell_output{}, hs);
         p.add_return({hs, lho, lco});
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto outputs = p.eval({});
         auto res_hs  = outputs.at(0);
         auto res_lho = outputs.at(1);
@@ -3991,7 +3991,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
             seq,
             w,
             r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -4027,7 +4027,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                           seq,
                           w,
                           r);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -4063,7 +4063,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                               w,
                               r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -4093,7 +4093,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     w,
                                     r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -4124,7 +4124,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     w,
                                     r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });
@@ -4156,7 +4156,7 @@ TEST_CASE(lstm_bidirectional_actv_func)
                                     w,
                                     r);
         p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.compile(migraphx::cpu::target{});
+        p.compile(migraphx::ref::target{});
         auto hs_concat = p.eval({}).back();
         std::vector<float> output_data;
         hs_concat.visit([&](auto output) { output_data.assign(output.begin(), output.end()); });

@@ -17,7 +17,7 @@ endfunction()
 add_dependencies(tests migraphx_py)
 add_dependencies(check migraphx_py)
 
-add_py_test(cpu test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(ref test_cpu.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(save_load test_save_load.py WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)
 add_py_test(gpu_offload test_gpu_offload.py WORKING_DIRECTORY ${TEST_ONNX_DIR})

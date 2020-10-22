@@ -4,7 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/quantization.hpp>
@@ -18,7 +18,7 @@
 TEST_CASE(gpu_target_copy)
 {
     migraphx::target gpu_t = migraphx::gpu::target{};
-    migraphx::target cpu_t = migraphx::cpu::target{};
+    migraphx::target cpu_t = migraphx::ref::target{};
     migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
     auto cpu_arg_orig  = migraphx::generate_argument(s, 0x123456L);
@@ -83,7 +83,7 @@ TEST_CASE(int8_quantization)
         m["b"] = migraphx::generate_argument(sb);
         m["c"] = migraphx::generate_argument(sc);
         std::vector<float> cpu_result;
-        migraphx::target cpu_t = migraphx::cpu::target{};
+        migraphx::target cpu_t = migraphx::ref::target{};
         run_prog(p, cpu_t, m, cpu_result);
 
         std::vector<float> gpu_result;

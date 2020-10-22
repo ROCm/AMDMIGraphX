@@ -20,5 +20,3 @@ struct quant_conv_default_mode : verify_program<quant_conv_default_mode>
         return p;
     }
 };
-
-

@@ -20,5 +20,3 @@ struct test_equal_brcst : verify_program<test_equal_brcst>
         return p;
     };
 };
-
-

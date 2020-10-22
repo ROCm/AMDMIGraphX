@@ -16,5 +16,3 @@ struct test_add_tanh : verify_program<test_add_tanh>
         return p;
     }
 };
-
-

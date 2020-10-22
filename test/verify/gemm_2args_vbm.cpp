@@ -23,5 +23,3 @@ struct gemm_2args_vbm : verify_program<gemm_2args_vbm>
         return p;
     }
 };
-
-

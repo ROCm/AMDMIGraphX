@@ -17,5 +17,3 @@ struct test_conv2 : verify_program<test_conv2>
         return p;
     }
 };
-
-

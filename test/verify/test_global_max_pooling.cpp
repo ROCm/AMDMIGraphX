@@ -19,5 +19,3 @@ struct test_global_max_pooling : verify_program<test_global_max_pooling>
         return p;
     }
 };
-
-

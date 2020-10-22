@@ -18,5 +18,3 @@ struct quant_conv_padding_stride : verify_program<quant_conv_padding_stride>
         return p;
     }
 };
-
-

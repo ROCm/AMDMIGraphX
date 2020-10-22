@@ -16,5 +16,3 @@ struct test_round : verify_program<test_round>
         return p;
     };
 };
-
-

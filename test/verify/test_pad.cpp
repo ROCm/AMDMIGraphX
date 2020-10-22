@@ -22,5 +22,3 @@ struct test_pad : verify_program<test_pad>
         return p;
     }
 };
-
-

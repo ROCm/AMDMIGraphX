@@ -16,5 +16,3 @@ struct test_gemm_transposea : verify_program<test_gemm_transposea>
         return p;
     }
 };
-
-

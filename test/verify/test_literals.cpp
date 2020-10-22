@@ -18,5 +18,3 @@ struct test_literals : verify_program<test_literals>
         return p;
     }
 };
-
-

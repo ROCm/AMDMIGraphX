@@ -40,5 +40,3 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
         return p;
     }
 };
-
-

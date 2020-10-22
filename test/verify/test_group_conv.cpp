@@ -19,5 +19,3 @@ struct test_group_conv : verify_program<test_group_conv>
         return p;
     }
 };
-
-

@@ -16,5 +16,3 @@ struct test_add_relu : verify_program<test_add_relu>
         return p;
     }
 };
-
-

@@ -16,5 +16,3 @@ struct test_slice_sin : verify_program<test_slice_sin>
         return p;
     }
 };
-
-

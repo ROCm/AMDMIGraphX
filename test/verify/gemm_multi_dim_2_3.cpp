@@ -19,5 +19,3 @@ struct gemm_multi_dim_2_3 : verify_program<gemm_multi_dim_2_3>
         return p;
     }
 };
-
-

@@ -18,5 +18,3 @@ struct test_conv_relu_half : verify_program<test_conv_relu_half>
         return p;
     }
 };
-
-

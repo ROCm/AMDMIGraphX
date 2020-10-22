@@ -20,5 +20,3 @@ struct test_triadd_broadcast : verify_program<test_triadd_broadcast>
         return p;
     }
 };
-
-

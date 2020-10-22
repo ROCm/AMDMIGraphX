@@ -18,5 +18,3 @@ struct test_prelu_brcst : verify_program<test_prelu_brcst>
         return p;
     }
 };
-
-

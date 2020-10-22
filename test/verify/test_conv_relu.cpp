@@ -18,5 +18,3 @@ struct test_conv_relu : verify_program<test_conv_relu>
         return p;
     }
 };
-
-

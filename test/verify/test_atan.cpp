@@ -15,5 +15,3 @@ struct test_atan : verify_program<test_atan>
         return p;
     }
 };
-
-

@@ -14,5 +14,3 @@ struct test_abs : verify_program<test_abs>
         return p;
     }
 };
-
-

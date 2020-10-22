@@ -20,5 +20,3 @@ struct test_less_brcst : verify_program<test_less_brcst>
         return p;
     };
 };
-
-

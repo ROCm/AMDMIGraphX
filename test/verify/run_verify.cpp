@@ -130,7 +130,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
             continue;
         target_names.push_back(tname);
     }
-    if (not target_names.empty())
+    if(not target_names.empty())
     {
         migraphx::program::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
@@ -143,14 +143,15 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
-            results.emplace_back(tname, detach_async([=] { return run_target(t, p, m); }, ti.parallel));
+            results.emplace_back(tname,
+                                 detach_async([=] { return run_target(t, p, m); }, ti.parallel));
         }
 
         auto gold = gold_f.get();
 
         for(auto&& pp : results)
         {
-            auto tname   = pp.first;
+            auto tname  = pp.first;
             auto x      = pp.second.get();
             auto cp     = x.first;
             auto result = x.second;
@@ -192,7 +193,8 @@ void run_verify::run(int argc, const char* argv[]) const
 }
 
 void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }
-void run_verify::add_validation_for(const std::string& name, std::function<void(const migraphx::program& p)> v)
+void run_verify::add_validation_for(const std::string& name,
+                                    std::function<void(const migraphx::program& p)> v)
 {
     info[name].validate = v;
 }

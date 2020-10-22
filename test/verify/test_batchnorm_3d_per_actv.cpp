@@ -34,5 +34,3 @@ struct test_batchnorm_3d_per_actv : verify_program<test_batchnorm_3d_per_actv>
         return p;
     }
 };
-
-

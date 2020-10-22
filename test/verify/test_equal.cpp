@@ -18,5 +18,3 @@ struct test_equal : verify_program<test_equal>
         return p;
     };
 };
-
-

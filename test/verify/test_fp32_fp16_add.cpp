@@ -21,5 +21,3 @@ struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
         return p;
     };
 };
-
-

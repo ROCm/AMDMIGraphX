@@ -18,5 +18,3 @@ struct test_slice : verify_program<test_slice>
         return p;
     }
 };
-
-

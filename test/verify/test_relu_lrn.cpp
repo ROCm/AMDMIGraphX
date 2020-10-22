@@ -15,5 +15,3 @@ struct test_relu_lrn : verify_program<test_relu_lrn>
         return p;
     }
 };
-
-

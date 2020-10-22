@@ -14,5 +14,3 @@ struct test_softmax1 : verify_program<test_softmax1>
         return p;
     }
 };
-
-

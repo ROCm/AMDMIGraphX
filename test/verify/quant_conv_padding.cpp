@@ -17,5 +17,3 @@ struct quant_conv_padding : verify_program<quant_conv_padding>
         return p;
     }
 };
-
-

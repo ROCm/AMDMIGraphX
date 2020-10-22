@@ -16,5 +16,3 @@ struct test_avg_pooling_ceil_3d : verify_program<test_avg_pooling_ceil_3d>
         return p;
     }
 };
-
-

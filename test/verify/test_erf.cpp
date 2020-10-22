@@ -15,5 +15,3 @@ struct test_erf : verify_program<test_erf>
         return p;
     }
 };
-
-

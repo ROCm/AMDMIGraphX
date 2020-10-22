@@ -19,5 +19,3 @@ struct test_global_avg_pooling : verify_program<test_global_avg_pooling>
         return p;
     }
 };
-
-

@@ -21,5 +21,3 @@ struct gemm_2args_mm_6 : verify_program<gemm_2args_mm_6>
         return p;
     }
 };
-
-

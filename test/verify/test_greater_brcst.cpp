@@ -20,5 +20,3 @@ struct test_greater_brcst : verify_program<test_greater_brcst>
         return p;
     };
 };
-
-

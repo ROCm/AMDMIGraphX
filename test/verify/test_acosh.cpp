@@ -20,5 +20,3 @@ struct test_acosh : verify_program<test_acosh>
         return p;
     }
 };
-
-

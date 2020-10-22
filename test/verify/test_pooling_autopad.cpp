@@ -18,5 +18,3 @@ struct test_pooling_autopad : verify_program<test_pooling_autopad>
         return p;
     }
 };
-
-

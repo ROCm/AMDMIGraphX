@@ -18,5 +18,3 @@ struct test_sub : verify_program<test_sub>
         return p;
     }
 };
-
-

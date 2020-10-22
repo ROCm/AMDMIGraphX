@@ -16,5 +16,3 @@ struct test_add_half : verify_program<test_add_half>
         return p;
     }
 };
-
-

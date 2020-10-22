@@ -26,5 +26,3 @@ struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
         return p;
     }
 };
-
-

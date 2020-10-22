@@ -20,5 +20,3 @@ struct test_atanh : verify_program<test_atanh>
         return p;
     }
 };
-
-

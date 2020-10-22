@@ -16,5 +16,3 @@ struct test_add_sigmoid : verify_program<test_add_sigmoid>
         return p;
     }
 };
-
-

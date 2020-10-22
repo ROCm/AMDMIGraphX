@@ -15,5 +15,3 @@ struct test_sin : verify_program<test_sin>
         return p;
     }
 };
-
-

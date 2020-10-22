@@ -22,5 +22,3 @@ struct test_concat_transpose3 : verify_program<test_concat_transpose3>
         return p;
     }
 };
-
-

@@ -18,5 +18,3 @@ struct test_conv3d : verify_program<test_conv3d>
         return p;
     }
 };
-
-

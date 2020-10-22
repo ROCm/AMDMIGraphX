@@ -15,5 +15,3 @@ struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
         return p;
     }
 };
-
-

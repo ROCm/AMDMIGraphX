@@ -15,5 +15,3 @@ struct test_asin : verify_program<test_asin>
         return p;
     }
 };
-
-

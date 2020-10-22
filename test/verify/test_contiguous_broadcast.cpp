@@ -17,5 +17,3 @@ struct test_contiguous_broadcast : verify_program<test_contiguous_broadcast>
         return p;
     }
 };
-
-

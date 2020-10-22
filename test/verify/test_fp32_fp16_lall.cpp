@@ -20,5 +20,3 @@ struct test_fp32_fp16_lall : verify_program<test_fp32_fp16_lall>
         return p;
     };
 };
-
-

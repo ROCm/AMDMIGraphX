@@ -16,5 +16,3 @@ struct test_trans_ret : verify_program<test_trans_ret>
         return p;
     }
 };
-
-

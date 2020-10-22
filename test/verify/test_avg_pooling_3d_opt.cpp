@@ -16,5 +16,3 @@ struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
         return p;
     }
 };
-
-

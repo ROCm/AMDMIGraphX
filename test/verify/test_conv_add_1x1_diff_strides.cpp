@@ -22,5 +22,3 @@ struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_st
         return p;
     }
 };
-
-

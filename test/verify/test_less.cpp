@@ -18,5 +18,3 @@ struct test_less : verify_program<test_less>
         return p;
     };
 };
-
-

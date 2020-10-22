@@ -16,5 +16,3 @@ struct test_neg : verify_program<test_neg>
         return p;
     };
 };
-
-

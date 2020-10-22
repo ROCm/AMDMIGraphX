@@ -21,5 +21,3 @@ struct gemm_2args_bmv : verify_program<gemm_2args_bmv>
         return p;
     }
 };
-
-

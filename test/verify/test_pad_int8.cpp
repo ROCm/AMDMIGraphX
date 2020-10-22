@@ -19,5 +19,3 @@ struct test_pad_int8 : verify_program<test_pad_int8>
         return p;
     }
 };
-
-

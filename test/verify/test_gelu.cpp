@@ -25,5 +25,3 @@ struct test_gelu : verify_program<test_gelu>
         return p;
     }
 };
-
-

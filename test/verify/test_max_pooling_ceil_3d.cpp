@@ -16,5 +16,3 @@ struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d>
         return p;
     }
 };
-
-

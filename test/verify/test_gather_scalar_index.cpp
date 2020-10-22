@@ -19,5 +19,3 @@ struct test_gather_scalar_index : verify_program<test_gather_scalar_index>
         return p;
     }
 };
-
-

@@ -24,5 +24,3 @@ struct test_concat_relu : verify_program<test_concat_relu>
         return p;
     }
 };
-
-

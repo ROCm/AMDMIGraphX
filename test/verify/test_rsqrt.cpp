@@ -21,5 +21,3 @@ struct test_rsqrt : verify_program<test_rsqrt>
         return p;
     };
 };
-
-

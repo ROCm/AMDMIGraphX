@@ -17,5 +17,3 @@ struct test_deconv_2x3 : verify_program<test_deconv_2x3>
         return p;
     }
 };
-
-

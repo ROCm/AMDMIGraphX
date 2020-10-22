@@ -15,5 +15,3 @@ struct test_cosh : verify_program<test_cosh>
         return p;
     }
 };
-
-

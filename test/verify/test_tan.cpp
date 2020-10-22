@@ -15,5 +15,3 @@ struct test_tan : verify_program<test_tan>
         return p;
     }
 };
-
-

@@ -30,5 +30,3 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         return p;
     }
 };
-
-

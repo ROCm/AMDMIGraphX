@@ -19,5 +19,3 @@ struct test_gather_neg_axis : verify_program<test_gather_neg_axis>
         return p;
     }
 };
-
-

@@ -20,5 +20,3 @@ struct test_triadd2 : verify_program<test_triadd2>
         return p;
     }
 };
-
-

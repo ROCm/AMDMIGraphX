@@ -17,5 +17,3 @@ struct test_deconv : verify_program<test_deconv>
         return p;
     }
 };
-
-

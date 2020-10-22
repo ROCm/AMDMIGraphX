@@ -20,5 +20,3 @@ struct test_convert : verify_program<test_convert>
         return p;
     };
 };
-
-

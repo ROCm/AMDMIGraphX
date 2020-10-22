@@ -25,5 +25,3 @@ struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
         return p;
     }
 };
-
-

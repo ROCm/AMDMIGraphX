@@ -14,5 +14,3 @@ struct test_leaky_relu : verify_program<test_leaky_relu>
         return p;
     }
 };
-
-

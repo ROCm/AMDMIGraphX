@@ -20,5 +20,3 @@ struct batch_quant_dot_2 : verify_program<batch_quant_dot_2>
         return p;
     }
 };
-
-

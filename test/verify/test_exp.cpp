@@ -15,5 +15,3 @@ struct test_exp : verify_program<test_exp>
         return p;
     }
 };
-
-

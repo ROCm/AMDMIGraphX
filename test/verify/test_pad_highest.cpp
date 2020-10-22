@@ -20,5 +20,3 @@ struct test_pad_highest : verify_program<test_pad_highest>
         return p;
     }
 };
-
-

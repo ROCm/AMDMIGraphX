@@ -20,5 +20,3 @@ struct test_div2 : verify_program<test_div2>
         return p;
     }
 };
-
-

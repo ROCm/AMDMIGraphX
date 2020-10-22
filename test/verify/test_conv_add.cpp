@@ -22,5 +22,3 @@ struct test_conv_add : verify_program<test_conv_add>
         return p;
     }
 };
-
-

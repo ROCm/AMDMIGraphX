@@ -19,5 +19,3 @@ struct test_gather_neg_indices : verify_program<test_gather_neg_indices>
         return p;
     }
 };
-
-

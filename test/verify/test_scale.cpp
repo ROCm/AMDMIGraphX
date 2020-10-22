@@ -17,5 +17,3 @@ struct test_scale : verify_program<test_scale>
         return p;
     }
 };
-
-

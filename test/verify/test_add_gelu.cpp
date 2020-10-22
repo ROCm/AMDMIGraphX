@@ -27,5 +27,3 @@ struct test_add_gelu : verify_program<test_add_gelu>
         return p;
     }
 };
-
-

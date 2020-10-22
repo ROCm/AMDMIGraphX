@@ -16,5 +16,3 @@ struct test_floor : verify_program<test_floor>
         return p;
     };
 };
-
-

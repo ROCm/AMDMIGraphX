@@ -20,5 +20,3 @@ struct test_pad_lowest : verify_program<test_pad_lowest>
         return p;
     }
 };
-
-

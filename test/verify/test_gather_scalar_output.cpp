@@ -19,5 +19,3 @@ struct test_gather_scalar_output : verify_program<test_gather_scalar_output>
         return p;
     }
 };
-
-

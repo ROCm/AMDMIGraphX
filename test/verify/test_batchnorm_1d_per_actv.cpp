@@ -32,5 +32,3 @@ struct test_batchnorm_1d_per_actv : verify_program<test_batchnorm_1d_per_actv>
         return p;
     }
 };
-
-

@@ -15,5 +15,3 @@ struct test_log : verify_program<test_log>
         return p;
     }
 };
-
-

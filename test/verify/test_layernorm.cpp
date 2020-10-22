@@ -51,4 +51,3 @@ struct test_layernorm2 : verify_program<test_layernorm2>
         return p;
     }
 };
-

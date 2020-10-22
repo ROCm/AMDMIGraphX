@@ -18,5 +18,3 @@ struct test_triadd_sigmoid : verify_program<test_triadd_sigmoid>
         return p;
     }
 };
-
-

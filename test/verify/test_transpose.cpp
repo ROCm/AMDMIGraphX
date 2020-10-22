@@ -17,5 +17,3 @@ struct test_transpose : verify_program<test_transpose>
         return p;
     }
 };
-
-

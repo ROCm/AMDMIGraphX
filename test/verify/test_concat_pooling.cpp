@@ -21,5 +21,3 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
         return p;
     }
 };
-
-

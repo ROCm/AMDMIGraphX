@@ -20,5 +20,3 @@ struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
         return p;
     };
 };
-
-

@@ -17,5 +17,3 @@ struct quant_conv : verify_program<quant_conv>
         return p;
     }
 };
-
-

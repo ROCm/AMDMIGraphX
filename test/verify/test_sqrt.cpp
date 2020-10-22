@@ -16,5 +16,3 @@ struct test_sqrt : verify_program<test_sqrt>
         return p;
     }
 };
-
-

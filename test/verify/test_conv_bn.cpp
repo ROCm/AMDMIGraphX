@@ -24,5 +24,3 @@ struct test_conv_bn : verify_program<test_conv_bn>
         return p;
     }
 };
-
-

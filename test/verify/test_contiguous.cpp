@@ -17,5 +17,3 @@ struct test_contiguous : verify_program<test_contiguous>
         return p;
     }
 };
-
-

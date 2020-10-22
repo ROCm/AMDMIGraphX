@@ -21,5 +21,3 @@ struct test_gemm_copy : verify_program<test_gemm_copy>
         return p;
     }
 };
-
-

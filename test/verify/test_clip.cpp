@@ -18,5 +18,3 @@ struct test_clip : verify_program<test_clip>
         return p;
     }
 };
-
-

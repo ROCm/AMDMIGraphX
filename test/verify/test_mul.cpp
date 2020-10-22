@@ -16,5 +16,3 @@ struct test_mul : verify_program<test_mul>
         return p;
     }
 };
-
-

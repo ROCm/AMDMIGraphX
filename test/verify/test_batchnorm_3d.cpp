@@ -27,5 +27,3 @@ struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
         return p;
     }
 };
-
-

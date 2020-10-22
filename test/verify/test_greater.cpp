@@ -18,5 +18,3 @@ struct test_greater : verify_program<test_greater>
         return p;
     };
 };
-
-

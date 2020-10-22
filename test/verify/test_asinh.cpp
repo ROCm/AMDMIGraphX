@@ -15,5 +15,3 @@ struct test_asinh : verify_program<test_asinh>
         return p;
     }
 };
-
-

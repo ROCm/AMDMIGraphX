@@ -15,5 +15,3 @@ struct test_sign : verify_program<test_sign>
         return p;
     }
 };
-
-

@@ -18,5 +18,3 @@ struct test_triadd_tanh : verify_program<test_triadd_tanh>
         return p;
     }
 };
-
-

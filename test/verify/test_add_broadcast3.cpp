@@ -18,5 +18,3 @@ struct test_add_broadcast3 : verify_program<test_add_broadcast3>
         return p;
     }
 };
-
-

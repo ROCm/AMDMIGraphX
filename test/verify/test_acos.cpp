@@ -15,5 +15,3 @@ struct test_acos : verify_program<test_acos>
         return p;
     }
 };
-
-

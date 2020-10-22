@@ -22,5 +22,3 @@ struct quant_dot_3args_4 : verify_program<quant_dot_3args_4>
         return p;
     }
 };
-
-

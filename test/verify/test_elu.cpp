@@ -14,5 +14,3 @@ struct test_elu : verify_program<test_elu>
         return p;
     }
 };
-
-

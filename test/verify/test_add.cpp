@@ -16,5 +16,3 @@ struct test_add : verify_program<test_add>
         return p;
     }
 };
-
-

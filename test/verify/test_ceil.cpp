@@ -16,5 +16,3 @@ struct test_ceil : verify_program<test_ceil>
         return p;
     };
 };
-
-

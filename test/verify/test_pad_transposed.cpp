@@ -16,5 +16,3 @@ struct test_pad_transposed : verify_program<test_pad_transposed>
         return p;
     }
 };
-
-

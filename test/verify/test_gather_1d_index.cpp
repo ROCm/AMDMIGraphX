@@ -19,5 +19,3 @@ struct test_gather_1d_index : verify_program<test_gather_1d_index>
         return p;
     }
 };
-
-

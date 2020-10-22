@@ -21,5 +21,3 @@ struct test_mul_add : verify_program<test_mul_add>
         return p;
     }
 };
-
-

@@ -23,5 +23,3 @@ struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25>
         return p;
     }
 };
-
-

@@ -20,5 +20,3 @@ struct gemm_2args_mv : verify_program<gemm_2args_mv>
         return p;
     }
 };
-
-

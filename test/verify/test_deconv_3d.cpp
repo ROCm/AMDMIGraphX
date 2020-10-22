@@ -18,5 +18,3 @@ struct test_deconv_3d : verify_program<test_deconv_3d>
         return p;
     }
 };
-
-

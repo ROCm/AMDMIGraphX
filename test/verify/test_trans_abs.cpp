@@ -18,5 +18,3 @@ struct test_trans_abs : verify_program<test_trans_abs>
         return p;
     }
 };
-
-

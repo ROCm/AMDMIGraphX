@@ -22,5 +22,3 @@ struct gemm_multi_transpose : verify_program<gemm_multi_transpose>
         return p;
     }
 };
-
-

@@ -15,5 +15,3 @@ struct test_cos : verify_program<test_cos>
         return p;
     }
 };
-
-

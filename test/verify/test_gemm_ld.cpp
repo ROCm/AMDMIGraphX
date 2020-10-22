@@ -17,5 +17,3 @@ struct test_gemm_ld //: verify_program<test_gemm_ld>
         return p;
     }
 };
-
-

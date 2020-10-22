@@ -15,5 +15,3 @@ struct test_recip : verify_program<test_recip>
         return p;
     }
 };
-
-

@@ -19,5 +19,3 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
         return p;
     }
 };
-
-

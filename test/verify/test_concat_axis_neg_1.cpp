@@ -20,5 +20,3 @@ struct test_concat_axis_neg_1 : verify_program<test_concat_axis_neg_1>
         return p;
     }
 };
-
-

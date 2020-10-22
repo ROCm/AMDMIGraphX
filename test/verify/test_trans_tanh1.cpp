@@ -18,5 +18,3 @@ struct test_trans_tanh1 : verify_program<test_trans_tanh1>
         return p;
     }
 };
-
-

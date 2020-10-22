@@ -19,5 +19,3 @@ struct test_gather : verify_program<test_gather>
         return p;
     }
 };
-
-

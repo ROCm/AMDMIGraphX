@@ -26,7 +26,7 @@ struct squeeze
     }
 
     std::string name() const { return "squeeze"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto input_shape = inputs[0];

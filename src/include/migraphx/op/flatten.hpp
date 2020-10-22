@@ -26,12 +26,12 @@ struct flatten
     }
 
     std::string name() const { return "flatten"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         auto&& lens   = inputs.front().lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis > n_dim or axis < -n_dim)
+        if(axis > n_dim or axis < 0)
         {
             MIGRAPHX_THROW("FLATTEN: axis for flatten is out of range");
         }

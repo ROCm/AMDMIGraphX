@@ -9,7 +9,7 @@ namespace gpu {
 shape hip_concat::compute_shape(std::vector<shape> inputs) const
 {
     inputs.pop_back();
-    return op.compute_shape(inputs);
+    return op.normalize_compute_shape(inputs);
 }
 
 argument hip_concat::compute(context& ctx,

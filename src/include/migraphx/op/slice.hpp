@@ -106,7 +106,7 @@ struct slice
         return offset;
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         auto input_shape        = inputs[0];
         auto t                  = input_shape.type();

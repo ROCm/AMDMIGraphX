@@ -41,11 +41,16 @@ struct concat
         }
         return offsets;
     }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         if(inputs.empty())
         {
             MIGRAPHX_THROW("CONCAT: Number of input tensors should exceed 0");
+        }
+
+        if(axis >= inputs[0].lens().size() || axis < 0)
+        {
+            MIGRAPHX_THROW("CONCAT: axis is out of range.");
         }
 
         const auto& first_shape_lens = inputs.front().lens();

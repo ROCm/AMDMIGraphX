@@ -19,10 +19,10 @@ struct concat
     }
 
     std::string name() const { return "eliminate_concat::concat"; }
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
         inputs.pop_back();
-        return op.compute_shape(std::move(inputs));
+        return op.normalize_compute_shape(std::move(inputs));
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape& output_shape,

@@ -21,6 +21,12 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
     else if(val.contains("axes"))
     {
         auto axes  = val["axes"].without_key().to_vector<int64_t>();
+
+        if (op.name() == "unsqueeze")
+        {
+            n_dim = n_dim + axes.size();
+        }
+
         bool tuned = false;
         if(std::any_of(axes.begin(), axes.end(), [=](auto i) { return i < 0; }))
         {

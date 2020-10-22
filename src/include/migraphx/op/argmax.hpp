@@ -23,12 +23,12 @@ struct argmax
 
     std::string name() const { return "argmax"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto lens     = inputs[0].lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis >= n_dim || axis < -n_dim)
+        if(axis >= n_dim || axis < 0)
         {
             MIGRAPHX_THROW("ARGMAX: axis is out of range.");
         }

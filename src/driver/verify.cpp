@@ -1,7 +1,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::vector<argument> run_cpu(program p, const program::parameter_map& inputs)
 {
-    p.compile(cpu::target{});
+    p.compile(ref::target{});
     auto out = p.eval(inputs);
     std::cout << p << std::endl;
     return out;

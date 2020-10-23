@@ -85,22 +85,27 @@ struct slice
 
     auto compute_offset(const shape& s) const
     {
-        const std::vector<std::size_t>& lens    = s.lens();
+        std::vector<int64_t> tuned_axes      = axes;
+        std::vector<int64_t> tuned_starts    = starts;
+        std::vector<int64_t> tuned_ends      = ends;
+        const std::vector<std::size_t>& lens = s.lens();
+        tune_attributes(tuned_axes, tuned_starts, tuned_ends, lens);
+
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(!axes.empty())
+        if(!tuned_axes.empty())
         {
-            for(std::size_t i = 0; i < axes.size(); i++)
+            for(std::size_t i = 0; i < tuned_axes.size(); i++)
             {
-                auto axis = axes[i];
-                offset += fix_index(lens, axis, starts[i]) * strides[axis];
+                auto axis = tuned_axes[i];
+                offset += fix_index(lens, axis, tuned_starts[i]) * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
+                offset += fix_index(lens, axis, tuned_starts[axis]) * strides[axis];
             }
         }
         return offset;
@@ -112,24 +117,29 @@ struct slice
         auto t                  = input_shape.type();
         const auto& old_lens    = input_shape.lens();
         const auto& old_strides = input_shape.strides();
+
+        if(std::any_of(axes.begin(), axes.end(), [&](auto i) {
+               return (i >= old_lens.size() and i < 0);
+           }))
+        {
+            MIGRAPHX_THROW("SLICE: input axis " + to_string_range(axes) + " out of range");
+        }
+
         if(starts.size() != axes.size() || axes.size() != ends.size())
         {
             MIGRAPHX_THROW("SLICE: inconsistent sizes");
         }
 
-        std::vector<int64_t> tuned_axes   = axes;
-        std::vector<int64_t> tuned_starts = starts;
-        std::vector<int64_t> tuned_ends   = ends;
-        tune_attributes(tuned_axes, tuned_starts, tuned_ends, old_lens);
         std::vector<std::size_t> new_lens = old_lens;
-        for(std::size_t i = 0; i < tuned_axes.size(); i++)
+        for(std::size_t i = 0; i < axes.size(); i++)
         {
-            auto axis      = tuned_axes[i];
-            new_lens[axis] = fix_index(old_lens, axis, tuned_ends[i]) -
-                             fix_index(old_lens, axis, tuned_starts[i]);
+            auto axis      = axes[i];
+            new_lens[axis] = fix_index(old_lens, axis, ends[i]) -
+                             fix_index(old_lens, axis, starts[i]);
         }
         return shape{t, new_lens, old_strides};
     }
+
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto input  = args[0];

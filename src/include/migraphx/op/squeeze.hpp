@@ -33,20 +33,21 @@ struct squeeze
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
 
-        // change to support negative axis value
-        std::vector<int64_t> tuned_axes(axes.size());
-        std::transform(axes.begin(), axes.end(), tuned_axes.begin(), [&](auto i) {
-            return i >= 0 ? i : i + old_lens.size();
-        });
+        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
+            return (i >= old_lens.size() or i < 0);
+        }))
+        {
+            MIGRAPHX_THROW("SQUEEZE: axis " + to_string_range(axes) + " out of range");
+        }
 
-        if(std::any_of(tuned_axes.begin(), tuned_axes.end(), [&](auto axis) {
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                return old_lens[axis] != 1;
            }))
         {
             MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
         }
         std::vector<std::size_t> new_lens;
-        if(tuned_axes.empty())
+        if(axes.empty())
         {
             std::copy_if(old_lens.begin(),
                          old_lens.end(),
@@ -57,7 +58,7 @@ struct squeeze
         {
             for(std::size_t i = 0; i < old_lens.size(); i++)
             {
-                if(std::find(tuned_axes.begin(), tuned_axes.end(), i) == tuned_axes.end())
+                if(std::find(axes.begin(), axes.end(), i) == axes.end())
                 {
                     new_lens.push_back(old_lens[i]);
                 }

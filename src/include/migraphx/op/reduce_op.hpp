@@ -68,21 +68,6 @@ struct reduce_op : op_name<Derived>
             tuned_axes.resize(n_dim);
             std::iota(tuned_axes.begin(), tuned_axes.end(), 0);
         }
-        else
-        {
-            for(auto& axis : tuned_axes)
-            {
-                int64_t s_dim = static_cast<int64_t>(n_dim);
-                if(axis >= s_dim or axis < 0)
-                {
-                    MIGRAPHX_THROW("REDUCE_OP: axis out of range");
-                }
-                if(axis < 0)
-                {
-                    axis += n_dim;
-                }
-            }
-        }
 
         return tuned_axes;
     }
@@ -92,6 +77,13 @@ struct reduce_op : op_name<Derived>
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);
         auto lens       = s.lens();
+        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
+            return (i >= lens.size() or i < 0);
+        }))
+        {
+            MIGRAPHX_THROW("REDUCE_OP: axis " + to_string_range(axes) + " out of range");
+        }
+
         auto tuned_axes = tune_axes(lens.size());
         for(auto axis : tuned_axes)
         {

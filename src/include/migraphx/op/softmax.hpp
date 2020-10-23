@@ -25,7 +25,7 @@ struct softmax
         int64_t n_dim = inputs[0].lens().size();
         if(axis < 0 || axis >= n_dim)
         {
-            MIGRAPHX_THROW("SoftMax: input axis value " + std::to_string(axis) +
+            MIGRAPHX_THROW("SOFTMAX: input axis value " + std::to_string(axis) +
                            " is out of range");
         }
         return inputs.at(0);

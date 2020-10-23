@@ -23,9 +23,9 @@ struct logsoftmax
     {
         check_shapes{inputs, *this}.has(1).standard();
         int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
-        if(axis < 0 || axis >= n_dim)
+        if(axis < 0 or axis >= n_dim)
         {
-            MIGRAPHX_THROW("LogSoftMax: input axis value " + std::to_string(axis) +
+            MIGRAPHX_THROW("LOGSOFTMAX: input axis value " + std::to_string(axis) +
                            " is out of range");
         }
         return inputs.at(0);

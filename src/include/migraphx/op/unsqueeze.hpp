@@ -43,17 +43,18 @@ struct unsqueeze
 
         std::size_t new_size = old_lens.size() + axes.size();
 
-        // in case of axes to be negative, tune to positive
-        std::vector<int64_t> tuned_axes(axes.size());
-        std::transform(axes.begin(), axes.end(), tuned_axes.begin(), [new_size](auto i) {
-            return i >= 0 ? i : i + new_size;
-        });
+        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
+            return (i >= new_size or i < 0);
+        }))
+        {
+            MIGRAPHX_THROW("UNSQUEEZE: axis " + to_string_range(axes) + " out of range");
+        }
 
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;
         for(std::size_t i = 0; i < new_size; i++)
         {
-            if(std::find(tuned_axes.begin(), tuned_axes.end(), i) != tuned_axes.end())
+            if(std::find(axes.begin(), axes.end(), i) != axes.end())
             {
                 new_lens[i] = 1;
             }

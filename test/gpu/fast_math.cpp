@@ -1,6 +1,13 @@
 #include <test.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/op/add.hpp>
+#include <migraphx/op/mul.hpp>
+#include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/pow.hpp>
+#include <migraphx/op/tanh.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/instruction.hpp>
 
 migraphx::program create_gelu()
 {

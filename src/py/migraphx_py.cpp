@@ -22,6 +22,20 @@
 using half   = half_float::half;
 namespace py = pybind11;
 
+#ifdef __clang__
+#define MIGRAPHX_PUSH_UNUSED_WARNING \
+    _Pragma("clang diagnostic push") \
+        _Pragma("clang diagnostic ignored \"-Wused-but-marked-unused\"")
+#define MIGRAPHX_POP_WARNING _Pragma("clang diagnostic pop")
+#else
+#define MIGRAPHX_PUSH_UNUSED_WARNING
+#define MIGRAPHX_POP_WARNING
+#endif
+#define MIGRAPHX_PYBIND11_MODULE(...) \
+    MIGRAPHX_PUSH_UNUSED_WARNING      \
+    PYBIND11_MODULE(__VA_ARGS__)      \
+    MIGRAPHX_POP_WARNING
+
 namespace migraphx {
 
 migraphx::value to_value(py::kwargs kwargs);
@@ -194,7 +208,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-PYBIND11_MODULE(migraphx, m)
+MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
         .def(py::init<>())

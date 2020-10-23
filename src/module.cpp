@@ -83,9 +83,10 @@ static void print_module(const module& m, F print_func)
         names.emplace(ins, var_name);
 
         auto& inputs = ins->inputs();
-        assert(std::all_of(inputs().begin(), inputs.end(), [&](auto arg) {
-            return m.has_instruction(arg);
-        })&& "PRINT_MODULE: Instruction not found");
+        assert(std::all_of(inputs().begin(),
+                           inputs.end(),
+                           [&](auto arg) { return m.has_instruction(arg); }) &&
+               "PRINT_MODULE: Instruction not found");
 
         print_func(ins, names);
     }
@@ -94,7 +95,7 @@ static void print_module(const module& m, F print_func)
 module::module() : impl(std::make_unique<module_impl>()) {}
 
 module::module(module&&) noexcept = default;
-module::~module() noexcept         = default;
+module::~module() noexcept        = default;
 
 // copy constructor
 module::module(const module& m) { assign(m); }
@@ -172,8 +173,8 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
     return insert_instruction(impl->instructions.end(), op, std::move(args));
 }
 instruction_ref module::insert_instruction(instruction_ref ins,
-                                            const operation& op,
-                                            std::vector<instruction_ref> args)
+                                           const operation& op,
+                                           std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -187,8 +188,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
-                                             const operation& op,
-                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                            const operation& op,
+                                            std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&

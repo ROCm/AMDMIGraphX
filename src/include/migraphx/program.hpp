@@ -51,7 +51,8 @@ struct program
     //     return insert_instruction(ins, op, {args...});
     // }
     // instruction_ref
-    // insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
+    // insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref>
+    // args);
 
     // template <class... Ts>
     // instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)

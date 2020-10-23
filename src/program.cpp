@@ -20,7 +20,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
 template <class F>

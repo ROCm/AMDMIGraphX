@@ -18,6 +18,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 using module = program;
+using module_ref = module *;
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
@@ -141,7 +142,7 @@ struct program
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
-    module& get_main_module() { return *this; }
+    module_ref get_main_module() { return this; }
 
     private:
     void assign(const program& p);

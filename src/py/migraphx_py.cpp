@@ -276,8 +276,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("fast_math")    = true)
         .def("get_main_module",
              [](migraphx::program& p) {
-                 auto& modu = p.get_main_module();
-                 return migraphx::module_wrap{&modu};
+                 auto mm = p.get_main_module();
+                 return migraphx::module_wrap{mm};
              })
         .def("run",
              [](migraphx::program& p, py::dict params) {

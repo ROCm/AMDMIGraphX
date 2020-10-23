@@ -648,7 +648,7 @@ extern "C" migraphx_status migraphx_program_get_main_module(migraphx_module_t* o
     return migraphx::try_([&] {
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
-        *out = allocate<migraphx_module_t>((program->object).get_main_module());
+        *out = object_cast<migraphx_module_t>((program->object).get_main_module());
     });
 }
 

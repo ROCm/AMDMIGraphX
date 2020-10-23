@@ -170,7 +170,7 @@ def module(h):
 
 @auto_handle
 def program(h):
-    h.method('get_main_module', returns='migraphx::module')
+    h.method('get_main_module', returns='migraphx::module*')
     h.method(
         'compile',
         api.params(target='migraphx::target',

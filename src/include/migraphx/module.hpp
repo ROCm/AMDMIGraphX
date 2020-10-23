@@ -20,29 +20,29 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
-struct program_impl;
+struct module_impl;
 
-const operation& get_operation(instruction_ref ins);
+using parameter_map = std::unordered_map<std::string, argument>;
 
 /**
  * @brief Stores the instruction stream
  */
-struct program
+struct module
 {
-    program();
+    module();
 
     // move constructor
-    program(program&&) noexcept;
+    module(module&&) noexcept;
 
     // copy constructor
-    program(const program&);
+    module(const module&);
 
     // copy assignment operator
-    program& operator=(program);
+    module& operator=(module);
 
-    ~program() noexcept;
+    ~module() noexcept;
 
-    using parameter_map = std::unordered_map<std::string, argument>;
+    std::string name() const;
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -133,15 +133,15 @@ struct program
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
-    program& sort();
+    module& sort();
 
-    friend std::ostream& operator<<(std::ostream& os, const program& p);
-    friend bool operator==(const program& x, const program& y);
-    friend bool operator!=(const program& x, const program& y) { return !(x == y); }
+    friend std::ostream& operator<<(std::ostream& os, const module& m);
+    friend bool operator==(const module& x, const module& y);
+    friend bool operator!=(const module& x, const module& y) { return !(x == y); }
 
     private:
-    void assign(const program& p);
-    std::unique_ptr<program_impl> impl;
+    void assign(const module& m);
+    std::unique_ptr<module_impl> impl;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

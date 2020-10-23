@@ -1,7 +1,6 @@
-#include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/identity.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
@@ -20,7 +19,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program_impl
+struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
@@ -64,12 +63,12 @@ static void print_instruction(std::ostream& os,
 }
 
 template <class F>
-static void print_program(const program& p, F print_func)
+static void print_module(const module& m, F print_func)
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
 
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         std::string var_name;
         if(ins->name() == "@param")
@@ -83,48 +82,46 @@ static void print_program(const program& p, F print_func)
         }
         names.emplace(ins, var_name);
 
-        // TODO: Use all_of
-        for(auto&& arg : ins->inputs())
-        {
-            assert(p.has_instruction(arg) && "Instruction not found");
-            (void)arg;
-        }
+        auto& inputs = ins->inputs();
+        assert(std::all_of(inputs().begin(), inputs.end(), [&](auto arg) {
+            return m.has_instruction(arg);
+        })&& "PRINT_MODULE: Instruction not found");
 
         print_func(ins, names);
     }
 }
 
-program::program() : impl(std::make_unique<program_impl>()) {}
+module::module() : impl(std::make_unique<module_impl>()) {}
 
-program::program(program&&) noexcept = default;
-program::~program() noexcept         = default;
+module::module(module&&) noexcept = default;
+module::~module() noexcept         = default;
 
 // copy constructor
-program::program(const program& p) { assign(p); }
+module::module(const module& m) { assign(m); }
 
 // copy assignment operator
-program& program::operator=(program p)
+module& module::operator=(module m)
 {
-    std::swap(p.impl, this->impl);
+    std::swap(m.impl, this->impl);
     return *this;
 }
 
-void program::assign(const program& p)
+void module::assign(const module& m)
 {
-    // clean the current program
+    // clean the current module
     if(!impl)
     {
-        impl = std::make_unique<program_impl>();
+        impl = std::make_unique<module_impl>();
     }
     else if(!impl->instructions.empty())
     {
         impl->instructions.clear();
     }
-    impl->ctx         = p.impl->ctx;
-    impl->input_names = p.impl->input_names;
+    impl->ctx         = m.impl->ctx;
+    impl->input_names = m.impl->input_names;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         instruction_ref copy_ins{};
         if(ins->name() == "@literal")
@@ -170,11 +167,11 @@ void program::assign(const program& p)
     }
 }
 
-instruction_ref program::add_instruction(const operation& op, std::vector<instruction_ref> args)
+instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {
     return insert_instruction(impl->instructions.end(), op, std::move(args));
 }
-instruction_ref program::insert_instruction(instruction_ref ins,
+instruction_ref module::insert_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args)
 {
@@ -189,7 +186,7 @@ instruction_ref program::insert_instruction(instruction_ref ins,
     return result;
 }
 
-instruction_ref program::replace_instruction(instruction_ref ins,
+instruction_ref module::replace_instruction(instruction_ref ins,
                                              const operation& op,
                                              std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
@@ -204,7 +201,7 @@ instruction_ref program::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref program::replace_instruction(instruction_ref ins, instruction_ref rep)
+instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
     assert(has_instruction(ins));
     assert(has_instruction(rep));
@@ -212,7 +209,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
 
     if(ins == std::prev(this->end()))
     {
-        return replace_instruction(ins, op::identity{}, rep);
+        return replace_instruction(ins, make_op("identity"), rep);
     }
 
     // TODO: Should it be an error if the output is empty?
@@ -242,7 +239,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
     return rep;
 }
 
-instruction_ref program::remove_instruction(instruction_ref ins)
+instruction_ref module::remove_instruction(instruction_ref ins)
 {
     assert(has_instruction(ins));
     assert(ins->outputs().empty());
@@ -250,7 +247,7 @@ instruction_ref program::remove_instruction(instruction_ref ins)
     return impl->instructions.erase(ins);
 }
 
-instruction_ref program::remove_instructions(instruction_ref first, instruction_ref last)
+instruction_ref module::remove_instructions(instruction_ref first, instruction_ref last)
 {
     if(first == last)
         return first;
@@ -261,13 +258,13 @@ instruction_ref program::remove_instructions(instruction_ref first, instruction_
     return impl->instructions.erase(first, last);
 }
 
-instruction_ref program::move_instruction(instruction_ref src, instruction_ref dst)
+instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
     impl->instructions.splice(dst, impl->instructions, src);
     return src;
 }
 
-instruction_ref program::move_instructions(instruction_ref src, instruction_ref dst)
+instruction_ref module::move_instructions(instruction_ref src, instruction_ref dst)
 {
     this->move_instruction(src, dst);
     for(auto ins : src->inputs())
@@ -275,19 +272,19 @@ instruction_ref program::move_instructions(instruction_ref src, instruction_ref 
     return src;
 }
 
-instruction_ref program::add_literal(literal l)
+instruction_ref module::add_literal(literal l)
 {
     impl->instructions.emplace_front(std::move(l));
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_outline(const shape& s)
+instruction_ref module::add_outline(const shape& s)
 {
     impl->instructions.push_front({builtin::outline{s}, s, {}});
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_parameter(std::string name, shape s)
+instruction_ref module::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
     impl->input_names.push_back(name);
@@ -296,7 +293,7 @@ instruction_ref program::add_parameter(std::string name, shape s)
     return impl->instructions.begin();
 }
 
-instruction_ref program::add_return(std::vector<instruction_ref> args)
+instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
@@ -309,7 +306,7 @@ instruction_ref program::add_return(std::vector<instruction_ref> args)
     return result;
 }
 
-shape program::get_parameter_shape(std::string name) const
+shape module::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -328,7 +325,7 @@ shape program::get_parameter_shape(std::string name) const
         return {};
 }
 
-std::vector<std::string> program::get_parameter_names() const
+std::vector<std::string> module::get_parameter_names() const
 {
     std::vector<std::string> result = impl->input_names;
     std::unordered_set<std::string> params;
@@ -344,7 +341,7 @@ std::vector<std::string> program::get_parameter_names() const
     return result;
 }
 
-instruction_ref program::get_parameter(std::string name) const
+instruction_ref module::get_parameter(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -363,7 +360,7 @@ instruction_ref program::get_parameter(std::string name) const
         return this->end();
 }
 
-std::unordered_map<std::string, shape> program::get_parameter_shapes() const
+std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
     for(auto&& ins : impl->instructions)
@@ -377,7 +374,7 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     return result;
 }
 
-bool program::has_instruction(instruction_ref ins) const
+bool module::has_instruction(instruction_ref ins) const
 {
     return std::find_if(
                impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
@@ -385,11 +382,11 @@ bool program::has_instruction(instruction_ref ins) const
                }) != impl->instructions.end();
 }
 
-std::size_t program::size() const { return impl->instructions.size(); }
-instruction_ref program::begin() const { return impl->instructions.begin(); }
-instruction_ref program::end() const { return impl->instructions.end(); }
+std::size_t module::size() const { return impl->instructions.size(); }
+instruction_ref module::begin() const { return impl->instructions.begin(); }
+instruction_ref module::end() const { return impl->instructions.end(); }
 
-std::vector<shape> program::get_output_shapes() const
+std::vector<shape> module::get_output_shapes() const
 {
     auto last_ins = impl->instructions.back();
     if(last_ins.name() == "@return")
@@ -410,18 +407,18 @@ std::vector<shape> program::get_output_shapes() const
     }
 }
 
-context& program::get_context() const { return impl->ctx; }
+context& module::get_context() const { return impl->ctx; }
 
-instruction_ref program::validate() const
+instruction_ref module::validate() const
 {
     return std::find_if(impl->instructions.begin(),
                         impl->instructions.end(),
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-bool program::is_compiled() const { return not this->impl->target_name.empty(); }
+bool module::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(const target& t, compile_options options)
+void module::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
     assert(not this->is_compiled());
@@ -436,12 +433,12 @@ void program::compile(const target& t, compile_options options)
     if(invalid != impl->instructions.end())
     {
         auto index = std::distance(impl->instructions.begin(), invalid);
-        MIGRAPHX_THROW("Invalid program from compilation at instruction " + std::to_string(index));
+        MIGRAPHX_THROW("Invalid module from compilation at instruction " + std::to_string(index));
     }
     this->finalize();
 }
 
-void program::finalize()
+void module::finalize()
 {
     for(auto ins : iterator_for(*this))
     {
@@ -450,7 +447,7 @@ void program::finalize()
 }
 
 template <class F>
-std::vector<argument> generic_eval(const program& p,
+std::vector<argument> generic_eval(const module& p,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
@@ -516,7 +513,7 @@ std::vector<argument> generic_eval(const program& p,
     return {results.at(std::prev(p.end()))};
 }
 
-std::vector<argument> program::eval(parameter_map params) const
+std::vector<argument> module::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
@@ -555,7 +552,7 @@ std::vector<argument> program::eval(parameter_map params) const
 
 const int program_file_version = 1;
 
-value program::to_value() const
+value module::to_value() const
 {
     value result;
     result["version"] = program_file_version;
@@ -582,7 +579,7 @@ value program::to_value() const
     result["nodes"] = nodes;
     return result;
 }
-void program::from_value(const value& v)
+void module::from_value(const value& v)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
@@ -635,14 +632,14 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
-void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+void module::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
     auto& ctx          = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();
-    // Run and time entire program
+    // Run and time entire module
     std::vector<double> total_vec;
     total_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
@@ -736,8 +733,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
-void program::debug_print() const { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins) const
+void module::debug_print() const { std::cout << *this << std::endl; }
+void module::debug_print(instruction_ref ins) const
 {
     if(ins == this->end())
     {
@@ -746,7 +743,7 @@ void program::debug_print(instruction_ref ins) const
     }
     if(not has_instruction(ins))
     {
-        std::cout << "Instruction not part of program" << std::endl;
+        std::cout << "Instruction not part of module" << std::endl;
         return;
     }
     std::stringstream ss;
@@ -758,7 +755,7 @@ void program::debug_print(instruction_ref ins) const
         }
     });
 }
-void program::debug_print(const std::vector<instruction_ref>& inss) const
+void module::debug_print(const std::vector<instruction_ref>& inss) const
 {
     for(auto ins : inss)
         debug_print(ins);
@@ -770,7 +767,7 @@ static std::string enclose_name(const std::string& name)
     return '"' + replace_string(name, "\"", "\\\"") + '"';
 }
 
-void program::print_graph(std::ostream& os, bool brief) const
+void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
@@ -845,9 +842,9 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
-void program::print_cpp(std::ostream& os) const
+void module::print_cpp(std::ostream& os) const
 {
-    os << "migraphx::program p;" << std::endl;
+    os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
     print_program(*this, [&](auto ins, const auto& names) {
@@ -894,13 +891,13 @@ void program::print_cpp(std::ostream& os) const
     });
 }
 
-void program::dry_run(std::unordered_map<std::string, argument> params) const
+void module::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
     generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
 }
 
-void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
+void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
     print_program(*this, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
@@ -909,7 +906,7 @@ void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a)
     });
 }
 
-program& program::sort()
+module& module::sort()
 {
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
@@ -920,9 +917,9 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
-std::ostream& operator<<(std::ostream& os, const program& p)
+std::ostream& operator<<(std::ostream& os, const module& p)
 {
     print_program(p, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);

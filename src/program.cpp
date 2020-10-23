@@ -20,48 +20,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program_impl
-{
-    // A list is used to keep references to an instruction stable
-    std::list<instruction> instructions;
-    std::vector<std::string> input_names;
-    context ctx;
-    std::string target_name;
-};
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
-
-static void print_instruction(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
-{
-    os << names.at(ins) << " = ";
-
-    os << ins->get_operator();
-
-    if(ins->name() == "@literal")
-    {
-        if(ins->get_literal().get_shape().elements() > 10)
-            os << "{ ... }";
-        else
-            os << "{" << ins->get_literal() << "}";
-    }
-
-    if(!ins->inputs().empty())
-    {
-        char delim = '(';
-        for(auto&& arg : ins->inputs())
-        {
-            os << delim << names.at(arg);
-            delim = ',';
-        }
-        os << ")";
-    }
-
-    // skip return instruction shape
-    if(ins->name() != "@return")
-        os << " -> " << ins->get_shape();
-}
 
 template <class F>
 static void print_program(const program& p, F print_func)

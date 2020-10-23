@@ -146,7 +146,7 @@ auto pack_join(P p, Ps... ps)
 template <class F, class T>
 auto fold_impl(F&&, T&& x)
 {
-    return std::move(x);
+    return std::forward<T>(x);
 }
 
 template <class F, class T, class U, class... Ts>

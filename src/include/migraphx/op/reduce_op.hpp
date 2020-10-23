@@ -75,11 +75,10 @@ struct reduce_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s          = inputs.at(0);
-        auto lens       = s.lens();
-        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
-            return (i >= lens.size() or i < 0);
-        }))
+        auto s    = inputs.at(0);
+        auto lens = s.lens();
+        if(std::any_of(
+               axes.begin(), axes.end(), [&](auto i) { return (i >= lens.size() or i < 0); }))
         {
             MIGRAPHX_THROW("REDUCE_OP: axis " + to_string_range(axes) + " out of range");
         }

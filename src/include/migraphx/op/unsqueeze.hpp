@@ -43,9 +43,7 @@ struct unsqueeze
 
         std::size_t new_size = old_lens.size() + axes.size();
 
-        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
-            return (i >= new_size or i < 0);
-        }))
+        if(std::any_of(axes.begin(), axes.end(), [&](auto i) { return (i >= new_size or i < 0); }))
         {
             MIGRAPHX_THROW("UNSQUEEZE: axis " + to_string_range(axes) + " out of range");
         }

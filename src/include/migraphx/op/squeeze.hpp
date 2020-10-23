@@ -33,16 +33,13 @@ struct squeeze
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
 
-        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
-            return (i >= old_lens.size() or i < 0);
-        }))
+        if(std::any_of(
+               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() or i < 0); }))
         {
             MIGRAPHX_THROW("SQUEEZE: axis " + to_string_range(axes) + " out of range");
         }
 
-        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-               return old_lens[axis] != 1;
-           }))
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
         {
             MIGRAPHX_THROW("squeeze axis dimension should be equal to 1");
         }

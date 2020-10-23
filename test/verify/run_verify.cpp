@@ -11,7 +11,6 @@
 #include <thread>
 #include <utility>
 
-
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST_COMPILE)
 
 // An improved async, that doesn't block
@@ -87,8 +86,10 @@ std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
     compile_check(p, t);
     return p.eval(std::move(inputs));
 }
-std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
-    const migraphx::target& t, migraphx::program p, const migraphx::program::parameter_map& inputs) const
+std::pair<migraphx::program, std::vector<migraphx::argument>>
+run_verify::run_target(const migraphx::target& t,
+                       migraphx::program p,
+                       const migraphx::program::parameter_map& inputs) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});

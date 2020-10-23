@@ -9,6 +9,8 @@
 
 #include <future>
 #include <thread>
+#include <utility>
+
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST_COMPILE)
 
@@ -83,10 +85,10 @@ std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
     migraphx::ref::target t{};
     auto_print pp{p, t.name()};
     compile_check(p, t);
-    return p.eval(inputs);
+    return p.eval(std::move(inputs));
 }
 std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
-    const migraphx::target& t, migraphx::program p, migraphx::program::parameter_map inputs) const
+    const migraphx::target& t, migraphx::program p, const migraphx::program::parameter_map& inputs) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
@@ -126,7 +128,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     auto_print::set_terminate_handler(name);
     std::vector<std::pair<std::string, result_future>> results;
     std::vector<std::string> target_names;
-    for(auto tname : migraphx::get_targets())
+    for(const auto& tname : migraphx::get_targets())
     {
         if(tname == "ref")
             continue;
@@ -141,7 +143,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         }
 
         auto gold_f = detach_async([=] { return run_ref(p, m); });
-        for(auto tname : target_names)
+        for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
@@ -197,5 +199,5 @@ void run_verify::run(int argc, const char* argv[]) const
 void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }
 void run_verify::add_validation_for(const std::string& name, target_info::validation_function v)
 {
-    info[name].validate = v;
+    info[name].validate = std::move(v);
 }

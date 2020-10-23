@@ -20,7 +20,7 @@ struct run_verify
     std::pair<migraphx::program, std::vector<migraphx::argument>>
     run_target(const migraphx::target& t,
                migraphx::program p,
-               migraphx::program::parameter_map inputs) const;
+               const migraphx::program::parameter_map& inputs) const;
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
                   const migraphx::program::parameter_map& m) const;

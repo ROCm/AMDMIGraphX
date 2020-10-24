@@ -474,7 +474,7 @@ struct module : MIGRAPHX_HANDLE_BASE(module)
         call(&migraphx_module_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
     }
 
-   void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }
+    void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)

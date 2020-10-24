@@ -170,8 +170,7 @@ def module(h):
         'compile',
         api.params(target='migraphx::target',
                    options='migraphx::compile_options'))
-    h.method(
-        'print', invoke='migraphx::print_module($@)', const=True)
+    h.method('print', invoke='migraphx::print_module($@)', const=True)
 
 
 @auto_handle

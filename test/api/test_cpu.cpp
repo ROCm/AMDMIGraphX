@@ -155,4 +155,12 @@ TEST_CASE(strided_shape)
     EXPECT(s.strides() == strides);
 }
 
+TEST_CASE(get_main_module)
+{
+    auto p             = migraphx::parse_onnx("constant_fill_test.onnx");
+    auto mm = p.get_main_module();
+    mm.compile(migraphx::target("cpu"));
+    mm.print();
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

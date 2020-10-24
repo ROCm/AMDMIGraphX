@@ -181,6 +181,12 @@ migraphx_status migraphx_module_destroy(migraphx_module_t module);
 
 migraphx_status migraphx_module_create(migraphx_module_t* module);
 
+migraphx_status migraphx_module_compile(migraphx_module_t module,
+                                        migraphx_target_t target,
+                                        migraphx_compile_options* options);
+
+migraphx_status migraphx_module_print(const_migraphx_module_t module);
+
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
 migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,

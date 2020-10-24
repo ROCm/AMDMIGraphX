@@ -166,6 +166,12 @@ def shapes(h):
 @auto_handle
 def module(h):
     h.constructor('create')
+    h.method(
+        'compile',
+        api.params(target='migraphx::target',
+                   options='migraphx::compile_options'))
+    h.method(
+        'print', invoke='migraphx::print_module($@)', const=True)
 
 
 @auto_handle
@@ -180,7 +186,7 @@ def program(h):
     h.method('get_output_shapes',
              invoke='migraphx::get_output_shapes($@)',
              returns='std::vector<migraphx::shape>')
-    h.method('print', invoke='migraphx::print($@)', const=True)
+    h.method('print', invoke='migraphx::print_program($@)', const=True)
     h.method('sort')
     h.method('run',
              api.params(

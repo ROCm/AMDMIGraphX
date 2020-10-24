@@ -256,7 +256,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module_wrap>(m, "module");
+    py::class_<migraphx::module_wrap>(m, "module")
+        .def("print", [](migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; });
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })

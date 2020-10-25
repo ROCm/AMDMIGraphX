@@ -56,6 +56,7 @@ def test_add_scalar():
 def test_module():
     p = migraphx.parse_onnx("add_scalar_test.onnx")
     mm = p.get_main_module()
+    p.print()
     mm.print()
 
 

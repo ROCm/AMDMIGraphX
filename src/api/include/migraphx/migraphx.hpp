@@ -463,15 +463,15 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 
 struct module : MIGRAPHX_HANDLE_BASE(module)
 {
-    module() {}
+    module() { this->make_handle(&migraphx_module_create); }
 
     module(migraphx_module* p, own) { this->set_handle(p, own{}); }
 
     module(migraphx_module* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void compile(const target& ptarget) const
+    void compile(const target& ptarget, migraphx_compile_options poptions) const
     {
-        call(&migraphx_module_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
+        call(&migraphx_module_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
     }
 
     void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }

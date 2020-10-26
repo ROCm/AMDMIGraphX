@@ -26,20 +26,17 @@ struct flatten
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const
-    {
-        return {{"axis", axis}};
-    }
+    value attributes() const { return {{"axis", axis}}; }
 
     std::string name() const { return "flatten"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto&& lens   = inputs.front().lens();
-        auto x = std::accumulate(
-            lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
-        auto y = std::accumulate(
-            lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+        auto&& lens = inputs.front().lens();
+        auto x =
+            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+        auto y =
+            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
         return {inputs.at(0).type(), {x, y}};
     }
     argument compute(shape output_shape, std::vector<argument> args) const

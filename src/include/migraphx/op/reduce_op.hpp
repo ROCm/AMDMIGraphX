@@ -61,10 +61,7 @@ struct reduce_op : op_name<Derived>
         return pack(f(self.axes, "axes"));
     }
 
-    value attributes() const
-    {
-        return {{"axes", axes}};
-    }
+    value attributes() const { return {{"axes", axes}}; }
 
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {
@@ -81,8 +78,8 @@ struct reduce_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s    = inputs.at(0);
-        auto lens = s.lens();
+        auto s          = inputs.at(0);
+        auto lens       = s.lens();
         auto tuned_axes = tune_axes(lens.size());
         for(auto axis : tuned_axes)
         {

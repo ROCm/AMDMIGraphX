@@ -8,22 +8,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
 {
     int64_t n_dim = static_cast<int64_t>(lens.size());
-    auto val = op.attributes();
+    auto val      = op.attributes();
     if(val.contains("axis"))
     {
         auto axis = val["axis"].without_key().to<int64_t>();
-        if (op.name() == "flatten")
+        if(op.name() == "flatten")
         {
-            if (axis < -n_dim or axis > n_dim)
+            if(axis < -n_dim or axis > n_dim)
             {
-                MIGRAPHX_THROW("Operator Flatten: axis value " + std::to_string(axis) + " out of range");
+                MIGRAPHX_THROW("Operator Flatten: axis value " + std::to_string(axis) +
+                               " out of range");
             }
         }
         else
         {
-            if (axis < -n_dim or axis >= n_dim)
+            if(axis < -n_dim or axis >= n_dim)
             {
-                MIGRAPHX_THROW("Operator " + op.name() + ": axis value " + std::to_string(axis) + " out of range");
+                MIGRAPHX_THROW("Operator " + op.name() + ": axis value " + std::to_string(axis) +
+                               " out of range");
             }
         }
 
@@ -43,11 +45,11 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
             n_dim = n_dim + axes.size();
         }
 
-        if (std::any_of(axes.begin(), axes.end(), [&](auto i) {
-            return (i < -n_dim or i >= n_dim);
-        }))
+        if(std::any_of(
+               axes.begin(), axes.end(), [&](auto i) { return (i < -n_dim or i >= n_dim); }))
         {
-            MIGRAPHX_THROW("Operator " + op.name() + ": axes value " + to_string_range(axes) + " out of range");
+            MIGRAPHX_THROW("Operator " + op.name() + ": axes value " + to_string_range(axes) +
+                           " out of range");
         }
 
         bool tuned = false;

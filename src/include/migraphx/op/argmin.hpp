@@ -22,10 +22,7 @@ struct argmin
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const
-    {
-        return {{"axis", axis}};
-    }
+    value attributes() const { return {{"axis", axis}}; }
 
     std::string name() const { return "argmin"; }
 

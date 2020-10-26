@@ -19,10 +19,7 @@ struct logsoftmax
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const
-    {
-        return {{"axis", axis}};
-    }
+    value attributes() const { return {{"axis", axis}}; }
 
     std::string name() const { return "logsoftmax"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const

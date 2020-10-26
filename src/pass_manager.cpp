@@ -20,15 +20,16 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
     for(const auto& p : passes)
     {
         trace("Pass: ", p.name());
-        p.apply(prog);
+        auto* mm = prog.get_main_module();
+        p.apply(*mm);
         trace(prog);
 
 #ifndef NDEBUG
         trace("Validate ...");
-        auto invalid = prog.validate();
-        if(invalid != prog.end())
+        auto invalid = mm->validate();
+        if(invalid != mm->end())
         {
-            auto index = std::distance(prog.begin(), invalid);
+            auto index = std::distance(mm->begin(), invalid);
             MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
                            std::to_string(index) + ": " + invalid->name());
         }

@@ -25,6 +25,11 @@ struct unsqueeze
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        return {{"axes", axes}};
+    }
+
     std::string name() const { return "unsqueeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -42,11 +47,6 @@ struct unsqueeze
         }
 
         std::size_t new_size = old_lens.size() + axes.size();
-
-        if(std::any_of(axes.begin(), axes.end(), [&](auto i) { return (i >= new_size or i < 0); }))
-        {
-            MIGRAPHX_THROW("UNSQUEEZE: axis " + to_string_range(axes) + " out of range");
-        }
 
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;

@@ -4,6 +4,7 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/normalize_axes.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -16,6 +17,11 @@ struct concat
     static auto reflect(Self& self, F f)
     {
         return migraphx::reflect(self.op, f);
+    }
+
+    migraphx::value attributes() const
+    {
+        return {{"axis", op.axis}};
     }
 
     std::string name() const { return "eliminate_concat::concat"; }

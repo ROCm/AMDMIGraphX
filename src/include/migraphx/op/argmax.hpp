@@ -6,6 +6,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,6 +20,11 @@ struct argmax
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.axis, "axis"));
+    }
+
+    value attributes() const
+    {
+        return {{"axis", axis}};
     }
 
     std::string name() const { return "argmax"; }

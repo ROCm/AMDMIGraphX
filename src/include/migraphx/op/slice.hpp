@@ -5,6 +5,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -23,6 +24,11 @@ struct slice
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+    }
+
+    value attributes() const
+    {
+        return {{"axes", axes}, {"starts", starts}, {"ends", ends}};
     }
 
     std::string name() const { return "slice"; }

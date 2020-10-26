@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -25,6 +26,11 @@ struct squeeze
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        return {{"axes", axes}};
+    }
+
     std::string name() const { return "squeeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -32,12 +38,6 @@ struct squeeze
         auto input_shape = inputs[0];
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
-
-        if(std::any_of(
-               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() or i < 0); }))
-        {
-            MIGRAPHX_THROW("SQUEEZE: axis " + to_string_range(axes) + " out of range");
-        }
 
         if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
         {

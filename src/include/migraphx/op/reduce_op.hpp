@@ -7,6 +7,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -60,6 +61,11 @@ struct reduce_op : op_name<Derived>
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        return {{"axes", axes}};
+    }
+
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {
         auto tuned_axes = axes;
@@ -77,12 +83,6 @@ struct reduce_op : op_name<Derived>
         check_shapes{inputs, *this}.has(1);
         auto s    = inputs.at(0);
         auto lens = s.lens();
-        if(std::any_of(
-               axes.begin(), axes.end(), [&](auto i) { return (i >= lens.size() or i < 0); }))
-        {
-            MIGRAPHX_THROW("REDUCE_OP: axis " + to_string_range(axes) + " out of range");
-        }
-
         auto tuned_axes = tune_axes(lens.size());
         for(auto axis : tuned_axes)
         {

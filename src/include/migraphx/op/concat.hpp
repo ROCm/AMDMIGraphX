@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -23,6 +24,11 @@ struct concat
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.axis, "axis"));
+    }
+
+    value attributes() const
+    {
+        return {{"axis", axis}};
     }
 
     std::string name() const { return "concat"; }
@@ -48,17 +54,11 @@ struct concat
             MIGRAPHX_THROW("CONCAT: Number of input tensors should exceed 0");
         }
 
-        if(axis >= inputs[0].lens().size() || axis < 0)
-        {
-            MIGRAPHX_THROW("CONCAT: axis is out of range.");
-        }
-
         const auto& first_shape_lens = inputs.front().lens();
         const auto& type             = inputs.front().type();
-        std::size_t axis_index       = (axis < 0) ? (first_shape_lens.size() + axis) : axis;
         for(std::size_t l = 0; l < first_shape_lens.size(); l++)
         {
-            if(l != axis_index)
+            if(l != axis)
             {
                 if(!std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
                        return s.lens()[l] == first_shape_lens[l];
@@ -72,11 +72,11 @@ struct concat
         for(const auto& input : inputs)
         {
             const auto& lens = input.lens();
-            new_dim_axis += lens[axis_index];
+            new_dim_axis += lens[axis];
         }
         std::vector<std::size_t> new_lens;
         std::copy(first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
-        new_lens[axis_index] = new_dim_axis;
+        new_lens[axis] = new_dim_axis;
         return {type, new_lens};
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const

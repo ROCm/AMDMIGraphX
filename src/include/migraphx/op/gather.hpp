@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -25,18 +26,17 @@ struct gather
         return pack(f(self.axis, "axis"));
     }
 
+    value attributes() const
+    {
+        return {{"axis", axis}};
+    }
+
     std::string name() const { return "gather"; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
         auto lens     = inputs[0].lens();
-        int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis >= n_dim || axis < 0)
-        {
-            MIGRAPHX_THROW("Gather: axis is out of range.");
-        }
-
         auto type = inputs[0].type();
         lens.erase(lens.begin() + axis);
         if(!inputs[1].scalar())

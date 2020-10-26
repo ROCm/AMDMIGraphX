@@ -15,7 +15,7 @@ struct kernel_argument
     template <class T,
               class U = std::remove_reference_t<T>,
               MIGRAPHX_REQUIRES(not std::is_base_of<kernel_argument, T>{})>
-    kernel_argument(T&& x) : size(sizeof(U)), align(alignof(U)), data(&x)
+    kernel_argument(T&& x) : size(sizeof(U)), align(alignof(U)), data(&x) // NOLINT
     {
     }
     std::size_t size;

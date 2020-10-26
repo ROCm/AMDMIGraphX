@@ -4,7 +4,7 @@
 #include <migraphx/gpu/pack_args.hpp>
 
 // extern declare the function since hip/hip_ext.h header is broken
-extern hipError_t hipExtModuleLaunchKernel(hipFunction_t,
+extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
                                            uint32_t,
                                            uint32_t,
                                            uint32_t,

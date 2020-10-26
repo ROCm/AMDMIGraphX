@@ -5,8 +5,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
+bool normalize_axes(operation& op, const std::vector<std::size_t>& lens)
 {
+    bool tuned = false;
     int64_t n_dim = static_cast<int64_t>(lens.size());
     auto val      = op.attributes();
     if(val.contains("axis"))
@@ -34,6 +35,8 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
             axis        = axis < 0 ? axis + n_dim : axis;
             val["axis"] = axis;
             op.from_value(val);
+
+            tuned = true;
         }
     }
     else if(val.contains("axes"))
@@ -52,7 +55,6 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
                            " out of range");
         }
 
-        bool tuned = false;
         if(std::any_of(axes.begin(), axes.end(), [=](auto i) { return i < 0; }))
         {
             std::transform(axes.begin(), axes.end(), axes.begin(), [&](auto i) {
@@ -110,6 +112,8 @@ void normalize_axes(operation& op, const std::vector<std::size_t>& lens)
             op.from_value(val);
         }
     }
+
+    return tuned;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

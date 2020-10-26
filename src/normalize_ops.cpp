@@ -21,9 +21,11 @@ void normalize_ops::apply(program& p) const
             continue;
 
         auto lens     = inputs[0]->get_shape().lens();
-        auto tuned_op = ins->get_operator();
-        normalize_axes(tuned_op, lens);
-        p.replace_instruction(ins, tuned_op, inputs);
+        migraphx::operation tuned_op = ins->get_operator();
+        if (normalize_axes(tuned_op, lens))
+        {
+            p.replace_instruction(ins, tuned_op, inputs);
+        }
     }
 }
 

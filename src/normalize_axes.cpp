@@ -7,7 +7,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 bool normalize_axes(operation& op, const std::vector<std::size_t>& lens)
 {
-    bool tuned = false;
+    bool tuned    = false;
     int64_t n_dim = static_cast<int64_t>(lens.size());
     auto val      = op.attributes();
     if(val.contains("axis"))

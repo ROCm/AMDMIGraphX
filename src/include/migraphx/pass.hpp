@@ -13,6 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 #ifdef DOXYGEN
 
@@ -108,7 +109,7 @@ struct pass
         return (*this).private_detail_te_get_handle().name();
     }
 
-    void apply(program& p) const
+    void apply(module& p) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().apply(p);
@@ -128,7 +129,7 @@ struct pass
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::string name() const     = 0;
-        virtual void apply(program& p) const = 0;
+        virtual void apply(module& p) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -161,7 +162,7 @@ struct pass
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        void apply(program& p) const override { private_detail_te_value.apply(p); }
+        void apply(module& p) const override { private_detail_te_value.apply(p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

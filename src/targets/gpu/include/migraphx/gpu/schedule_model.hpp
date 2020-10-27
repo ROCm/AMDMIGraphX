@@ -9,6 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 struct operation;
 
 namespace gpu {

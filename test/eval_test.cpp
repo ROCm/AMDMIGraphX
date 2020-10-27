@@ -71,7 +71,7 @@ struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
 
-    void apply(migraphx::program& p) const { std::reverse(p.begin(), p.end()); }
+    void apply(migraphx::module& p) const { std::reverse(p.begin(), p.end()); }
 };
 
 struct reverse_target
@@ -89,7 +89,7 @@ struct invert_pass
 {
     std::string name() const { return "invert_pass"; }
 
-    void apply(migraphx::program& p) const
+    void apply(migraphx::module& p) const
     {
         for(auto ins : migraphx::iterator_for(p))
         {

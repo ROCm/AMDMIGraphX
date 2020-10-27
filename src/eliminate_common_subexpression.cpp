@@ -42,7 +42,7 @@ void cse_range(program& p, Range&& r)
     }
 }
 
-void eliminate_common_subexpression::apply(program& p) const { cse_range(p, iterator_for(p)); }
+void eliminate_common_subexpression::apply(module& p) const { cse_range(p, iterator_for(p)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

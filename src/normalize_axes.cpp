@@ -66,9 +66,12 @@ bool normalize_axes(operation& op, const std::vector<std::size_t>& lens)
 
         // for slice
         std::vector<int64_t> axis_lens(axes.size());
-        std::transform(
-            axes.begin(), axes.end(), axis_lens.begin(), [&](auto axis) { return lens[axis]; });
-
+        if (val.contains("starts") or val.contains("ends"))
+        {
+            std::transform(
+                axes.begin(), axes.end(), axis_lens.begin(), [&](auto axis) { return lens[axis]; });
+        }
+        
         if(val.contains("starts"))
         {
             auto starts = val["starts"].without_key().to_vector<int64_t>();

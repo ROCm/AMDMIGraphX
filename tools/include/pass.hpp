@@ -13,6 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 #ifdef DOXYGEN
 
@@ -31,7 +32,7 @@ struct pass
 <%
 interface('pass',
     virtual('name', returns='std::string', const=True),
-    virtual('apply', returns='void', p='program &', const=True)
+    virtual('apply', returns='void', p='module &', const=True)
 )
 %>
 

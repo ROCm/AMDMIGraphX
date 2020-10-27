@@ -35,7 +35,7 @@ struct pass
  * struct pass
  * {
  *      std::string name() const;
- *      void apply(program & p) const;
+ *      void apply(module & p) const;
  * };
  *
  */

@@ -551,17 +551,17 @@ std::vector<argument> module::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 1;
+const int module_file_version = 1;
 
 value module::to_value() const
 {
     value result;
-    result["version"] = program_file_version;
+    result["version"] = module_file_version;
     result["target"]  = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
     value nodes;
-    print_program(*this, [&](auto ins, const auto& names) {
+    print_module(*this, [&](auto ins, const auto& names) {
         value node;
         node["output"] = names.at(ins);
         node["name"]   = ins->name();
@@ -583,7 +583,7 @@ value module::to_value() const
 void module::from_value(const value& v)
 {
     auto version = v.at("version").to<int>();
-    if(version != program_file_version)
+    if(version != module_file_version)
         std::cout << "Warning: Version mismatch" << std::endl;
     this->impl->target_name = v.at("target").to<std::string>();
     if(not this->impl->target_name.empty())
@@ -694,7 +694,7 @@ void module::perf_report(std::ostream& os, std::size_t n, parameter_map params) 
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(*this, [&](auto ins, const auto& names) {
+    print_module(*this, [&](auto ins, const auto& names) {
         print_instruction(std::cout, ins, names);
 
         // skip return instruction
@@ -748,7 +748,7 @@ void module::debug_print(instruction_ref ins) const
         return;
     }
     std::stringstream ss;
-    print_program(*this, [&](auto x, const auto& names) {
+    print_module(*this, [&](auto x, const auto& names) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
@@ -772,7 +772,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    print_program(*this, [&](auto ins, const auto& names) {
+    print_module(*this, [&](auto ins, const auto& names) {
         std::string label;
         if(brief)
             label = ins->name();
@@ -848,7 +848,7 @@ void module::print_cpp(std::ostream& os) const
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    print_program(*this, [&](auto ins, const auto& names) {
+    print_module(*this, [&](auto ins, const auto& names) {
         auto op = cpp_op_var(names.at(ins), ins);
         if(ins->name().front() != '@')
         {
@@ -900,7 +900,7 @@ void module::dry_run(std::unordered_map<std::string, argument> params) const
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    print_program(*this, [&](auto ins, const auto& names) {
+    print_module(*this, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         a(ins);
         os << std::endl;
@@ -922,7 +922,7 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 std::ostream& operator<<(std::ostream& os, const module& p)
 {
-    print_program(p, [&](auto ins, const auto& names) {
+    print_module(p, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         os << std::endl;
     });

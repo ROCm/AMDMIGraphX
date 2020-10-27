@@ -128,7 +128,7 @@ struct pass
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const     = 0;
+        virtual std::string name() const    = 0;
         virtual void apply(module& p) const = 0;
     };
 

@@ -163,6 +163,7 @@ TEST_CASE(get_main_module)
     migraphx_compile_options options = {false, false};
     mm.compile(migraphx::target("cpu"), options);
     mm.print();
+    p.print();
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

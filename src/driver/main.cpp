@@ -134,10 +134,11 @@ struct loader
         if(trim > 0)
         {
             auto last = std::prev(p.end(), trim);
-            auto* mm = p.get_main_module();
+            auto* mm  = p.get_main_module();
             mm->remove_instructions(last, p.end());
         }
-        if(optimize) {
+        if(optimize)
+        {
             migraphx::run_passes(*p.get_main_module(),
                                  {
                                      migraphx::rewrite_batchnorm{},

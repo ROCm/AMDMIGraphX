@@ -19,7 +19,7 @@ migraphx::program parse_tf(const std::string& name, bool is_nhwc)
 migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
 {
     auto prog = migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1});
-    auto* mm = prog.get_main_module();
+    auto* mm  = prog.get_main_module();
     if(is_nhwc)
         migraphx::run_passes(*mm,
                              {migraphx::simplify_reshapes{},

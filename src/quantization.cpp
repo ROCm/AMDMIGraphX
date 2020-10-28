@@ -339,7 +339,7 @@ void quantize_int8_impl(program& prog,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
-    auto* mm = prog.get_main_module();
+    auto* mm                      = prog.get_main_module();
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
@@ -466,7 +466,7 @@ std::size_t capture_arguments(program& prog,
                               const std::vector<std::string>& ins_names,
                               const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
-    auto* mm = prog.get_main_module();
+    auto* mm                = prog.get_main_module();
     size_t num_quant_params = 0;
     // the int8 quantization only support dot and convolution
     std::set<std::string> op_names = {"dot", "convolution"};

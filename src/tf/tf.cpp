@@ -33,7 +33,7 @@ struct tf_parser
     std::vector<tensorflow::NodeDef> input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog            = program();
-    module *mm = prog.get_main_module();
+    module* mm              = prog.get_main_module();
     bool is_nhwc            = true;
     unsigned int batch_size = 1;
 

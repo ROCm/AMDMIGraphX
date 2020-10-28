@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 migraphx::program inceptionv3(unsigned batch) // NOLINT(readability-function-size)
 {
     migraphx::program p;
-    auto *mm = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto m0 =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {batch, 3, 299, 299}});
     auto mx0 = mm->add_literal(

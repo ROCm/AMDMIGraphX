@@ -45,7 +45,7 @@ namespace gpu {
 
 struct miopen_apply
 {
-    module* prog        = nullptr;
+    module* prog         = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};

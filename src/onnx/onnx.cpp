@@ -64,7 +64,7 @@ struct onnx_parser
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
-    module *mm = prog.get_main_module();
+    module* mm                    = prog.get_main_module();
     bool is_pytorch               = false;
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
@@ -263,7 +263,7 @@ struct onnx_parser
                 {
                     uint64_t axis = parse_value(info.attributes.at("axis")).at<uint64_t>();
                     auto l = mm->add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
-                                                  args[1]);
+                                                 args[1]);
                     return mm->add_instruction(make_op(op_name), args[0], l);
                 }
                 return mm->add_instruction(make_op(op_name), args);
@@ -1313,8 +1313,7 @@ struct onnx_parser
             }
         }
 
-        auto dot_res =
-            mm->add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        auto dot_res = mm->add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
@@ -1458,8 +1457,7 @@ struct onnx_parser
         auto bias_vals = mm->add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = mm->add_instruction(migraphx::op::scalar{input_lens}, scale_val);
-        auto img_scaled =
-            mm->add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
+        auto img_scaled = mm->add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
         auto bias_bcast = mm->add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
         return mm->add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     }
@@ -1819,8 +1817,8 @@ struct onnx_parser
         }
 
         // first output for the concatenation of hidden states
-        auto hidden_states = mm->add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
-                                                  std::move(args));
+        auto hidden_states =
+            mm->add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip}, std::move(args));
 
         // second output for the last hidden state
         auto last_output = mm->add_instruction(op::rnn_last_hs_output{}, hidden_states);

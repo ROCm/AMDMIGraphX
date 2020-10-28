@@ -4,7 +4,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

@@ -93,7 +93,8 @@ void verify_instructions(const program& prog, compile_options options, double to
             if(arg->name() == "@literal")
                 inputs.push_back(mm_p->add_literal(arg->get_literal()));
             else
-                inputs.push_back(mm_p->add_parameter(std::to_string(inputs.size()), arg->get_shape()));
+                inputs.push_back(
+                    mm_p->add_parameter(std::to_string(inputs.size()), arg->get_shape()));
         }
         mm_p->add_instruction(ins.get_operator(), inputs);
         try
@@ -110,13 +111,10 @@ void verify_instructions(const program& prog, compile_options options, double to
     }
 }
 
-void verify_reduced(program p,
-                    int n,
-                    compile_options options,
-                    const parameter_map& inputs,
-                    double tolerance)
+void verify_reduced(
+    program p, int n, compile_options options, const parameter_map& inputs, double tolerance)
 {
-    auto *mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto last = std::prev(p.end(), n + 1);
     mm->remove_instructions(last, p.end());
     std::cout << "Verify: " << std::endl;

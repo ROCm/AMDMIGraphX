@@ -124,20 +124,22 @@ std::vector<argument> program::eval(parameter_map params) const { return main_mo
 
 const int program_file_version = 1;
 
-value program::to_value() const {
+value program::to_value() const
+{
     value result;
-    result["version"] = program_file_version;
+    result["version"]     = program_file_version;
     result["main_module"] = main_module.to_value();
     return result;
 }
 
-void program::from_value(const value& v) {
+void program::from_value(const value& v)
+{
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
         std::cout << "Warning: Program version mismatch" << std::endl;
-    
+
     auto mm_val = v.at("main_module").without_key();
-    main_module.from_value(mm_val); 
+    main_module.from_value(mm_val);
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
@@ -198,7 +200,7 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    const auto *mm = p.get_main_module();
+    const auto* mm = p.get_main_module();
     os << *mm;
     return os;
 }

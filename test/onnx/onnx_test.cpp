@@ -14,7 +14,7 @@
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = true)
 {
     auto prog = migraphx::parse_onnx(name);
-    auto *mm = prog.get_main_module();
+    auto* mm  = prog.get_main_module();
     if(eliminate_deadcode)
         migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 

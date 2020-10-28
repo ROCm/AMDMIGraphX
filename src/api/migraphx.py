@@ -166,10 +166,6 @@ def shapes(h):
 @auto_handle
 def module(h):
     h.constructor('create')
-    h.method(
-        'compile',
-        api.params(target='migraphx::target',
-                   options='migraphx::compile_options'))
     h.method('print', invoke='migraphx::print_module($@)', const=True)
 
 

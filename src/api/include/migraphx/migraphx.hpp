@@ -469,11 +469,6 @@ struct module : MIGRAPHX_HANDLE_BASE(module)
 
     module(migraphx_module* p, borrow) { this->set_handle(p, borrow{}); }
 
-    void compile(const target& ptarget, migraphx_compile_options poptions) const
-    {
-        call(&migraphx_module_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
-    }
-
     void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }
 };
 

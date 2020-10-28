@@ -1,6 +1,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
 #include <fstream>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -9,6 +10,7 @@ std::vector<char> read_buffer(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     std::streamsize size = is.tellg();
+    std::cout << "size: " << size << std::endl;
     is.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);

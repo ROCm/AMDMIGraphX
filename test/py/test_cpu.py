@@ -53,6 +53,14 @@ def test_add_scalar():
     print(r)
 
 
+def test_module():
+    p = migraphx.parse_onnx("add_scalar_test.onnx")
+    mm = p.get_main_module()
+    p.print()
+    mm.print()
+
+
 test_conv_relu()
+test_module()
 if sys.version_info >= (3, 0):
     test_add_scalar()

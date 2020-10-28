@@ -6,6 +6,7 @@
 #include <exception>
 #include <vector>
 #include <cassert>
+#include <iostream>
 
 namespace migraphx {
 inline namespace api { // NOLINT
@@ -462,11 +463,18 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 
 struct module : MIGRAPHX_HANDLE_BASE(module)
 {
-    module() {}
+    module() { this->make_handle(&migraphx_module_create); }
 
     module(migraphx_module* p, own) { this->set_handle(p, own{}); }
 
     module(migraphx_module* p, borrow) { this->set_handle(p, borrow{}); }
+
+    void compile(const target& ptarget, migraphx_compile_options poptions) const
+    {
+        call(&migraphx_module_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
+    }
+
+    void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)
@@ -528,7 +536,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
-        return module(p_modu, own{});
+        return module(p_modu, borrow{});
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }

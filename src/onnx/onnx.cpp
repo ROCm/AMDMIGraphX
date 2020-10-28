@@ -1068,7 +1068,7 @@ struct onnx_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    const auto& get_nearest_op(const std::string& mode)
+    static const auto& get_nearest_op(const std::string& mode)
     {
         using nearest_op = std::function<std::size_t(std::size_t, double)>;
         static std::unordered_map<std::string, nearest_op> const nearest_ops = {
@@ -1100,7 +1100,7 @@ struct onnx_parser
         return nearest_ops.at(mode);
     }
 
-    const auto& get_original_idx_op(const std::string& mode)
+    static const auto& get_original_idx_op(const std::string& mode)
     {
         using original_idx_op =
             std::function<double(std::size_t, std::size_t, std::size_t, double)>;

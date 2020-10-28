@@ -699,7 +699,7 @@ auto conv_bias(Ms... ms)
 }
 
 template <class Op>
-void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
+void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
 {
     auto conv_ins    = r.instructions["conv"];
     auto bias_ins    = r.instructions["bias"];

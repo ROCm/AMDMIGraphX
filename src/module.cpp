@@ -584,7 +584,7 @@ void module::from_value(const value& v)
 {
     auto version = v.at("version").to<int>();
     if(version != module_file_version)
-        std::cout << "Warning: Version mismatch" << std::endl;
+        std::cout << "Warning: Module version mismatch" << std::endl;
     this->impl->target_name = v.at("target").to<std::string>();
     if(not this->impl->target_name.empty())
     {

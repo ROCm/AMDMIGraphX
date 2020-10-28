@@ -20,6 +20,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
+const operation& get_operation(instruction_ref ins);
+
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;

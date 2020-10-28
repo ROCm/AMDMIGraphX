@@ -15,21 +15,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+void run_passes(module& modl, const std::vector<pass>& passes, tracer trace)
 {
     for(const auto& p : passes)
     {
         trace("Pass: ", p.name());
-        auto* mm = prog.get_main_module();
-        p.apply(*mm);
-        trace(prog);
+        p.apply(modl);
+        trace(modl);
 
 #ifndef NDEBUG
         trace("Validate ...");
-        auto invalid = mm->validate();
-        if(invalid != mm->end())
+        auto invalid = modl.validate();
+        if(invalid != modl.end())
         {
-            auto index = std::distance(mm->begin(), invalid);
+            auto index = std::distance(modl.begin(), invalid);
             MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
                            std::to_string(index) + ": " + invalid->name());
         }

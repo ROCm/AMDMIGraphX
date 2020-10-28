@@ -9,7 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
-using module = program;
+struct module;
 
 /**
  * Rewrite batchnorm to a multiply and add.

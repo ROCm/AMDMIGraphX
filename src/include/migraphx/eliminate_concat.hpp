@@ -10,7 +10,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
-using module = program;
+struct module;
 
 /**
  * Remove concat operators by having each operator can write to different chunk of memory.

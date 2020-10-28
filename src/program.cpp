@@ -20,39 +20,37 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
+// template <class F>
+// static void print_program(const program& p, F print_func)
+// {
+//     std::unordered_map<instruction_ref, std::string> names;
+//     int count = 0;
 
-template <class F>
-static void print_program(const program& p, F print_func)
-{
-    std::unordered_map<instruction_ref, std::string> names;
-    int count = 0;
+//     auto* mm = p.get_main_module();
+//     for(auto ins : iterator_for(*mm))
+//     {
+//         std::string var_name;
+//         if(ins->name() == "@param")
+//         {
+//             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+//         }
+//         else
+//         {
+//             var_name = "@" + std::to_string(count);
+//             count++;
+//         }
+//         names.emplace(ins, var_name);
 
-    auto* mm = p.get_main_module();
-    for(auto ins : iterator_for(*mm))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = "@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
+//         // TODO: Use all_of
+//         for(auto&& arg : ins->inputs())
+//         {
+//             assert(p.has_instruction(arg) && "Instruction not found");
+//             (void)arg;
+//         }
 
-        // TODO: Use all_of
-        for(auto&& arg : ins->inputs())
-        {
-            assert(p.has_instruction(arg) && "Instruction not found");
-            (void)arg;
-        }
-
-        print_func(ins, names);
-    }
-}
+//         print_func(ins, names);
+//     }
+// }
 
 program::program() {}
 
@@ -118,22 +116,28 @@ std::vector<argument> generic_eval(const program& p,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
-    auto* mm = p.get_main_module();
-    return generic_eval(*mm);
+    const auto* mm = p.get_main_module();
+    return generic_eval(*mm, ctx, params, trace);
 }
 
 std::vector<argument> program::eval(parameter_map params) const { return main_module.eval(params); }
 
 const int program_file_version = 1;
 
-value program::to_value() const { return main_module.to_value(); }
-void program::from_value(const value& v) { main_module.from_value(v); }
+value program::to_value() const {
+    value result;
+    result["version"] = program_file_version;
+    result["main_module"] = main_module.to_value();
+    return result;
+}
 
-double common_average(const std::vector<double>& v)
-{
-    std::size_t n = v.size() / 4;
-    double total  = std::accumulate(v.begin() + n, v.end() - n, 0.0);
-    return total / std::distance(v.begin() + n, v.end() - n);
+void program::from_value(const value& v) {
+    auto version = v.at("version").to<int>();
+    if(version != program_file_version)
+        std::cout << "Warning: Program version mismatch" << std::endl;
+    
+    auto mm_val = v.at("main_module").without_key();
+    main_module.from_value(mm_val); 
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
@@ -148,25 +152,25 @@ void program::debug_print(const std::vector<instruction_ref>& inss) const
     main_module.debug_print(inss);
 }
 
-static std::string enclose_name(const std::string& name)
-{
-    return '"' + replace_string(name, "\"", "\\\"") + '"';
-}
+// static std::string enclose_name(const std::string& name)
+// {
+//     return '"' + replace_string(name, "\"", "\\\"") + '"';
+// }
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
     main_module.print_graph(os, brief);
 }
 
-static std::string cpp_var_name(const std::string& name)
-{
-    return "m" + replace_string(name, "@", "x");
-}
+// static std::string cpp_var_name(const std::string& name)
+// {
+//     return "m" + replace_string(name, "@", "x");
+// }
 
-static std::string cpp_op_var(const std::string& name, instruction_ref ins)
-{
-    return replace_string(name, "@", ins->name());
-}
+// static std::string cpp_op_var(const std::string& name, instruction_ref ins)
+// {
+//     return replace_string(name, "@", ins->name());
+// }
 
 void program::print_cpp(std::ostream& os) const
 {
@@ -194,10 +198,8 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    print_program(p, [&](auto ins, const auto& names) {
-        print_instruction(os, ins, names);
-        os << std::endl;
-    });
+    const auto *mm = p.get_main_module();
+    os << *mm;
     return os;
 }
 

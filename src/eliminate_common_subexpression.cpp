@@ -11,7 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range>
-void cse_range(program& p, Range&& r)
+void cse_range(module& p, Range&& r)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
     std::unordered_set<instruction_ref> processed_ins;

@@ -208,15 +208,6 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-struct module_wrap
-{
-    migraphx::program* prog;
-};
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
@@ -256,8 +247,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module_wrap>(m, "module")
-        .def("print", [](const migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; });
+    py::class_<migraphx::module>(m, "module")
+        .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; });
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
@@ -277,12 +268,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("fast_math")    = true)
         .def("get_main_module",
              [](migraphx::program& p) {
-                 auto mm = p.get_main_module();
-                 return migraphx::module_wrap{mm};
+                 auto* mm = p.get_main_module();
+                 return migraphx::module{*mm};
              })
         .def("run",
              [](migraphx::program& p, py::dict params) {
-                 migraphx::program::parameter_map pm;
+                 migraphx::parameter_map pm;
                  for(auto x : params)
                  {
                      std::string key      = x.first.cast<std::string>();
@@ -389,7 +380,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           &migraphx::quantize_int8,
           py::arg("prog"),
           py::arg("t"),
-          py::arg("calibration") = std::vector<migraphx::program::parameter_map>{},
+          py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU

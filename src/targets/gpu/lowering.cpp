@@ -34,6 +34,7 @@
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/program.hpp>
 #include <utility>
 #include <functional>
 #include <algorithm>
@@ -44,7 +45,7 @@ namespace gpu {
 
 struct miopen_apply
 {
-    program* prog        = nullptr;
+    module* prog        = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
@@ -395,7 +396,7 @@ struct miopen_apply
     }
 };
 
-void lowering::apply(program& p) const { miopen_apply{&p, this}.apply(); }
+void lowering::apply(module& p) const { miopen_apply{&p, this}.apply(); }
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

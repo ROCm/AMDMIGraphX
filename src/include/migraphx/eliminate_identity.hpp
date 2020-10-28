@@ -9,7 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
-using module = program;
+struct module;
 
 /**
  * Remove identity instructions. Currently when used as the last pass, it will

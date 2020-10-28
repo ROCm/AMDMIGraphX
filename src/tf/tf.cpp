@@ -33,6 +33,7 @@ struct tf_parser
     std::vector<tensorflow::NodeDef> input_nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog            = program();
+    module *mm = prog.get_main_module();
     bool is_nhwc            = true;
     unsigned int batch_size = 1;
 
@@ -46,21 +47,21 @@ struct tf_parser
     instruction_ref to_nhwc(instruction_ref ins)
     {
         if(should_transpose(ins))
-            return prog.add_instruction(op::transpose{{0, 2, 3, 1}}, ins);
+            return mm->add_instruction(op::transpose{{0, 2, 3, 1}}, ins);
         return ins;
     }
 
     instruction_ref to_nchw(instruction_ref ins)
     {
         if(should_transpose(ins))
-            return prog.add_instruction(op::transpose{{0, 3, 1, 2}}, ins);
+            return mm->add_instruction(op::transpose{{0, 3, 1, 2}}, ins);
         return ins;
     }
 
     instruction_ref to_kcxy(instruction_ref ins)
     {
         if(should_transpose(ins))
-            return prog.add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
+            return mm->add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
         return ins;
     }
 
@@ -69,7 +70,7 @@ struct tf_parser
         if(ins->get_shape().standard())
             return ins;
         else
-            return prog.add_instruction(op::contiguous{}, ins);
+            return mm->add_instruction(op::contiguous{}, ins);
     }
 
     std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args)
@@ -266,7 +267,7 @@ struct tf_parser
                    // {
                    //     if(is_nhwc)
                    //     {
-                   //         l0 = prog.add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
+                   //         l0 = mm->add_instruction(op::transpose{{0, 3, 1, 2}}, args[1]);
                    //     }
                    // }
                    return add_broadcastable_binary_op(args[0], args[1], x);
@@ -308,13 +309,13 @@ struct tf_parser
                            output_lens.begin() + offset,
                            [](auto a, auto b) { return std::max(a, b); });
 
-            auto l0 = prog.add_instruction(op::multibroadcast{output_lens}, arg0);
-            auto l1 = prog.add_instruction(op::multibroadcast{output_lens}, arg1);
-            return to_nhwc(prog.add_instruction(x, to_nchw(l0), to_nchw(l1)));
+            auto l0 = mm->add_instruction(op::multibroadcast{output_lens}, arg0);
+            auto l1 = mm->add_instruction(op::multibroadcast{output_lens}, arg1);
+            return to_nhwc(mm->add_instruction(x, to_nchw(l0), to_nchw(l1)));
         }
         else
         {
-            return to_nhwc(prog.add_instruction(x, {to_nchw(arg0), to_nchw(arg1)}));
+            return to_nhwc(mm->add_instruction(x, {to_nchw(arg0), to_nchw(arg1)}));
         }
     }
 
@@ -323,7 +324,7 @@ struct tf_parser
     {
         add_op(name,
                [this, x](const attribute_map&, std::vector<instruction_ref> args) {
-                   return prog.add_instruction(x, args);
+                   return mm->add_instruction(x, args);
                },
                transpose);
     }
@@ -334,8 +335,8 @@ struct tf_parser
     {
         int64_t axis = 0;
         axis         = args[1]->eval().at<int64_t>();
-        auto ins     = prog.add_instruction(Op{axis}, args.front());
-        return prog.add_instruction(op::squeeze{{axis}}, ins);
+        auto ins     = mm->add_instruction(Op{axis}, args.front());
+        return mm->add_instruction(op::squeeze{{axis}}, ins);
     }
 
     instruction_ref
@@ -349,22 +350,22 @@ struct tf_parser
             epsilon = attributes.at("epsilon").f();
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
-        return prog.add_instruction(op, std::move(args));
+        return mm->add_instruction(op, std::move(args));
     }
 
     instruction_ref
     parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
-        auto l0 = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
-        return prog.add_instruction(op::add{}, args[0], l0);
+        auto l0 = mm->add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
+        return mm->add_instruction(op::add{}, args[0], l0);
     }
 
     instruction_ref
     parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
     {
         shape::type_t type = parse_type(attributes.at("DstT").type());
-        return prog.add_instruction(op::convert{type}, std::move(args));
+        return mm->add_instruction(op::convert{type}, std::move(args));
     }
 
     instruction_ref
@@ -375,7 +376,7 @@ struct tf_parser
         int64_t axis    = args[axis_idx]->eval().at<int64_t>();
         op::concat op{axis};
         // return only first N arguments (assuming last index is the axis value)
-        return prog.add_instruction(
+        return mm->add_instruction(
             op, std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1));
     }
 
@@ -384,7 +385,7 @@ struct tf_parser
                                    const std::vector<instruction_ref>&)
     {
         literal v = parse_tensor(attributes.at("value").tensor());
-        return prog.add_literal(v);
+        return mm->add_literal(v);
     }
 
     instruction_ref
@@ -436,7 +437,7 @@ struct tf_parser
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
                     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                    l0 = mm->add_instruction(migraphx::op::pad{padding}, l0);
                 }
                 else
                 {
@@ -464,7 +465,7 @@ struct tf_parser
                 op.padding[1] = padding[1];
             }
         }
-        return prog.add_instruction(op, {l0, to_kcxy(args[1])});
+        return mm->add_instruction(op, {l0, to_kcxy(args[1])});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,
@@ -522,7 +523,7 @@ struct tf_parser
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
                     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0 = prog.add_instruction(migraphx::op::pad{padding}, l0);
+                    l0 = mm->add_instruction(migraphx::op::pad{padding}, l0);
                 }
                 else
                 {
@@ -548,9 +549,9 @@ struct tf_parser
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
         auto new_weights =
-            prog.add_instruction(op::reshape{new_weights_shape}, make_contiguous(weights));
+            mm->add_instruction(op::reshape{new_weights_shape}, make_contiguous(weights));
 
-        return prog.add_instruction(op, {l0, new_weights});
+        return mm->add_instruction(op, {l0, new_weights});
     }
 
     instruction_ref
@@ -569,7 +570,7 @@ struct tf_parser
         {
             new_dims.insert(new_dims.begin() + dim, 1);
         }
-        return prog.add_instruction(op::reshape{new_dims}, args[0]);
+        return mm->add_instruction(op::reshape{new_dims}, args[0]);
     }
 
     instruction_ref
@@ -577,7 +578,7 @@ struct tf_parser
     {
         int axis = args[2]->eval().at<int32_t>();
         op::gather op{axis};
-        return prog.add_instruction(op, {args[0], args[1]});
+        return mm->add_instruction(op, {args[0], args[1]});
     }
 
     instruction_ref
@@ -609,10 +610,10 @@ struct tf_parser
         // swap the last two elements
         std::iter_swap(perm.end() - 1, perm.end() - 2);
 
-        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
-        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
+        auto l1 = (transa) ? mm->add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? mm->add_instruction(op::transpose{perm}, args[1]) : args[1];
 
-        return prog.add_instruction(op::dot{}, l1, l2);
+        return mm->add_instruction(op::dot{}, l1, l2);
     }
 
     instruction_ref
@@ -623,12 +624,12 @@ struct tf_parser
 
         if(keep_dims)
         {
-            return prog.add_instruction(op::reduce_mean{axes}, args[0]);
+            return mm->add_instruction(op::reduce_mean{axes}, args[0]);
         }
         else
         {
-            auto ins = prog.add_instruction(op::reduce_mean{axes}, args[0]);
-            return prog.add_instruction(op::squeeze{axes}, ins);
+            auto ins = mm->add_instruction(op::reduce_mean{axes}, args[0]);
+            return mm->add_instruction(op::squeeze{axes}, ins);
         }
     }
 
@@ -652,8 +653,8 @@ struct tf_parser
         if(axis == -1)
         {
             shape s{shape::float_type, {depth, depth}};
-            auto l0 = prog.add_literal({s, depth_input});
-            return prog.add_instruction(op::gather{0}, {l0, args[0]});
+            auto l0 = mm->add_literal({s, depth_input});
+            return mm->add_instruction(op::gather{0}, {l0, args[0]});
         }
         MIGRAPHX_THROW("MIGraphX does not support axis != -1");
     }
@@ -678,8 +679,8 @@ struct tf_parser
             args.begin(),
             args.end(),
             std::back_inserter(unsqueezed_args),
-            [&](instruction_ref arg) { return prog.add_instruction(op::unsqueeze{{axis}}, arg); });
-        return to_nhwc(prog.add_instruction(op::concat{axis}, unsqueezed_args));
+            [&](instruction_ref arg) { return mm->add_instruction(op::unsqueeze{{axis}}, arg); });
+        return to_nhwc(mm->add_instruction(op::concat{axis}, unsqueezed_args));
     }
 
     instruction_ref
@@ -706,7 +707,7 @@ struct tf_parser
             pads[i + ndims] = pad_per_dim[i].second;
         }
         op.pads = pads;
-        return prog.add_instruction(op, args.front());
+        return mm->add_instruction(op, args.front());
     }
 
     instruction_ref parse_pooling(const std::string& name,
@@ -754,7 +755,7 @@ struct tf_parser
                 if(pads[0] != pads[2] || pads[1] != pads[3])
                 {
                     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0                           = prog.add_instruction(
+                    l0                           = mm->add_instruction(
                         migraphx::op::pad{padding, std::numeric_limits<float>::lowest()}, l0);
                 }
                 else
@@ -764,19 +765,19 @@ struct tf_parser
                 }
             }
         }
-        return prog.add_instruction(op, l0);
+        return mm->add_instruction(op, l0);
     }
 
     instruction_ref
     parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
     {
         auto input_lens = args[0]->get_shape().lens();
-        auto min_val    = prog.add_literal(0.0f);
-        auto max_val    = prog.add_literal(6.0f);
+        auto min_val    = mm->add_literal(0.0f);
+        auto max_val    = mm->add_literal(6.0f);
 
-        min_val = prog.add_instruction(op::multibroadcast{input_lens}, min_val);
-        max_val = prog.add_instruction(op::multibroadcast{input_lens}, max_val);
-        return prog.add_instruction(op::clip{}, args.front(), min_val, max_val);
+        min_val = mm->add_instruction(op::multibroadcast{input_lens}, min_val);
+        max_val = mm->add_instruction(op::multibroadcast{input_lens}, max_val);
+        return mm->add_instruction(op::clip{}, args.front(), min_val, max_val);
     }
 
     instruction_ref
@@ -787,7 +788,7 @@ struct tf_parser
             MIGRAPHX_THROW("reshape needs 2 arguments (input, new_shape)");
         auto s = args[1]->eval();
         s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
-        return prog.add_instruction(op, make_contiguous(args[0]));
+        return mm->add_instruction(op, make_contiguous(args[0]));
     }
 
     // Use a literal instruction to replace the shape since output of
@@ -800,7 +801,7 @@ struct tf_parser
         migraphx::shape s(migraphx::shape::int32_type, {arg_shape.size()});
         std::transform(
             arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) { return i; });
-        return prog.add_literal(migraphx::literal{s, vec_shape});
+        return mm->add_literal(migraphx::literal{s, vec_shape});
     }
 
     instruction_ref
@@ -823,7 +824,7 @@ struct tf_parser
             else
                 op.ends[i] = starts[i] + size[i];
         }
-        return prog.add_instruction(op, make_contiguous(args[0]));
+        return mm->add_instruction(op, make_contiguous(args[0]));
     }
 
     // template to facilitate the logsoftmax later
@@ -843,7 +844,7 @@ struct tf_parser
             axis += num_dims;
         }
 
-        return prog.add_instruction(Op{axis}, make_contiguous(args[0]));
+        return mm->add_instruction(Op{axis}, make_contiguous(args[0]));
     }
 
     std::vector<instruction_ref> parse_split(const std::string&,
@@ -874,7 +875,7 @@ struct tf_parser
         assert(num_outputs > 0);
 
         if(num_outputs == 1)
-            return std::vector<instruction_ref>{prog.add_instruction(op::identity{}, input_arg)};
+            return std::vector<instruction_ref>{mm->add_instruction(op::identity{}, input_arg)};
 
         auto lens     = input_arg->get_shape().lens();
         auto num_dims = lens.size();
@@ -919,7 +920,7 @@ struct tf_parser
 
             op.starts[axis] = slice_pos[i];
             op.ends[axis]   = slice_pos[i + 1];
-            result.push_back(prog.add_instruction(op, input_arg));
+            result.push_back(mm->add_instruction(op, input_arg));
         }
         return result;
     }
@@ -943,7 +944,7 @@ struct tf_parser
                 }
             }
         }
-        return prog.add_instruction(op, make_contiguous(args[0]));
+        return mm->add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref parse_stridedslice(const std::string&,
@@ -991,7 +992,7 @@ struct tf_parser
             }
         }
 
-        auto l1 = prog.add_instruction(op, l0);
+        auto l1 = mm->add_instruction(op, l0);
         if(shrink_axis_mask == 0)
             return l1;
 
@@ -1002,7 +1003,7 @@ struct tf_parser
                 squeeze_axes.push_back(i);
         }
 
-        return prog.add_instruction(op::squeeze{squeeze_axes}, l1);
+        return mm->add_instruction(op::squeeze{squeeze_axes}, l1);
     }
 
     instruction_ref
@@ -1012,7 +1013,7 @@ struct tf_parser
         op::transpose op;
         op.dims = std::vector<int64_t>(perm.begin(), perm.end());
 
-        return prog.add_instruction(op, args.front());
+        return mm->add_instruction(op, args.front());
     }
 
     void parse_graph(const tensorflow::GraphDef& graph)
@@ -1032,7 +1033,7 @@ struct tf_parser
                 return static_cast<int>(dim) <= 0 ? batch_size : dim;
             });
             shape s            = shape{shape_type, dims};
-            instructions[name] = to_nhwc(prog.add_parameter(name, s));
+            instructions[name] = to_nhwc(mm->add_parameter(name, s));
         }
         for(auto&& p : nodes)
         {
@@ -1083,7 +1084,7 @@ struct tf_parser
             std::vector<instruction_ref> result;
             if(ops.count(node.op()) == 0)
             {
-                result.push_back(prog.add_instruction(op::unknown{node.op()}, args));
+                result.push_back(mm->add_instruction(op::unknown{node.op()}, args));
             }
             else
             {
@@ -1405,7 +1406,7 @@ program parse_tf(const std::string& name, tf_options options)
 #else
     parser.parse_from(input);
 #endif
-    parser.to_nchw(std::prev(parser.prog.end()));
+    parser.to_nchw(std::prev(parser.mm->end()));
     return std::move(parser.prog);
 }
 

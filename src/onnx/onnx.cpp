@@ -64,6 +64,7 @@ struct onnx_parser
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
+    module *mm = prog.get_main_module();
     bool is_pytorch               = false;
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
@@ -261,11 +262,11 @@ struct onnx_parser
                 if(broadcasted != 0)
                 {
                     uint64_t axis = parse_value(info.attributes.at("axis")).at<uint64_t>();
-                    auto l = prog.add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
+                    auto l = mm->add_instruction(op::broadcast{axis, args[0]->get_shape().lens()},
                                                   args[1]);
-                    return prog.add_instruction(make_op(op_name), args[0], l);
+                    return mm->add_instruction(make_op(op_name), args[0], l);
                 }
-                return prog.add_instruction(make_op(op_name), args);
+                return mm->add_instruction(make_op(op_name), args);
             }
             else
             {
@@ -320,7 +321,7 @@ struct onnx_parser
             return ins;
         }
 
-        return prog.add_instruction(make_op("contiguous"), ins);
+        return mm->add_instruction(make_op("contiguous"), ins);
     }
 
     instruction_ref
@@ -335,17 +336,17 @@ struct onnx_parser
 
             auto l0 = arg0;
             if(arg0->get_shape().lens() != out_lens)
-                l0 = prog.add_instruction(op::multibroadcast{out_lens}, arg0);
+                l0 = mm->add_instruction(op::multibroadcast{out_lens}, arg0);
 
             auto l1 = arg1;
             if(arg1->get_shape().lens() != out_lens)
-                l1 = prog.add_instruction(op::multibroadcast{out_lens}, arg1);
+                l1 = mm->add_instruction(op::multibroadcast{out_lens}, arg1);
 
-            return prog.add_instruction(make_op(name), l0, l1);
+            return mm->add_instruction(make_op(name), l0, l1);
         }
         else
         {
-            return prog.add_instruction(make_op(name), {arg0, arg1});
+            return mm->add_instruction(make_op(name), {arg0, arg1});
         }
     }
 
@@ -363,7 +364,7 @@ struct onnx_parser
                         return this->make_contiguous(arg);
                     });
                 }
-                return prog.add_instruction(op, args);
+                return mm->add_instruction(op, args);
             });
     }
 
@@ -392,8 +393,8 @@ struct onnx_parser
         if(args.size() == 3)
         {
             auto bias_bcast =
-                prog.add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
-            return prog.add_instruction(make_op("add"), curr_ins, bias_bcast);
+                mm->add_instruction(op::broadcast{axis, curr_ins->get_shape().lens()}, args[2]);
+            return mm->add_instruction(make_op("add"), curr_ins, bias_bcast);
         }
         return curr_ins;
     }
@@ -430,7 +431,7 @@ struct onnx_parser
             asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
             // add right pads
             asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
-            ins = prog.add_instruction(op::pad{asym_pads, pad_val}, ins);
+            ins = mm->add_instruction(op::pad{asym_pads, pad_val}, ins);
         }
         else
         {
@@ -464,37 +465,37 @@ struct onnx_parser
 
             float min_val = parse_value(info.attributes.at("min")).at<float>();
             float max_val = parse_value(info.attributes.at("max")).at<float>();
-            min_arg       = prog.add_literal(min_val);
-            max_arg       = prog.add_literal(max_val);
+            min_arg       = mm->add_literal(min_val);
+            max_arg       = mm->add_literal(max_val);
             min_used      = true;
             max_used      = true;
         }
 
         if(min_used)
         {
-            min_arg = prog.add_instruction(op::multibroadcast{input_lens}, min_arg);
+            min_arg = mm->add_instruction(op::multibroadcast{input_lens}, min_arg);
         }
 
         if(max_used)
         {
-            max_arg = prog.add_instruction(op::multibroadcast{input_lens}, max_arg);
+            max_arg = mm->add_instruction(op::multibroadcast{input_lens}, max_arg);
         }
 
         if(min_used and max_used)
         {
-            return prog.add_instruction(make_op("clip"), args[0], min_arg, max_arg);
+            return mm->add_instruction(make_op("clip"), args[0], min_arg, max_arg);
         }
         else if(max_used)
         {
-            return prog.add_instruction(make_op("min"), args[0], max_arg);
+            return mm->add_instruction(make_op("min"), args[0], max_arg);
         }
         else if(min_used)
         {
-            return prog.add_instruction(make_op("max"), args[0], min_arg);
+            return mm->add_instruction(make_op("max"), args[0], min_arg);
         }
         else
         {
-            return prog.add_instruction(make_op("identity"), args[0]);
+            return mm->add_instruction(make_op("identity"), args[0]);
         }
     }
 
@@ -517,12 +518,12 @@ struct onnx_parser
 
         if(keep_dims == 0)
         {
-            auto ins = prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
-            return prog.add_instruction(op::squeeze{{axis}}, ins);
+            auto ins = mm->add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
+            return mm->add_instruction(op::squeeze{{axis}}, ins);
         }
         else
         {
-            return prog.add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
+            return mm->add_instruction(make_op(op_name, {{"axis", axis}}), std::move(args));
         }
     }
 
@@ -586,7 +587,7 @@ struct onnx_parser
             {
                 *starts_it = idx;
                 *ends_it   = *starts_it + 1;
-                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+                slices.push_back(mm->add_instruction(op::slice{axes, starts, ends}, input));
             }
             // when padding on the left side, the outermost pad should be at the beginning
             std::reverse(slices.begin(), slices.end());
@@ -595,9 +596,9 @@ struct onnx_parser
             {
                 *starts_it = *dims_it - idx - 1;
                 *ends_it   = *starts_it + 1;
-                slices.push_back(prog.add_instruction(op::slice{axes, starts, ends}, input));
+                slices.push_back(mm->add_instruction(op::slice{axes, starts, ends}, input));
             }
-            input = prog.add_instruction(op::concat{axis}, slices);
+            input = mm->add_instruction(op::concat{axis}, slices);
         }
         return input;
     }
@@ -742,7 +743,7 @@ struct onnx_parser
         recalc_conv_attributes(values, kdims);
 
         op.from_value(values);
-        auto l1 = prog.add_instruction(op, l0, args[1]);
+        auto l1 = mm->add_instruction(op, l0, args[1]);
         return add_bias(args, l1, 1);
     }
 
@@ -816,7 +817,7 @@ struct onnx_parser
         recalc_conv_attributes(values, kdims);
 
         op.from_value(values);
-        auto l1                   = prog.add_instruction(op, l0, args[1]);
+        auto l1                   = mm->add_instruction(op, l0, args[1]);
         std::vector<int64_t> dims = to_int64_vector(l1->get_shape().lens());
         std::vector<int64_t> curr_shape(dims.begin() + 2, dims.end());
         if(asym_padding)
@@ -834,7 +835,7 @@ struct onnx_parser
                            std::back_inserter(ends),
                            [](auto curr_dim, auto pad_dim) { return curr_dim - pad_dim; });
 
-            l1 = prog.add_instruction(op::slice{axes, starts, ends}, l1);
+            l1 = mm->add_instruction(op::slice{axes, starts, ends}, l1);
         }
 
         if(contains(info.attributes, "output_padding"))
@@ -845,7 +846,7 @@ struct onnx_parser
             check_attr_sizes(kdims,
                              output_padding.size() - non_kdims,
                              "PARSE_CONV_TRANSPOSE: inconsistent output padding");
-            l1 = prog.add_instruction(op::pad{output_padding}, l1);
+            l1 = mm->add_instruction(op::pad{output_padding}, l1);
         }
 
         if(contains(info.attributes, "output_shape"))
@@ -864,7 +865,7 @@ struct onnx_parser
                                curr_shape.begin(),
                                std::back_inserter(target_padding),
                                [](auto out_dim, auto curr_dim) { return out_dim - curr_dim; });
-                l1 = prog.add_instruction(op::pad{target_padding}, l1);
+                l1 = mm->add_instruction(op::pad{target_padding}, l1);
             }
         }
 
@@ -1037,12 +1038,12 @@ struct onnx_parser
             }
         }
         op.from_value(values);
-        auto l1 = prog.add_instruction(op, l0);
+        auto l1 = mm->add_instruction(op, l0);
         if(!slice_start.empty())
         {
             std::vector<int64_t> axes(kdims);
             std::iota(axes.begin(), axes.end(), 2);
-            l1 = prog.add_instruction(op::slice{axes, slice_start, slice_end}, l1);
+            l1 = mm->add_instruction(op::slice{axes, slice_start, slice_end}, l1);
         }
 
         return l1;
@@ -1064,7 +1065,7 @@ struct onnx_parser
             s.visit([&](auto v) { copy(v, std::back_inserter(op.dims)); });
         }
 
-        return prog.add_instruction(op, make_contiguous(args[0]));
+        return mm->add_instruction(op, make_contiguous(args[0]));
     }
 
     instruction_ref
@@ -1095,7 +1096,7 @@ struct onnx_parser
         int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
         // reshape the input data as one dimension and used as input data
         // to the gather operator
-        arg_data = prog.add_instruction(op::reshape{{data_elem_num}}, arg_data);
+        arg_data = mm->add_instruction(op::reshape{{data_elem_num}}, arg_data);
 
         std::size_t elem_num = ind_s.elements();
         std::vector<int> ind_index(elem_num);
@@ -1113,16 +1114,16 @@ struct onnx_parser
         });
 
         auto l_shape_idx =
-            prog.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
-        auto l_dim_idx = prog.add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
-        auto l_stride  = prog.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
-        l_stride       = prog.add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
-        auto dim_diff  = prog.add_instruction(make_op("sub"), arg_ind, l_dim_idx);
-        auto delta     = prog.add_instruction(make_op("mul"), dim_diff, l_stride);
-        auto ind       = prog.add_instruction(make_op("add"), l_shape_idx, delta);
+            mm->add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
+        auto l_dim_idx = mm->add_literal(literal(ind_s, vec_axis_ind.begin(), vec_axis_ind.end()));
+        auto l_stride  = mm->add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
+        l_stride       = mm->add_instruction(op::multibroadcast{ind_s.lens()}, l_stride);
+        auto dim_diff  = mm->add_instruction(make_op("sub"), arg_ind, l_dim_idx);
+        auto delta     = mm->add_instruction(make_op("mul"), dim_diff, l_stride);
+        auto ind       = mm->add_instruction(make_op("add"), l_shape_idx, delta);
 
         op::gather op{0};
-        return prog.add_instruction(op, arg_data, ind);
+        return mm->add_instruction(op, arg_data, ind);
     }
 
     instruction_ref
@@ -1187,7 +1188,7 @@ struct onnx_parser
             op.axes = axes;
         }
 
-        return prog.add_instruction(op, args[0]);
+        return mm->add_instruction(op, args[0]);
     }
 
     instruction_ref
@@ -1197,7 +1198,7 @@ struct onnx_parser
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            return prog.add_literal(literal{});
+            return mm->add_literal(literal{});
         }
 
         auto dim_size = info.attributes.at("value").t().dims_size();
@@ -1205,10 +1206,10 @@ struct onnx_parser
         if(dim_size == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
-            return prog.add_literal(migraphx::literal{scalar_shape, v.data()});
+            return mm->add_literal(migraphx::literal{scalar_shape, v.data()});
         }
 
-        return prog.add_literal(v);
+        return mm->add_literal(v);
     }
 
     instruction_ref
@@ -1240,8 +1241,8 @@ struct onnx_parser
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 
-        auto l1 = (transa) ? prog.add_instruction(op::transpose{perm}, args[0]) : args[0];
-        auto l2 = (transb) ? prog.add_instruction(op::transpose{perm}, args[1]) : args[1];
+        auto l1 = (transa) ? mm->add_instruction(op::transpose{perm}, args[0]) : args[0];
+        auto l2 = (transb) ? mm->add_instruction(op::transpose{perm}, args[1]) : args[1];
         if(args.size() == 3)
         {
             if(beta != 0.f && args[2]->get_shape().elements() > 0)
@@ -1252,14 +1253,14 @@ struct onnx_parser
                 auto l3_lens    = l3->get_shape().lens();
                 if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
-                    l3 = prog.add_instruction(op::multibroadcast{out_lens}, args[2]);
+                    l3 = mm->add_instruction(op::multibroadcast{out_lens}, args[2]);
                 }
-                return prog.add_instruction(
+                return mm->add_instruction(
                     make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
             }
         }
 
-        return prog.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
+        return mm->add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
     }
 
     instruction_ref parse_matmul(const std::string&,
@@ -1278,7 +1279,7 @@ struct onnx_parser
         {
             is_a_prepended = true;
             l0_lens.insert(l0_lens.begin(), 1);
-            l0 = prog.add_instruction(op::unsqueeze{{0}}, args[0]);
+            l0 = mm->add_instruction(op::unsqueeze{{0}}, args[0]);
         }
 
         bool is_b_appended = false;
@@ -1286,7 +1287,7 @@ struct onnx_parser
         {
             is_b_appended = true;
             l1_lens.push_back(1);
-            l1 = prog.add_instruction(op::unsqueeze{{1}}, args[1]);
+            l1 = mm->add_instruction(op::unsqueeze{{1}}, args[1]);
         }
 
         instruction_ref bl0 = l0;
@@ -1304,25 +1305,25 @@ struct onnx_parser
             l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, l1_lens.end());
             if(l0_lens != l0_broadcasted_lens)
             {
-                bl0 = prog.add_instruction(op::multibroadcast{l0_broadcasted_lens}, l0);
+                bl0 = mm->add_instruction(op::multibroadcast{l0_broadcasted_lens}, l0);
             }
             if(l1_lens != l1_broadcasted_lens)
             {
-                bl1 = prog.add_instruction(op::multibroadcast{l1_broadcasted_lens}, l1);
+                bl1 = mm->add_instruction(op::multibroadcast{l1_broadcasted_lens}, l1);
             }
         }
 
         auto dot_res =
-            prog.add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+            mm->add_instruction(make_op(op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
-            dot_res = prog.add_instruction(op::squeeze{{num_axis - 2}}, dot_res);
+            dot_res = mm->add_instruction(op::squeeze{{num_axis - 2}}, dot_res);
             --num_axis;
         }
         if(is_b_appended)
         {
-            dot_res = prog.add_instruction(op::squeeze{{num_axis - 1}}, dot_res);
+            dot_res = mm->add_instruction(op::squeeze{{num_axis - 1}}, dot_res);
         }
 
         return dot_res;
@@ -1349,7 +1350,7 @@ struct onnx_parser
                           : op::batch_norm_inference::per_activation;
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
-        return prog.add_instruction(op, std::move(args));
+        return mm->add_instruction(op, std::move(args));
     }
 
     instruction_ref
@@ -1375,22 +1376,22 @@ struct onnx_parser
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
 
-        auto mean            = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
-        auto mean_bcast      = prog.add_instruction(op::multibroadcast{dims}, mean);
-        auto l0              = prog.add_instruction(make_op("sqdiff"), x, mean_bcast);
-        auto variance        = prog.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
-        auto l1              = prog.add_instruction(make_op("sub"), x, mean_bcast);
-        auto epsilon_literal = prog.add_literal(epsilon);
-        auto epsilon_bcast   = prog.add_instruction(op::multibroadcast{dims}, epsilon_literal);
-        auto variance_bcast  = prog.add_instruction(op::multibroadcast{dims}, variance);
-        auto l2              = prog.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
-        auto l3              = prog.add_instruction(make_op("rsqrt"), l2);
-        auto l4              = prog.add_instruction(make_op("mul"), l1, l3);
-        auto scale_bcast     = prog.add_instruction(op::broadcast{1, dims}, scale);
+        auto mean            = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
+        auto mean_bcast      = mm->add_instruction(op::multibroadcast{dims}, mean);
+        auto l0              = mm->add_instruction(make_op("sqdiff"), x, mean_bcast);
+        auto variance        = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
+        auto l1              = mm->add_instruction(make_op("sub"), x, mean_bcast);
+        auto epsilon_literal = mm->add_literal(epsilon);
+        auto epsilon_bcast   = mm->add_instruction(op::multibroadcast{dims}, epsilon_literal);
+        auto variance_bcast  = mm->add_instruction(op::multibroadcast{dims}, variance);
+        auto l2              = mm->add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
+        auto l3              = mm->add_instruction(make_op("rsqrt"), l2);
+        auto l4              = mm->add_instruction(make_op("mul"), l1, l3);
+        auto scale_bcast     = mm->add_instruction(op::broadcast{1, dims}, scale);
         ;
-        auto bias_bcast = prog.add_instruction(op::broadcast{1, dims}, bias);
-        auto l5         = prog.add_instruction(make_op("mul"), l4, scale_bcast);
-        return prog.add_instruction(make_op("add"), l5, bias_bcast);
+        auto bias_bcast = mm->add_instruction(op::broadcast{1, dims}, bias);
+        auto l5         = mm->add_instruction(make_op("mul"), l4, scale_bcast);
+        return mm->add_instruction(make_op("add"), l5, bias_bcast);
     }
 
     instruction_ref
@@ -1402,7 +1403,7 @@ struct onnx_parser
             alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
         auto op = make_op("leaky_relu", {{"alpha", alpha}});
-        return prog.add_instruction(op, args.front());
+        return mm->add_instruction(op, args.front());
     }
 
     instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args)
@@ -1413,7 +1414,7 @@ struct onnx_parser
             alpha = parse_value(info.attributes.at("alpha")).at<float>();
         }
         auto op = make_op("elu", {{"alpha", alpha}});
-        return prog.add_instruction(op, args.front());
+        return mm->add_instruction(op, args.front());
     }
 
     instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args)
@@ -1431,7 +1432,7 @@ struct onnx_parser
         if(contains(info.attributes, "size"))
             size = parse_value(info.attributes.at("size")).at<int>();
         op::lrn op{alpha, beta, bias, size};
-        return prog.add_instruction(op, args.front());
+        return mm->add_instruction(op, args.front());
     }
 
     instruction_ref
@@ -1453,14 +1454,14 @@ struct onnx_parser
         auto const& input_lens = input_shape.lens();
         auto input_type        = input_shape.type();
 
-        auto scale_val = prog.add_literal(literal{shape{input_type}, {scale}});
-        auto bias_vals = prog.add_literal(literal{shape{input_type, {bias.size()}}, bias});
+        auto scale_val = mm->add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = mm->add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
-        auto scale_tensor = prog.add_instruction(migraphx::op::scalar{input_lens}, scale_val);
+        auto scale_tensor = mm->add_instruction(migraphx::op::scalar{input_lens}, scale_val);
         auto img_scaled =
-            prog.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
-        auto bias_bcast = prog.add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
-        return prog.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
+            mm->add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
+        auto bias_bcast = mm->add_instruction(migraphx::op::broadcast{1, input_lens}, bias_vals);
+        return mm->add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     }
 
     instruction_ref
@@ -1472,7 +1473,7 @@ struct onnx_parser
             auto&& perm_vals = info.attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
-        return prog.add_instruction(migraphx::op::transpose{perm}, args.front());
+        return mm->add_instruction(migraphx::op::transpose{perm}, args.front());
     }
 
     instruction_ref parse_pad(const std::string&, node_info info, std::vector<instruction_ref> args)
@@ -1497,7 +1498,7 @@ struct onnx_parser
         // check if padding is actually being done (at least one value is nonzero)
         if(std::all_of(pads.begin(), pads.end(), [](const int& i) { return i == 0; }))
         {
-            return prog.add_instruction(make_op("identity"), args.front());
+            return mm->add_instruction(make_op("identity"), args.front());
         }
 
         if(contains(info.attributes, "mode"))
@@ -1533,7 +1534,7 @@ struct onnx_parser
             value = parse_value(info.attributes.at("value")).at<float>();
         }
 
-        return prog.add_instruction(migraphx::op::pad{pads, value}, args.front());
+        return mm->add_instruction(migraphx::op::pad{pads, value}, args.front());
     }
 
     instruction_ref
@@ -1553,29 +1554,29 @@ struct onnx_parser
             gamma = info.attributes.at("gamma").f();
         }
 
-        auto l_alpha = prog.add_literal({{type, {1}}, {alpha}});
-        auto l_gamma = prog.add_literal({{type, {1}}, {gamma / 2.0f}});
+        auto l_alpha = mm->add_literal({{type, {1}}, {alpha}});
+        auto l_gamma = mm->add_literal({{type, {1}}, {gamma / 2.0f}});
         if(lens != std::vector<std::size_t>{1})
         {
             l_alpha =
-                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
+                mm->add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
             l_gamma =
-                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
+                mm->add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
         }
 
-        auto sign_x = prog.add_instruction(make_op("sign"), args[0]);
-        auto exp_x  = prog.add_instruction(make_op("exp"), args[0]);
+        auto sign_x = mm->add_instruction(make_op("sign"), args[0]);
+        auto exp_x  = mm->add_instruction(make_op("exp"), args[0]);
 
-        auto alpha_ex  = prog.add_instruction(make_op("mul"), l_alpha, exp_x);
-        auto aex_alpha = prog.add_instruction(make_op("sub"), alpha_ex, l_alpha);
+        auto alpha_ex  = mm->add_instruction(make_op("mul"), l_alpha, exp_x);
+        auto aex_alpha = mm->add_instruction(make_op("sub"), alpha_ex, l_alpha);
 
-        auto ins1 = prog.add_instruction(make_op("add"), aex_alpha, args[0]);
-        auto ins2 = prog.add_instruction(make_op("sub"), aex_alpha, args[0]);
+        auto ins1 = mm->add_instruction(make_op("add"), aex_alpha, args[0]);
+        auto ins2 = mm->add_instruction(make_op("sub"), aex_alpha, args[0]);
 
-        auto sign2   = prog.add_instruction(make_op("mul"), sign_x, ins2);
-        auto ins_sub = prog.add_instruction(make_op("sub"), ins1, sign2);
+        auto sign2   = mm->add_instruction(make_op("mul"), sign_x, ins2);
+        auto ins_sub = mm->add_instruction(make_op("sub"), ins1, sign2);
 
-        return prog.add_instruction(make_op("mul"), ins_sub, l_gamma);
+        return mm->add_instruction(make_op("mul"), ins_sub, l_gamma);
     }
 
     // Use a literal instruction to replace the shape since, output of
@@ -1591,7 +1592,7 @@ struct onnx_parser
         std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
             return int64_t(i);
         });
-        return prog.add_literal(migraphx::literal{s, vec_shape});
+        return mm->add_literal(migraphx::literal{s, vec_shape});
     }
 
     // Use a literal instruction to replace the constantFill operator. In RNN, input shape
@@ -1645,7 +1646,7 @@ struct onnx_parser
             in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
             migraphx::shape s(type, dims);
             std::vector<float> values(s.elements(), value);
-            return prog.add_literal(migraphx::literal(s, values));
+            return mm->add_literal(migraphx::literal(s, values));
         }
         else if(input_as_shape == 0)
         {
@@ -1659,7 +1660,7 @@ struct onnx_parser
             ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
             migraphx::shape s{type, dims};
             std::vector<float> values(s.elements(), value);
-            return prog.add_literal(migraphx::literal(s, values));
+            return mm->add_literal(migraphx::literal(s, values));
         }
         else
         {
@@ -1717,7 +1718,7 @@ struct onnx_parser
                 l_out = literal(s, out_vec);
             });
 
-            return prog.add_literal(l_out);
+            return mm->add_literal(l_out);
         }
     }
 
@@ -1730,7 +1731,7 @@ struct onnx_parser
         std::vector<std::size_t> dims;
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
-        return prog.add_instruction(op::multibroadcast{out_lens}, args[0]);
+        return mm->add_instruction(op::multibroadcast{out_lens}, args[0]);
     }
 
     std::vector<instruction_ref>
@@ -1813,16 +1814,16 @@ struct onnx_parser
         // undefined operator to have 6 arguments
         if(args.size() < 6)
         {
-            auto ins = prog.add_instruction(op::undefined{});
+            auto ins = mm->add_instruction(op::undefined{});
             args.insert(args.end(), (6 - args.size()), ins);
         }
 
         // first output for the concatenation of hidden states
-        auto hidden_states = prog.add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
+        auto hidden_states = mm->add_instruction(op::rnn{hidden_size, vec_actv_funcs, dirct, clip},
                                                   std::move(args));
 
         // second output for the last hidden state
-        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+        auto last_output = mm->add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -1934,17 +1935,17 @@ struct onnx_parser
         // append undefined opeator to make 6 arguments
         if(args.size() < 6)
         {
-            auto ins = prog.add_instruction(op::undefined{});
+            auto ins = mm->add_instruction(op::undefined{});
             args.insert(args.end(), 6 - args.size(), ins);
         }
 
         // first output for concatenation of hidden states
-        auto hidden_states = prog.add_instruction(
+        auto hidden_states = mm->add_instruction(
             op::gru{hidden_size, vec_actv_funcs, dirct, clip, linear_before_reset},
             std::move(args));
 
         // second output for last gru output
-        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+        auto last_output = mm->add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         return {hidden_states, last_output};
     }
@@ -2116,18 +2117,18 @@ struct onnx_parser
         // append undefined opeator to make 6 arguments
         if(args.size() < 8)
         {
-            auto ins = prog.add_instruction(op::undefined{});
+            auto ins = mm->add_instruction(op::undefined{});
             args.insert(args.end(), 8 - args.size(), ins);
         }
 
         // first output for concatenation of hidden states
-        auto hidden_states = prog.add_instruction(
+        auto hidden_states = mm->add_instruction(
             op::lstm{hidden_size, vec_actv_funcs, dirct, clip, input_forget}, std::move(args));
 
-        auto last_output = prog.add_instruction(op::rnn_last_hs_output{}, hidden_states);
+        auto last_output = mm->add_instruction(op::rnn_last_hs_output{}, hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = prog.add_instruction(op::rnn_last_cell_output{}, hidden_states);
+        auto last_cell_output = mm->add_instruction(op::rnn_last_cell_output{}, hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }
@@ -2157,49 +2158,49 @@ struct onnx_parser
 
         if(keep_dims == 1)
         {
-            return prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+            return mm->add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
         }
         else
         {
-            auto ins = prog.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
-            return prog.add_instruction(op::squeeze{axes}, ins);
+            auto ins = mm->add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+            return mm->add_instruction(op::squeeze{axes}, ins);
         }
     }
 
     instruction_ref
     parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto abs_ins = prog.add_instruction(make_op("abs"), args[0]);
+        auto abs_ins = mm->add_instruction(make_op("abs"), args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {abs_ins});
     }
 
     instruction_ref
     parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
+        auto square_ins = mm->add_instruction(make_op("mul"), args[0], args[0]);
         auto sum_ins    = parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
-        return prog.add_instruction(make_op("sqrt"), sum_ins);
+        return mm->add_instruction(make_op("sqrt"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
-        return prog.add_instruction(make_op("log"), sum_ins);
+        return mm->add_instruction(make_op("log"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto exp_ins = prog.add_instruction(make_op("exp"), args[0]);
+        auto exp_ins = mm->add_instruction(make_op("exp"), args[0]);
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
-        return prog.add_instruction(make_op("log"), sum_ins);
+        return mm->add_instruction(make_op("log"), sum_ins);
     }
 
     instruction_ref
     parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
     {
-        auto square_ins = prog.add_instruction(make_op("mul"), args[0], args[0]);
+        auto square_ins = mm->add_instruction(make_op("mul"), args[0], args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
     }
 
@@ -2213,7 +2214,7 @@ struct onnx_parser
 
         int to_type        = parse_value(info.attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
-        return prog.add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
+        return mm->add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
     }
 
     std::vector<instruction_ref>
@@ -2262,7 +2263,7 @@ struct onnx_parser
         for(auto sl : vec_splits)
         {
             ret_ins.push_back(
-                prog.add_instruction(op::slice{{axis}, {start}, {start + sl}}, args[0]));
+                mm->add_instruction(op::slice{{axis}, {start}, {start + sl}}, args[0]));
             start += sl;
         }
 
@@ -2290,8 +2291,8 @@ struct onnx_parser
 
         auto type = args[2]->get_shape().type();
         shape s{type, {depth, depth}};
-        auto l_val      = prog.add_literal({s, depth_input});
-        auto gather_out = prog.add_instruction(op::gather{0}, {l_val, args[0]});
+        auto l_val      = mm->add_literal({s, depth_input});
+        auto gather_out = mm->add_instruction(op::gather{0}, {l_val, args[0]});
 
         // Finally, we need a transpose to move the inner most dim to the axis dim
         int n_rank = gather_out->get_shape().lens().size();
@@ -2303,16 +2304,16 @@ struct onnx_parser
         std::vector<int64_t> perm(n_rank - 1);
         std::iota(perm.begin(), perm.end(), 0);
         perm.insert(perm.begin() + tuned_axis, n_rank - 1);
-        auto tr_out = prog.add_instruction(op::transpose{perm}, gather_out);
+        auto tr_out = mm->add_instruction(op::transpose{perm}, gather_out);
         auto lens   = tr_out->get_shape().lens();
 
-        auto off_val       = prog.add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
-        auto on_val        = prog.add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
-        auto diff          = prog.add_instruction(make_op("sub"), on_val, off_val);
-        auto unsq_off_val  = prog.add_instruction(op::multibroadcast{lens}, off_val);
-        auto unsq_diff_val = prog.add_instruction(op::multibroadcast{lens}, diff);
-        auto l_mul         = prog.add_instruction(make_op("mul"), tr_out, unsq_diff_val);
-        return prog.add_instruction(make_op("add"), l_mul, unsq_off_val);
+        auto off_val       = mm->add_instruction(op::slice{{0}, {0}, {1}}, args[2]);
+        auto on_val        = mm->add_instruction(op::slice{{0}, {1}, {2}}, args[2]);
+        auto diff          = mm->add_instruction(make_op("sub"), on_val, off_val);
+        auto unsq_off_val  = mm->add_instruction(op::multibroadcast{lens}, off_val);
+        auto unsq_diff_val = mm->add_instruction(op::multibroadcast{lens}, diff);
+        auto l_mul         = mm->add_instruction(make_op("mul"), tr_out, unsq_diff_val);
+        return mm->add_instruction(make_op("add"), l_mul, unsq_off_val);
     }
 
     instruction_ref
@@ -2329,7 +2330,7 @@ struct onnx_parser
             auto l1 = l0;
             for(int j = 1; j < repeats[i]; j++)
             {
-                l0 = prog.add_instruction(op::concat{i}, l0, l1);
+                l0 = mm->add_instruction(op::concat{i}, l0, l1);
             }
         }
         return l0;
@@ -2371,7 +2372,7 @@ struct onnx_parser
                 return result;
             });
 
-            l0 = prog.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+            l0 = mm->add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
         });
         return l0;
     }
@@ -2393,17 +2394,17 @@ struct onnx_parser
             reduce_mode = static_cast<reduce_mode_t>(info.attributes.at("mode").i());
         }
 
-        auto l0 = prog.add_instruction(op::gather{}, args[0], args[1]);
+        auto l0 = mm->add_instruction(op::gather{}, args[0], args[1]);
         switch(reduce_mode)
         {
         case reduce_mode_t::sum:
-            l0 = prog.add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0);
+            l0 = mm->add_instruction(make_op("reduce_sum", {{"axes", {0}}}), l0);
             break;
         case reduce_mode_t::mean:
-            l0 = prog.add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0);
+            l0 = mm->add_instruction(make_op("reduce_mean", {{"axes", {0}}}), l0);
             break;
         case reduce_mode_t::max:
-            l0 = prog.add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0);
+            l0 = mm->add_instruction(make_op("reduce_max", {{"axes", {0}}}), l0);
             break;
         }
         return l0;
@@ -2426,11 +2427,11 @@ struct onnx_parser
     std::vector<instruction_ref>
     parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        auto out = prog.add_instruction(make_op("identity"), args[0]);
+        auto out = mm->add_instruction(make_op("identity"), args[0]);
         auto s   = args[0]->get_shape();
         std::vector<int8_t> vec(s.elements(), 1);
         shape mask_s{shape::bool_type, s.lens()};
-        auto mask = prog.add_literal(literal(mask_s, vec));
+        auto mask = mm->add_literal(literal(mask_s, vec));
 
         return {out, mask};
     }
@@ -2475,7 +2476,7 @@ struct onnx_parser
             }
         }
 
-        return prog.add_literal(literal(out_s, out_data));
+        return mm->add_literal(literal(out_s, out_data));
     }
 
     instruction_ref parse_compare_op(const std::string&,
@@ -2486,7 +2487,7 @@ struct onnx_parser
         auto l = add_broadcastable_binary_op(args[0], args[1], op_name);
         if(l->get_shape().type() != shape::bool_type)
         {
-            l = prog.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
+            l = mm->add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), l);
         }
         return l;
     }
@@ -2551,9 +2552,9 @@ struct onnx_parser
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         shape ind_s{shape::int32_type, out_lens};
-        auto rsp     = prog.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
-        auto ins_ind = prog.add_literal(literal(ind_s, ind));
-        return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        auto rsp     = mm->add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto ins_ind = mm->add_literal(literal(ind_s, ind));
+        return mm->add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 
     instruction_ref
@@ -2562,7 +2563,7 @@ struct onnx_parser
         auto type = args[1]->get_shape().type();
         // the operation of if cond == 1 select x; else select y,
         // is equivalent to cond * (x - y) + y
-        auto cond = prog.add_instruction(make_op("convert", {{"target_type", type}}), args[0]);
+        auto cond = mm->add_instruction(make_op("convert", {{"target_type", type}}), args[0]);
         auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
         auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
         return add_broadcastable_binary_op(cd, args[2], "add");
@@ -2603,7 +2604,7 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         for(auto&& f : graph.initializer())
-            instructions[f.name()] = prog.add_literal(parse_tensor(f));
+            instructions[f.name()] = mm->add_literal(parse_tensor(f));
 
         for(auto&& input : graph.input())
         {
@@ -2618,7 +2619,7 @@ struct onnx_parser
                 }
 
                 shape s            = parse_type(input.type(), dims);
-                instructions[name] = prog.add_parameter(name, s);
+                instructions[name] = mm->add_parameter(name, s);
             }
         }
 
@@ -2644,7 +2645,7 @@ struct onnx_parser
             if(ops.count(node.op_type()) == 0)
             {
                 if(skip_unknown_operators)
-                    result.push_back(prog.add_instruction(op::unknown{node.op_type()}, args));
+                    result.push_back(mm->add_instruction(op::unknown{node.op_type()}, args));
                 else
                     MIGRAPHX_THROW("Unknown operator: " + node.op_type());
             }
@@ -2682,14 +2683,14 @@ struct onnx_parser
                        [&](const auto& name) { return instructions[name]; });
 
         // add the return instuction
-        prog.add_return(output_ins);
+        mm->add_return(output_ins);
     }
 
     void parse_undefined(const std::string& name)
     {
         if(!contains(instructions, name))
         {
-            auto ins           = prog.add_instruction(op::undefined{});
+            auto ins           = mm->add_instruction(op::undefined{});
             instructions[name] = ins;
         }
     }

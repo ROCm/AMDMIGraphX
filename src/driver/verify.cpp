@@ -16,7 +16,7 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<argument> run_cpu(program p, const program::parameter_map& inputs)
+std::vector<argument> run_cpu(program p, const parameter_map& inputs)
 {
     p.compile(cpu::target{});
     auto out = p.eval(inputs);
@@ -25,12 +25,12 @@ std::vector<argument> run_cpu(program p, const program::parameter_map& inputs)
 }
 
 std::vector<argument>
-run_gpu(program p, const compile_options& options, const program::parameter_map& inputs)
+run_gpu(program p, const compile_options& options, const parameter_map& inputs)
 {
 #ifdef HAVE_GPU
     p.compile(gpu::target{}, options);
 
-    program::parameter_map m;
+    parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         auto arg   = inputs.count(x.first) == 0 ? generate_argument(x.second) : inputs.at(x.first);
@@ -55,7 +55,7 @@ run_gpu(program p, const compile_options& options, const program::parameter_map&
 void verify_program(const std::string& name,
                     const program& p,
                     compile_options options,
-                    const program::parameter_map& inputs,
+                    const parameter_map& inputs,
                     double tolerance)
 {
     auto x = run_cpu(p, inputs);
@@ -72,7 +72,8 @@ void verify_program(const std::string& name,
 
 void verify_instructions(const program& prog, compile_options options, double tolerance)
 {
-    for(auto&& ins : prog)
+    auto* mm_prog = prog.get_main_module();
+    for(auto&& ins : (*mm_prog))
     {
         if(ins.name().front() == '@')
             continue;
@@ -85,15 +86,16 @@ void verify_instructions(const program& prog, compile_options options, double to
         if(ins.name() == "undefined")
             continue;
         program p;
+        auto* mm_p = p.get_main_module();
         std::vector<instruction_ref> inputs;
         for(auto&& arg : ins.inputs())
         {
             if(arg->name() == "@literal")
-                inputs.push_back(p.add_literal(arg->get_literal()));
+                inputs.push_back(mm_p->add_literal(arg->get_literal()));
             else
-                inputs.push_back(p.add_parameter(std::to_string(inputs.size()), arg->get_shape()));
+                inputs.push_back(mm_p->add_parameter(std::to_string(inputs.size()), arg->get_shape()));
         }
-        p.add_instruction(ins.get_operator(), inputs);
+        mm_p->add_instruction(ins.get_operator(), inputs);
         try
         {
             std::cout << "Verify: " << ins.name() << std::endl;
@@ -111,11 +113,12 @@ void verify_instructions(const program& prog, compile_options options, double to
 void verify_reduced(program p,
                     int n,
                     compile_options options,
-                    const program::parameter_map& inputs,
+                    const parameter_map& inputs,
                     double tolerance)
 {
+    auto *mm = p.get_main_module();
     auto last = std::prev(p.end(), n + 1);
-    p.remove_instructions(last, p.end());
+    mm->remove_instructions(last, p.end());
     std::cout << "Verify: " << std::endl;
     std::cout << p << std::endl;
     verify_program(std::to_string(n), p, options, inputs, tolerance);
@@ -123,7 +126,7 @@ void verify_reduced(program p,
 
 void verify_reduced_program(const program& p,
                             compile_options options,
-                            const program::parameter_map& inputs,
+                            const parameter_map& inputs,
                             double tolerance)
 {
     auto n = std::distance(p.begin(), p.end());

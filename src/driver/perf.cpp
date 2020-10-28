@@ -16,7 +16,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-program::parameter_map fill_param_map(program::parameter_map& m, const program& p, bool gpu)
+parameter_map fill_param_map(parameter_map& m, const program& p, bool gpu)
 {
     for(auto&& x : p.get_parameter_shapes())
     {
@@ -33,9 +33,9 @@ program::parameter_map fill_param_map(program::parameter_map& m, const program& 
     return m;
 }
 
-program::parameter_map create_param_map(const program& p, bool gpu)
+parameter_map create_param_map(const program& p, bool gpu)
 {
-    program::parameter_map m;
+    parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
 #ifdef HAVE_GPU

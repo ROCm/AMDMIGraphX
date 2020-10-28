@@ -61,7 +61,7 @@ int main(int argc, char const* argv[])
     {
         // GPU target
         prog.compile(migraphx::gpu::target{});
-        migraphx::program::parameter_map m;
+        migraphx::parameter_map m;
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 3, 32, 32}};
         for(auto&& x : prog.get_parameter_shapes())
         {

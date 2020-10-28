@@ -53,8 +53,6 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     using attribute_map   = std::unordered_map<std::string, onnx::AttributeProto>;
-    using nearest_op      = std::function<std::size_t(std::size_t, double)>;
-    using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
     struct node_info
     {
         attribute_map attributes{};
@@ -1070,8 +1068,9 @@ struct onnx_parser
         return prog.add_instruction(op, make_contiguous(args[0]));
     }
 
-    const nearest_op& get_nearest_op(const std::string& mode)
+    const auto& get_nearest_op(const std::string& mode)
     {
+        using nearest_op      = std::function<std::size_t(std::size_t, double)>;
         static std::unordered_map<std::string, nearest_op> const nearest_ops = {
             {"round_prefer_floor",
              [=](std::size_t d_in, double val) {
@@ -1101,8 +1100,9 @@ struct onnx_parser
         return nearest_ops.at(mode);
     }
 
-    const original_idx_op& get_original_idx_op(const std::string& mode)
+    const auto& get_original_idx_op(const std::string& mode)
     {
+        using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
         static std::unordered_map<std::string, original_idx_op> const idx_ops = {
             {"half_pixel",
              [=](std::size_t, std::size_t, std::size_t idx, double scale) {

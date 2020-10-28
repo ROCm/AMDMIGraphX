@@ -4,6 +4,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 
+// NOLINTNEXTLINE
 const std::string write_2s = R"migraphx(
 #include <hip/hip_runtime.h>
 

@@ -8,6 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 struct stream_race
 {
@@ -16,7 +17,7 @@ struct stream_race
     instruction_ref before;
 };
 
-std::vector<stream_race> analyze_streams(const program& p, const stream_model& m);
+std::vector<stream_race> analyze_streams(const module& p, const stream_model& m);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

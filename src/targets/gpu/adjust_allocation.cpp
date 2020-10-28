@@ -7,7 +7,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void adjust_allocation::apply(program& p) const
+void adjust_allocation::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

@@ -12,7 +12,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_batchnorm::apply(program& p) const
+void rewrite_batchnorm::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

@@ -464,7 +464,7 @@ struct stream_info
     }
 };
 
-void schedule::apply(program& p) const
+void schedule::apply(module& p) const
 {
     if(not enable)
         return;

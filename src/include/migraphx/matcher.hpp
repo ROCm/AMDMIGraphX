@@ -258,7 +258,7 @@ struct find_skip
     M m;
     M matcher() const { return m; }
 
-    void apply(program&, const matcher_result&) const {}
+    void apply(module&, const matcher_result&) const {}
 };
 
 template <class M>

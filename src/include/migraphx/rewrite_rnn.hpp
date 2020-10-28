@@ -12,6 +12,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Rewrite rnn to gemm and add.
@@ -19,7 +20,7 @@ struct program;
 struct rewrite_rnn
 {
     std::string name() const { return "rewrite_rnn"; }
-    void apply(program& prog) const;
+    void apply(module& prog) const;
 
     private:
     // for vanilla rnn operators

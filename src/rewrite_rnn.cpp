@@ -28,7 +28,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_rnn::apply(program& prog) const
+void rewrite_rnn::apply(module& prog) const
 {
     for(auto ins : iterator_for(prog))
     {

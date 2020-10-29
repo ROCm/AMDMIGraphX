@@ -143,7 +143,8 @@ void from_value_impl(rank<3>, const value& v, T& x)
 {
     reflect_each(x, [&](auto& y, const std::string& name) {
         using type = std::decay_t<decltype(y)>;
-        y          = from_value<type>(v.at(name).without_key());
+        if (v.contains(name))
+            y = from_value<type>(v.at(name).without_key());
     });
 }
 

@@ -20,8 +20,7 @@ struct eliminate_pad
 {
     std::string name() const { return "eliminate_pad"; }
     void apply(program& p) const;
-    template <class T>
-    void update_op(T, const instruction_ref& input, const instruction_ref& ins, program& p) const;
+    void update_op(const instruction_ref& input, const instruction_ref& ins, program& p) const;
 
     void update_pooling(const instruction_ref& input, const instruction_ref& ins, program& p) const;
 };

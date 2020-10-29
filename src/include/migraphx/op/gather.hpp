@@ -26,10 +26,11 @@ struct gather
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const { 
+    value attributes() const
+    {
         value attr;
         attr["axis"] = value::object{};
-        return {{"normalize_axes", attr}};     
+        return {{"normalize_axes", attr}};
     }
 
     std::string name() const { return "gather"; }

@@ -26,7 +26,13 @@ struct slice
         return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
     }
 
-    value attributes() const { return {{"axes", axes}, {"starts", starts}, {"ends", ends}}; }
+    value attributes() const { 
+        value attrs = value::object{};
+        attrs["axes"] = value::object{};
+        attrs["starts"] = {{"clip_max", {}}, {"clip_min", {}}, {"include_max", {}}, {"use_len", {}}};
+        attrs["ends"] = {{"clip_max", {}}, {"clip_min", {}}, {"include_max", {}}, {"use_len", {}}};
+        return {{"normalize_axes", attrs}};
+    }
 
     std::string name() const { return "slice"; }
 

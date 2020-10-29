@@ -103,7 +103,7 @@ template <class T>
 shape normalize_compute_shape_op(T&& x, std::vector<shape> inputs)
 {
     dependent_type<operation, T> y = x;
-    normalize_axes(y, inputs[0].lens());
+    normalize_attributes(y, inputs[0].lens());
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 

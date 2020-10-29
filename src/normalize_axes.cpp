@@ -5,114 +5,142 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool normalize_axes(operation& op, const std::vector<std::size_t>& lens)
+// different attributes
+// 1) use_input(default)/use_output
+// 2) use_rank(default)/use_len
+// 3) clip_min(default)/not_clip_min
+//   3.1) include_min(default)/exclude_min
+// 4) clip_max(default)/not_clip_max
+//   4.1) exclude_max(default)/include_max
+auto tune_attribute(const std::vector<int64_t>& vec, const std::vector<int64_t>& axes, const value& val, const std::vector<std::size_t>& lens)
 {
-    bool tuned    = false;
-    int64_t n_dim = static_cast<int64_t>(lens.size());
-    auto val      = op.attributes();
-    if(val.contains("axis"))
+    std::vector<int64_t> result(vec);
+    int64_t n_rank = static_cast<int64_t>(lens.size());
+    if (val.contains("use_output"))
     {
-        auto axis = val["axis"].without_key().to<int64_t>();
-        if(op.name() == "flatten")
+        n_rank = n_rank + vec.size();
+    }
+
+    std::vector<int64_t> max_vals(vec.size(), n_rank);
+    if (val.contains("use_len"))
+    {
+        std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
+            return lens[i];
+        });
+    }
+
+    if (val.contains("clip_max"))
+    {
+        if (val.contains("include_max"))
         {
-            if(axis < -n_dim or axis > n_dim)
+            std::transform(vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                return v > mv ? mv : v;
+            });
+        }
+        else
+        {
+            std::transform(vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                return v >= mv ? mv - 1 : v;
+            });
+        }
+    }
+    else
+    {
+        if (val.contains("include_max"))
+        {
+            if (!std::equal(vec.begin(), vec.end(), max_vals.begin(), std::less_equal<>{}))
             {
-                MIGRAPHX_THROW("Operator Flatten: axis value " + std::to_string(axis) +
-                               " out of range");
+                MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
         else
         {
-            if(axis < -n_dim or axis >= n_dim)
+            if (!std::equal(vec.begin(), vec.end(), max_vals.begin(), std::less<>{}))
             {
-                MIGRAPHX_THROW("Operator " + op.name() + ": axis value " + std::to_string(axis) +
-                               " out of range");
+                MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
-        }
-
-        if(axis < 0)
-        {
-            axis        = axis < 0 ? axis + n_dim : axis;
-            val["axis"] = axis;
-            op.from_value(val);
-
-            tuned = true;
         }
     }
-    else if(val.contains("axes"))
+    
+    std::vector<int64_t> min_vals = max_vals;
+    std::transform(min_vals.begin(), min_vals.end(), min_vals.begin(), [](auto v) {
+        return -v;
+    });
+    if (val.contains("clip_min"))
     {
-        auto axes = val["axes"].without_key().to_vector<int64_t>();
-
-        if(op.name() == "unsqueeze")
+        if (val.contains("include_min"))
         {
-            n_dim = n_dim + axes.size();
-        }
-
-        if(std::any_of(
-               axes.begin(), axes.end(), [&](auto i) { return (i < -n_dim or i >= n_dim); }))
-        {
-            MIGRAPHX_THROW("Operator " + op.name() + ": axes value " + to_string_range(axes) +
-                           " out of range");
-        }
-
-        if(std::any_of(axes.begin(), axes.end(), [=](auto i) { return i < 0; }))
-        {
-            std::transform(axes.begin(), axes.end(), axes.begin(), [&](auto i) {
-                return ((i < 0) ? i + n_dim : i);
+            std::transform(vec.begin(), vec.end(), min_vals.begin(), result.begin(), [](auto v, auto mv) {
+                return v < mv ? mv : v;
             });
-            val["axes"] = axes;
-            tuned       = true;
         }
-
-        // for slice
-        std::vector<int64_t> axis_lens(axes.size());
-        if(val.contains("starts") or val.contains("ends"))
+        else
         {
-            std::transform(
-                axes.begin(), axes.end(), axis_lens.begin(), [&](auto axis) { return lens[axis]; });
+            std::transform(vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                return v < mv + 1 ? mv + 1 : v;
+            });
         }
-
-        if(val.contains("starts"))
+    }
+    else
+    {
+        if (val.contains("include_max"))
         {
-            auto starts = val["starts"].without_key().to_vector<int64_t>();
-            if(std::any_of(starts.begin(), starts.end(), [&](auto i) { return i < 0; }) or
-               !std::equal(starts.begin(), starts.end(), axis_lens.begin(), std::less_equal<>{}))
+            if (!std::equal(min_vals.begin(), min_vals.end(), vec.begin(), std::less_equal<>{}))
             {
-                std::transform(starts.begin(),
-                               starts.end(),
-                               axis_lens.begin(),
-                               starts.begin(),
-                               [=](auto i, auto dim) {
-                                   i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
-                                   return (i < 0) ? (i + dim) : i;
-                               });
-                val["starts"] = starts;
-                tuned         = true;
+                MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
-
-        if(val.contains("ends"))
+        else
         {
-            auto ends = val["ends"].without_key().to_vector<int64_t>();
-            if(std::any_of(ends.begin(), ends.end(), [&](auto i) { return i < 0; }) or
-               !std::equal(ends.begin(), ends.end(), axis_lens.begin(), std::less_equal<>{}))
+            if (!std::equal(min_vals.begin(), min_vals.end(), vec.begin(), std::less<>{}))
             {
-                std::transform(ends.begin(),
-                               ends.end(),
-                               axis_lens.begin(),
-                               ends.begin(),
-                               [=](auto i, auto dim) {
-                                   i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
-                                   return (i < 0) ? (i + dim) : i;
-                               });
-                val["ends"] = ends;
-                tuned       = true;
+                MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
+    }
 
-        if(tuned)
+    std::transform(result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+        return v < 0 ? v + mv : v;
+    });
+
+    return result;
+}
+
+bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
+{
+    bool tuned    = false;
+    auto attrs      = op.attributes();
+    auto val = op.to_value();
+    if(!attrs.contains("normalize_axes"))
+    {
+        return false;
+    }
+
+    auto attr_v = attrs.at("normalize_axes").without_key();
+    for (auto rv : attr_v)
+    {
+        auto key = rv.get_key();
+        if (val.contains(key))
         {
-            op.from_value(val);
+            auto vv = val.at(key).without_key();
+            if (vv.is_array())
+            {
+                auto vec = vv.to_vector<int64_t>();
+                auto result = tune_attribute(vec, vec, rv.without_key(), lens);
+                val[key] = result;
+                tuned = true;
+            }
+            else
+            {
+                auto num = vv.to<int64_t>();
+                auto result = tune_attribute({num}, {num}, rv.without_key(), lens);
+                val[key] = result.front();
+                tuned = true;
+            }
+        }
+        else
+        {
+            MIGRAPHX_THROW("NORMALIZE_ATTR : op " + op.name() + " attribute \"" + key + "\" not exist!");
         }
     }
 

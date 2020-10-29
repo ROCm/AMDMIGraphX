@@ -350,8 +350,8 @@ struct find_gelu
             match::used_once(),
             match::arg(0)(match::used_once(),
                           match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"),
-                              match::has_value(M_SQRT1_2)))));
+                              match::none_of(match::has_value(M_SQRT1_2, 1e-3)).bind("x"),
+                              match::has_value(M_SQRT1_2, 1e-3)))));
     }
 
     static auto add_erf()
@@ -413,7 +413,7 @@ struct find_gelu_new
         return match::name("gpu::tanh")(
             match::used_once(),
             match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                match::args(match::has_value(sqrt(M_2_PI))),
+                match::args(match::has_value(sqrt(M_2_PI), 1e-3)),
                 match::name("gpu::add")(
                     match::any_arg(0, 1)(match::name("gpu::mul")(match::either_arg(0, 1)(
                         match::args(match::has_value(0.044715f)), pow_fn()))))))));

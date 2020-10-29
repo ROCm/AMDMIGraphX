@@ -155,7 +155,6 @@ struct onnx_parser
         add_mem_op("NonZero", &onnx_parser::parse_nonzero);
         add_mem_op("OneHot", &onnx_parser::parse_onehot);
         add_mem_op("Pad", &onnx_parser::parse_pad);
-        add_mem_op("QuantizeLinear", &onnx_parser::parse_quantizelinear);
         add_mem_op("Range", &onnx_parser::parse_range);
         add_mem_op("ReduceL1", &onnx_parser::parse_reduce_l1);
         add_mem_op("ReduceL2", &onnx_parser::parse_reduce_l2);
@@ -2567,15 +2566,6 @@ struct onnx_parser
         auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
         auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
         return add_broadcastable_binary_op(cd, args[2], "add");
-    }
-
-    instruction_ref
-    parse_quantizelinear(const std::string&, const node_info&, std::vector<instruction_ref> args)
-    {
-        auto quant_type = args[2]->get_shape().type();
-        auto mul = add_broadcastable_binary_op(args[0], args[1], "mul");
-        auto quantized = prog.add_instruction(make_op("convert", {{"target_type", quant_type}}), mul);
-        return add_broadcastable_binary_op(quantized, args[2], "add");
     }
 
     void parse_from(std::istream& is)

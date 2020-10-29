@@ -2573,8 +2573,9 @@ struct onnx_parser
     parse_quantizelinear(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
         auto quant_type = args[2]->get_shape().type();
-        auto mul = add_broadcastable_binary_op(args[0], args[1], "mul");
-        auto quantized = prog.add_instruction(make_op("convert", {{"target_type", quant_type}}), mul);
+        auto mul        = add_broadcastable_binary_op(args[0], args[1], "mul");
+        auto quantized =
+            prog.add_instruction(make_op("convert", {{"target_type", quant_type}}), mul);
         return add_broadcastable_binary_op(quantized, args[2], "add");
     }
 

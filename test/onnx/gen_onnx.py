@@ -2135,8 +2135,7 @@ def quantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
     arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8,
-                                            [5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
 
     node = onnx.helper.make_node(
         'QuantizeLinear',

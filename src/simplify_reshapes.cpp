@@ -105,6 +105,7 @@ struct find_nop_reshapes
         reshapes.insert("as_shape");
         reshapes.insert("broadcast");
         reshapes.insert("concat");
+        reshapes.insert("convert");
         reshapes.insert("multibroadcast");
         reshapes.insert("pad");
         reshapes.insert("slice");

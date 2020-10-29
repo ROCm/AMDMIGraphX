@@ -767,6 +767,229 @@ TEST_CASE(match_bind1)
     EXPECT(bool{r.result == pass});
 }
 
+TEST_CASE(match_has_value1)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::has_value(1);
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == one});
+}
+
+TEST_CASE(match_has_value2)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::has_value(2);
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == two});
+}
+
+TEST_CASE(match_has_value3)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::name("sum")(match::args(match::has_value(1), match::has_value(2)));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum1});
+}
+
+TEST_CASE(match_has_value4)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::has_value(3);
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_has_value5)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::name("sum")(match::args(match::has_value(1), match::has_value(3)));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_has_value6)
+{
+    migraphx::program p;
+    auto one  = p.add_literal(1);
+    auto two  = p.add_literal(2);
+    auto sum1 = p.add_instruction(sum_op{}, one, two);
+    auto sum2 = p.add_instruction(sum_op{}, sum1, two);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::name("sum")(match::args(match::has_value(2), match::has_value(1)));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_tree1)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree("sum", match::has_value(1), match::has_value(2), match::has_value(3));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum2});
+}
+
+TEST_CASE(match_tree2)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree("sum", match::has_value(2), match::has_value(1), match::has_value(3));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_tree3)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, three, sum1);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree("sum", match::has_value(3), match::has_value(1), match::has_value(2));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum2});
+}
+
+TEST_CASE(match_tree4)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree(
+        "sum", match::has_value(1), match::has_value(2), match::has_value(3), match::has_value(4));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_tree5)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree("sum", match::has_value(2), match::has_value(3));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_tree6)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m = match::tree("sum", match::has_value(1), match::has_value(3));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
+TEST_CASE(match_unordered_tree1)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m =
+        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum2});
+}
+
+TEST_CASE(match_unordered_tree2)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, three, sum1);
+    p.add_instruction(pass_op{}, sum2);
+    auto m =
+        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum2});
+}
+
+TEST_CASE(match_unordered_tree3)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, two, one);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m =
+        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == sum2});
+}
+
+TEST_CASE(match_unordered_tree4)
+{
+    migraphx::program p;
+    auto one   = p.add_literal(1);
+    auto two   = p.add_literal(2);
+    auto three = p.add_literal(3);
+    auto sum1  = p.add_instruction(sum_op{}, one, two);
+    auto sum2  = p.add_instruction(sum_op{}, sum1, three);
+    p.add_instruction(pass_op{}, sum2);
+    auto m =
+        match::unordered_tree("sum", match::has_value(4), match::has_value(2), match::has_value(1));
+    auto r = find_match(p, m);
+    EXPECT(bool{r.result == p.end()});
+}
+
 struct match_find_sum
 {
     migraphx::instruction_ref ins;

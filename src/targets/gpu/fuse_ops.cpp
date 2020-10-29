@@ -354,13 +354,18 @@ struct find_gelu
                               match::has_value(M_SQRT1_2)))));
     }
 
+    static auto add_erf()
+    {
+        return match::name("gpu::add")(
+            match::used_once(),
+            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
+    }
+
+    static auto one_half() { return match::args(match::has_value(0.5f)); }
+
     auto matcher() const
     {
-        return match::name("gpu::mul")(match::either_arg(0, 1)(
-            match::name("gpu::mul")(match::any_arg(0, 1)(match::args(match::has_value(0.5f)))),
-            match::name("gpu::add")(
-                match::used_once(),
-                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))))));
+        return match::unordered_tree("gpu::mul", one_half(), add_erf(), match::any());
     }
 
     void apply(module& p, match::matcher_result r) const

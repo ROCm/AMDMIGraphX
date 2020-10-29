@@ -43,7 +43,7 @@ void eliminate_pad::update_op(const instruction_ref& input,
 
     std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
 
-    auto op       = ins->get_operator();
+    auto op = ins->get_operator();
     op.from_value({"padding", new_pads});
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};

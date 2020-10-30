@@ -43,7 +43,8 @@ TEST_CASE(make_op_from_value2)
 TEST_CASE(make_rnn_op_from_value)
 {
     migraphx::op::rnn_direction dirct = migraphx::op::rnn_direction::reverse;
-    migraphx::operation x = migraphx::make_op("rnn_var_sl_shift_output", {{"output_name", "hidden_states"}, {"direction", dirct}});
+    migraphx::operation x             = migraphx::make_op(
+        "rnn_var_sl_shift_output", {{"output_name", "hidden_states"}, {"direction", dirct}});
     migraphx::operation y = migraphx::op::rnn_var_sl_shift_output{"hidden_states", dirct};
     EXPECT(x == y);
 }

@@ -7,7 +7,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 operation make_op(const std::string& name) { return load_op(name); }
 operation make_op(const std::string& name, const value& v)
 {
-    if (not (v.is_object() or (v.empty() and v.is_array())))
+    if(not(v.is_object() or (v.empty() and v.is_array())))
         MIGRAPHX_THROW("Value is not an object");
     auto op = load_op(name);
     // Merge values

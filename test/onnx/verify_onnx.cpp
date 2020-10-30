@@ -12,7 +12,7 @@
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
     std::vector<float> data_x = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
                                  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
     migraphx::shape s_x{migraphx::shape::float_type, {1, 1, 5, 5}};
@@ -30,7 +30,7 @@ TEST_CASE(averagepool_notset_test)
 TEST_CASE(averagepool_nt_cip_test)
 {
     auto p = migraphx::parse_onnx("averagepool_nt_cip_test.onnx");
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
     std::vector<float> data_x = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
                                  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
     migraphx::shape s_x{migraphx::shape::float_type, {1, 1, 5, 5}};
@@ -48,7 +48,7 @@ TEST_CASE(averagepool_nt_cip_test)
 TEST_CASE(gather_elements)
 {
     migraphx::program p = migraphx::parse_onnx("gather_elements_axis0_test.onnx");
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
     migraphx::shape s_data{migraphx::shape::float_type, {3, 4}};
     std::vector<float> data = {
         0.25, 0.75, 0.9375, 0.4375, 0.6875, 0.5625, -0.875, 0.1875, -0.125, 0.5, -0.9375, -0.0625};
@@ -130,7 +130,7 @@ TEST_CASE(instance_norm_3d_test)
 TEST_CASE(resize_test)
 {
     migraphx::program p = migraphx::parse_onnx("resize_upsample_pf_test.onnx");
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     std::vector<float> dx = {1.0f, 2.0f, 3.0f, 4.0f};
@@ -151,7 +151,7 @@ TEST_CASE(resize_test)
 TEST_CASE(selu_test)
 {
     migraphx::program p = migraphx::parse_onnx("selu_test.onnx");
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
 
     migraphx::shape xs{migraphx::shape::double_type, {2, 3}};
     std::vector<double> x_data = {1.1, 2.1, 0.0, -1.3, -5.3, 12.0};

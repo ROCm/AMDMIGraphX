@@ -25,10 +25,11 @@ struct unsqueeze
         return pack(f(self.axes, "axes"));
     }
 
+
     value attributes() const
     {
         value attr;
-        attr["axes"] = {{"include_min", {}}, {"use_output", {}}};
+        attr["axes"] = value::array{"include_min", "use_output"};
         return {{"normalize_axes", attr}};
     }
 

@@ -22,7 +22,7 @@ struct concat
     migraphx::value attributes() const
     {
         migraphx::value attr;
-        attr["axis"] = {{"include_min", {}}};
+        attr["axis"] = migraphx::value::array{"include_min"};
         return {{"normalize_axes", attr}};
     }
 

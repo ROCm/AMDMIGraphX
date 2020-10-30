@@ -25,7 +25,7 @@ struct argmin
     value attributes() const
     {
         value attr;
-        attr["axis"] = {{"include_min", {}}};
+        attr["axis"] = value::array{"include_min"};
         return {{"normalize_axes", attr}};
     }
 

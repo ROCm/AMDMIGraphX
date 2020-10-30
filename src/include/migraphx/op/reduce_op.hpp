@@ -64,7 +64,7 @@ struct reduce_op : op_name<Derived>
     value attributes() const
     {
         value attr;
-        attr["axes"] = {{"include_min", {}}};
+        attr["axes"] = value::array{"include_min"};
         return {{"normalize_axes", attr}};
     }
 

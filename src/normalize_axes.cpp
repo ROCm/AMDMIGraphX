@@ -34,17 +34,19 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(val.contains("include_max"))
         {
-            std::transform(
-                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
-                    return v > mv ? mv : v;
-                });
+            std::transform(result.begin(),
+                           result.end(),
+                           max_vals.begin(),
+                           result.begin(),
+                           [](auto v, auto mv) { return v > mv ? mv : v; });
         }
         else
         {
-            std::transform(
-                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
-                    return v >= mv ? mv - 1 : v;
-                });
+            std::transform(result.begin(),
+                           result.end(),
+                           max_vals.begin(),
+                           result.begin(),
+                           [](auto v, auto mv) { return v >= mv ? mv - 1 : v; });
         }
     }
     else
@@ -71,17 +73,19 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(val.contains("include_min"))
         {
-            std::transform(
-                result.begin(), result.end(), min_vals.begin(), result.begin(), [](auto v, auto mv) {
-                    return v < mv ? mv : v;
-                });
+            std::transform(result.begin(),
+                           result.end(),
+                           min_vals.begin(),
+                           result.begin(),
+                           [](auto v, auto mv) { return v < mv ? mv : v; });
         }
         else
         {
-            std::transform(
-                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
-                    return v < mv + 1 ? mv + 1 : v;
-                });
+            std::transform(result.begin(),
+                           result.end(),
+                           max_vals.begin(),
+                           result.begin(),
+                           [](auto v, auto mv) { return v < mv + 1 ? mv + 1 : v; });
         }
     }
     else
@@ -130,7 +134,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             if(vv.is_array())
             {
                 std::vector<int64_t> axes;
-                if (val.contains("axes"))
+                if(val.contains("axes"))
                 {
                     axes = val.at("axes").without_key().to_vector<int64_t>();
                 }
@@ -138,8 +142,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                 auto result = tune_attribute(vec, axes, rv.without_key(), lens);
                 val[key]    = result;
                 op.from_value(val);
-                val = op.to_value();
-                tuned       = true;
+                val   = op.to_value();
+                tuned = true;
             }
             else
             {
@@ -147,8 +151,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                 auto result = tune_attribute({num}, {num}, rv.without_key(), lens);
                 val[key]    = result.front();
                 op.from_value(val);
-                val = op.to_value();
-                tuned       = true;
+                val   = op.to_value();
+                tuned = true;
             }
         }
         else

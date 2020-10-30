@@ -19,7 +19,6 @@ struct softmax
         return pack(f(self.axis, "axis"));
     }
 
-
     value attributes() const
     {
         value attr;

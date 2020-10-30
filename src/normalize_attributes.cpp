@@ -19,7 +19,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<std::size_t>& lens)
 {
     std::vector<int64_t> result(vec);
-    int64_t n_rank = static_cast<int64_t>(lens.size());
+    int64_t n_rank                     = static_cast<int64_t>(lens.size());
     std::vector<std::string> vec_attrs = val.to_vector<std::string>();
     if(contains(vec_attrs, "use_output"))
     {

@@ -485,6 +485,36 @@ TEST_CASE(value_emplace_object)
     EXPECT(v["three"].get_key() == "three");
 }
 
+TEST_CASE(value_construct_object_string_value)
+{
+    migraphx::value v = {{"one", "onev"}, {"two", "twov"}};
+    EXPECT(v.is_object());
+    EXPECT(v.size() == 2);
+    EXPECT(not v.empty());
+    EXPECT(v.data() != nullptr);
+    EXPECT(v.at("one").is_string());
+    EXPECT(v.at("one").get_key() == "one");
+    EXPECT(v.at("one") == "onev");
+    EXPECT(v.at("two").is_string());
+    EXPECT(v.at("two").get_key() == "two");
+    EXPECT(v.at("two") == "twov");
+}
+
+TEST_CASE(value_construct_object_string_mixed_value)
+{
+    migraphx::value v = {{"one", "onev"}, {"two", 2}};
+    EXPECT(v.is_object());
+    EXPECT(v.size() == 2);
+    EXPECT(not v.empty());
+    EXPECT(v.data() != nullptr);
+    EXPECT(v.at("one").is_string());
+    EXPECT(v.at("one").get_key() == "one");
+    EXPECT(v.at("one") == "onev");
+    EXPECT(v.at("two").is_int64());
+    EXPECT(v.at("two").get_key() == "two");
+    EXPECT(v.at("two") == 2);
+}
+
 TEST_CASE(value_compare)
 {
     EXPECT(migraphx::value(1) == migraphx::value(1));

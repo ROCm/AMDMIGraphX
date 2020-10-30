@@ -19,8 +19,6 @@ RUN apt-get update &&\
 # Install rbuild
 RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-ENV PATH /opt/miniconda/bin:/code/cmake-3.14.3-Linux-x86_64/bin:${PATH}
-
 # Install MIGraphX from source
 RUN mkdir -p /migraphx
 RUN cd /migraphx && git clone --depth=1 --branch develop https://github.com/ROCmSoftwarePlatform/AMDMIGraphX src

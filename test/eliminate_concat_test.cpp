@@ -19,7 +19,12 @@ struct concat
         return migraphx::reflect(self.op, f);
     }
 
-    migraphx::value attributes() const { return {{"axis", op.axis}}; }
+    migraphx::value attributes() const
+    {
+        migraphx::value attr;
+        attr["axis"] = {{"include_min", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::string name() const { return "eliminate_concat::concat"; }
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const

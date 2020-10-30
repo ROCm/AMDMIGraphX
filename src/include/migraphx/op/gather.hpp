@@ -29,7 +29,7 @@ struct gather
     value attributes() const
     {
         value attr;
-        attr["axis"] = value::object{};
+        attr["axis"] = {{"include_min", {}}};
         return {{"normalize_axes", attr}};
     }
 

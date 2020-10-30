@@ -22,7 +22,12 @@ struct argmax
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const { return {{"axis", axis}}; }
+    value attributes() const
+    {
+        value attr;
+        attr["axis"] = {{"include_min", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::string name() const { return "argmax"; }
 

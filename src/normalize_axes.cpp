@@ -35,14 +35,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
         if(val.contains("include_max"))
         {
             std::transform(
-                vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
                     return v > mv ? mv : v;
                 });
         }
         else
         {
             std::transform(
-                vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
                     return v >= mv ? mv - 1 : v;
                 });
         }
@@ -51,14 +51,14 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(val.contains("include_max"))
         {
-            if(!std::equal(vec.begin(), vec.end(), max_vals.begin(), std::less_equal<>{}))
+            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
         }
         else
         {
-            if(!std::equal(vec.begin(), vec.end(), max_vals.begin(), std::less<>{}))
+            if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: value out of range!");
             }
@@ -72,30 +72,30 @@ auto tune_attribute(const std::vector<int64_t>& vec,
         if(val.contains("include_min"))
         {
             std::transform(
-                vec.begin(), vec.end(), min_vals.begin(), result.begin(), [](auto v, auto mv) {
+                result.begin(), result.end(), min_vals.begin(), result.begin(), [](auto v, auto mv) {
                     return v < mv ? mv : v;
                 });
         }
         else
         {
             std::transform(
-                vec.begin(), vec.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+                result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
                     return v < mv + 1 ? mv + 1 : v;
                 });
         }
     }
     else
     {
-        if(val.contains("include_max"))
+        if(val.contains("include_min"))
         {
-            if(!std::equal(min_vals.begin(), min_vals.end(), vec.begin(), std::less_equal<>{}))
+            if(!std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
         }
         else
         {
-            if(!std::equal(min_vals.begin(), min_vals.end(), vec.begin(), std::less<>{}))
+            if(!std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
             {
                 MIGRAPHX_THROW("TUNE_VECTOR: attribute out of range!");
             }
@@ -129,9 +129,16 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             auto vv = val.at(key).without_key();
             if(vv.is_array())
             {
+                std::vector<int64_t> axes;
+                if (val.contains("axes"))
+                {
+                    axes = val.at("axes").without_key().to_vector<int64_t>();
+                }
                 auto vec    = vv.to_vector<int64_t>();
-                auto result = tune_attribute(vec, vec, rv.without_key(), lens);
+                auto result = tune_attribute(vec, axes, rv.without_key(), lens);
                 val[key]    = result;
+                op.from_value(val);
+                val = op.to_value();
                 tuned       = true;
             }
             else
@@ -139,6 +146,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
                 auto num    = vv.to<int64_t>();
                 auto result = tune_attribute({num}, {num}, rv.without_key(), lens);
                 val[key]    = result.front();
+                op.from_value(val);
+                val = op.to_value();
                 tuned       = true;
             }
         }

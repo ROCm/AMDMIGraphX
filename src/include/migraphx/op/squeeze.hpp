@@ -26,7 +26,12 @@ struct squeeze
         return pack(f(self.axes, "axes"));
     }
 
-    value attributes() const { return {{"axes", axes}}; }
+    value attributes() const
+    {
+        value attr;
+        attr["axes"] = {{"include_min", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::string name() const { return "squeeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const

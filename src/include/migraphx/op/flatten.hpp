@@ -26,7 +26,12 @@ struct flatten
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const { return {{"axis", axis}}; }
+    value attributes() const
+    {
+        value attr;
+        attr["axis"] = {{"include_min", {}}, {"include_max", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::string name() const { return "flatten"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const

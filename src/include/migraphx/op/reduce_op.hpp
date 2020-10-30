@@ -61,7 +61,12 @@ struct reduce_op : op_name<Derived>
         return pack(f(self.axes, "axes"));
     }
 
-    value attributes() const { return {{"axes", axes}}; }
+    value attributes() const
+    {
+        value attr;
+        attr["axes"] = {{"include_min", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {

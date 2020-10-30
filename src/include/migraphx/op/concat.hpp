@@ -26,7 +26,12 @@ struct concat
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const { return {{"axis", axis}}; }
+    value attributes() const
+    {
+        value attr;
+        attr["axis"] = {{"include_min", {}}};
+        return {{"normalize_axes", attr}};
+    }
 
     std::string name() const { return "concat"; }
     std::vector<std::size_t> compute_offsets(const shape& output_shape,

@@ -219,6 +219,37 @@ void instruction::finalize(context& ctx)
         this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()));
 }
 
+static void debug_name(std::ostream& os, const instruction& ins)
+{
+    if(ins.name() == "@literal")
+    {
+        os << "@literal";
+        if(ins.get_literal().get_shape().elements() > 10)
+            os << "{ ... }";
+        else
+            os << "{" << ins.get_literal() << "}";
+    }
+    else
+    {
+        os << ins.get_operator();
+    }
+}
+
+void instruction::debug_print() const
+{
+    debug_name(std::cout, *this);
+    std::string delim = "(";
+    for(auto arg : this->inputs())
+    {
+        std::cout << delim;
+        debug_name(std::cout, *arg);
+        delim = ", ";
+    }
+    if(not this->inputs().empty())
+        std::cout << ")";
+    std::cout << " -> " << this->get_shape() << std::endl;
+}
+
 instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
 {
     auto i = ins->get_operator().output_alias(to_shapes(ins->inputs()));

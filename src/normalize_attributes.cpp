@@ -125,9 +125,9 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     }
 
     auto attr_v = attrs.at("normalize_axes").without_key();
-    for(auto rv : attr_v)
+    for(const auto& rv : attr_v)
     {
-        auto key = rv.get_key();
+        const auto& key = rv.get_key();
         if(val.contains(key))
         {
             auto vv = val.at(key).without_key();

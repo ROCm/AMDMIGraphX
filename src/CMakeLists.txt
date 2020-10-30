@@ -42,7 +42,7 @@ add_library(migraphx
     convert_to_json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
-    normalize_axes.cpp
+    normalize_attributes.cpp
     normalize_ops.cpp
 )
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})

@@ -4,7 +4,7 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/normalize_axes.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 

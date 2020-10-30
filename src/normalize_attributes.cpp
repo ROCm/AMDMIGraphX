@@ -1,5 +1,5 @@
 #include <migraphx/operation.hpp>
-#include <migraphx/normalize_axes.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {

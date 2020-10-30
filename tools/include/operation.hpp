@@ -9,7 +9,7 @@
 #include <utility>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
-#include <migraphx/normalize_axes.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>

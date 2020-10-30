@@ -1,5 +1,5 @@
 #include <unordered_set>
-#include <migraphx/normalize_axes.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>

@@ -494,10 +494,10 @@ TEST_CASE(value_construct_object_string_value)
     EXPECT(v.data() != nullptr);
     EXPECT(v.at("one").is_string());
     EXPECT(v.at("one").get_key() == "one");
-    EXPECT(v.at("one") == "onev");
+    EXPECT(v.at("one").get_string() == "onev");
     EXPECT(v.at("two").is_string());
     EXPECT(v.at("two").get_key() == "two");
-    EXPECT(v.at("two") == "twov");
+    EXPECT(v.at("two").get_string() == "twov");
 }
 
 TEST_CASE(value_construct_object_string_mixed_value)
@@ -509,10 +509,10 @@ TEST_CASE(value_construct_object_string_mixed_value)
     EXPECT(v.data() != nullptr);
     EXPECT(v.at("one").is_string());
     EXPECT(v.at("one").get_key() == "one");
-    EXPECT(v.at("one") == "onev");
+    EXPECT(v.at("one").get_string() == "onev");
     EXPECT(v.at("two").is_int64());
     EXPECT(v.at("two").get_key() == "two");
-    EXPECT(v.at("two") == 2);
+    EXPECT(v.at("two").get_int64() == 2);
 }
 
 TEST_CASE(value_compare)

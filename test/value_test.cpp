@@ -72,12 +72,30 @@ TEST_CASE(value_construct_bool)
     EXPECT(v.get_key().empty());
 }
 
-TEST_CASE(value_construct_enum)
+TEST_CASE(value_construct_enum1)
 {
     migraphx::value v = enum_type::a;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::a));
     EXPECT(bool{v.to<enum_type>() == enum_type::a});
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_enum2)
+{
+    migraphx::value v = enum_type::b;
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::b));
+    EXPECT(bool{v.to<enum_type>() == enum_type::b});
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_enum3)
+{
+    migraphx::value v = enum_type::c;
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::c));
+    EXPECT(bool{v.to<enum_type>() == enum_type::c});
     EXPECT(v.get_key().empty());
 }
 

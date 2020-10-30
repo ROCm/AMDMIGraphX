@@ -2,7 +2,7 @@
 
 std::vector<program_info>& get_programs_vector()
 {
-    static std::vector<program_info> result;
+    static std::vector<program_info> result; // NOLINT
     return result;
 }
 

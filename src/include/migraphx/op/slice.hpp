@@ -31,8 +31,16 @@ struct slice
     {
         value attr     = value::object{};
         attr["axes"]   = value::array{op_normalize_attributes::include_min};
-        attr["starts"] = value::array{op_normalize_attributes::clip_max, op_normalize_attributes::clip_min, op_normalize_attributes::include_max, op_normalize_attributes::use_len, op_normalize_attributes::include_min};
-        attr["ends"]   = value::array{op_normalize_attributes::clip_max, op_normalize_attributes::clip_min, op_normalize_attributes::include_max, op_normalize_attributes::use_len, op_normalize_attributes::include_min};
+        attr["starts"] = value::array{op_normalize_attributes::clip_max,
+                                      op_normalize_attributes::clip_min,
+                                      op_normalize_attributes::include_max,
+                                      op_normalize_attributes::use_len,
+                                      op_normalize_attributes::include_min};
+        attr["ends"]   = value::array{op_normalize_attributes::clip_max,
+                                    op_normalize_attributes::clip_min,
+                                    op_normalize_attributes::include_max,
+                                    op_normalize_attributes::use_len,
+                                    op_normalize_attributes::include_min};
         return {{"normalize_axes", attr}};
     }
 

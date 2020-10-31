@@ -29,4 +29,5 @@ jobs:
         cget install -f requirements.txt
     - name: Build and test
       run: |
+        rm dev-requirements.txt
         cget build -T check

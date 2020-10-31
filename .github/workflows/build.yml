@@ -29,4 +29,4 @@ jobs:
         cget install -f requirements.txt
     - name: Build and test
       run: |
-        cget build -t check
+        cget build -T check

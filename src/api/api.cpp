@@ -628,17 +628,6 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
     });
 }
 
-extern "C" migraphx_status migraphx_module_destroy(migraphx_module_t module)
-{
-    return migraphx::try_([&] { destroy((module)); });
-}
-
-extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module)
-{
-    return migraphx::try_(
-        [&] { *module = object_cast<migraphx_module_t>(allocate<migraphx::module>()); });
-}
-
 extern "C" migraphx_status migraphx_module_print(const_migraphx_module_t module)
 {
     return migraphx::try_([&] {

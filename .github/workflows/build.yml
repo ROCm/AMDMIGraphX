@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2

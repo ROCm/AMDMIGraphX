@@ -461,13 +461,12 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     };
 };
 
-struct module {
+struct module
+{
     migraphx_module_t mm;
     module(const migraphx_module_t& m) : mm(m) {}
 
-    void print() const {
-        call(&migraphx_module_print, mm);        
-    }
+    void print() const { call(&migraphx_module_print, mm); }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)

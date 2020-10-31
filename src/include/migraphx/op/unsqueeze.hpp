@@ -29,7 +29,7 @@ struct unsqueeze
     value attributes() const
     {
         value attr;
-        attr["axes"] = value::array{include_min, use_output};
+        attr["axes"] = value::array{op_normalize_attributes::include_min, op_normalize_attributes::use_output};
         return {{"normalize_axes", attr}};
     }
 

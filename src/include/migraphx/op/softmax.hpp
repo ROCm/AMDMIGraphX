@@ -23,7 +23,7 @@ struct softmax
     value attributes() const
     {
         value attr;
-        attr["axis"] = value::array{include_min};
+        attr["axis"] = value::array{op_normalize_attributes::include_min};
         return {{"normalize_axes", attr}};
     }
 

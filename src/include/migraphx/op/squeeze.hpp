@@ -30,7 +30,7 @@ struct squeeze
     value attributes() const
     {
         value attr;
-        attr["axes"] = value::array{include_min};
+        attr["axes"] = value::array{op_normalize_attributes::include_min};
         return {{"normalize_axes", attr}};
     }
 

@@ -6,6 +6,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/common.hpp>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -28,13 +29,13 @@ struct slice
 
     value attributes() const
     {
-        value attrs   = value::object{};
-        attrs["axes"] = value::array{"include_min"};
-        attrs["starts"] =
-            value::array{"clip_max", "clip_min", "include_max", "use_len", "include_min"};
-        attrs["ends"] =
-            value::array{"clip_max", "clip_min", "include_max", "use_len", "include_min"};
-        return {{"normalize_axes", attrs}};
+        value attr   = value::object{};
+        attr["axes"] = value::array{include_min};
+        attr["starts"] =
+            value::array{clip_max, clip_min, include_max, use_len, include_min};
+        attr["ends"] =
+            value::array{clip_max, clip_min, include_max, use_len, include_min};
+        return {{"normalize_axes", attr}};
     }
 
     std::string name() const { return "slice"; }

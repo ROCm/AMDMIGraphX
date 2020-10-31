@@ -4,6 +4,7 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -22,7 +23,7 @@ struct concat
     migraphx::value attributes() const
     {
         migraphx::value attr;
-        attr["axis"] = migraphx::value::array{"include_min"};
+        attr["axis"] = migraphx::value::array{migraphx::op::include_min};
         return {{"normalize_axes", attr}};
     }
 

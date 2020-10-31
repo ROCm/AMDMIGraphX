@@ -7,6 +7,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,7 +26,7 @@ struct argmin
     value attributes() const
     {
         value attr;
-        attr["axis"] = value::array{"include_min"};
+        attr["axis"] = value::array{include_min};
         return {{"normalize_axes", attr}};
     }
 

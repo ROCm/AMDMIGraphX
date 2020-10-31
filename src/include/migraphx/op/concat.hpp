@@ -9,6 +9,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/common.hpp>
 #include <cmath>
 #include <utility>
 
@@ -29,7 +30,7 @@ struct concat
     value attributes() const
     {
         value attr;
-        attr["axis"] = value::array{"include_min"};
+        attr["axis"] = value::array{include_min};
         return {{"normalize_axes", attr}};
     }
 

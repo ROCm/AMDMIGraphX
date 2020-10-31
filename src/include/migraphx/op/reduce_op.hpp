@@ -8,6 +8,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/common.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -64,7 +65,7 @@ struct reduce_op : op_name<Derived>
     value attributes() const
     {
         value attr;
-        attr["axes"] = value::array{"include_min"};
+        attr["axes"] = value::array{include_min};
         return {{"normalize_axes", attr}};
     }
 

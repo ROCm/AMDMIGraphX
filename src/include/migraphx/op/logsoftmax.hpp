@@ -3,6 +3,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -22,7 +23,7 @@ struct logsoftmax
     value attributes() const
     {
         value attr;
-        attr["axis"] = value::array{"include_min"};
+        attr["axis"] = value::array{include_min};
         return {{"normalize_axes", attr}};
     }
 

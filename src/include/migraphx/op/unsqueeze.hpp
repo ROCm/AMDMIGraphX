@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/common.hpp>
 #include <cmath>
 #include <utility>
 
@@ -28,7 +29,7 @@ struct unsqueeze
     value attributes() const
     {
         value attr;
-        attr["axes"] = value::array{"include_min", "use_output"};
+        attr["axes"] = value::array{include_min, use_output};
         return {{"normalize_axes", attr}};
     }
 

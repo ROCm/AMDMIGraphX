@@ -2,6 +2,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -20,21 +21,21 @@ auto tune_attribute(const std::vector<int64_t>& vec,
 {
     std::vector<int64_t> result(vec);
     int64_t n_rank                     = static_cast<int64_t>(lens.size());
-    std::vector<std::string> vec_attrs = val.to_vector<std::string>();
-    if(contains(vec_attrs, "use_output"))
+    std::vector<op::op_normalize_attributes> vec_attrs = val.to_vector<op::op_normalize_attributes>();
+    if(contains(vec_attrs, op::use_output))
     {
         n_rank = n_rank + vec.size();
     }
 
     std::vector<int64_t> max_vals(vec.size(), n_rank);
-    if(contains(vec_attrs, "use_len"))
+    if(contains(vec_attrs, op::use_len))
     {
         std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return lens[i]; });
     }
 
-    if(contains(vec_attrs, "clip_max"))
+    if(contains(vec_attrs, op::clip_max))
     {
-        if(contains(vec_attrs, "include_max"))
+        if(contains(vec_attrs, op::include_max))
         {
             std::transform(result.begin(),
                            result.end(),
@@ -53,7 +54,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     }
     else
     {
-        if(contains(vec_attrs, "include_max"))
+        if(contains(vec_attrs, op::include_max))
         {
             if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
@@ -71,9 +72,9 @@ auto tune_attribute(const std::vector<int64_t>& vec,
 
     std::vector<int64_t> min_vals = max_vals;
     std::transform(min_vals.begin(), min_vals.end(), min_vals.begin(), [](auto v) { return -v; });
-    if(contains(vec_attrs, "clip_min"))
+    if(contains(vec_attrs, op::clip_min))
     {
-        if(contains(vec_attrs, "include_min"))
+        if(contains(vec_attrs, op::include_min))
         {
             std::transform(result.begin(),
                            result.end(),
@@ -92,7 +93,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     }
     else
     {
-        if(contains(vec_attrs, "include_min"))
+        if(contains(vec_attrs, op::include_min))
         {
             if(!std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {

@@ -171,6 +171,7 @@ def shapes(h):
 def module(h):
     h.method('print', invoke='migraphx::print_module($@)', const=True)
 
+
 @auto_handle()
 def program(h):
     h.method('get_main_module', returns='migraphx::module*')

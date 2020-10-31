@@ -20,8 +20,9 @@ auto tune_attribute(const std::vector<int64_t>& vec,
                     const std::vector<std::size_t>& lens)
 {
     std::vector<int64_t> result(vec);
-    int64_t n_rank                     = static_cast<int64_t>(lens.size());
-    std::vector<op::op_normalize_attributes> vec_attrs = val.to_vector<op::op_normalize_attributes>();
+    int64_t n_rank = static_cast<int64_t>(lens.size());
+    std::vector<op::op_normalize_attributes> vec_attrs =
+        val.to_vector<op::op_normalize_attributes>();
     if(contains(vec_attrs, op::use_output))
     {
         n_rank = n_rank + vec.size();

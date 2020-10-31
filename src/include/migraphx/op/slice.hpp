@@ -29,12 +29,10 @@ struct slice
 
     value attributes() const
     {
-        value attr   = value::object{};
-        attr["axes"] = value::array{include_min};
-        attr["starts"] =
-            value::array{clip_max, clip_min, include_max, use_len, include_min};
-        attr["ends"] =
-            value::array{clip_max, clip_min, include_max, use_len, include_min};
+        value attr     = value::object{};
+        attr["axes"]   = value::array{include_min};
+        attr["starts"] = value::array{clip_max, clip_min, include_max, use_len, include_min};
+        attr["ends"]   = value::array{clip_max, clip_min, include_max, use_len, include_min};
         return {{"normalize_axes", attr}};
     }
 

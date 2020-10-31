@@ -30,7 +30,8 @@ enum class rnn_direction
 //   3.1) include_min(default)/exclude_min
 // 4) clip_max(default)/not_clip_max
 //   4.1) exclude_max(default)/include_max
-enum op_normalize_attributes {
+enum op_normalize_attributes
+{
     use_len,
     use_output,
     clip_max,

@@ -461,15 +461,13 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     };
 };
 
-struct module : MIGRAPHX_HANDLE_BASE(module)
-{
-    module() { this->make_handle(&migraphx_module_create); }
+struct module {
+    migraphx_module_t mm;
+    module(const migraphx_module_t& m) : mm(m) {}
 
-    module(migraphx_module* p, own) { this->set_handle(p, own{}); }
-
-    module(migraphx_module* p, borrow) { this->set_handle(p, borrow{}); }
-
-    void print() const { call(&migraphx_module_print, this->get_handle_ptr()); }
+    void print() const {
+        call(&migraphx_module_print, mm);        
+    }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)
@@ -531,7 +529,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
-        return module(p_modu, borrow{});
+        return module{p_modu};
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }

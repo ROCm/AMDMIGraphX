@@ -7,7 +7,6 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-
 struct normalize_test_op
 {
     std::vector<int64_t> axes = {};
@@ -21,8 +20,8 @@ struct normalize_test_op
     migraphx::value attributes() const
     {
         migraphx::value attr;
-        attr["axes"] = migraphx::value::array{migraphx::op::op_normalize_attributes::clip_max, 
-                                            migraphx::op::op_normalize_attributes::clip_min};
+        attr["axes"] = migraphx::value::array{migraphx::op::op_normalize_attributes::clip_max,
+                                              migraphx::op::op_normalize_attributes::clip_min};
         return {{"normalize_axes", attr}};
     }
 
@@ -151,14 +150,13 @@ migraphx::program create_test_op(const std::vector<int64_t>& axes)
 TEST_CASE(test_op)
 {
     std::vector<int64_t> axes1 = {-4, 5};
-    auto p1 = create_test_op(axes1);
+    auto p1                    = create_test_op(axes1);
 
     std::vector<int64_t> axes2 = {1, 2};
-    auto p2 = create_test_op(axes2);
+    auto p2                    = create_test_op(axes2);
 
     run_pass(p1);
     EXPECT(p1 == p2);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

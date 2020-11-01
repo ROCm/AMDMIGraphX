@@ -9,65 +9,6 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
-TEST_CASE(instance_norm_test)
-{
-    migraphx::program p = migraphx::parse_onnx("instance_norm_val_test.onnx");
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> result_vector(9);
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {-1.54919,
-                               -1.16189,
-                               -0.774596,
-                               -0.387298,
-                               0,
-                               0.387298,
-                               0.774596,
-                               1.16189,
-                               1.54919,
-                               -2.09838,
-                               -1.32379,
-                               -0.549192,
-                               0.225404,
-                               1,
-                               1.7746,
-                               2.54919,
-                               3.32379,
-                               4.09838};
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
-TEST_CASE(instance_norm_3d_test)
-{
-    migraphx::program p = migraphx::parse_onnx("instance_norm_val_3d_test.onnx");
-
-    p.compile(migraphx::cpu::target{});
-    auto result = p.eval({}).back();
-    std::vector<float> result_vector(16);
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {-1.52752,
-                               -1.09109,
-                               -0.654653,
-                               -0.218218,
-                               0.218218,
-                               0.654653,
-                               1.09109,
-                               1.52752,
-                               -2.05505,
-                               -1.18218,
-                               -0.309306,
-                               0.563565,
-                               1.43644,
-                               2.30931,
-                               3.18218,
-                               4.05505};
-
-    EXPECT(migraphx::verify_range(result_vector, gold));
-}
-
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");
@@ -127,15 +68,74 @@ TEST_CASE(gather_elements)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-TEST_CASE(upsample_test)
+TEST_CASE(instance_norm_test)
 {
-    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("instance_norm_val_test.onnx");
 
-    std::vector<float> x_data = {1, 2, 3, 4};
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vector(9);
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-1.54919,
+                               -1.16189,
+                               -0.774596,
+                               -0.387298,
+                               0,
+                               0.387298,
+                               0.774596,
+                               1.16189,
+                               1.54919,
+                               -2.09838,
+                               -1.32379,
+                               -0.549192,
+                               0.225404,
+                               1,
+                               1.7746,
+                               2.54919,
+                               3.32379,
+                               4.09838};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(instance_norm_3d_test)
+{
+    migraphx::program p = migraphx::parse_onnx("instance_norm_val_3d_test.onnx");
+
+    p.compile(migraphx::cpu::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vector(16);
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {-1.52752,
+                               -1.09109,
+                               -0.654653,
+                               -0.218218,
+                               0.218218,
+                               0.654653,
+                               1.09109,
+                               1.52752,
+                               -2.05505,
+                               -1.18218,
+                               -0.309306,
+                               0.563565,
+                               1.43644,
+                               2.30931,
+                               3.18218,
+                               4.05505};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(resize_test)
+{
+    migraphx::program p = migraphx::parse_onnx("resize_upsample_pf_test.onnx");
+    p.compile(migraphx::cpu::target{});
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> dx = {1.0f, 2.0f, 3.0f, 4.0f};
 
     migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(sx, x_data.data());
+    pp["X"] = migraphx::argument(sx, dx.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
@@ -143,6 +143,7 @@ TEST_CASE(upsample_test)
 
     std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
                                3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
+
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
@@ -162,6 +163,26 @@ TEST_CASE(selu_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0.55, 1.05, 0, -0.10912, -0.149251, 6};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(upsample_test)
+{
+    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
+
+    std::vector<float> x_data = {1, 2, 3, 4};
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, x_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
+                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

@@ -87,7 +87,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
         {
             std::transform(result.begin(),
                            result.end(),
-                           max_vals.begin(),
+                           min_vals.begin(),
                            result.begin(),
                            [](auto v, auto mv) { return v < mv + 1 ? mv + 1 : v; });
         }

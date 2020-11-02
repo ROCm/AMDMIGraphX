@@ -21,7 +21,7 @@ struct normalize_test_op
     {
         migraphx::value normalize;
         normalize["axes"] = migraphx::value::array{migraphx::op::normalize_attribute::clip_max,
-                                              migraphx::op::normalize_attribute::clip_min};
+                                                   migraphx::op::normalize_attribute::clip_min};
         return {{"normalize_axes", normalize}};
     }
 

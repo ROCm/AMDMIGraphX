@@ -30,8 +30,8 @@ struct flatten
     value attributes() const
     {
         value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min,
-                                    normalize_attribute::include_max};
+        normalize["axis"] =
+            value::array{normalize_attribute::include_min, normalize_attribute::include_max};
         return {{"normalize_axes", normalize}};
     }
 

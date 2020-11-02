@@ -32,15 +32,15 @@ struct slice
         value normalize     = value::object{};
         normalize["axes"]   = value::array{normalize_attribute::include_min};
         normalize["starts"] = value::array{normalize_attribute::clip_max,
-                                      normalize_attribute::clip_min,
-                                      normalize_attribute::include_max,
-                                      normalize_attribute::use_len,
-                                      normalize_attribute::include_min};
+                                           normalize_attribute::clip_min,
+                                           normalize_attribute::include_max,
+                                           normalize_attribute::use_len,
+                                           normalize_attribute::include_min};
         normalize["ends"]   = value::array{normalize_attribute::clip_max,
-                                    normalize_attribute::clip_min,
-                                    normalize_attribute::include_max,
-                                    normalize_attribute::use_len,
-                                    normalize_attribute::include_min};
+                                         normalize_attribute::clip_min,
+                                         normalize_attribute::include_max,
+                                         normalize_attribute::use_len,
+                                         normalize_attribute::include_min};
         return {{"normalize_axes", normalize}};
     }
 

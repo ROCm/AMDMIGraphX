@@ -388,8 +388,9 @@ struct onnx_parser
         return output_vector;
     }
 
-    instruction_ref
-    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis) const
+    instruction_ref add_bias(const std::vector<instruction_ref>& args,
+                             instruction_ref curr_ins,
+                             uint64_t axis) const
     {
         if(args.size() == 3)
         {
@@ -1587,7 +1588,8 @@ struct onnx_parser
         return mm->add_instruction(op, args.front());
     }
 
-    instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args) const
+    instruction_ref
+    parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 1.0; // default alpha val for elu
         if(contains(info.attributes, "alpha"))
@@ -1598,7 +1600,8 @@ struct onnx_parser
         return mm->add_instruction(op, args.front());
     }
 
-    instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args) const
+    instruction_ref
+    parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 0.0001;
         float beta  = 0.75;
@@ -2362,23 +2365,26 @@ struct onnx_parser
         return mm->add_instruction(make_op("sqrt"), sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args) const
+    instruction_ref parse_reduce_log_sum(const std::string&,
+                                         node_info info,
+                                         std::vector<instruction_ref> args) const
     {
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
         return mm->add_instruction(make_op("log"), sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args) const
+    instruction_ref parse_reduce_log_sum_exp(const std::string&,
+                                             node_info info,
+                                             std::vector<instruction_ref> args) const
     {
         auto exp_ins = mm->add_instruction(make_op("exp"), args[0]);
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
         return mm->add_instruction(make_op("log"), sum_ins);
     }
 
-    instruction_ref
-    parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args) const
+    instruction_ref parse_reduce_sum_square(const std::string&,
+                                            node_info info,
+                                            std::vector<instruction_ref> args) const
     {
         auto square_ins = mm->add_instruction(make_op("mul"), args[0], args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
@@ -2564,7 +2570,8 @@ struct onnx_parser
         max  = 2
     };
 
-    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args) const
+    instruction_ref parse_embedding_bag(const node_info& info,
+                                        std::vector<instruction_ref> args) const
     {
         if(args[2]->get_shape().elements() != 1)
             MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");

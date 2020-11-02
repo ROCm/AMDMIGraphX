@@ -120,7 +120,10 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(*mm, ctx, params, trace);
 }
 
-std::vector<argument> program::eval(parameter_map params) const { return main_module.eval(std::move(params)); }
+std::vector<argument> program::eval(parameter_map params) const
+{
+    return main_module.eval(std::move(params));
+}
 
 const int program_file_version = 1;
 

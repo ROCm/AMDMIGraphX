@@ -18,10 +18,10 @@ TEST_CASE(double_contig)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(get_2x2());
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
-    auto c1 = mm->add_instruction(migraphx::op::contiguous{}, t1);
-    auto c2 = mm->add_instruction(migraphx::op::contiguous{}, c1);
+    auto l   = mm->add_literal(get_2x2());
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto c1  = mm->add_instruction(migraphx::op::contiguous{}, t1);
+    auto c2  = mm->add_instruction(migraphx::op::contiguous{}, c1);
     mm->add_return({c2});
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
@@ -38,9 +38,9 @@ TEST_CASE(double_transpose)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(get_2x2());
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, t1);
+    auto l   = mm->add_literal(get_2x2());
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, t1);
     mm->add_return({t2});
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
@@ -57,11 +57,11 @@ TEST_CASE(double_transpose_contig)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(get_2x2());
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
-    auto c1 = mm->add_instruction(migraphx::op::contiguous{}, t1);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, c1);
-    auto c2 = mm->add_instruction(migraphx::op::contiguous{}, t2);
+    auto l   = mm->add_literal(get_2x2());
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto c1  = mm->add_instruction(migraphx::op::contiguous{}, t1);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, c1);
+    auto c2  = mm->add_instruction(migraphx::op::contiguous{}, t2);
     mm->add_return({c2});
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
@@ -78,8 +78,8 @@ TEST_CASE(single_transpose)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(get_2x2());
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto l   = mm->add_literal(get_2x2());
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
     mm->add_return({t1});
     EXPECT(not p.get_output_shapes().back().standard());
     EXPECT(p.get_output_shapes().back().transposed());
@@ -96,8 +96,8 @@ TEST_CASE(double_transpose_sin_pass)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(get_2x2());
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
+    auto l   = mm->add_literal(get_2x2());
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
     mm->add_instruction(migraphx::op::transpose{{1, 0}}, t1);
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
@@ -115,7 +115,7 @@ TEST_CASE(single_transpose_sin_pass)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l = mm->add_literal(get_2x2());
+    auto l   = mm->add_literal(get_2x2());
     mm->add_instruction(migraphx::op::transpose{{1, 0}}, l);
     EXPECT(not p.get_output_shapes().back().standard());
     EXPECT(p.get_output_shapes().back().transposed());
@@ -132,12 +132,12 @@ TEST_CASE(reshape_transpose)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
-    auto x  = mm->add_parameter("x", s);
-    auto r1 = mm->add_instruction(migraphx::op::reshape{{1, 4, 28, 56, 56}}, x);
-    auto t  = mm->add_instruction(migraphx::op::transpose{{0, 2, 1, 3, 4}}, r1);
-    auto ct = mm->add_instruction(migraphx::op::contiguous{}, t);
-    auto r2 = mm->add_instruction(migraphx::op::reshape{{1, 112, 56, 56}}, ct);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
+    auto x   = mm->add_parameter("x", s);
+    auto r1  = mm->add_instruction(migraphx::op::reshape{{1, 4, 28, 56, 56}}, x);
+    auto t   = mm->add_instruction(migraphx::op::transpose{{0, 2, 1, 3, 4}}, r1);
+    auto ct  = mm->add_instruction(migraphx::op::contiguous{}, t);
+    auto r2  = mm->add_instruction(migraphx::op::reshape{{1, 112, 56, 56}}, ct);
     mm->add_return({r2});
     EXPECT(p.get_output_shapes().back() == s);
     auto n = std::distance(p.begin(), p.end());
@@ -151,10 +151,10 @@ TEST_CASE(transpose_contiguous)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 4}};
-    auto x  = mm->add_parameter("x", s);
-    auto t  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, x);
-    auto c1 = mm->add_instruction(migraphx::op::contiguous{}, t);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {4, 4}};
+    auto x   = mm->add_parameter("x", s);
+    auto t   = mm->add_instruction(migraphx::op::transpose{{1, 0}}, x);
+    auto c1  = mm->add_instruction(migraphx::op::contiguous{}, t);
     mm->add_return({c1});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -168,11 +168,11 @@ TEST_CASE(transpose_double_contiguous)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {4, 4}};
-    auto x  = mm->add_parameter("x", s);
-    auto t  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, x);
-    auto c1 = mm->add_instruction(migraphx::op::contiguous{}, t);
-    auto c2 = mm->add_instruction(migraphx::op::contiguous{}, c1);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {4, 4}};
+    auto x   = mm->add_parameter("x", s);
+    auto t   = mm->add_instruction(migraphx::op::transpose{{1, 0}}, x);
+    auto c1  = mm->add_instruction(migraphx::op::contiguous{}, t);
+    auto c2  = mm->add_instruction(migraphx::op::contiguous{}, c1);
     mm->add_return({c2});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -187,10 +187,10 @@ TEST_CASE(transpose_partial1)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x  = mm->add_parameter("x", s);
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
     mm->add_return({t2});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -204,11 +204,11 @@ TEST_CASE(transpose_partial2)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x  = mm->add_parameter("x", s);
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
-    auto t3 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
     mm->add_return({t3});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -222,12 +222,12 @@ TEST_CASE(transpose_partial3)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x  = mm->add_parameter("x", s);
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
-    auto t3 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
-    auto t4 = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t3);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, x);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{1, 2, 0}}, t1);
+    auto t3  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t2);
+    auto t4  = mm->add_instruction(migraphx::op::transpose{{1, 0, 2}}, t3);
     mm->add_return({t4});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -241,9 +241,9 @@ TEST_CASE(nop_transpose1)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x = mm->add_parameter("x", s);
-    auto t = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t   = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -257,12 +257,12 @@ TEST_CASE(nop_transpose2)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x  = mm->add_parameter("x", s);
-    auto t1 = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
-    auto t2 = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t1);
-    auto t3 = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t2);
-    auto t4 = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t3);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t1  = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, x);
+    auto t2  = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t1);
+    auto t3  = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t2);
+    auto t4  = mm->add_instruction(migraphx::op::transpose{{0, 1, 2}}, t3);
     mm->add_instruction(pass_op{}, t4);
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -275,7 +275,7 @@ TEST_CASE(nop_transpose3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
     auto x      = mm->add_parameter("x", s);
     auto y      = mm->add_parameter("y", s);
@@ -295,9 +295,9 @@ TEST_CASE(nop_convert)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
-    auto x = mm->add_parameter("x", s);
-    auto t = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, x);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x   = mm->add_parameter("x", s);
+    auto t   = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, x);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
     auto n         = std::distance(p.begin(), p.end());
@@ -310,7 +310,7 @@ TEST_CASE(concat_transpose1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
     auto x      = mm->add_parameter("x", s);
     auto y      = mm->add_parameter("y", s);
@@ -334,7 +334,7 @@ TEST_CASE(concat_transpose2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
     auto x      = mm->add_parameter("x", s);
     auto y      = mm->add_parameter("y", s);
@@ -359,11 +359,11 @@ TEST_CASE(concat_transpose3)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x      = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}});
-    auto y      = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {1, 5, 3, 4}});
-    auto xt     = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
-    auto yt     = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, y);
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}});
+    auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {1, 5, 3, 4}});
+    auto xt  = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, x);
+    auto yt  = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, y);
     auto concat = mm->add_instruction(migraphx::op::concat{3}, xt, yt);
     auto t      = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
     mm->add_return({t});
@@ -381,7 +381,7 @@ TEST_CASE(concat_transpose3)
 TEST_CASE(concat_transpose4)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto sx     = migraphx::shape{migraphx::shape::float_type, {1, 1, 12, 64}};
     auto sy     = migraphx::shape{migraphx::shape::float_type, {1, 12, 1, 64}};
     auto x      = mm->add_parameter("x", sx);
@@ -394,7 +394,7 @@ TEST_CASE(concat_transpose4)
 
     migraphx::program p1 = p;
     run_pass(p);
-    
+
     EXPECT(p1 == p);
 }
 
@@ -402,7 +402,7 @@ TEST_CASE(nested_concat)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto s       = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
     auto x       = mm->add_parameter("x", s);
     auto y       = mm->add_parameter("y", s);
@@ -423,10 +423,10 @@ TEST_CASE(nested_concat_partial)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
-    auto x = mm->add_parameter("x", s);
-    auto y = mm->add_parameter("y", s);
-    auto l = mm->add_literal(
+    auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto l   = mm->add_literal(
         migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1, 4, 3, 4}}));
     auto concat1 = mm->add_instruction(migraphx::op::concat{1}, x, y);
     auto concat2 = mm->add_instruction(migraphx::op::concat{1}, y, x);

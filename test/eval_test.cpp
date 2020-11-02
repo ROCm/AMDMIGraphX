@@ -142,7 +142,7 @@ TEST_CASE(literal_test1)
 TEST_CASE(literal_test2)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -171,8 +171,8 @@ TEST_CASE(param_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("x", {migraphx::shape::int32_type});
-    auto y = mm->add_parameter("y", {migraphx::shape::int32_type});
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type});
 
     mm->add_instruction(sum_op{}, x, y);
     auto result = p.eval({{"x", migraphx::literal{1}.get_argument()},
@@ -186,8 +186,8 @@ TEST_CASE(param_error_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("x", {migraphx::shape::int32_type});
-    auto y = mm->add_parameter("y", {migraphx::shape::int32_type});
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type});
 
     mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
@@ -201,8 +201,8 @@ TEST_CASE(param_error_shape_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("x", {migraphx::shape::int32_type, {1, 1}});
-    auto y = mm->add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type, {1, 1}});
+    auto y   = mm->add_parameter("y", {migraphx::shape::int32_type, {1, 1}});
 
     mm->add_instruction(sum_op{}, x, y);
     EXPECT(test::throws<migraphx::exception>(
@@ -270,7 +270,7 @@ TEST_CASE(replace_test)
 TEST_CASE(replace_ins_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto sum   = mm->add_instruction(sum_op{}, one, two);
@@ -286,7 +286,7 @@ TEST_CASE(replace_ins_test)
 TEST_CASE(replace_ins_test2)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto sum   = mm->add_instruction(sum_op{}, one, two);
@@ -328,7 +328,7 @@ TEST_CASE(replace_op_recompute_shape_throw)
 TEST_CASE(insert_replace_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -346,7 +346,7 @@ TEST_CASE(insert_replace_test)
 TEST_CASE(remove_test1)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto two     = mm->add_literal(2);
     auto sum     = mm->add_instruction(sum_op{}, one, two);
@@ -362,7 +362,7 @@ TEST_CASE(remove_test1)
 TEST_CASE(remove_test2)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto two     = mm->add_literal(2);
     auto removed = mm->add_instruction(minus_op{}, two, one);
@@ -501,7 +501,7 @@ std::string capture_output(F f)
 TEST_CASE(debug_print_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm                                    = p.get_main_module();
     auto one                                    = mm->add_literal(1);
     std::vector<migraphx::instruction_ref> onev = {one};
 

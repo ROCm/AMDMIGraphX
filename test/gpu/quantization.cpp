@@ -62,7 +62,7 @@ TEST_CASE(int8_quantization)
 
     auto create_program = [] {
         migraphx::program p;
-        auto* mm = p.get_main_module();        
+        auto* mm = p.get_main_module();
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};

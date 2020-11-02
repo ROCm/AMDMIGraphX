@@ -9,7 +9,8 @@
 void run_pass(migraphx::program& p, std::size_t align = 32)
 {
     migraphx::run_passes(
-        *p.get_main_module(), {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+        *p.get_main_module(),
+        {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
 }
 
 struct allocate
@@ -41,8 +42,8 @@ TEST_CASE(basic)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
-    auto p1 = mm->add_instruction(pass_op{}, a1);
+    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
+    auto p1  = mm->add_instruction(pass_op{}, a1);
 
     auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
     auto p2 = mm->add_instruction(pass_op{}, a2, p1);
@@ -60,8 +61,8 @@ TEST_CASE(aligned)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = mm->add_instruction(pass_op{}, a1);
+    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1  = mm->add_instruction(pass_op{}, a1);
 
     auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto p2 = mm->add_instruction(pass_op{}, a2, p1);
@@ -79,8 +80,8 @@ TEST_CASE(unaligned)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = mm->add_instruction(pass_op{}, a1);
+    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1  = mm->add_instruction(pass_op{}, a1);
 
     auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto p2 = mm->add_instruction(pass_op{}, a2, p1);
@@ -98,8 +99,8 @@ TEST_CASE(float_aligned)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = mm->add_instruction(pass_op{}, a1);
+    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1  = mm->add_instruction(pass_op{}, a1);
 
     auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto p2 = mm->add_instruction(pass_op{}, a2, p1);

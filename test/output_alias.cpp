@@ -7,8 +7,8 @@ TEST_CASE(simple_alias)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(1);
-    auto p1 = mm->add_instruction(pass_op{}, l);
+    auto l   = mm->add_literal(1);
+    auto p1  = mm->add_instruction(pass_op{}, l);
     EXPECT(bool{migraphx::instruction::get_output_alias(l) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p1) == l});
 }
@@ -17,10 +17,10 @@ TEST_CASE(cascade_alias)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l  = mm->add_literal(1);
-    auto p1 = mm->add_instruction(pass_op{}, l);
-    auto p2 = mm->add_instruction(pass_op{}, p1);
-    auto p3 = mm->add_instruction(pass_op{}, p2);
+    auto l   = mm->add_literal(1);
+    auto p1  = mm->add_instruction(pass_op{}, l);
+    auto p2  = mm->add_instruction(pass_op{}, p1);
+    auto p3  = mm->add_instruction(pass_op{}, p2);
     EXPECT(bool{migraphx::instruction::get_output_alias(l) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p1) == l});
     EXPECT(bool{migraphx::instruction::get_output_alias(p2) == l});

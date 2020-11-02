@@ -245,8 +245,8 @@ struct test_trans_tanh : verify_program<test_trans_tanh>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx    = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = mm->add_instruction(migraphx::op::tanh{}, tx);
         auto r     = mm->add_instruction(migraphx::op::add{}, tanhx, tanhx);
         mm->add_instruction(migraphx::op::contiguous{}, r);
@@ -261,8 +261,8 @@ struct test_trans_tanh1 : verify_program<test_trans_tanh1>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx    = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto tanhx = mm->add_instruction(migraphx::op::tanh{}, tx);
         auto r     = mm->add_instruction(migraphx::op::add{}, tanhx, tanhx);
         mm->add_return({tx, r});
@@ -841,8 +841,9 @@ struct test_deconv_1d : verify_program<test_deconv_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
         mm->add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
@@ -1175,8 +1176,8 @@ struct test_trans_abs : verify_program<test_trans_abs>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto tx = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto tx   = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         auto absx = mm->add_instruction(migraphx::op::abs{}, tx);
         auto r    = mm->add_instruction(migraphx::op::add{}, absx, absx);
         mm->add_instruction(migraphx::op::contiguous{}, r);
@@ -1309,9 +1310,10 @@ struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
-        auto op    = migraphx::op::pooling{"average", {0}, {1}, {3}};
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
+        auto op = migraphx::op::pooling{"average", {0}, {1}, {3}};
         mm->add_instruction(op, input);
         return p;
     }
@@ -1480,8 +1482,8 @@ struct test_gemm_transposea_ex : verify_program<test_gemm_transposea_ex>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a  = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto b  = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
+        auto a = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto b = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 3}});
         auto at = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, a);
         mm->add_instruction(migraphx::op::dot{}, at, b);
         return p;
@@ -2044,7 +2046,7 @@ struct test_trans_ret : verify_program<test_trans_ret>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto tx = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, x);
         mm->add_return({tx});
 
@@ -2267,14 +2269,15 @@ struct test_conv_bn : verify_program<test_conv_bn>
         migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
         migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
         migraphx::shape vars{migraphx::shape::float_type, {64}};
-        auto x        = mm->add_parameter("x", xs);
-        auto w        = mm->add_parameter("w", ws);
-        auto conv     = mm->add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
-        auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
-        auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
-        auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto x     = mm->add_parameter("x", xs);
+        auto w     = mm->add_parameter("w", ws);
+        auto conv  = mm->add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto scale = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias  = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean  = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm->add_instruction(migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
+        mm->add_instruction(
+            migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);
         return p;
     }
 };
@@ -2289,12 +2292,12 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
         migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
         migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
         migraphx::shape vars{migraphx::shape::float_type, {64}};
-        auto x        = mm->add_parameter("x", xs);
-        auto w        = mm->add_parameter("w", ws);
-        auto conv     = mm->add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
-        auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
-        auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
-        auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto x     = mm->add_parameter("x", xs);
+        auto w     = mm->add_parameter("w", ws);
+        auto conv  = mm->add_instruction(migraphx::op::convolution{{3, 3}, {2, 2}, {1, 1}}, x, w);
+        auto scale = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias  = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean  = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
         auto bn       = mm->add_instruction(
             migraphx::op::batch_norm_inference{}, conv, scale, bias, mean, variance);

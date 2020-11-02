@@ -113,7 +113,7 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto undef = mm->add_instruction(migraphx::op::undefined{});
@@ -131,8 +131,8 @@ TEST_CASE(duplicate_args1)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0 = mm->add_literal(0);
-    auto l3 = mm->add_literal(3);
+    auto l0  = mm->add_literal(0);
+    auto l3  = mm->add_literal(3);
     mm->add_instruction(migraphx::op::add{}, l3, l3);
     mm->add_instruction(migraphx::op::identity{}, l0);
     auto count = std::distance(p.begin(), p.end());
@@ -146,7 +146,7 @@ TEST_CASE(duplicate_args1)
 TEST_CASE(duplicate_args2)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
     auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);
@@ -163,7 +163,7 @@ TEST_CASE(duplicate_args2)
 TEST_CASE(duplicate_args3)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
     auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);

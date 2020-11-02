@@ -107,7 +107,7 @@ TEST_CASE(simple)
     auto create_test_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(1)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(1)});
@@ -120,12 +120,12 @@ TEST_CASE(simple)
     auto create_control_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
-        auto a1 = mm->add_instruction(allocate{create_shape(2)});
-        auto l1 = mm->add_instruction(load{create_shape(1), 0}, a1);
-        auto p1 = mm->add_instruction(simple_op{}, l1);
-        auto l2 = mm->add_instruction(load{create_shape(1), 4}, a1);
-        auto p2 = mm->add_instruction(simple_op{}, l2);
+        auto* mm = p.get_main_module();
+        auto a1  = mm->add_instruction(allocate{create_shape(2)});
+        auto l1  = mm->add_instruction(load{create_shape(1), 0}, a1);
+        auto p1  = mm->add_instruction(simple_op{}, l1);
+        auto l2  = mm->add_instruction(load{create_shape(1), 4}, a1);
+        auto p2  = mm->add_instruction(simple_op{}, l2);
         mm->add_instruction(identity{}, a1, p1, p2);
         return p;
     };
@@ -142,7 +142,7 @@ TEST_CASE(negative_axis1)
     auto create_test_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(2, 2)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(2, 2)});
@@ -166,7 +166,7 @@ TEST_CASE(negative_axis2)
     auto create_test_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(2, 2)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(2, 2)});
@@ -179,12 +179,12 @@ TEST_CASE(negative_axis2)
     auto create_control_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
-        auto a1 = mm->add_instruction(allocate{create_shape(4, 2)});
-        auto l1 = mm->add_instruction(load{create_shape(2, 2), 0}, a1);
-        auto p1 = mm->add_instruction(simple_op{}, l1);
-        auto l2 = mm->add_instruction(load{create_shape(2, 2), 16}, a1);
-        auto p2 = mm->add_instruction(simple_op{}, l2);
+        auto* mm = p.get_main_module();
+        auto a1  = mm->add_instruction(allocate{create_shape(4, 2)});
+        auto l1  = mm->add_instruction(load{create_shape(2, 2), 0}, a1);
+        auto p1  = mm->add_instruction(simple_op{}, l1);
+        auto l2  = mm->add_instruction(load{create_shape(2, 2), 16}, a1);
+        auto p2  = mm->add_instruction(simple_op{}, l2);
         mm->add_instruction(identity{}, a1, p1, p2);
         return p;
     };
@@ -201,7 +201,7 @@ TEST_CASE(negative_axis3)
     auto create_test_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(1, 2, 2)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(1, 2, 2)});
@@ -214,12 +214,12 @@ TEST_CASE(negative_axis3)
     auto create_control_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
-        auto a1 = mm->add_instruction(allocate{create_shape(1, 4, 2)});
-        auto l1 = mm->add_instruction(load{create_shape(1, 2, 2), 0}, a1);
-        auto p1 = mm->add_instruction(simple_op{}, l1);
-        auto l2 = mm->add_instruction(load{create_shape(1, 2, 2), 16}, a1);
-        auto p2 = mm->add_instruction(simple_op{}, l2);
+        auto* mm = p.get_main_module();
+        auto a1  = mm->add_instruction(allocate{create_shape(1, 4, 2)});
+        auto l1  = mm->add_instruction(load{create_shape(1, 2, 2), 0}, a1);
+        auto p1  = mm->add_instruction(simple_op{}, l1);
+        auto l2  = mm->add_instruction(load{create_shape(1, 2, 2), 16}, a1);
+        auto p2  = mm->add_instruction(simple_op{}, l2);
         mm->add_instruction(identity{}, a1, p1, p2);
         return p;
     };
@@ -236,7 +236,7 @@ TEST_CASE(reversed)
     auto create_test_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(1)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(1)});
@@ -249,12 +249,12 @@ TEST_CASE(reversed)
     auto create_control_program = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
-        auto a1 = mm->add_instruction(allocate{create_shape(2)});
-        auto l1 = mm->add_instruction(load{create_shape(1), 4}, a1);
-        auto p1 = mm->add_instruction(simple_op{}, l1);
-        auto l2 = mm->add_instruction(load{create_shape(1), 0}, a1);
-        auto p2 = mm->add_instruction(simple_op{}, l2);
+        auto* mm = p.get_main_module();
+        auto a1  = mm->add_instruction(allocate{create_shape(2)});
+        auto l1  = mm->add_instruction(load{create_shape(1), 4}, a1);
+        auto p1  = mm->add_instruction(simple_op{}, l1);
+        auto l2  = mm->add_instruction(load{create_shape(1), 0}, a1);
+        auto p2  = mm->add_instruction(simple_op{}, l2);
         mm->add_instruction(identity{}, a1, p2, p1);
         return p;
     };
@@ -269,7 +269,7 @@ TEST_CASE(reversed)
 TEST_CASE(nested)
 {
     auto concat_test_program = [](auto& p) {
-        auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto a1          = mm->add_instruction(allocate{create_shape(1)});
         auto p1          = mm->add_instruction(simple_op{}, a1);
         auto a2          = mm->add_instruction(allocate{create_shape(1)});
@@ -280,7 +280,7 @@ TEST_CASE(nested)
     };
     auto create_test_program = [&] {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm         = p.get_main_module();
         auto concat1     = concat_test_program(p);
         auto concat2     = concat_test_program(p);
         std::size_t axis = 0;
@@ -290,15 +290,15 @@ TEST_CASE(nested)
     };
     auto concat_control_program = [](auto& p, auto a1) {
         auto* mm = p.get_main_module();
-        auto l1 = mm->add_instruction(load{create_shape(1), 0}, a1);
-        auto p1 = mm->add_instruction(simple_op{}, l1);
-        auto l2 = mm->add_instruction(load{create_shape(1), 4}, a1);
-        auto p2 = mm->add_instruction(simple_op{}, l2);
+        auto l1  = mm->add_instruction(load{create_shape(1), 0}, a1);
+        auto p1  = mm->add_instruction(simple_op{}, l1);
+        auto l2  = mm->add_instruction(load{create_shape(1), 4}, a1);
+        auto p2  = mm->add_instruction(simple_op{}, l2);
         return mm->add_instruction(identity{}, a1, p1, p2);
     };
     auto create_control_program = [&] {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm     = p.get_main_module();
         auto a1      = mm->add_instruction(allocate{create_shape(4)});
         auto l1      = mm->add_instruction(load{create_shape(2), 0}, a1);
         auto concat1 = concat_control_program(p, l1);
@@ -320,14 +320,14 @@ TEST_CASE(basic)
     auto create_test_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a1 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}});
+        auto a1  = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}});
         auto p1 = mm->add_instruction(simple_op{}, a1);
-        auto a2 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}});
+        auto a2 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}}});
         auto p2 = mm->add_instruction(simple_op{}, a2);
-        auto a3 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}});
+        auto a3 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {1, 5, 8, 8}}});
         auto p3          = mm->add_instruction(simple_op{}, a3);
         std::size_t axis = 1;
         auto a4          = mm->add_instruction(
@@ -338,7 +338,7 @@ TEST_CASE(basic)
     auto create_control_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a1 = mm->add_instruction(
+        auto a1  = mm->add_instruction(
             allocate{migraphx::shape{migraphx::shape::float_type, {1, 10, 8, 8}}});
         auto l1 = mm->add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 8}}, 0}, {a1});
@@ -365,14 +365,14 @@ TEST_CASE(wont_work)
     auto create_test_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a1 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+        auto a1  = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
         auto p1 = mm->add_instruction(simple_op{}, a1);
-        auto a2 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto a2 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto p2 = mm->add_instruction(simple_op{}, a2);
-        auto a3 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a3 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto p3          = mm->add_instruction(simple_op{}, a3);
         std::size_t axis = 1;
         auto a4          = mm->add_instruction(
@@ -383,14 +383,14 @@ TEST_CASE(wont_work)
     auto create_control_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a1 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+        auto a1  = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
         auto p1 = mm->add_instruction(simple_op{}, a1);
-        auto a2 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto a2 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto p2 = mm->add_instruction(simple_op{}, a2);
-        auto a3 =
-            mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a3 = mm->add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto p3          = mm->add_instruction(simple_op{}, a3);
         std::size_t axis = 1;
         auto a4          = mm->add_instruction(

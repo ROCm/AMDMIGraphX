@@ -7,7 +7,7 @@
 migraphx::program create_gelu()
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm                 = p.get_main_module();
     std::vector<float> data0 = {0.044715};
     std::vector<float> data1 = {0.797885};
     std::vector<float> data2 = {3};

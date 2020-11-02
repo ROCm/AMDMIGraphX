@@ -13,6 +13,8 @@ void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::decompo
 TEST_CASE(dot_add)
 {
     migraphx::program p1;
+
+    auto* mm = p1.get_main_module();
     {
         auto x   = p1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y   = p1.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
@@ -22,6 +24,8 @@ TEST_CASE(dot_add)
     }
     run_pass(p1);
     migraphx::program p2;
+
+    auto* mm = p2.get_main_module();
     {
         auto x   = p2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
@@ -36,6 +40,8 @@ TEST_CASE(dot_add)
 TEST_CASE(dot_add_beta_float)
 {
     migraphx::program p1;
+
+    auto* mm = p1.get_main_module();
     {
         auto x   = p1.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y   = p1.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
@@ -45,6 +51,8 @@ TEST_CASE(dot_add_beta_float)
     }
     run_pass(p1);
     migraphx::program p2;
+
+    auto* mm = p2.get_main_module();
     {
         auto x   = p2.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
@@ -63,6 +71,8 @@ TEST_CASE(dot_add_beta_float)
 TEST_CASE(dot_add_beta_half)
 {
     migraphx::program p1;
+
+    auto* mm = p1.get_main_module();
     {
         auto x   = p1.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto y   = p1.add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
@@ -72,6 +82,8 @@ TEST_CASE(dot_add_beta_half)
     }
     run_pass(p1);
     migraphx::program p2;
+
+    auto* mm = p2.get_main_module();
     {
         auto x   = p2.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
@@ -90,6 +102,8 @@ TEST_CASE(dot_add_beta_half)
 TEST_CASE(dot_add_beta_double)
 {
     migraphx::program p1;
+
+    auto* mm = p1.get_main_module();
     {
         auto x   = p1.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto y   = p1.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
@@ -99,6 +113,8 @@ TEST_CASE(dot_add_beta_double)
     }
     run_pass(p1);
     migraphx::program p2;
+
+    auto* mm = p2.get_main_module();
     {
         auto x   = p2.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto y   = p2.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
@@ -117,6 +133,8 @@ TEST_CASE(dot_add_beta_double)
 TEST_CASE(dot_add_beta_int)
 {
     migraphx::program p1;
+
+    auto* mm = p1.get_main_module();
     {
         auto x   = p1.add_parameter("x", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
         auto y   = p1.add_parameter("y", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
@@ -124,7 +142,9 @@ TEST_CASE(dot_add_beta_int)
         auto dot = p1.add_instruction(migraphx::op::dot{1.0, 0.5}, x, y, z);
         p1.add_instruction(migraphx::op::identity{}, dot);
     }
-    migraphx::program p2 = p1;
+    migraphx::program p2;
+
+    auto* mm = p2.get_main_module();
     run_pass(p1);
     EXPECT(p1 == p2);
 }

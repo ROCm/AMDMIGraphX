@@ -8,19 +8,23 @@ migraphx::program create_program()
 {
     migraphx::program p;
 
-    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
+    auto* mm = p.get_main_module();
 
-    auto sum = p.add_instruction(sum_op{}, x, y);
-    auto one = p.add_literal(1);
-    p.add_instruction(sum_op{}, sum, one);
+    auto x = mm->add_parameter("x", {migraphx::shape::int64_type});
+    auto y = mm->add_parameter("y", {migraphx::shape::int64_type});
+
+    auto sum = mm->add_instruction(sum_op{}, x, y);
+    auto one = mm->add_literal(1);
+    mm->add_instruction(sum_op{}, sum, one);
 
     return p;
 }
 
 TEST_CASE(basic_graph_test)
 {
-    migraphx::program p = create_program();
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
     std::stringstream ss;
     p.print_graph(ss);
     std::string test = ss.str();

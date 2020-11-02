@@ -112,11 +112,11 @@ struct schedule_model_test
     std::shared_ptr<int_map> wait2stream        = std::make_shared<int_map>();
     std::shared_ptr<wait_map> ins2wait_for      = std::make_shared<wait_map>();
     std::size_t concurrency() const { return 4; }
-    void sched(migraphx::program&, migraphx::instruction_ref ins, std::size_t n) const
+    void sched(migraphx::module&, migraphx::instruction_ref ins, std::size_t n) const
     {
         (*ins2stream)[ins] = n;
     }
-    void wait(migraphx::program& p, migraphx::instruction_ref ins, std::size_t wait_id) const
+    void wait(migraphx::module& p, migraphx::instruction_ref ins, std::size_t wait_id) const
     {
         if(ins2wait_for->count(ins) == 0)
         {
@@ -126,7 +126,7 @@ struct schedule_model_test
         }
         (*ins2wait_for)[ins]->push_back(wait2stream->at(wait_id));
     }
-    void record(migraphx::program&, migraphx::instruction_ref ins, std::size_t wait_id) const
+    void record(migraphx::module&, migraphx::instruction_ref ins, std::size_t wait_id) const
     {
         (*wait2stream)[wait_id] = ins2stream->at(ins);
     }
@@ -171,7 +171,10 @@ struct scheduler
         return result;
     }
 
-    void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::schedule{model}}); }
+    void run_pass(migraphx::program& p) { 
+        auto* mm = p.get_main_module();
+        migraphx::run_passes(*mm, {migraphx::schedule{model}}); 
+    }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
 
@@ -243,7 +246,7 @@ chain(migraphx::program& p, std::size_t n, T x, migraphx::instruction_ref input)
     std::vector<migraphx::instruction_ref> result;
     for(std::size_t i = 0; i < n; i++)
     {
-        result.push_back(p.add_instruction(x, input));
+        result.push_back(p.get_main_module()->add_instruction(x, input));
         input = result.back();
     }
     return result;
@@ -252,10 +255,12 @@ TEST_CASE(single_entry)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, onep1, onep2);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(unary_op{}, one);
+    auto onep2  = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, onep1, onep2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -269,10 +274,12 @@ TEST_CASE(stream_free)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(stream_free_op{}, one);
-    auto onep2  = p.add_instruction(stream_free_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, onep1, onep2);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(stream_free_op{}, one);
+    auto onep2  = mm->add_instruction(stream_free_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, onep1, onep2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(onep1));
@@ -284,12 +291,14 @@ TEST_CASE(zero_record)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto onei1  = p.add_instruction(migraphx::op::identity{}, onep1);
-    auto onei2  = p.add_instruction(migraphx::op::identity{}, onep2);
-    auto binary = p.add_instruction(nary_op{}, onei1, onei2);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(unary_op{}, one);
+    auto onep2  = mm->add_instruction(unary_op{}, one);
+    auto onei1  = mm->add_instruction(migraphx::op::identity{}, onep1);
+    auto onei2  = mm->add_instruction(migraphx::op::identity{}, onep2);
+    auto binary = mm->add_instruction(nary_op{}, onei1, onei2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -304,10 +313,12 @@ TEST_CASE(zero_merge1)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(unary_op{}, one);
+    auto onep2  = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(migraphx::op::identity{}, onep1, onep2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -322,12 +333,14 @@ TEST_CASE(zero_merge2)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(migraphx::op::identity{},
-                                    p.add_instruction(migraphx::op::identity{}, onep1),
-                                    p.add_instruction(migraphx::op::identity{}, onep2));
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(unary_op{}, one);
+    auto onep2  = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(migraphx::op::identity{},
+                                    mm->add_instruction(migraphx::op::identity{}, onep1),
+                                    mm->add_instruction(migraphx::op::identity{}, onep2));
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -342,11 +355,13 @@ TEST_CASE(zero_merge3)
 {
     scheduler t{};
     migraphx::program p;
-    auto one   = p.add_literal(1);
-    auto onep1 = p.add_instruction(unary_op{}, one);
-    auto onep2 = p.add_instruction(unary_op{}, one);
-    auto id    = p.add_instruction(migraphx::op::identity{}, onep1, onep2);
-    auto final = p.add_instruction(unary_op{}, id);
+
+    auto* mm = p.get_main_module();
+    auto one   = mm->add_literal(1);
+    auto onep1 = mm->add_instruction(unary_op{}, one);
+    auto onep2 = mm->add_instruction(unary_op{}, one);
+    auto id    = mm->add_instruction(migraphx::op::identity{}, onep1, onep2);
+    auto final = mm->add_instruction(unary_op{}, id);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -365,13 +380,15 @@ TEST_CASE(zero_merge4)
 {
     scheduler t{};
     migraphx::program p;
-    auto one   = p.add_literal(1);
-    auto onep1 = p.add_instruction(unary_op{}, one);
-    auto onep2 = p.add_instruction(unary_op{}, one);
-    auto id    = p.add_instruction(migraphx::op::identity{},
-                                p.add_instruction(migraphx::op::identity{}, onep1),
-                                p.add_instruction(migraphx::op::identity{}, onep2));
-    auto final = p.add_instruction(unary_op{}, id);
+
+    auto* mm = p.get_main_module();
+    auto one   = mm->add_literal(1);
+    auto onep1 = mm->add_instruction(unary_op{}, one);
+    auto onep2 = mm->add_instruction(unary_op{}, one);
+    auto id    = mm->add_instruction(migraphx::op::identity{},
+                                mm->add_instruction(migraphx::op::identity{}, onep1),
+                                mm->add_instruction(migraphx::op::identity{}, onep2));
+    auto final = mm->add_instruction(unary_op{}, id);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -390,11 +407,13 @@ TEST_CASE(double_entry)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_instruction(stream_free_op{}, p.add_literal(1));
-    auto two    = p.add_instruction(stream_free_op{}, p.add_literal(2));
-    auto onep   = p.add_instruction(unary_op{}, one);
-    auto twop   = p.add_instruction(unary_op{}, two);
-    auto binary = p.add_instruction(nary_op{}, onep, twop);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_instruction(stream_free_op{}, mm->add_literal(1));
+    auto two    = mm->add_instruction(stream_free_op{}, mm->add_literal(2));
+    auto onep   = mm->add_instruction(unary_op{}, one);
+    auto twop   = mm->add_instruction(unary_op{}, two);
+    auto binary = mm->add_instruction(nary_op{}, onep, twop);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(two));
@@ -409,10 +428,12 @@ TEST_CASE(two_branches)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, i1, c1.back());
+    auto i1     = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, i1, c1.back());
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 1);
@@ -428,12 +449,14 @@ TEST_CASE(four_branches)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto c1     = chain(p, 4, unary_op{}, one);
     auto c2     = chain(p, 3, unary_op{}, one);
     auto c3     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back());
+    auto i1     = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back());
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
@@ -456,13 +479,15 @@ TEST_CASE(five_branches)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto c1     = chain(p, 5, unary_op{}, one);
     auto c2     = chain(p, 4, unary_op{}, one);
     auto c3     = chain(p, 3, unary_op{}, one);
     auto c4     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back(), c4.back());
+    auto i1     = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back(), c4.back());
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
@@ -488,12 +513,14 @@ TEST_CASE(four_branches_eq)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto onep1  = p.add_instruction(unary_op{}, one);
-    auto onep2  = p.add_instruction(unary_op{}, one);
-    auto onep3  = p.add_instruction(unary_op{}, one);
-    auto onep4  = p.add_instruction(unary_op{}, one);
-    auto binary = p.add_instruction(nary_op{}, onep1, onep2, onep3, onep4);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto onep1  = mm->add_instruction(unary_op{}, one);
+    auto onep2  = mm->add_instruction(unary_op{}, one);
+    auto onep3  = mm->add_instruction(unary_op{}, one);
+    auto onep4  = mm->add_instruction(unary_op{}, one);
+    auto binary = mm->add_instruction(nary_op{}, onep1, onep2, onep3, onep4);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(
@@ -514,14 +541,16 @@ TEST_CASE(seq_merge)
 {
     scheduler t{};
     migraphx::program p;
-    auto one     = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one     = mm->add_literal(1);
     auto c1      = chain(p, 2, unary_op{}, one);
-    auto i1      = p.add_instruction(unary_op{}, one);
-    auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
+    auto i1      = mm->add_instruction(unary_op{}, one);
+    auto binary1 = mm->add_instruction(nary_op{}, i1, c1.back());
 
     auto c2      = chain(p, 2, unary_op{}, binary1);
-    auto i2      = p.add_instruction(unary_op{}, binary1);
-    auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
+    auto i2      = mm->add_instruction(unary_op{}, binary1);
+    auto binary2 = mm->add_instruction(nary_op{}, i2, c2.back());
 
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -547,18 +576,20 @@ TEST_CASE(par_merge)
 {
     scheduler t{};
     migraphx::program p;
-    auto one     = p.add_literal(1);
-    auto start1  = p.add_instruction(unary_op{}, one);
+
+    auto* mm = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
-    auto i1      = p.add_instruction(unary_op{}, start1);
-    auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
+    auto i1      = mm->add_instruction(unary_op{}, start1);
+    auto binary1 = mm->add_instruction(nary_op{}, i1, c1.back());
 
-    auto start2  = p.add_instruction(unary_op{}, one);
+    auto start2  = mm->add_instruction(unary_op{}, one);
     auto c2      = chain(p, 2, unary_op{}, start2);
-    auto i2      = p.add_instruction(unary_op{}, start2);
-    auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
+    auto i2      = mm->add_instruction(unary_op{}, start2);
+    auto binary2 = mm->add_instruction(nary_op{}, i2, c2.back());
 
-    auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);
+    auto binary3 = mm->add_instruction(nary_op{}, binary1, binary2);
 
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -588,21 +619,23 @@ TEST_CASE(inner_par_merge)
 {
     scheduler t{};
     migraphx::program p;
-    auto one     = p.add_literal(1);
-    auto start1  = p.add_instruction(unary_op{}, one);
+
+    auto* mm = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
-    auto i1      = p.add_instruction(unary_op{}, start1);
-    auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
+    auto i1      = mm->add_instruction(unary_op{}, start1);
+    auto binary1 = mm->add_instruction(nary_op{}, i1, c1.back());
 
-    auto start2  = p.add_instruction(unary_op{}, one);
+    auto start2  = mm->add_instruction(unary_op{}, one);
     auto c2      = chain(p, 2, unary_op{}, start2);
-    auto i2      = p.add_instruction(unary_op{}, start2);
-    auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
+    auto i2      = mm->add_instruction(unary_op{}, start2);
+    auto binary2 = mm->add_instruction(nary_op{}, i2, c2.back());
 
-    auto outer1 = p.add_instruction(unary_op{}, one);
-    auto outer2 = p.add_instruction(unary_op{}, one);
+    auto outer1 = mm->add_instruction(unary_op{}, one);
+    auto outer2 = mm->add_instruction(unary_op{}, one);
 
-    auto output = p.add_instruction(nary_op{}, binary1, binary2, outer1, outer2);
+    auto output = mm->add_instruction(nary_op{}, binary1, binary2, outer1, outer2);
 
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -641,19 +674,21 @@ TEST_CASE(par_merge_multi_entry)
 {
     scheduler t{};
     migraphx::program p;
-    auto one     = p.add_literal(1);
-    auto start1  = p.add_instruction(unary_op{}, one);
+
+    auto* mm = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
-    auto i1      = p.add_instruction(unary_op{}, start1);
-    auto binary1 = p.add_instruction(nary_op{}, i1, c1.back());
+    auto i1      = mm->add_instruction(unary_op{}, start1);
+    auto binary1 = mm->add_instruction(nary_op{}, i1, c1.back());
 
-    auto two     = p.add_literal(1);
-    auto start2  = p.add_instruction(unary_op{}, two);
+    auto two     = mm->add_literal(1);
+    auto start2  = mm->add_instruction(unary_op{}, two);
     auto c2      = chain(p, 2, unary_op{}, start2);
-    auto i2      = p.add_instruction(unary_op{}, start2);
-    auto binary2 = p.add_instruction(nary_op{}, i2, c2.back());
+    auto i2      = mm->add_instruction(unary_op{}, start2);
+    auto binary2 = mm->add_instruction(nary_op{}, i2, c2.back());
 
-    auto binary3 = p.add_instruction(nary_op{}, binary1, binary2);
+    auto binary3 = mm->add_instruction(nary_op{}, binary1, binary2);
 
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -684,12 +719,14 @@ TEST_CASE(inner_split1)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
-    auto s1     = p.add_instruction(unary_op{}, c1);
-    auto s2     = p.add_instruction(unary_op{}, c1);
-    auto output = p.add_instruction(nary_op{}, i1, s1, s2);
+    auto i1     = mm->add_instruction(unary_op{}, one);
+    auto s1     = mm->add_instruction(unary_op{}, c1);
+    auto s2     = mm->add_instruction(unary_op{}, c1);
+    auto output = mm->add_instruction(nary_op{}, i1, s1, s2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1));
@@ -711,12 +748,14 @@ TEST_CASE(inner_split2)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
-    auto i1     = p.add_instruction(unary_op{}, one);
+    auto i1     = mm->add_instruction(unary_op{}, one);
     auto s1     = chain(p, 3, unary_op{}, c1.back());
     auto s2     = chain(p, 4, unary_op{}, c1.back());
-    auto output = p.add_instruction(nary_op{}, i1, s1.back(), s2.back());
+    auto output = mm->add_instruction(nary_op{}, i1, s1.back(), s2.back());
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1.back()));
@@ -737,12 +776,14 @@ TEST_CASE(inception_resnet)
 {
     scheduler t{};
     migraphx::program p;
-    auto one    = p.add_literal(1);
-    auto input  = p.add_instruction(unary_op{}, one);
+
+    auto* mm = p.get_main_module();
+    auto one    = mm->add_literal(1);
+    auto input  = mm->add_instruction(unary_op{}, one);
     auto c1     = chain(p, 2, unary_op{}, input);
-    auto i1     = p.add_instruction(unary_op{}, input);
-    auto binary = p.add_instruction(nary_op{}, i1, c1.back());
-    auto output = p.add_instruction(nary_op{}, binary, input);
+    auto i1     = mm->add_instruction(unary_op{}, input);
+    auto binary = mm->add_instruction(nary_op{}, i1, c1.back());
+    auto output = mm->add_instruction(nary_op{}, binary, input);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != 0);
@@ -761,95 +802,97 @@ TEST_CASE(inception1)
     scheduler t{};
     migraphx::program p;
 
-    auto i1     = p.add_literal(0);
-    auto i2     = p.add_literal(1);
-    auto i3     = p.add_literal(1);
-    auto i4     = p.add_literal(2);
-    auto i7     = p.add_instruction(nary_op{"i7"}, i1, i4, i3, i2);
-    auto i8     = p.add_literal(2);
-    auto i9     = p.add_instruction(migraphx::op::identity{}, i8);
-    auto i10    = p.add_literal(1);
-    auto i11    = p.add_instruction(nary_op{"i11"}, i7, i9, i10);
-    auto i12    = p.add_literal(2);
-    auto i13    = p.add_instruction(migraphx::op::identity{}, i12);
-    auto i14    = p.add_literal(1);
-    auto i15    = p.add_literal(1);
-    auto i16    = p.add_literal(2);
-    auto i17    = p.add_instruction(nary_op{"i17"}, i11, i16, i15, i13, i14);
-    auto i18    = p.add_literal(2);
-    auto i19    = p.add_instruction(migraphx::op::identity{}, i18);
-    auto i20    = p.add_literal(1);
-    auto i21    = p.add_literal(1);
-    auto i22    = p.add_literal(2);
-    auto i23    = p.add_instruction(nary_op{"i23"}, i17, i22, i21, i19, i20);
-    auto i24    = p.add_literal(1);
-    auto i25    = p.add_instruction(nary_op{"i25"}, i23, i24);
-    auto i26    = p.add_literal(2);
-    auto i27    = p.add_instruction(migraphx::op::identity{}, i26);
-    auto i28    = p.add_literal(1);
-    auto i29    = p.add_literal(1);
-    auto i30    = p.add_literal(2);
-    auto i31    = p.add_instruction(nary_op{"i31"}, i25, i30, i29, i27, i28);
-    auto i32    = p.add_literal(2);
-    auto i33    = p.add_instruction(migraphx::op::identity{}, i32);
-    auto i34    = p.add_literal(1);
-    auto i35    = p.add_literal(1);
-    auto i36    = p.add_literal(2);
-    auto i37    = p.add_instruction(nary_op{"i37"}, i31, i36, i35, i33, i34);
-    auto i38    = p.add_literal(1);
-    auto i39    = p.add_instruction(nary_op{"i39"}, i37, i38);
-    auto i41    = p.add_literal(2);
-    auto i42    = p.add_instruction(migraphx::op::identity{}, i41);
-    auto i43    = p.add_literal(1);
-    auto i44    = p.add_literal(1);
-    auto i45    = p.add_literal(2);
-    auto i48    = p.add_instruction(nary_op{"i48"}, i39, i45, i44, i42, i43);
-    auto i49    = p.add_literal(2);
-    auto i50    = p.add_instruction(migraphx::op::identity{}, i49);
-    auto i51    = p.add_literal(1);
-    auto i52    = p.add_literal(1);
-    auto i53    = p.add_literal(2);
-    auto i54    = p.add_instruction(nary_op{"i54"}, i48, i53, i52, i50, i51);
-    auto i55    = p.add_literal(1);
-    auto i56    = p.add_instruction(migraphx::op::identity{}, i55);
-    auto i57    = p.add_literal(2);
-    auto i58    = p.add_instruction(migraphx::op::identity{}, i57);
-    auto i59    = p.add_literal(1);
-    auto i60    = p.add_literal(2);
-    auto i61    = p.add_instruction(nary_op{"i61"}, i54, i60, i59, i58, i56);
-    auto i62    = p.add_literal(2);
-    auto i63    = p.add_instruction(migraphx::op::identity{}, i62);
-    auto i64    = p.add_literal(1);
-    auto i65    = p.add_literal(1);
-    auto i66    = p.add_literal(2);
-    auto i69    = p.add_instruction(nary_op{"i69"}, i39, i66, i65, i63, i64);
-    auto i70    = p.add_instruction(migraphx::op::identity{}, i55);
-    auto i71    = p.add_literal(2);
-    auto i72    = p.add_instruction(migraphx::op::identity{}, i71);
-    auto i73    = p.add_literal(1);
-    auto i74    = p.add_literal(2);
-    auto i75    = p.add_instruction(nary_op{"i75"}, i69, i74, i73, i72, i70);
-    auto i77    = p.add_literal(1);
-    auto i80    = p.add_instruction(nary_op{"i80"}, i39, i77);
-    auto i81    = p.add_instruction(migraphx::op::identity{}, i55);
-    auto i82    = p.add_literal(2);
-    auto i83    = p.add_instruction(migraphx::op::identity{}, i82);
-    auto i84    = p.add_literal(1);
-    auto i85    = p.add_literal(2);
-    auto i86    = p.add_instruction(nary_op{"i86"}, i80, i85, i84, i83, i81);
-    auto i88    = p.add_instruction(migraphx::op::identity{}, i55);
-    auto i89    = p.add_literal(2);
-    auto i90    = p.add_instruction(migraphx::op::identity{}, i89);
-    auto i91    = p.add_literal(1);
-    auto i92    = p.add_literal(2);
-    auto i94    = p.add_instruction(nary_op{"i94"}, i39, i92, i91, i90, i88);
-    auto i96    = p.add_instruction(migraphx::op::identity{}, i55, i94, i75, i61, i86);
-    auto i97    = p.add_literal(2);
-    auto i98    = p.add_instruction(migraphx::op::identity{}, i97);
-    auto i99    = p.add_literal(3);
-    auto i100   = p.add_literal(1);
-    auto i101   = p.add_literal(2);
-    auto output = p.add_instruction(nary_op{"output"}, i96, i101, i100, i98, i99);
+    auto* mm = p.get_main_module();
+
+    auto i1     = mm->add_literal(0);
+    auto i2     = mm->add_literal(1);
+    auto i3     = mm->add_literal(1);
+    auto i4     = mm->add_literal(2);
+    auto i7     = mm->add_instruction(nary_op{"i7"}, i1, i4, i3, i2);
+    auto i8     = mm->add_literal(2);
+    auto i9     = mm->add_instruction(migraphx::op::identity{}, i8);
+    auto i10    = mm->add_literal(1);
+    auto i11    = mm->add_instruction(nary_op{"i11"}, i7, i9, i10);
+    auto i12    = mm->add_literal(2);
+    auto i13    = mm->add_instruction(migraphx::op::identity{}, i12);
+    auto i14    = mm->add_literal(1);
+    auto i15    = mm->add_literal(1);
+    auto i16    = mm->add_literal(2);
+    auto i17    = mm->add_instruction(nary_op{"i17"}, i11, i16, i15, i13, i14);
+    auto i18    = mm->add_literal(2);
+    auto i19    = mm->add_instruction(migraphx::op::identity{}, i18);
+    auto i20    = mm->add_literal(1);
+    auto i21    = mm->add_literal(1);
+    auto i22    = mm->add_literal(2);
+    auto i23    = mm->add_instruction(nary_op{"i23"}, i17, i22, i21, i19, i20);
+    auto i24    = mm->add_literal(1);
+    auto i25    = mm->add_instruction(nary_op{"i25"}, i23, i24);
+    auto i26    = mm->add_literal(2);
+    auto i27    = mm->add_instruction(migraphx::op::identity{}, i26);
+    auto i28    = mm->add_literal(1);
+    auto i29    = mm->add_literal(1);
+    auto i30    = mm->add_literal(2);
+    auto i31    = mm->add_instruction(nary_op{"i31"}, i25, i30, i29, i27, i28);
+    auto i32    = mm->add_literal(2);
+    auto i33    = mm->add_instruction(migraphx::op::identity{}, i32);
+    auto i34    = mm->add_literal(1);
+    auto i35    = mm->add_literal(1);
+    auto i36    = mm->add_literal(2);
+    auto i37    = mm->add_instruction(nary_op{"i37"}, i31, i36, i35, i33, i34);
+    auto i38    = mm->add_literal(1);
+    auto i39    = mm->add_instruction(nary_op{"i39"}, i37, i38);
+    auto i41    = mm->add_literal(2);
+    auto i42    = mm->add_instruction(migraphx::op::identity{}, i41);
+    auto i43    = mm->add_literal(1);
+    auto i44    = mm->add_literal(1);
+    auto i45    = mm->add_literal(2);
+    auto i48    = mm->add_instruction(nary_op{"i48"}, i39, i45, i44, i42, i43);
+    auto i49    = mm->add_literal(2);
+    auto i50    = mm->add_instruction(migraphx::op::identity{}, i49);
+    auto i51    = mm->add_literal(1);
+    auto i52    = mm->add_literal(1);
+    auto i53    = mm->add_literal(2);
+    auto i54    = mm->add_instruction(nary_op{"i54"}, i48, i53, i52, i50, i51);
+    auto i55    = mm->add_literal(1);
+    auto i56    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i57    = mm->add_literal(2);
+    auto i58    = mm->add_instruction(migraphx::op::identity{}, i57);
+    auto i59    = mm->add_literal(1);
+    auto i60    = mm->add_literal(2);
+    auto i61    = mm->add_instruction(nary_op{"i61"}, i54, i60, i59, i58, i56);
+    auto i62    = mm->add_literal(2);
+    auto i63    = mm->add_instruction(migraphx::op::identity{}, i62);
+    auto i64    = mm->add_literal(1);
+    auto i65    = mm->add_literal(1);
+    auto i66    = mm->add_literal(2);
+    auto i69    = mm->add_instruction(nary_op{"i69"}, i39, i66, i65, i63, i64);
+    auto i70    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i71    = mm->add_literal(2);
+    auto i72    = mm->add_instruction(migraphx::op::identity{}, i71);
+    auto i73    = mm->add_literal(1);
+    auto i74    = mm->add_literal(2);
+    auto i75    = mm->add_instruction(nary_op{"i75"}, i69, i74, i73, i72, i70);
+    auto i77    = mm->add_literal(1);
+    auto i80    = mm->add_instruction(nary_op{"i80"}, i39, i77);
+    auto i81    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i82    = mm->add_literal(2);
+    auto i83    = mm->add_instruction(migraphx::op::identity{}, i82);
+    auto i84    = mm->add_literal(1);
+    auto i85    = mm->add_literal(2);
+    auto i86    = mm->add_instruction(nary_op{"i86"}, i80, i85, i84, i83, i81);
+    auto i88    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i89    = mm->add_literal(2);
+    auto i90    = mm->add_instruction(migraphx::op::identity{}, i89);
+    auto i91    = mm->add_literal(1);
+    auto i92    = mm->add_literal(2);
+    auto i94    = mm->add_instruction(nary_op{"i94"}, i39, i92, i91, i90, i88);
+    auto i96    = mm->add_instruction(migraphx::op::identity{}, i55, i94, i75, i61, i86);
+    auto i97    = mm->add_literal(2);
+    auto i98    = mm->add_instruction(migraphx::op::identity{}, i97);
+    auto i99    = mm->add_literal(3);
+    auto i100   = mm->add_literal(1);
+    auto i101   = mm->add_literal(2);
+    auto output = mm->add_instruction(nary_op{"output"}, i96, i101, i100, i98, i99);
 
     t.run_pass(p);
 

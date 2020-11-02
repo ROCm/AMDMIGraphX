@@ -39,14 +39,16 @@ struct allocate
 TEST_CASE(basic)
 {
     migraphx::program p;
-    auto a1 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
 
-    auto a2 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto* mm = p.get_main_module();
+    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
+    auto p1 = mm->add_instruction(pass_op{}, a1);
 
-    auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    p.add_instruction(pass_op{}, a3, p2);
+    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
+    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+
+    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    mm->add_instruction(pass_op{}, a3, p2);
 
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
@@ -56,14 +58,16 @@ TEST_CASE(basic)
 TEST_CASE(aligned)
 {
     migraphx::program p;
-    auto a1 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
 
-    auto a2 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto* mm = p.get_main_module();
+    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1 = mm->add_instruction(pass_op{}, a1);
 
-    auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    p.add_instruction(pass_op{}, a3, p2);
+    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+
+    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    mm->add_instruction(pass_op{}, a3, p2);
 
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
@@ -73,14 +77,16 @@ TEST_CASE(aligned)
 TEST_CASE(unaligned)
 {
     migraphx::program p;
-    auto a1 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
 
-    auto a2 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto* mm = p.get_main_module();
+    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1 = mm->add_instruction(pass_op{}, a1);
 
-    auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    p.add_instruction(pass_op{}, a3, p2);
+    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+
+    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    mm->add_instruction(pass_op{}, a3, p2);
 
     run_pass(p, 1);
     EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
@@ -90,14 +96,16 @@ TEST_CASE(unaligned)
 TEST_CASE(float_aligned)
 {
     migraphx::program p;
-    auto a1 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1 = p.add_instruction(pass_op{}, a1);
 
-    auto a2 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = p.add_instruction(pass_op{}, a2, p1);
+    auto* mm = p.get_main_module();
+    auto a1 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto p1 = mm->add_instruction(pass_op{}, a1);
 
-    auto a3 = p.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    p.add_instruction(pass_op{}, a3, p2);
+    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+
+    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    mm->add_instruction(pass_op{}, a3, p2);
 
     run_pass(p, 4);
     EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});

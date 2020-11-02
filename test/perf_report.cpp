@@ -7,11 +7,12 @@
 TEST_CASE(perf_report)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::stringstream ss;
-    auto one = p.add_literal(1);
-    auto two = p.add_literal(2);
-    p.add_instruction(migraphx::op::add{}, one, two);
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::op::add{}, one, two);
     p.compile(migraphx::cpu::target{});
     p.perf_report(ss, 2, {});
 

@@ -82,9 +82,9 @@ static void print_module(const module& m, F print_func)
         }
         names.emplace(ins, var_name);
 
-        auto& inputs = ins->inputs();
-        assert(std::all_of(inputs().begin(),
-                           inputs.end(),
+        const auto& ins_inputs = ins->inputs();
+        assert(std::all_of(ins_inputs.begin(),
+                           ins_inputs.end(),
                            [&](auto arg) { return m.has_instruction(arg); }) &&
                "PRINT_MODULE: Instruction not found");
 
@@ -920,9 +920,9 @@ module& module::sort()
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
-std::ostream& operator<<(std::ostream& os, const module& p)
+std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    print_module(p, [&](auto ins, const auto& names) {
+    print_module(m, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         os << std::endl;
     });

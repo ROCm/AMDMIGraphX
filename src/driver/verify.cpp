@@ -72,7 +72,7 @@ void verify_program(const std::string& name,
 
 void verify_instructions(const program& prog, compile_options options, double tolerance)
 {
-    auto* mm_prog = prog.get_main_module();
+    const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))
     {
         if(ins.name().front() == '@')

@@ -44,28 +44,28 @@ struct tf_parser
         return is_nhwc and ins->get_shape().lens().size() == 4;
     }
 
-    instruction_ref to_nhwc(instruction_ref ins)
+    instruction_ref to_nhwc(instruction_ref ins) const
     {
         if(should_transpose(ins))
             return mm->add_instruction(op::transpose{{0, 2, 3, 1}}, ins);
         return ins;
     }
 
-    instruction_ref to_nchw(instruction_ref ins)
+    instruction_ref to_nchw(instruction_ref ins) const
     {
         if(should_transpose(ins))
             return mm->add_instruction(op::transpose{{0, 3, 1, 2}}, ins);
         return ins;
     }
 
-    instruction_ref to_kcxy(instruction_ref ins)
+    instruction_ref to_kcxy(instruction_ref ins) const
     {
         if(should_transpose(ins))
             return mm->add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
         return ins;
     }
 
-    instruction_ref make_contiguous(instruction_ref ins)
+    instruction_ref make_contiguous(instruction_ref ins) const
     {
         if(ins->get_shape().standard())
             return ins;
@@ -340,7 +340,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_batchnorm(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
@@ -354,7 +354,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_biasadd(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
         auto l0 = mm->add_instruction(op::broadcast{axis, args[0]->get_shape().lens()}, args[1]);
@@ -362,14 +362,14 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_cast(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         shape::type_t type = parse_type(attributes.at("DstT").type());
         return mm->add_instruction(op::convert{type}, std::move(args));
     }
 
     instruction_ref
-    parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_concat(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         // get index for axis within args
         size_t axis_idx = attributes.at("N").i();
@@ -382,14 +382,14 @@ struct tf_parser
 
     instruction_ref parse_constant(const std::string&,
                                    attribute_map attributes,
-                                   const std::vector<instruction_ref>&)
+                                   const std::vector<instruction_ref>&) const
     {
         literal v = parse_tensor(attributes.at("value").tensor());
         return mm->add_literal(v);
     }
 
     instruction_ref
-    parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_conv(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         op::convolution op;
         if(contains(attributes, "strides"))
@@ -470,7 +470,7 @@ struct tf_parser
 
     instruction_ref parse_depthwiseconv(const std::string&,
                                         attribute_map attributes,
-                                        std::vector<instruction_ref> args)
+                                        std::vector<instruction_ref> args) const
     {
         op::convolution op;
         size_t num_channels = args[0]->get_shape().lens()[1];
@@ -555,7 +555,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_expanddims(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_expanddims(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         std::vector<size_t> input_dims = args[0]->get_shape().lens();
         std::vector<int64_t> new_dims(input_dims.begin(), input_dims.end());
@@ -574,7 +574,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_gather(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_gather(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         int axis = args[2]->eval().at<int32_t>();
         op::gather op{axis};
@@ -582,7 +582,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_matmul(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         bool transa = false;
         bool transb = false;
@@ -617,7 +617,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_mean(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         bool keep_dims = attributes.at("keep_dims").b();
         auto axes      = args[1]->eval().get<int32_t>().to_vector<int64_t>();
@@ -634,7 +634,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args)
+    parse_onehot(const std::string&, attribute_map attributes, std::vector<instruction_ref> args) const
     {
         size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
 
@@ -661,7 +661,7 @@ struct tf_parser
 
     instruction_ref parse_pack(const std::string&,
                                const attribute_map& attributes,
-                               std::vector<instruction_ref> args)
+                               std::vector<instruction_ref> args) const
     {
         // reinterpret as unsqueeze with concat
         std::vector<instruction_ref> unsqueezed_args;
@@ -684,7 +684,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_pad(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_pad(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         size_t ndims = args.front()->get_shape().lens().size();
 
@@ -712,7 +712,7 @@ struct tf_parser
 
     instruction_ref parse_pooling(const std::string& name,
                                   attribute_map attributes,
-                                  std::vector<instruction_ref> args)
+                                  std::vector<instruction_ref> args) const
     {
         op::pooling op{starts_with(name, "Max") ? "max" : "average"};
 
@@ -769,7 +769,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_relu6(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         auto input_lens = args[0]->get_shape().lens();
         auto min_val    = mm->add_literal(0.0f);
@@ -781,7 +781,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_reshape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_reshape(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         op::reshape op;
         if(args.size() != 2)
@@ -794,7 +794,7 @@ struct tf_parser
     // Use a literal instruction to replace the shape since output of
     // shape operator are literals in migraphx
     instruction_ref
-    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_shape(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();
         std::vector<int32_t> vec_shape(arg_shape.size());
@@ -805,7 +805,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_slice(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         op::slice op;
         auto starts     = args[1]->eval().get<int32_t>().to_vector();
@@ -849,7 +849,7 @@ struct tf_parser
 
     std::vector<instruction_ref> parse_split(const std::string&,
                                              const attribute_map& attributes,
-                                             std::vector<instruction_ref> args)
+                                             std::vector<instruction_ref> args) const
     {
         bool vector_as_input = args.size() == 3;
         int num_outputs      = 1;
@@ -927,7 +927,7 @@ struct tf_parser
 
     instruction_ref parse_squeeze(const std::string&,
                                   const attribute_map& attributes,
-                                  std::vector<instruction_ref> args)
+                                  std::vector<instruction_ref> args) const
     {
         op::squeeze op;
         auto input_dims = args[0]->get_shape().lens();
@@ -1007,7 +1007,7 @@ struct tf_parser
     }
 
     instruction_ref
-    parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args)
+    parse_transpose(const std::string&, const attribute_map&, std::vector<instruction_ref> args) const
     {
         auto perm = args[1]->eval().get<int32_t>().to_vector();
         op::transpose op;

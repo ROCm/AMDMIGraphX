@@ -71,7 +71,7 @@ void program::assign(const program& p) { main_module = p.main_module; }
 
 shape program::get_parameter_shape(std::string name) const
 {
-    return main_module.get_parameter_shape(name);
+    return main_module.get_parameter_shape(std::move(name));
 }
 
 std::vector<std::string> program::get_parameter_names() const
@@ -81,7 +81,7 @@ std::vector<std::string> program::get_parameter_names() const
 
 instruction_ref program::get_parameter(std::string name) const
 {
-    return main_module.get_parameter(name);
+    return main_module.get_parameter(std::move(name));
 }
 
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
@@ -120,7 +120,7 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(*mm, ctx, params, trace);
 }
 
-std::vector<argument> program::eval(parameter_map params) const { return main_module.eval(params); }
+std::vector<argument> program::eval(parameter_map params) const { return main_module.eval(std::move(params)); }
 
 const int program_file_version = 1;
 
@@ -144,7 +144,7 @@ void program::from_value(const value& v)
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
-    main_module.perf_report(os, n, params);
+    main_module.perf_report(os, n, std::move(params));
 }
 
 void program::debug_print() const { main_module.debug_print(); }
@@ -182,12 +182,12 @@ void program::print_cpp(std::ostream& os) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    main_module.dry_run(params);
+    main_module.dry_run(std::move(params));
 }
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    main_module.annotate(os, a);
+    main_module.annotate(os, std::move(a));
 }
 
 program& program::sort()

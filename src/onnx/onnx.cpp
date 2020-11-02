@@ -315,7 +315,7 @@ struct onnx_parser
         return out_lens;
     }
 
-    instruction_ref make_contiguous(instruction_ref ins)
+    instruction_ref make_contiguous(instruction_ref ins) const
     {
         if(ins->get_shape().standard())
         {
@@ -389,7 +389,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis)
+    add_bias(const std::vector<instruction_ref>& args, instruction_ref curr_ins, uint64_t axis) const
     {
         if(args.size() == 3)
         {
@@ -419,7 +419,7 @@ struct onnx_parser
                             const std::vector<int64_t>& padding,
                             value& v,
                             int count_include_pad = 0,
-                            float pad_val         = 0)
+                            float pad_val         = 0) const
     {
         size_t pad_ndims  = padding.size() / 2;
         auto left_pad_it  = padding.begin();
@@ -441,7 +441,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_clip(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto input_lens = args[0]->get_shape().lens();
         instruction_ref min_arg;
@@ -503,7 +503,7 @@ struct onnx_parser
     instruction_ref parse_arg_op(const std::string&,
                                  const std::string& op_name,
                                  node_info info,
-                                 std::vector<instruction_ref> args)
+                                 std::vector<instruction_ref> args) const
     {
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))
@@ -1374,7 +1374,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_constant(const std::string&, node_info info, const std::vector<instruction_ref>&)
+    parse_constant(const std::string&, node_info info, const std::vector<instruction_ref>&) const
     {
         literal v = parse_value(info.attributes.at("value"));
         // return empty literal
@@ -1395,7 +1395,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_gemm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_gemm(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 1.0f;
         float beta  = 1.0f;
@@ -1511,7 +1511,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_batchnorm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_batchnorm(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
@@ -1535,7 +1535,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_instancenorm(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_instancenorm(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         // y = scale * ( x - mean ) / sqrt ( variance + epsilon ) + bias
         // mean = reduce_mean({D1, D2, ... Dk}, x)
@@ -1576,7 +1576,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_leaky_relu(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_leaky_relu(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 0.01; // default alpha val for leaky relu
         if(contains(info.attributes, "alpha"))
@@ -1587,7 +1587,7 @@ struct onnx_parser
         return mm->add_instruction(op, args.front());
     }
 
-    instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_elu(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 1.0; // default alpha val for elu
         if(contains(info.attributes, "alpha"))
@@ -1598,7 +1598,7 @@ struct onnx_parser
         return mm->add_instruction(op, args.front());
     }
 
-    instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args)
+    instruction_ref parse_lrn(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float alpha = 0.0001;
         float beta  = 0.75;
@@ -1617,7 +1617,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_imagescaler(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_imagescaler(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         float scale = 1.0;
         std::vector<float> bias{};
@@ -1645,7 +1645,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_transpose(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_transpose(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         std::vector<int64_t> perm{};
         if(contains(info.attributes, "perm"))
@@ -1718,7 +1718,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_selu(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    parse_selu(const std::string&, const node_info& info, std::vector<instruction_ref> args) const
     {
         auto type   = args[0]->get_shape().type();
         auto lens   = args[0]->get_shape().lens();
@@ -1762,7 +1762,7 @@ struct onnx_parser
     // Use a literal instruction to replace the shape since, output of
     // shape operator are literals in migraphx
     instruction_ref
-    parse_shape(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    parse_shape(const std::string&, const node_info&, std::vector<instruction_ref> args) const
     {
         if(args.size() != 1)
             MIGRAPHX_THROW("Shape: operator should have 1 operand");
@@ -2316,7 +2316,7 @@ struct onnx_parser
     instruction_ref parse_reduce_oper(const std::string&,
                                       const std::string& op_name,
                                       node_info info,
-                                      std::vector<instruction_ref> args)
+                                      std::vector<instruction_ref> args) const
     {
         std::size_t n_dim = args.front()->get_shape().lens().size();
 
@@ -2348,14 +2348,14 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_l1(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto abs_ins = mm->add_instruction(make_op("abs"), args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {abs_ins});
     }
 
     instruction_ref
-    parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_l2(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto square_ins = mm->add_instruction(make_op("mul"), args[0], args[0]);
         auto sum_ins    = parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
@@ -2363,14 +2363,14 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_log_sum(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), std::move(args));
         return mm->add_instruction(make_op("log"), sum_ins);
     }
 
     instruction_ref
-    parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_log_sum_exp(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto exp_ins = mm->add_instruction(make_op("exp"), args[0]);
         auto sum_ins = parse_reduce_oper({}, "reduce_sum", std::move(info), {exp_ins});
@@ -2378,14 +2378,14 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_reduce_sum_square(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         auto square_ins = mm->add_instruction(make_op("mul"), args[0], args[0]);
         return parse_reduce_oper({}, "reduce_sum", std::move(info), {square_ins});
     }
 
     instruction_ref
-    parse_cast(const std::string&, node_info info, std::vector<instruction_ref> args)
+    parse_cast(const std::string&, node_info info, std::vector<instruction_ref> args) const
     {
         if(!contains(info.attributes, "to"))
         {
@@ -2564,7 +2564,7 @@ struct onnx_parser
         max  = 2
     };
 
-    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args)
+    instruction_ref parse_embedding_bag(const node_info& info, std::vector<instruction_ref> args) const
     {
         if(args[2]->get_shape().elements() != 1)
             MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
@@ -2591,7 +2591,7 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_aten(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    parse_aten(const std::string&, const node_info& info, std::vector<instruction_ref> args) const
     {
         if(contains(info.attributes, "operator"))
         {
@@ -2605,7 +2605,7 @@ struct onnx_parser
     }
 
     std::vector<instruction_ref>
-    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    parse_dropout(const std::string&, const node_info&, std::vector<instruction_ref> args) const
     {
         auto out = mm->add_instruction(make_op("identity"), args[0]);
         auto s   = args[0]->get_shape();

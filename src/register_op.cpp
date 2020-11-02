@@ -10,11 +10,11 @@ std::unordered_map<std::string, operation>& op_map()
     return m;
 }
 void register_op(const operation& op) { op_map()[op.name()] = op; }
-operation load_op(const std::string& name) 
+operation load_op(const std::string& name)
 {
     auto it = op_map().find(name);
-    if (it == op_map().end())
-        MIGRAPHX_THROW("Operator not found: " + name); 
+    if(it == op_map().end())
+        MIGRAPHX_THROW("Operator not found: " + name);
     return it->second;
 }
 

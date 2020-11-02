@@ -2734,7 +2734,7 @@ void manual_identity()
     auto l0 = mm->add_literal(migraphx::literal{s0, data0});
     mm->add_instruction(migraphx::op::identity{}, l0);
     p.compile(migraphx::gpu::target{});
-    migraphx::program::parameter_map m;
+    migraphx::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));
@@ -2764,7 +2764,7 @@ void manual_test_concat_relu()
     mm->add_instruction(migraphx::op::relu{}, c0);
 
     p.compile(migraphx::gpu::target{});
-    migraphx::program::parameter_map m;
+    migraphx::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] = migraphx::gpu::to_gpu(migraphx::generate_argument(x.second));

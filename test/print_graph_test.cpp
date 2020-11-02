@@ -22,9 +22,8 @@ migraphx::program create_program()
 
 TEST_CASE(basic_graph_test)
 {
-    migraphx::program p;
+    migraphx::program p = create_program();
 
-    auto* mm = p.get_main_module();
     std::stringstream ss;
     p.print_graph(ss);
     std::string test = ss.str();

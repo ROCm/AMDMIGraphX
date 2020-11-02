@@ -133,7 +133,7 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
 
 inline void check_gpu_streams(const migraphx::program& p)
 {
-    auto races = migraphx::gpu::analyze_streams(p);
+    auto races = migraphx::gpu::analyze_streams(*p.get_main_module());
     for(auto&& race : races)
     {
         std::cout << "FAILED: " << std::endl;
@@ -151,7 +151,7 @@ std::vector<migraphx::argument> run_cpu(migraphx::program& p)
     p = v.create_program();
     auto_print pp{p, 0};
     compile_check(p, migraphx::cpu::target{});
-    migraphx::program::parameter_map m;
+    migraphx::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
@@ -167,7 +167,7 @@ std::vector<migraphx::argument> run_gpu(migraphx::program& p)
     auto_print pp{p, 1};
     compile_check(p, migraphx::gpu::target{}, migraphx::enabled(MIGRAPHX_TRACE_GPU_COMPILE{}));
     check_gpu_streams(p);
-    migraphx::program::parameter_map m;
+    migraphx::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
         m[x.first] =

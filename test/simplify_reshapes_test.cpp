@@ -392,8 +392,7 @@ TEST_CASE(concat_transpose4)
     auto t      = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, concat);
     mm->add_return({t});
 
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
+    migraphx::program p1 = p;
     run_pass(p);
     
     EXPECT(p1 == p);

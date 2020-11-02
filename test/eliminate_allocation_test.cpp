@@ -9,7 +9,7 @@
 void run_pass(migraphx::program& p, std::size_t align = 32)
 {
     migraphx::run_passes(
-        p, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+        *p.get_main_module(), {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
 }
 
 struct allocate

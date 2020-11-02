@@ -8,15 +8,13 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple_test)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
@@ -31,9 +29,7 @@ TEST_CASE(simple_test)
 TEST_CASE(simple_test_nop)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(nop{});
@@ -49,9 +45,7 @@ TEST_CASE(simple_test_nop)
 TEST_CASE(simple_test_nop2)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(nop{});
@@ -67,9 +61,7 @@ TEST_CASE(simple_test_nop2)
 TEST_CASE(duplicate_test1)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
@@ -85,9 +77,7 @@ TEST_CASE(duplicate_test1)
 TEST_CASE(duplicate_test2)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
@@ -104,9 +94,7 @@ TEST_CASE(duplicate_test2)
 TEST_CASE(depth_test)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     auto x1  = mm->add_instruction(sum_op{}, one, two);
@@ -125,9 +113,7 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto undef = mm->add_instruction(migraphx::op::undefined{});
@@ -144,9 +130,7 @@ TEST_CASE(undefined_test)
 TEST_CASE(duplicate_args1)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto l0 = mm->add_literal(0);
     auto l3 = mm->add_literal(3);
     mm->add_instruction(migraphx::op::add{}, l3, l3);
@@ -162,9 +146,7 @@ TEST_CASE(duplicate_args1)
 TEST_CASE(duplicate_args2)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
     auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);
@@ -181,9 +163,7 @@ TEST_CASE(duplicate_args2)
 TEST_CASE(duplicate_args3)
 {
     migraphx::program p;
-
     auto* mm = p.get_main_module();
-
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
     auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);

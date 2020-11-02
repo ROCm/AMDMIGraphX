@@ -21,9 +21,7 @@ void eliminate_pad::apply(program& p) const
         auto input = ins->inputs().front();
         if(input->name() != "pad")
             continue;
-        if(op_name == "convolution")
-            update_op(input, ins, p);
-        else if(op_name == "im2col")
+        if(op_name == "convolution" or op_name == "im2col")
             update_op(input, ins, p);
         else if(op_name == "pooling")
             update_pooling(input, ins, p);

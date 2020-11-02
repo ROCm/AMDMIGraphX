@@ -55,11 +55,15 @@ def onnx_options_type_wrap(p):
         p.read = '${name} == nullptr ? migraphx::onnx_options{} : migraphx::to_onnx_options(*${name})'
 
 
-def auto_handle(f):
-    return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__)(f)
+def auto_handle(*args, **kwargs):
+    def with_handle(f):
+        return api.handle('migraphx_' + f.__name__, 'migraphx::' + f.__name__,
+                          *args, **kwargs)(f)
+
+    return with_handle
 
 
-@auto_handle
+@auto_handle()
 def shape(h):
     h.constructor(
         'create',
@@ -85,7 +89,7 @@ def shape(h):
              const=True)
 
 
-@auto_handle
+@auto_handle()
 def argument(h):
     h.constructor('create',
                   api.params(shape='const migraphx::shape&', buffer='void*'))
@@ -112,7 +116,7 @@ api.add_function('migraphx_argument_generate',
                  returns='migraphx::argument')
 
 
-@auto_handle
+@auto_handle()
 def target(h):
     h.constructor('create',
                   api.params(name='const char*'),
@@ -163,17 +167,12 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
-@auto_handle
+@auto_handle(ref=True)
 def module(h):
-    h.constructor('create')
-    h.method(
-        'compile',
-        api.params(target='migraphx::target',
-                   options='migraphx::compile_options'))
     h.method('print', invoke='migraphx::print_module($@)', const=True)
 
 
-@auto_handle
+@auto_handle()
 def program(h):
     h.method('get_main_module', returns='migraphx::module*')
     h.method(
@@ -199,7 +198,7 @@ def program(h):
              const=True)
 
 
-@auto_handle
+@auto_handle()
 def operation(h):
     h.constructor('create',
                   api.params(name='const char*', attributes='const char*'),
@@ -220,7 +219,7 @@ api.add_function('migraphx_save',
                  fname='migraphx::save')
 
 
-@auto_handle
+@auto_handle()
 def onnx_options(h):
     h.constructor('create')
     h.method(
@@ -265,7 +264,7 @@ api.add_function('migraphx_quantize_fp16',
                  fname='migraphx::quantize_fp16')
 
 
-@auto_handle
+@auto_handle()
 def quantize_int8_options(h):
     h.constructor('create')
     h.method(

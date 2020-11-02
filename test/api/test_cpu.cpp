@@ -157,11 +157,8 @@ TEST_CASE(strided_shape)
 
 TEST_CASE(get_main_module)
 {
-    auto p = migraphx::parse_onnx("constant_fill_test.onnx");
-    migraphx::module mm;
-    mm                               = p.get_main_module();
-    migraphx_compile_options options = {false, false};
-    mm.compile(migraphx::target("cpu"), options);
+    auto p              = migraphx::parse_onnx("constant_fill_test.onnx");
+    migraphx::module mm = p.get_main_module();
     mm.print();
     p.print();
 }

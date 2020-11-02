@@ -625,33 +625,6 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
     });
 }
 
-extern "C" migraphx_status migraphx_module_destroy(migraphx_module_t module)
-{
-    return migraphx::try_([&] { destroy((module)); });
-}
-
-extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module)
-{
-    return migraphx::try_(
-        [&] { *module = object_cast<migraphx_module_t>(allocate<migraphx::module>()); });
-}
-
-extern "C" migraphx_status migraphx_module_compile(migraphx_module_t module,
-                                                   migraphx_target_t target,
-                                                   migraphx_compile_options* options)
-{
-    return migraphx::try_([&] {
-        if(module == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter module: Null pointer");
-        if(target == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
-        (module->object)
-            .compile((target->object),
-                     (options == nullptr ? migraphx::compile_options{}
-                                         : migraphx::to_compile_options(*options)));
-    });
-}
-
 extern "C" migraphx_status migraphx_module_print(const_migraphx_module_t module)
 {
     return migraphx::try_([&] {

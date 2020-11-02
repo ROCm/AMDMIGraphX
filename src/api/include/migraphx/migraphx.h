@@ -177,14 +177,6 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
 
-migraphx_status migraphx_module_destroy(migraphx_module_t module);
-
-migraphx_status migraphx_module_create(migraphx_module_t* module);
-
-migraphx_status migraphx_module_compile(migraphx_module_t module,
-                                        migraphx_target_t target,
-                                        migraphx_compile_options* options);
-
 migraphx_status migraphx_module_print(const_migraphx_module_t module);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);

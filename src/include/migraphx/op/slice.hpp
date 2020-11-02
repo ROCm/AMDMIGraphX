@@ -41,7 +41,7 @@ struct slice
                                     op_normalize_attributes::include_max,
                                     op_normalize_attributes::use_len,
                                     op_normalize_attributes::include_min};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "slice"; }

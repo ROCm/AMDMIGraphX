@@ -24,7 +24,7 @@ struct logsoftmax
     {
         value attr;
         attr["axis"] = value::array{op_normalize_attributes::include_min};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "logsoftmax"; }

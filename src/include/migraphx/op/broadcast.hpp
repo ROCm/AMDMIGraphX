@@ -39,9 +39,10 @@ struct broadcast
         auto t     = input.type();
 
         std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-        // the broacast op is deprecated now, so not handling the negative
-        // value of axis anymore
-        if(axis >= broadcast_lens.size())
+        // the broacast op is deprecated now, and no specification about the 
+        // range of the attribute value, i.e., whether the axis can be negative
+        // or not
+        if(axis >= broadcast_lens.size() or axis < 0)
         {
             MIGRAPHX_THROW("BROADCAST : axis is out of range");
         }

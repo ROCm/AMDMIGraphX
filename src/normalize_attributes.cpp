@@ -123,12 +123,12 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
-    if(!attrs.contains("normalize_axes"))
+    if(!attrs.contains("normalize"))
     {
         return false;
     }
 
-    auto attr_v = attrs.at("normalize_axes").without_key();
+    auto attr_v = attrs.at("normalize").without_key();
     for(const auto& rv : attr_v)
     {
         const auto& key = rv.get_key();

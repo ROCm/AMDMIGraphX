@@ -32,7 +32,7 @@ struct flatten
         value attr;
         attr["axis"] = value::array{op_normalize_attributes::include_min,
                                     op_normalize_attributes::include_max};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "flatten"; }

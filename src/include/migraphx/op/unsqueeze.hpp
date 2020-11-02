@@ -31,7 +31,7 @@ struct unsqueeze
         value attr;
         attr["axes"] =
             value::array{op_normalize_attributes::include_min, op_normalize_attributes::use_output};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "unsqueeze"; }

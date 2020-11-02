@@ -66,7 +66,7 @@ struct reduce_op : op_name<Derived>
     {
         value attr;
         attr["axes"] = value::array{op_normalize_attributes::include_min};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::vector<int64_t> tune_axes(std::size_t n_dim) const

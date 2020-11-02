@@ -9,7 +9,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -29,10 +29,10 @@ struct flatten
 
     value attributes() const
     {
-        value attr;
-        attr["axis"] = value::array{op_normalize_attributes::include_min,
-                                    op_normalize_attributes::include_max};
-        return {{"normalize", attr}};
+        value normalize;
+        normalize["axis"] = value::array{normalize_attribute::include_min,
+                                    normalize_attribute::include_max};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "flatten"; }

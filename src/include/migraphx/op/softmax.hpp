@@ -3,7 +3,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -22,9 +22,9 @@ struct softmax
 
     value attributes() const
     {
-        value attr;
-        attr["axis"] = value::array{op_normalize_attributes::include_min};
-        return {{"normalize", attr}};
+        value normalize;
+        normalize["axis"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "softmax"; }

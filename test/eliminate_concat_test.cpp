@@ -4,7 +4,7 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
@@ -22,9 +22,9 @@ struct concat
 
     migraphx::value attributes() const
     {
-        migraphx::value attr;
-        attr["axis"] = migraphx::value::array{migraphx::op::op_normalize_attributes::include_min};
-        return {{"normalize", attr}};
+        migraphx::value normalize;
+        normalize["axis"] = migraphx::value::array{migraphx::op::normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "eliminate_concat::concat"; }

@@ -2,7 +2,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,22 +21,22 @@ auto tune_attribute(const std::vector<int64_t>& vec,
 {
     std::vector<int64_t> result(vec);
     int64_t n_rank = static_cast<int64_t>(lens.size());
-    std::vector<op::op_normalize_attributes> vec_attrs =
-        val.to_vector<op::op_normalize_attributes>();
-    if(contains(vec_attrs, op::op_normalize_attributes::use_output))
+    std::vector<op::normalize_attribute> vec_attrs =
+        val.to_vector<op::normalize_attribute>();
+    if(contains(vec_attrs, op::normalize_attribute::use_output))
     {
         n_rank = n_rank + vec.size();
     }
 
     std::vector<int64_t> max_vals(vec.size(), n_rank);
-    if(contains(vec_attrs, op::op_normalize_attributes::use_len))
+    if(contains(vec_attrs, op::normalize_attribute::use_len))
     {
         std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) { return lens[i]; });
     }
 
-    if(contains(vec_attrs, op::op_normalize_attributes::clip_max))
+    if(contains(vec_attrs, op::normalize_attribute::clip_max))
     {
-        if(contains(vec_attrs, op::op_normalize_attributes::include_max))
+        if(contains(vec_attrs, op::normalize_attribute::include_max))
         {
             std::transform(result.begin(),
                            result.end(),
@@ -55,7 +55,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     }
     else
     {
-        if(contains(vec_attrs, op::op_normalize_attributes::include_max))
+        if(contains(vec_attrs, op::normalize_attribute::include_max))
         {
             if(!std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
             {
@@ -73,9 +73,9 @@ auto tune_attribute(const std::vector<int64_t>& vec,
 
     std::vector<int64_t> min_vals = max_vals;
     std::transform(min_vals.begin(), min_vals.end(), min_vals.begin(), [](auto v) { return -v; });
-    if(contains(vec_attrs, op::op_normalize_attributes::clip_min))
+    if(contains(vec_attrs, op::normalize_attribute::clip_min))
     {
-        if(contains(vec_attrs, op::op_normalize_attributes::include_min))
+        if(contains(vec_attrs, op::normalize_attribute::include_min))
         {
             std::transform(result.begin(),
                            result.end(),
@@ -94,7 +94,7 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     }
     else
     {
-        if(contains(vec_attrs, op::op_normalize_attributes::include_min))
+        if(contains(vec_attrs, op::normalize_attribute::include_min))
         {
             if(!std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
             {
@@ -123,12 +123,12 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
-    if(!attrs.contains("normalize"))
+    if(!attrs.contains("normalize_axes"))
     {
         return false;
     }
 
-    auto attr_v = attrs.at("normalize").without_key();
+    auto attr_v = attrs.at("normalize_axes").without_key();
     for(const auto& rv : attr_v)
     {
         const auto& key = rv.get_key();

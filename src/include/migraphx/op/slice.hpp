@@ -6,7 +6,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -29,19 +29,19 @@ struct slice
 
     value attributes() const
     {
-        value attr     = value::object{};
-        attr["axes"]   = value::array{op_normalize_attributes::include_min};
-        attr["starts"] = value::array{op_normalize_attributes::clip_max,
-                                      op_normalize_attributes::clip_min,
-                                      op_normalize_attributes::include_max,
-                                      op_normalize_attributes::use_len,
-                                      op_normalize_attributes::include_min};
-        attr["ends"]   = value::array{op_normalize_attributes::clip_max,
-                                    op_normalize_attributes::clip_min,
-                                    op_normalize_attributes::include_max,
-                                    op_normalize_attributes::use_len,
-                                    op_normalize_attributes::include_min};
-        return {{"normalize", attr}};
+        value normalize     = value::object{};
+        normalize["axes"]   = value::array{normalize_attribute::include_min};
+        normalize["starts"] = value::array{normalize_attribute::clip_max,
+                                      normalize_attribute::clip_min,
+                                      normalize_attribute::include_max,
+                                      normalize_attribute::use_len,
+                                      normalize_attribute::include_min};
+        normalize["ends"]   = value::array{normalize_attribute::clip_max,
+                                    normalize_attribute::clip_min,
+                                    normalize_attribute::include_max,
+                                    normalize_attribute::use_len,
+                                    normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "slice"; }

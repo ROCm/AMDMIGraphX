@@ -3,7 +3,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/op/common.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -19,10 +19,10 @@ struct normalize_test_op
 
     migraphx::value attributes() const
     {
-        migraphx::value attr;
-        attr["axes"] = migraphx::value::array{migraphx::op::op_normalize_attributes::clip_max,
-                                              migraphx::op::op_normalize_attributes::clip_min};
-        return {{"normalize", attr}};
+        migraphx::value normalize;
+        normalize["axes"] = migraphx::value::array{migraphx::op::normalize_attribute::clip_max,
+                                              migraphx::op::normalize_attribute::clip_min};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "normalize_ops_test::test_op"; }

@@ -23,23 +23,6 @@ enum class rnn_direction
     bidirectional,
 };
 
-// different attributes
-// 1) use_input(default)/use_output
-// 2) use_rank(default)/use_len
-// 3) clip_min(default)/not_clip_min
-//   3.1) include_min(default)/exclude_min
-// 4) clip_max(default)/not_clip_max
-//   4.1) exclude_max(default)/include_max
-enum class op_normalize_attributes
-{
-    use_len,
-    use_output,
-    clip_max,
-    clip_min,
-    include_max,
-    include_min
-};
-
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op

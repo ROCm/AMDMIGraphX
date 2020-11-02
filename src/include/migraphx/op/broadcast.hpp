@@ -39,7 +39,7 @@ struct broadcast
         auto t     = input.type();
 
         std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-        // the broacast op is deprecated now, and no specification about the 
+        // the broacast op is deprecated now, and no specification about the
         // range of the attribute value, i.e., whether the axis can be negative
         // or not
         if(axis >= broadcast_lens.size() or axis < 0)

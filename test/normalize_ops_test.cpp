@@ -22,7 +22,7 @@ struct normalize_test_op
         migraphx::value attr;
         attr["axes"] = migraphx::value::array{migraphx::op::op_normalize_attributes::clip_max,
                                               migraphx::op::op_normalize_attributes::clip_min};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "normalize_ops_test::test_op"; }

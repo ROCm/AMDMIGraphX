@@ -24,7 +24,7 @@ struct concat
     {
         migraphx::value attr;
         attr["axis"] = migraphx::value::array{migraphx::op::op_normalize_attributes::include_min};
-        return {{"normalize_axes", attr}};
+        return {{"normalize", attr}};
     }
 
     std::string name() const { return "eliminate_concat::concat"; }

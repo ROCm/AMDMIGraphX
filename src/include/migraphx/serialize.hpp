@@ -24,7 +24,7 @@ void from_value(const value& v, T& x);
 template <class T>
 T from_value(const value& v)
 {
-    T x;
+    T x{};
     from_value(v, x);
     return x;
 }

@@ -18,17 +18,17 @@
 TEST_CASE(gpu_target_copy)
 {
     migraphx::target gpu_t = migraphx::gpu::target{};
-    migraphx::target cpu_t = migraphx::ref::target{};
+    migraphx::target ref_t = migraphx::ref::target{};
     migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
-    auto cpu_arg_orig  = migraphx::generate_argument(s, 0x123456L);
-    auto gpu_arg       = gpu_t.copy_to(cpu_arg_orig);
-    auto cpu_arg_final = gpu_t.copy_from(gpu_arg);
+    auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
+    auto gpu_arg       = gpu_t.copy_to(ref_arg_orig);
+    auto ref_arg_final = gpu_t.copy_from(gpu_arg);
 
     std::vector<int8_t> val_orig;
-    cpu_arg_orig.visit([&](auto v) { val_orig.assign(v.begin(), v.end()); });
+    ref_arg_orig.visit([&](auto v) { val_orig.assign(v.begin(), v.end()); });
     std::vector<int8_t> val_final;
-    cpu_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
+    ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
 
     EXPECT(migraphx::verify_range(val_orig, val_final));
 }
@@ -82,15 +82,15 @@ TEST_CASE(int8_quantization)
         m["a"] = migraphx::generate_argument(sa);
         m["b"] = migraphx::generate_argument(sb);
         m["c"] = migraphx::generate_argument(sc);
-        std::vector<float> cpu_result;
-        migraphx::target cpu_t = migraphx::ref::target{};
-        run_prog(p, cpu_t, m, cpu_result);
+        std::vector<float> ref_result;
+        migraphx::target ref_t = migraphx::ref::target{};
+        run_prog(p, ref_t, m, ref_result);
 
         std::vector<float> gpu_result;
         migraphx::target gpu_t = migraphx::gpu::target{};
         run_prog(p, gpu_t, m, gpu_result);
 
-        EXPECT(migraphx::verify_range(cpu_result, gpu_result));
+        EXPECT(migraphx::verify_range(ref_result, gpu_result));
     }
 }
 

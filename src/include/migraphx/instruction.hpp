@@ -80,6 +80,8 @@ struct instruction
 
     static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
+    void debug_print() const;
+
     private:
     // internal
     void replace(operation o, const shape& r, std::vector<instruction_ref> args);

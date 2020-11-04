@@ -13,6 +13,8 @@ rocm_clang_tidy_check(migraphx_cpu)
 target_include_directories(migraphx_cpu PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraphx_cpu PRIVATE -DBLAZE_USE_CPP_THREADS)
 
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+
 rocm_install_targets(
   TARGETS migraphx_cpu
   INCLUDE

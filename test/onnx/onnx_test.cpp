@@ -2452,14 +2452,26 @@ TEST_CASE(where_test)
     auto lc   = p.add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
     auto lx   = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto ly   = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
-    auto lcc  = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, lc);
+
+    auto int_c = p.add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, lc);
+    auto lccm = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, int_c);
     auto lxm  = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, lx);
     auto lym  = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, ly);
-    auto lxy  = p.add_instruction(migraphx::op::sub{}, lxm, lym);
-    auto lccm = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, lcc);
-    auto lm   = p.add_instruction(migraphx::op::mul{}, lxy, lccm);
-    auto lym1 = p.add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, ly);
-    auto r    = p.add_instruction(migraphx::op::add{}, lm, lym1);
+
+    auto concat_data = p.add_instruction(migraphx::op::concat{0}, lym, lxm);
+    auto rsp_data = p.add_instruction(migraphx::op::reshape{{32}}, concat_data);
+
+    std::vector<int> offset = {16, 16, 16, 16};
+    std::vector<int> ind(16);
+    std::iota(ind.begin(), ind.end(), 0);
+    migraphx::shape ind_s{migraphx::shape::int32_type, {2, 2, 2, 2}};
+
+    auto lind = p.add_literal(migraphx::literal(ind_s, ind));
+    auto loffset = p.add_literal(migraphx::literal(ind_s, offset));
+
+    auto ins_co = p.add_instruction(migraphx::op::mul{}, loffset, lccm);
+    auto ins_ind = p.add_instruction(migraphx::op::add{}, ins_co, lind);
+    auto r = p.add_instruction(migraphx::op::gather{0}, rsp_data, ins_ind);
     p.add_return({r});
 
     auto prog = migraphx::parse_onnx("where_test.onnx");

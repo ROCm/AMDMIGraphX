@@ -2741,13 +2741,42 @@ struct onnx_parser
     instruction_ref
     parse_where(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        auto type = args[1]->get_shape().type();
-        // the operation of if cond == 1 select x; else select y,
-        // is equivalent to cond * (x - y) + y
-        auto cond = prog.add_instruction(make_op("convert", {{"target_type", type}}), args[0]);
-        auto diff = add_broadcastable_binary_op(args[1], args[2], "sub");
-        auto cd   = add_broadcastable_binary_op(diff, cond, "mul");
-        return add_broadcastable_binary_op(cd, args[2], "add");
+        auto cond = prog.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
+        auto lens = compute_broadcasted_lens(cond->get_shape().lens(), args[1]->get_shape().lens());
+        lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+        if (cond->get_shape().lens() != lens)
+        {
+            cond = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), cond);
+        }
+
+        if (args[1]->get_shape().lens() != lens)
+        {
+            args[1] = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[1]);
+        }
+
+        if (args[2]->get_shape().lens() != lens)
+        {
+            args[2] = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[2]);
+        }
+
+        // compute index
+        auto elem_num = args[1]->get_shape().elements();
+
+        // concatenation of input data
+        auto concat_data = prog.add_instruction(make_op("concat", {{"axis", 0}}), args[2], args[1]);
+        std::vector<int64_t> dims = {static_cast<int64_t>(2 * elem_num)};
+        auto rsp_data = prog.add_instruction(make_op("reshape", {{"dims", dims}}), concat_data);
+
+        std::vector<int> ind(elem_num);
+        std::iota(ind.begin(), ind.end(), 0);
+        shape ind_s{shape::int32_type, lens};
+        auto l_ind = prog.add_literal(literal(ind_s, ind));
+        std::vector<int> offset(elem_num, elem_num);
+        auto l_offset = prog.add_literal(literal({shape::int32_type, lens}, offset));
+        auto ins_offset = prog.add_instruction(make_op("mul"), l_offset, cond);
+        auto ins_ind = prog.add_instruction(make_op("add"), ins_offset, l_ind);
+
+        return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp_data, ins_ind);
     }
 
     void parse_from(std::istream& is)

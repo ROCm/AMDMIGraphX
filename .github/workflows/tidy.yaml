@@ -3,7 +3,7 @@ name: tidy
 on: push
 
 jobs:
-  build:
+  build-container:
     runs-on: ubuntu-18.04
 
     steps:
@@ -19,8 +19,11 @@ jobs:
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
 
+  build-analyze:
+    needs: build-container
+    runs-on: ubuntu-18.04
+    container: migraphx
     - name: Clang tidy
-      shell: docker run -it migraphx bash {0}
       run: |
         mkdir build
         cd build

@@ -1,6 +1,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/op/add.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
 
@@ -12,7 +12,7 @@ TEST_CASE(perf_report)
     auto one = p.add_literal(1);
     auto two = p.add_literal(2);
     p.add_instruction(migraphx::op::add{}, one, two);
-    p.compile(migraphx::cpu::target{});
+    p.compile(migraphx::ref::target{});
     p.perf_report(ss, 2, {});
 
     std::string output = ss.str();

@@ -24,7 +24,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        CXX=/opt/rocm/llvm/clang++ cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..
+        CXX=/opt/rocm/llvm/bin/clang++ cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..
         make -j2 cppcheck tidy
 
 

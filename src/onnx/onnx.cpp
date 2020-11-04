@@ -2741,22 +2741,25 @@ struct onnx_parser
     instruction_ref
     parse_where(const std::string&, const node_info&, std::vector<instruction_ref> args)
     {
-        auto cond = prog.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
+        auto cond =
+            prog.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
         auto lens = compute_broadcasted_lens(cond->get_shape().lens(), args[1]->get_shape().lens());
-        lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
-        if (cond->get_shape().lens() != lens)
+        lens      = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+        if(cond->get_shape().lens() != lens)
         {
             cond = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), cond);
         }
 
-        if (args[1]->get_shape().lens() != lens)
+        if(args[1]->get_shape().lens() != lens)
         {
-            args[1] = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[1]);
+            args[1] =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[1]);
         }
 
-        if (args[2]->get_shape().lens() != lens)
+        if(args[2]->get_shape().lens() != lens)
         {
-            args[2] = prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[2]);
+            args[2] =
+                prog.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[2]);
         }
 
         // compute index
@@ -2772,9 +2775,9 @@ struct onnx_parser
         shape ind_s{shape::int32_type, lens};
         auto l_ind = prog.add_literal(literal(ind_s, ind));
         std::vector<int> offset(elem_num, elem_num);
-        auto l_offset = prog.add_literal(literal({shape::int32_type, lens}, offset));
+        auto l_offset   = prog.add_literal(literal({shape::int32_type, lens}, offset));
         auto ins_offset = prog.add_instruction(make_op("mul"), l_offset, cond);
-        auto ins_ind = prog.add_instruction(make_op("add"), ins_offset, l_ind);
+        auto ins_ind    = prog.add_instruction(make_op("add"), ins_offset, l_ind);
 
         return prog.add_instruction(make_op("gather", {{"axis", 0}}), rsp_data, ins_ind);
     }

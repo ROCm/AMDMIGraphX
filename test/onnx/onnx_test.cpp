@@ -2461,7 +2461,7 @@ TEST_CASE(where_test)
     auto concat_data = p.add_instruction(migraphx::op::concat{0}, lym, lxm);
     auto rsp_data    = p.add_instruction(migraphx::op::reshape{{32}}, concat_data);
 
-    std::vector<int> offset = {16, 16, 16, 16};
+    std::vector<int> offset(16, 16);
     std::vector<int> ind(16);
     std::iota(ind.begin(), ind.end(), 0);
     migraphx::shape ind_s{migraphx::shape::int32_type, {2, 2, 2, 2}};

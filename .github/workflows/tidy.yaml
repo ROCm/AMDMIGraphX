@@ -20,7 +20,7 @@ jobs:
       run: docker build . --file hip-clang.docker --tag migraphx
 
     - name: Clang tidy
-      shell: docker run -v=${github.workspace}:/data -v={0}:/run.sh migraphx bash /run.sh
+      shell: docker run -v=$GITHUB_WORKSPACE:/data -v={0}:/run.sh migraphx bash /run.sh
       run: |
         mkdir build
         cd build

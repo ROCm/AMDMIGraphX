@@ -1,7 +1,7 @@
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/reduce_mean.hpp>
@@ -137,8 +137,8 @@ TEST_CASE(literal_rewrite_pooling_test)
     auto test_rewrite_pooling = [&](const std::string& mode, const migraphx::operation& op) {
         migraphx::program p1 = pooling_program(mode);
         migraphx::program p2 = opt_program(op);
-        p1.compile(migraphx::cpu::target{});
-        p2.compile(migraphx::cpu::target{});
+        p1.compile(migraphx::ref::target{});
+        p2.compile(migraphx::ref::target{});
         auto result1 = p1.eval({}).back();
         auto result2 = p2.eval({}).back();
         visit_all(result1,

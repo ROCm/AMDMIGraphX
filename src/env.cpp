@@ -29,6 +29,14 @@ std::size_t value_of(const char* name, std::size_t fallback)
     return std::stoul(e.front());
 }
 
+std::string string_value_of(const char* name, std::string fallback)
+{
+    auto e = env(name);
+    if(e.empty())
+        return fallback;
+    return e.front();
+}
+
 std::vector<std::string> env(const char* name)
 {
     auto* p = std::getenv(name);

@@ -1,0 +1,28 @@
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/operators.hpp>
+
+template <int Axis, migraphx::shape::type_t T>
+struct test_softmax : verify_program<test_softmax<Axis, T>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        migraphx::shape s{T, {512, 4, 1067, 6}};
+        auto param = p.add_parameter("0", s);
+        p.add_instruction(migraphx::op::softmax{Axis}, param);
+
+        return p;
+    }
+};
+
+template struct test_softmax<0, migraphx::shape::float_type>;
+template struct test_softmax<2, migraphx::shape::float_type>;
+template struct test_softmax<1, migraphx::shape::double_type>;
+template struct test_softmax<3, migraphx::shape::double_type>;
+template struct test_softmax<0, migraphx::shape::half_type>;
+template struct test_softmax<1, migraphx::shape::half_type>;
+template struct test_softmax<2, migraphx::shape::half_type>;
+template struct test_softmax<3, migraphx::shape::half_type>;

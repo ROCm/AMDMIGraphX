@@ -6,7 +6,7 @@
 
 #include <migraphx/onnx.hpp>
 
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/generate.hpp>
@@ -48,16 +48,16 @@ int main(int argc, char const* argv[])
 {
     if(argc < 4)
     {
-        throw std::runtime_error("Usage:  cifar10 [gpu | cpu] <onnx file> <cifar10 data file>");
+        throw std::runtime_error("Usage:  cifar10 [gpu | ref] <onnx file> <cifar10 data file>");
     }
-    std::string gpu_cpu  = argv[1];
+    std::string gpu_ref  = argv[1];
     std::string file     = argv[2];
     std::string datafile = argv[3];
     auto prog            = migraphx::parse_onnx(file);
     std::cout << prog << std::endl;
     auto imageset = read_cifar10_images(datafile);
 
-    if(gpu_cpu == "gpu")
+    if(gpu_ref == "gpu")
     {
         // GPU target
         prog.compile(migraphx::gpu::target{});
@@ -87,7 +87,7 @@ int main(int argc, char const* argv[])
     else
     {
         // CPU target
-        prog.compile(migraphx::cpu::target{});
+        prog.compile(migraphx::ref::target{});
         auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 32, 32}};
         auto labels = imageset.first;
         auto input  = imageset.second;

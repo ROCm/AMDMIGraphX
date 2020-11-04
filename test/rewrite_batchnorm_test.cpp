@@ -1,6 +1,6 @@
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -58,8 +58,8 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(p2);
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();
@@ -126,8 +126,8 @@ TEST_CASE(as_literal)
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
 
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();
@@ -159,8 +159,8 @@ TEST_CASE(as_literal_1d)
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
 
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();
@@ -197,8 +197,8 @@ TEST_CASE(as_literal_3d)
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
 
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();
@@ -231,8 +231,8 @@ TEST_CASE(literal_reshape)
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
 
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();
@@ -273,8 +273,8 @@ TEST_CASE(literal_reshape_per_actv)
     EXPECT(any_of(p1, &is_batch_norm));
     EXPECT(none_of(p2, &is_batch_norm));
 
-    p1.compile(migraphx::cpu::target{});
-    p2.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
+    p2.compile(migraphx::ref::target{});
 
     auto result1 = p1.eval({}).back();
     auto result2 = p2.eval({}).back();

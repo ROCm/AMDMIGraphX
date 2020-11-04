@@ -5,7 +5,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>

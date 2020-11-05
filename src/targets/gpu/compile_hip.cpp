@@ -48,6 +48,8 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     params += " -Wno-unused-command-line-argument -I. ";
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
 
+    std::string output_flags{};
+
     for(const auto& src : srcs)
     {
         fs::path full_path   = td.path / src.path;
@@ -55,8 +57,13 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         fs::create_directories(parent_path);
         write_buffer(full_path.string(), src.content.first, src.len());
         if(src.path.extension().string() == ".cpp")
+        {
             params += " " + src.path.filename().string();
+            output_flags = " -o " + src.path.stem().string() + ".o";
+        }
     }
+
+    params += output_flags;
 
     td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER), params);
 
@@ -89,8 +96,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             continue;
         if(obj_path.extension() != ".hsaco")
             continue;
-        fs::path full_path = td.path / obj_path;
-        hsacos.push_back(read_buffer(full_path.string()));
+        hsacos.push_back(read_buffer(obj_path.string()));
     }
 
     return hsacos;

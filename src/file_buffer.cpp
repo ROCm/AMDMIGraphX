@@ -10,14 +10,13 @@ std::vector<char> read_buffer(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     std::streamsize size = is.tellg();
-    std::cout << "size: " << size << std::endl;
+    if (size < 1)
+        MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
     if(!is.read(buffer.data(), size))
-    {
         MIGRAPHX_THROW("Error reading file: " + filename);
-    }
     return buffer;
 }
 

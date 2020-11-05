@@ -6,7 +6,7 @@ TEST_CASE(load_and_run)
 {
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
-    p.compile(migraphx::target("cpu"));
+    p.compile(migraphx::target("ref"));
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
@@ -26,7 +26,7 @@ TEST_CASE(load_and_run_init_list)
 {
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
-    p.compile(migraphx::target("cpu"));
+    p.compile(migraphx::target("ref"));
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
@@ -61,7 +61,7 @@ TEST_CASE(quantize_int8)
 {
     auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
     const auto& p2 = p1;
-    auto t         = migraphx::target("cpu");
+    auto t         = migraphx::target("ref");
     migraphx::quantize_int8_options options;
     migraphx::quantize_int8(p1, t, options);
 
@@ -84,7 +84,7 @@ TEST_CASE(load_and_run_user_input_shape)
     options.set_input_parameter_shape("0", {2, 3, 64, 64});
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx", options);
     auto shapes_before = p.get_output_shapes();
-    p.compile(migraphx::target("cpu"));
+    p.compile(migraphx::target("ref"));
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
@@ -104,7 +104,7 @@ TEST_CASE(zero_parameter)
 {
     auto p             = migraphx::parse_onnx("constant_fill_test.onnx");
     auto shapes_before = p.get_output_shapes();
-    p.compile(migraphx::target("cpu"));
+    p.compile(migraphx::target("ref"));
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
@@ -153,6 +153,14 @@ TEST_CASE(strided_shape)
     auto s                           = migraphx::shape(migraphx_shape_float_type, lens, strides);
     EXPECT(s.lengths() == lens);
     EXPECT(s.strides() == strides);
+}
+
+TEST_CASE(get_main_module)
+{
+    auto p              = migraphx::parse_onnx("constant_fill_test.onnx");
+    migraphx::module mm = p.get_main_module();
+    mm.print();
+    p.print();
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

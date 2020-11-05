@@ -10,9 +10,10 @@ struct test_reduce_op_large : verify_program<test_reduce_op_large<Op, Axis, T>>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{T, {3, 1026, 4, 3}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(Op{{1}}, x);
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(Op{{1}}, x);
         return p;
     };
 };

@@ -9,12 +9,13 @@ struct test_clip : verify_program<test_clip>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto x       = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
-        auto min_val = p.add_literal(0.0f);
-        auto max_val = p.add_literal(6.0f);
-        min_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
-        max_val      = p.add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
-        p.add_instruction(migraphx::op::clip{}, x, min_val, max_val);
+        auto* mm = p.get_main_module();
+        auto x       = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto min_val = mm->add_literal(0.0f);
+        auto max_val = mm->add_literal(6.0f);
+        min_val      = mm->add_instruction(migraphx::op::multibroadcast{{3}}, min_val);
+        max_val      = mm->add_instruction(migraphx::op::multibroadcast{{3}}, max_val);
+        mm->add_instruction(migraphx::op::clip{}, x, min_val, max_val);
         return p;
     }
 };

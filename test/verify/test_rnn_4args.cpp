@@ -16,17 +16,18 @@ struct test_rnn_4args : verify_program<test_rnn_4args>
         float clip              = 0.0f;
 
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
 
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", b_shape);
+        auto seq  = mm->add_parameter("seq", in_shape);
+        auto w    = mm->add_parameter("w", w_shape);
+        auto r    = mm->add_parameter("r", r_shape);
+        auto bias = mm->add_parameter("bias", b_shape);
 
-        p.add_instruction(migraphx::op::rnn{hidden_size,
+        mm->add_instruction(migraphx::op::rnn{hidden_size,
                                             {migraphx::op::tanh{}, migraphx::op::tanh{}},
                                             migraphx::op::rnn_direction::reverse,
                                             clip},

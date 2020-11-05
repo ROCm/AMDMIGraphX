@@ -13,7 +13,6 @@ TEST_CASE(perf_report)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::op::add{}, one, two);
-    p.compile(migraphx::cpu::target{});
     p.compile(migraphx::ref::target{});
     p.perf_report(ss, 2, {});
 

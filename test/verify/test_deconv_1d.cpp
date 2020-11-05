@@ -9,10 +9,11 @@ struct test_deconv_1d : verify_program<test_deconv_1d>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto input = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        auto* mm = p.get_main_module();
+        auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
         auto weights =
-            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
-        p.add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3}});
+        mm->add_instruction(migraphx::op::deconvolution{{0}, {1}, {1}}, input, weights);
         return p;
     }
 };

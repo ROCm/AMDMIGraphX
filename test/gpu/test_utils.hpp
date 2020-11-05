@@ -6,7 +6,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/analyze_streams.hpp>
 #include <migraphx/gpu/miopen.hpp>
@@ -150,7 +150,7 @@ std::vector<migraphx::argument> run_cpu(migraphx::program& p)
     V v;
     p = v.create_program();
     auto_print pp{p, 0};
-    compile_check(p, migraphx::cpu::target{});
+    compile_check(p, migraphx::ref::target{});
     migraphx::parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {

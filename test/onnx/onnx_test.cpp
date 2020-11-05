@@ -1960,7 +1960,7 @@ TEST_CASE(reshape_non_standard_test)
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     mm->add_literal(migraphx::literal{ss, ds});
@@ -2625,10 +2625,10 @@ TEST_CASE(variable_batch_leq_zero_test)
 TEST_CASE(where_test)
 {
     migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto lc = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
-    auto lx = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto ly = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
+    auto* mm = p.get_main_module();
+    auto lc  = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
+    auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+    auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
 
     auto int_c = mm->add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, lc);
     auto lccm  = mm->add_instruction(migraphx::op::multibroadcast{{2, 2, 2, 2}}, int_c);

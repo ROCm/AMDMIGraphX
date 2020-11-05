@@ -39,10 +39,10 @@ struct is_fast_gemm_type : std::false_type
 {
 };
 
-template <>
-struct is_fast_gemm_type<float> : std::true_type
-{
-};
+// template <>
+// struct is_fast_gemm_type<float> : std::true_type
+// {
+// };
 
 template <class T, class F>
 void migemm_impl(

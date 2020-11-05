@@ -167,8 +167,14 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
+@auto_handle(ref=True)
+def module(h):
+    h.method('print', invoke='migraphx::print_module($@)', const=True)
+
+
 @auto_handle()
 def program(h):
+    h.method('get_main_module', returns='migraphx::module*')
     h.method(
         'compile',
         api.params(target='migraphx::target',
@@ -178,7 +184,7 @@ def program(h):
     h.method('get_output_shapes',
              invoke='migraphx::get_output_shapes($@)',
              returns='std::vector<migraphx::shape>')
-    h.method('print', invoke='migraphx::print($@)', const=True)
+    h.method('print', invoke='migraphx::print_program($@)', const=True)
     h.method('sort')
     h.method('run',
              api.params(

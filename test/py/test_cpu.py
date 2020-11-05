@@ -6,7 +6,7 @@ def test_conv_relu():
     print(p)
     s1 = p.get_output_shapes()[-1]
     print("Compiling ...")
-    p.compile(migraphx.get_target("cpu"))
+    p.compile(migraphx.get_target("ref"))
     print(p)
     s2 = p.get_output_shapes()[-1]
     assert s1 == s2
@@ -35,7 +35,7 @@ def test_add_scalar():
     print(p)
     s1 = p.get_output_shapes()[-1]
     print("Compiling ...")
-    p.compile(migraphx.get_target("cpu"))
+    p.compile(migraphx.get_target("ref"))
     print(p)
     s2 = p.get_output_shapes()[-1]
     assert s1 == s2

@@ -5,7 +5,7 @@
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/mul.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -80,10 +80,10 @@ TEST_CASE(program_copy)
         migraphx::program p2{};
         p2 = p1;
 
-        p2.compile(migraphx::cpu::target{});
+        p2.compile(migraphx::ref::target{});
         EXPECT(p1 != p2);
 
-        p1.compile(migraphx::cpu::target{});
+        p1.compile(migraphx::ref::target{});
         EXPECT(p1 == p2);
 
         EXPECT(p1.get_parameter_names() == p2.get_parameter_names());
@@ -94,7 +94,7 @@ TEST_CASE(program_copy)
         auto p2(p1);
         EXPECT(p1 == p2);
 
-        p1.compile(migraphx::cpu::target{});
+        p1.compile(migraphx::ref::target{});
         EXPECT(p1 != p2);
 
         p2 = p1;
@@ -109,8 +109,8 @@ TEST_CASE(program_copy)
         p2 = p1;
         EXPECT(p1 == p2);
 
-        p1.compile(migraphx::cpu::target{});
-        p2.compile(migraphx::cpu::target{});
+        p1.compile(migraphx::ref::target{});
+        p2.compile(migraphx::ref::target{});
 
         EXPECT(p1 == p2);
     }
@@ -131,8 +131,8 @@ TEST_CASE(program_copy)
         p2 = p1;
         EXPECT(p2 == p1);
 
-        p1.compile(migraphx::cpu::target{});
-        p2.compile(migraphx::cpu::target{});
+        p1.compile(migraphx::ref::target{});
+        p2.compile(migraphx::ref::target{});
         EXPECT(p2 == p1);
     }
 }

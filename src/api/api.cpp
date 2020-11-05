@@ -119,7 +119,7 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration = {};
-    std::vector<std::string> op_names               = {};
+    std::vector<std::string> op_names      = {};
 };
 
 void add_op_name(quantize_int8_options& options, const char* name)
@@ -160,10 +160,7 @@ bool equal(const T& x, const T& y)
     return x == y;
 }
 
-std::vector<argument> run(program& p, const parameter_map& params)
-{
-    return p.eval(params);
-}
+std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 

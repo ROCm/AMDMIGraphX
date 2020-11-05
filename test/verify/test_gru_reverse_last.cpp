@@ -34,15 +34,15 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
 
         auto output =
             mm->add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::reverse,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+                                                  {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::reverse,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und,
+                                ih);
         mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;

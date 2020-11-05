@@ -35,15 +35,15 @@ struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
         auto sql = mm->add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
 
         mm->add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          sql,
-                          ih);
+                                               {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                               migraphx::op::rnn_direction::bidirectional,
+                                               clip},
+                            seq,
+                            w,
+                            r,
+                            bias,
+                            sql,
+                            ih);
 
         return p;
     }

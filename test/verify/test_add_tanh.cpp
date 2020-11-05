@@ -10,8 +10,8 @@ struct test_add_tanh : verify_program<test_add_tanh>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto add = mm->add_instruction(migraphx::op::add{}, x, y);
         mm->add_instruction(migraphx::op::tanh{}, add);
         return p;

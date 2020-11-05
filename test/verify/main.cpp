@@ -9,7 +9,7 @@
 inline void check_gpu_streams(const migraphx::program& p)
 {
 #ifdef HAVE_GPU
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto races = migraphx::gpu::analyze_streams(*mm);
     for(auto&& race : races)
     {

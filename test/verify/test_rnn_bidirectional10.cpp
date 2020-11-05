@@ -31,15 +31,15 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         auto und  = mm->add_instruction(migraphx::op::undefined{});
         auto output =
             mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::bidirectional,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und,
+                                ih);
         mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;

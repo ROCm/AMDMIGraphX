@@ -9,7 +9,7 @@ struct test_literals : verify_program<test_literals>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_literal(
             generate_literal(migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}}));
         auto weights = mm->add_literal(

@@ -26,12 +26,12 @@ struct test_gru_reverse_3args : verify_program<test_gru_reverse_3args>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         mm->add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+                                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::reverse,
+                                              clip},
+                            seq,
+                            w,
+                            r);
 
         return p;
     }

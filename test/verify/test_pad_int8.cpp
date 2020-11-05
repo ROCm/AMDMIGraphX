@@ -9,7 +9,7 @@ struct test_pad_int8 : verify_program<test_pad_int8>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm                  = p.get_main_module();
         std::vector<int8_t> data0 = {0, 1, 2, 3};
         migraphx::shape s0{migraphx::shape::float_type, {2, 2}};
         auto l0 = mm->add_literal(migraphx::literal{s0, data0});

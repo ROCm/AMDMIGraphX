@@ -30,16 +30,17 @@ struct test_rnn_forward : verify_program<test_rnn_forward>
         auto ih   = mm->add_parameter("ih", ih_shape);
         auto und  = mm->add_instruction(migraphx::op::undefined{});
 
-        auto hs  = mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                      {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                      migraphx::op::rnn_direction::forward,
-                                                      clip},
-                                    seq,
-                                    w,
-                                    r,
-                                    bias,
-                                    und,
-                                    ih);
+        auto hs =
+            mm->add_instruction(migraphx::op::rnn{hidden_size,
+                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::forward,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und,
+                                ih);
         auto lho = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         mm->add_return({hs, lho});
 

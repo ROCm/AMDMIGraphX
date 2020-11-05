@@ -7,7 +7,7 @@
 migraphx::instruction_ref add_layernorm(migraphx::program& p, std::vector<size_t> dims)
 {
     auto* mm = p.get_main_module();
-    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
     auto scale =
         mm->add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
     auto bias =

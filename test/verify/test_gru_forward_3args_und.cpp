@@ -27,15 +27,15 @@ struct test_gru_forward_3args_und : verify_program<test_gru_forward_3args_und>
         auto r   = mm->add_parameter("r", r_shape);
         auto und = mm->add_instruction(migraphx::op::undefined{});
         mm->add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          und,
-                          und,
-                          und);
+                                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::forward,
+                                              clip},
+                            seq,
+                            w,
+                            r,
+                            und,
+                            und,
+                            und);
 
         return p;
     }

@@ -28,12 +28,12 @@ struct test_rnn_bi_3args : verify_program<test_rnn_bi_3args>
         auto r   = mm->add_parameter("r", r_shape);
         auto output =
             mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::bidirectional,
-                                                clip},
-                              seq,
-                              w,
-                              r);
+                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::bidirectional,
+                                                  clip},
+                                seq,
+                                w,
+                                r);
         mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;

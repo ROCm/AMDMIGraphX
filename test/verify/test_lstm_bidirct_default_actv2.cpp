@@ -33,15 +33,15 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
         auto und  = mm->add_instruction(migraphx::op::undefined{});
 
         mm->add_instruction(migraphx::op::lstm{hidden_size,
-                                             {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
-                                             migraphx::op::rnn_direction::bidirectional,
-                                             clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                               {migraphx::op::tanh{}, migraphx::op::sigmoid{}},
+                                               migraphx::op::rnn_direction::bidirectional,
+                                               clip},
+                            seq,
+                            w,
+                            r,
+                            bias,
+                            und,
+                            ih);
 
         return p;
     }

@@ -30,14 +30,14 @@ struct test_rnn_5args : verify_program<test_rnn_5args>
 
         auto output =
             mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und);
+                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::forward,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und);
         mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
 
         return p;

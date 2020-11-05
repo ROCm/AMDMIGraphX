@@ -34,15 +34,15 @@ struct test_gru_forward : verify_program<test_gru_forward>
 
         auto hs =
             mm->add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              und,
-                              ih);
+                                                  {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::forward,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                und,
+                                ih);
         auto lho = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         mm->add_return({lho, hs});
 

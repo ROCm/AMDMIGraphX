@@ -28,13 +28,13 @@ struct test_rnn_4args : verify_program<test_rnn_4args>
         auto bias = mm->add_parameter("bias", b_shape);
 
         mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias);
+                                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::reverse,
+                                              clip},
+                            seq,
+                            w,
+                            r,
+                            bias);
 
         return p;
     }

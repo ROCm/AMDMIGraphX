@@ -31,15 +31,15 @@ struct test_rnn_reverse2 : verify_program<test_rnn_reverse2>
         auto und  = mm->add_instruction(migraphx::op::undefined{});
 
         mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::reverse,
+                                              clip},
+                            seq,
+                            w,
+                            r,
+                            bias,
+                            und,
+                            ih);
 
         return p;
     }

@@ -36,15 +36,15 @@ struct test_var_sl_gru_forward : verify_program<test_var_sl_gru_forward>
 
         auto hs =
             mm->add_instruction(migraphx::op::gru{hidden_size,
-                                                {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                migraphx::op::rnn_direction::forward,
-                                                clip},
-                              seq,
-                              w,
-                              r,
-                              bias,
-                              sql,
-                              ih);
+                                                  {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                                  migraphx::op::rnn_direction::forward,
+                                                  clip},
+                                seq,
+                                w,
+                                r,
+                                bias,
+                                sql,
+                                ih);
         auto lho = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
         mm->add_return({lho, hs});
 

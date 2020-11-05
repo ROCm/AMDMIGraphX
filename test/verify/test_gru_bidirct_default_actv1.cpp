@@ -33,15 +33,15 @@ struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_
         auto und  = mm->add_instruction(migraphx::op::undefined{});
 
         mm->add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}},
-                                            migraphx::op::rnn_direction::bidirectional,
-                                            clip},
-                          seq,
-                          w,
-                          r,
-                          bias,
-                          und,
-                          ih);
+                                              {migraphx::op::sigmoid{}},
+                                              migraphx::op::rnn_direction::bidirectional,
+                                              clip},
+                            seq,
+                            w,
+                            r,
+                            bias,
+                            und,
+                            ih);
 
         return p;
     }

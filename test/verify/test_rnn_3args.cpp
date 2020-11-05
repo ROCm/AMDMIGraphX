@@ -26,12 +26,12 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
         auto r   = mm->add_parameter("r", r_shape);
 
         mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                            {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::reverse,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+                                              {migraphx::op::tanh{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::reverse,
+                                              clip},
+                            seq,
+                            w,
+                            r);
 
         return p;
     }

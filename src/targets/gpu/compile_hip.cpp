@@ -45,6 +45,9 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         params += " -O3 ";
     }
 
+    params += " -Wno-unused-command-line-argument -I. ";
+    params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
+
     for(const auto& src : srcs)
     {
         fs::path full_path   = td.path / src.path;
@@ -54,9 +57,6 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         if(src.path.extension().string() == ".cpp")
             params += " " + src.path.filename().string();
     }
-
-    params += " -Wno-unused-command-line-argument -I. ";
-    params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
 
     td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER), params);
 

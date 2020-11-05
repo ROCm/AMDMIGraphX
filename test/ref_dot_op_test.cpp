@@ -14,7 +14,7 @@ void matmul_test()
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm             = p.get_main_module();
     std::vector<T> a     = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
                         1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
                         -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
@@ -65,7 +65,7 @@ void matmul_test_ex()
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm             = p.get_main_module();
     std::vector<T> a     = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
                         1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
                         -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
@@ -115,7 +115,7 @@ TEST_CASE(matmul_mutli_dim_2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {-0.76234141,
                              0.01368910,
                              -0.86343423,
@@ -168,7 +168,7 @@ TEST_CASE(gemm_mutli_dim_2_beta0)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {-0.76234141,
                              0.01368910,
                              -0.86343423,
@@ -240,7 +240,7 @@ TEST_CASE(gemm_beta_0)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {
         -0.76234141, 0.01368910, -0.86343423, -0.99465282, 0.76133268, 0.96507140};
     migraphx::shape m1_shape{migraphx::shape::float_type, {1, 2, 3}};
@@ -295,7 +295,7 @@ TEST_CASE(matmul_mutli_dim_2_3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {
         -1.93300070, 0.33902698,  -0.45173527, -0.72283069, -0.17177134, 1.62199882,
         0.87052847,  0.14989811,  -0.88969184, -0.18131398, 0.72654339,  -0.57123693,
@@ -334,7 +334,7 @@ TEST_CASE(gemm_mutli_dim1_2_3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {
         1.23636469,  -0.47041261, -0.14375651, -0.48371852, 1.16479301,  -0.89361055,
         -0.18569086, 1.10700457,  -1.02632638, 0.82277012,  0.33525769,  0.52825145,
@@ -365,8 +365,8 @@ TEST_CASE(gemm_mutli_dim1_2_3)
     float beta     = 0.41;
     auto m12_alpha = mm->add_instruction(migraphx::op::dot{alpha, beta}, l1, l2);
     auto l_beta    = mm->add_literal(beta);
-    auto b_beta    = mm->add_instruction(migraphx::op::scalar{m12_alpha->get_shape().lens()}, l_beta);
-    auto m3_beta   = mm->add_instruction(migraphx::op::mul{}, b_beta, l3);
+    auto b_beta  = mm->add_instruction(migraphx::op::scalar{m12_alpha->get_shape().lens()}, l_beta);
+    auto m3_beta = mm->add_instruction(migraphx::op::mul{}, b_beta, l3);
     mm->add_instruction(migraphx::op::add{}, m3_beta, m12_alpha);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -386,7 +386,7 @@ TEST_CASE(gemm_mutli_3args)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> m1 = {
         1.23636469,  -0.47041261, -0.14375651, -0.48371852, 1.16479301,  -0.89361055,
         -0.18569086, 1.10700457,  -1.02632638, 0.82277012,  0.33525769,  0.52825145,
@@ -435,7 +435,7 @@ TEST_CASE(gemm_3args)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {-0.86217194,
                                 -1.04129542,
                                 -0.64850364,
@@ -499,7 +499,7 @@ TEST_CASE(matmul_vv_inner_product)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {0.7481789,
                                 0.02906279,
                                 1.01193836,
@@ -534,7 +534,7 @@ TEST_CASE(matmul_vv_inner_product)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {0.7481789,
                                 0.02906279,
                                 1.01193836,
@@ -573,7 +573,7 @@ TEST_CASE(matmul_vm)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {1.49530002,
                                 -0.07181969,
                                 0.44593846,
@@ -608,7 +608,7 @@ TEST_CASE(matmul_vm)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {1.49530002,
                                 -0.07181969,
                                 0.44593846,
@@ -644,7 +644,7 @@ TEST_CASE(matmul_vm)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -1.7468318, -0.38900251, 1.00183915, 0.06016438, 0.08295905, 1.5830535};
         std::vector<float> b = {
@@ -690,7 +690,7 @@ TEST_CASE(matmul_vm)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -1.7468318, -0.38900251, 1.00183915, 0.06016438, 0.08295905, 1.5830535};
         std::vector<float> b = {
@@ -739,7 +739,7 @@ TEST_CASE(matmul_mv)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {0.1612524,
                                 0.61266466,
                                 -0.19212896,
@@ -775,7 +775,7 @@ TEST_CASE(matmul_mv)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {0.1612524,
                                 0.61266466,
                                 -0.19212896,
@@ -812,7 +812,7 @@ TEST_CASE(matmul_mv)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             1.24593227,  -0.84351316, 0.27882229,  -0.42518484, -1.11391528, 0.59141834,
             1.34198714,  2.25884063,  -1.32093452, 0.44766336,  -0.09306479, 0.47526699,
@@ -858,7 +858,7 @@ TEST_CASE(matmul_mm1)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -0.49450006, -1.07431991, -0.02796692, -0.99631927, 0.20040449,  -1.39709437,
             -0.15695328, 0.08208373,  -0.09746386, 0.77923021,  -0.1849151,  0.14419043,
@@ -908,7 +908,7 @@ TEST_CASE(matmul_mm1)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {-0.0309568,
                                 -1.57294749,
                                 -0.00768606,
@@ -963,7 +963,7 @@ TEST_CASE(matmul_mm2)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -0.49450006, -1.07431991, -0.02796692, -0.99631927, 0.20040449,  -1.39709437,
             -0.15695328, 0.08208373,  -0.09746386, 0.77923021,  -0.1849151,  0.14419043,
@@ -984,8 +984,8 @@ TEST_CASE(matmul_mm2)
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 2, 3, 5}};
         auto al = mm->add_literal(migraphx::literal{a_shape, a});
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 1, 5, 3}};
-        auto bl                 = mm->add_literal(migraphx::literal{b_shape, b});
-        auto bbl                = mm->add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
+        auto bl  = mm->add_literal(migraphx::literal{b_shape, b});
+        auto bbl = mm->add_instruction(migraphx::op::multibroadcast{{2, 2, 5, 3}}, bl);
         std::vector<float> gold = {
             0.70574512,  -2.80915314, -1.57644969, 1.75415381,  -3.13303087, -1.00150259,
             -0.18675123, -0.23349122, -0.12357225, 0.82911538,  1.37473744,  -1.11709934,
@@ -1004,7 +1004,7 @@ TEST_CASE(matmul_mm2)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {-0.19276159, -1.2568421,  -0.321242,   1.21471077,  -0.4927751,
                                 0.69446894,  -0.1786371,  -1.00763473, -0.10279314, 3.02931355,
                                 1.08359235,  -0.35190132, -0.00639111, 0.78989113,  1.23538029,
@@ -1044,7 +1044,7 @@ TEST_CASE(matmul_mm2)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -0.55248691, 0.70275958,  0.56967633,  0.88206033,  -0.85088547, 0.05689149,
             -0.20084703, 0.18024434,  1.0730491,   0.15913531,  0.93621628,  0.35072771,
@@ -1096,7 +1096,7 @@ TEST_CASE(matmul_mm2)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm             = p.get_main_module();
         std::vector<float> a = {
             -0.55248691, 0.70275958,  0.56967633,  0.88206033,  -0.85088547, 0.05689149,
             -0.20084703, 0.18024434,  1.0730491,   0.15913531,  0.93621628,  0.35072771,
@@ -1146,7 +1146,7 @@ TEST_CASE(quant_dot_2args_multi4)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {4, 8}};
         std::vector<int8_t> data1(4 * 4);
@@ -1172,7 +1172,7 @@ TEST_CASE(quant_dot_2args_multi4)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {4, 8}};
         std::vector<int8_t> data1(4 * 4);
@@ -1199,7 +1199,7 @@ TEST_CASE(quant_dot_2args_multi4)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 4}};
         std::vector<int8_t> data1(4 * 4);
@@ -1226,7 +1226,7 @@ TEST_CASE(quant_dot_2args_multi4)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 4}};
         std::vector<int8_t> data1(4 * 4);
@@ -1257,7 +1257,7 @@ TEST_CASE(quant_dot_2args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {4, 5}};
         std::vector<int8_t> data1(3 * 4);
@@ -1282,7 +1282,7 @@ TEST_CASE(quant_dot_2args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 3}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {4, 5}};
         std::vector<int8_t> data1(4 * 3);
@@ -1308,7 +1308,7 @@ TEST_CASE(quant_dot_2args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {5, 4}};
         std::vector<int8_t> data1(3 * 4);
@@ -1339,7 +1339,7 @@ TEST_CASE(quant_dot_2args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {4, 3}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {5, 4}};
         std::vector<int8_t> data1(4 * 3);
@@ -1369,7 +1369,7 @@ TEST_CASE(quant_dot_3args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 8}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
@@ -1398,7 +1398,7 @@ TEST_CASE(quant_dot_3args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {4, 5}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {3, 5}};
@@ -1427,7 +1427,7 @@ TEST_CASE(quant_dot_3args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {8, 2}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
@@ -1457,7 +1457,7 @@ TEST_CASE(quant_dot_3args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 8}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {7, 8}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
@@ -1487,7 +1487,7 @@ TEST_CASE(quant_dot_3args_general)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {8, 2}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {7, 8}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
@@ -1521,7 +1521,7 @@ TEST_CASE(quant_dot_3args_batch)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 2, 2, 4}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {2, 2, 4, 7}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 2, 2, 7}};
@@ -1554,7 +1554,7 @@ TEST_CASE(quant_dot_3args_batch)
     {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 2, 4, 3}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {2, 2, 6, 4}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 2, 3, 6}};

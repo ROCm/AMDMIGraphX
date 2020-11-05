@@ -19,10 +19,8 @@ std::vector<argument> run_ref(program p, const parameter_map& inputs)
     return out;
 }
 
-std::vector<argument> run_target(program p,
-                                 const target& t,
-                                 const compile_options& options,
-                                 const parameter_map& inputs)
+std::vector<argument>
+run_target(program p, const target& t, const compile_options& options, const parameter_map& inputs)
 {
     p.compile(t, options);
 

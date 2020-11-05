@@ -27,17 +27,17 @@ TEST_CASE(rewrite_pooling_test)
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
     auto pooling_program = [&](const std::string& mode) {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_parameter("x", s);
-        auto ret =
-            mm->add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
+        auto ret = mm->add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}},
+                                       input);
         mm->add_return({ret});
         return p;
     };
 
     auto opt_program = [&](const migraphx::operation& reduce_op) {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_parameter("x", s);
         auto rsp   = mm->add_instruction(migraphx::op::reshape{{4, -1}}, input);
         auto rdm   = mm->add_instruction(reduce_op, rsp);
@@ -63,7 +63,7 @@ TEST_CASE(rewrite_avepooling_na1_test)
     auto pooling_program = [&]() {
         migraphx::program p;
 
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_parameter("x", s);
         auto ret   = mm->add_instruction(
             migraphx::op::pooling{"average", {0, 1, 0}, {1, 1, 1}, {3, 4, 5}}, input);
@@ -84,7 +84,7 @@ TEST_CASE(rewrite_avepooling_na2_test)
     auto pooling_program = [&]() {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_parameter("x", s);
         auto ret   = mm->add_instruction(
             migraphx::op::pooling{"average", {0, 0, 0}, {1, 2, 1}, {3, 4, 5}}, input);
@@ -105,10 +105,10 @@ TEST_CASE(rewrite_avepooling_na3_test)
     auto pooling_program = [&]() {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_parameter("x", s);
-        auto ret =
-            mm->add_instruction(migraphx::op::pooling{"max", {0, 0, 0}, {1, 1, 1}, {3, 3, 5}}, input);
+        auto ret   = mm->add_instruction(
+            migraphx::op::pooling{"max", {0, 0, 0}, {1, 1, 1}, {3, 3, 5}}, input);
         mm->add_return({ret});
         return p;
     };
@@ -129,17 +129,17 @@ TEST_CASE(literal_rewrite_pooling_test)
     auto pooling_program = [&](const std::string& mode) {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_literal(migraphx::literal(s, data));
-        auto ret =
-            mm->add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}}, input);
+        auto ret = mm->add_instruction(migraphx::op::pooling{mode, {0, 0, 0}, {1, 1, 1}, {3, 4, 5}},
+                                       input);
         mm->add_return({ret});
         return p;
     };
 
     auto opt_program = [&](const migraphx::operation& op) {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto input = mm->add_literal(migraphx::literal(s, data));
         auto rsp   = mm->add_instruction(migraphx::op::reshape{{4, -1}}, input);
         auto rdm   = mm->add_instruction(op, rsp);

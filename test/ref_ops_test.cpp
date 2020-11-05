@@ -1425,20 +1425,20 @@ TEST_CASE(imagescaler_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 2, 2}};
     auto img           = mm->add_literal(migraphx::literal{s,
-                                                {0.2,
-                                                 0.3,
-                                                 0.5,
-                                                 0.4,
+                                                 {0.2,
+                                                  0.3,
+                                                  0.5,
+                                                  0.4,
 
-                                                 0.7,
-                                                 0.8,
-                                                 0.1,
-                                                 0.9,
+                                                  0.7,
+                                                  0.8,
+                                                  0.1,
+                                                  0.9,
 
-                                                 0.15,
-                                                 0.25,
-                                                 0.35,
-                                                 0.45}});
+                                                  0.15,
+                                                  0.25,
+                                                  0.35,
+                                                  0.45}});
     auto scale_val     = mm->add_literal(2.f);
     auto scaled_tensor = mm->add_instruction(migraphx::op::scalar{s.lens()}, scale_val);
     auto img_scaled    = mm->add_instruction(migraphx::op::mul{}, img, scaled_tensor);

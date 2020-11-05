@@ -17,7 +17,7 @@
 migraphx::instruction_ref
 create_clip_op(migraphx::program& p, float max, float min, migraphx::instruction_ref input)
 {
-    auto* mm = p.get_main_module();
+    auto* mm        = p.get_main_module();
     auto input_lens = input->get_shape().lens();
     auto max_val    = mm->add_literal(max);
     auto min_val    = mm->add_literal(min);
@@ -32,7 +32,7 @@ migraphx::instruction_ref create_clip_op(migraphx::instruction_ref insert_loc,
                                          float min,
                                          migraphx::instruction_ref input)
 {
-    auto* mm = p.get_main_module();
+    auto* mm        = p.get_main_module();
     auto input_lens = input->get_shape().lens();
     auto max_val    = mm->add_literal(max);
     auto min_val    = mm->add_literal(min);
@@ -357,8 +357,8 @@ TEST_CASE(dot_float)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         auto qdot = mm->add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
         auto fdot = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
@@ -410,11 +410,11 @@ TEST_CASE(dot_double_2args)
         // quantize parameter a to int8 type, multiply the scale
         std::vector<float> vfa(sa.elements(), 0.1f);
         auto fpa = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pa);
-        auto fa  = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
-        auto ma  = mm->add_instruction(migraphx::op::mul{}, fa, fpa);
-        auto ra  = mm->add_instruction(migraphx::op::round{}, ma);
-        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa  = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+        auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
+        auto ma = mm->add_instruction(migraphx::op::mul{}, fa, fpa);
+        auto ra = mm->add_instruction(migraphx::op::round{}, ma);
+        auto ca = create_clip_op(p, 127.0f, -128.0f, ra);
+        auto qa = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pb);
@@ -425,8 +425,8 @@ TEST_CASE(dot_double_2args)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, fpb);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         auto qdot = mm->add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
         auto fdot = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
@@ -491,8 +491,8 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         // quantize parameter c to int32 type
         auto qc = mm->insert_instruction(
@@ -547,11 +547,12 @@ TEST_CASE(dot_large_alpha_beta_int32)
 
         // add the shift
         std::vector<float> vsa(sa.elements(), 1.0f);
-        auto sfta = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
-        auto msa  = mm->add_instruction(migraphx::op::add{}, sfta, ma);
-        auto ra   = mm->add_instruction(migraphx::op::round{}, msa);
-        auto ca   = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa   = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+        auto sfta =
+            mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
+        auto msa = mm->add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra  = mm->add_instruction(migraphx::op::round{}, msa);
+        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
+        auto qa  = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pb);
@@ -562,8 +563,8 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, conv_b);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         mm->add_instruction(migraphx::op::quant_dot{2000, 50}, qa, qb, pc);
 
@@ -601,11 +602,12 @@ TEST_CASE(dot_int32_one_arg)
         // add the shift
         auto fpa = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pa);
         std::vector<float> vsa(s.elements(), 1.0f);
-        auto sfta = mm->add_literal(migraphx::literal({migraphx::shape::float_type, s.lens()}, vsa));
-        auto msa  = mm->add_instruction(migraphx::op::add{}, sfta, fpa);
-        auto ra   = mm->add_instruction(migraphx::op::round{}, msa);
-        auto ca   = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa   = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+        auto sfta =
+            mm->add_literal(migraphx::literal({migraphx::shape::float_type, s.lens()}, vsa));
+        auto msa = mm->add_instruction(migraphx::op::add{}, sfta, fpa);
+        auto ra  = mm->add_instruction(migraphx::op::round{}, msa);
+        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
+        auto qa  = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
 
         auto q_dot = mm->add_instruction(migraphx::op::quant_dot{1, 0}, qa, qa);
         auto f_dot = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_dot);
@@ -663,11 +665,12 @@ TEST_CASE(dot_int32)
 
         // add the shift
         std::vector<float> vsa(sa.elements(), 1.0f);
-        auto sfta = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
-        auto msa  = mm->add_instruction(migraphx::op::add{}, sfta, ma);
-        auto ra   = mm->add_instruction(migraphx::op::round{}, msa);
-        auto ca   = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa   = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
+        auto sfta =
+            mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
+        auto msa = mm->add_instruction(migraphx::op::add{}, sfta, ma);
+        auto ra  = mm->add_instruction(migraphx::op::round{}, msa);
+        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
+        auto qa  = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, ca);
 
         // quantize parameter b to int8 type
         auto insert_loc = std::next(pb);
@@ -678,20 +681,20 @@ TEST_CASE(dot_int32)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, conv_b);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         auto qdot = mm->add_instruction(migraphx::op::quant_dot{1, 0}, qa, qb);
         auto fr   = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
         std::vector<float> v_alpha(fr->get_shape().elements(), 20.0f);
         auto new_alpha = mm->add_literal(migraphx::literal(fr->get_shape(), v_alpha));
         auto alpha_ab  = mm->add_instruction(migraphx::op::mul{}, new_alpha, fr);
-        auto fc        = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pc);
+        auto fc = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, pc);
         std::vector<float> v_beta(fc->get_shape().elements(), 5.5f);
         auto beta   = mm->add_literal(migraphx::literal(fc->get_shape(), v_beta));
         auto beta_c = mm->add_instruction(migraphx::op::mul{}, beta, fc);
         auto f_res  = mm->add_instruction(migraphx::op::add{}, alpha_ab, beta_c);
-        auto res    = mm->add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
+        auto res = mm->add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, f_res);
         if(add_return)
         {
             mm->add_return({res});
@@ -744,8 +747,8 @@ TEST_CASE(dot_float_convert)
         auto mb = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fb, pb);
         auto rb = mm->insert_instruction(insert_loc, migraphx::op::round{}, mb);
         auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
+        auto qb = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cb);
 
         auto qdot = mm->add_instruction(migraphx::op::quant_dot{1, 0}, pa, qb);
         auto fr   = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, qdot);
@@ -801,11 +804,12 @@ TEST_CASE(conv_float)
         auto mw = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fw, pw);
         auto rw = mm->insert_instruction(insert_loc, migraphx::op::round{}, mw);
         auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
+        auto qw = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
 
         auto q_conv = mm->add_instruction(migraphx::op::quant_convolution{}, qx, qw);
-        auto f_conv = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_conv);
+        auto f_conv =
+            mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_conv);
         std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
         auto adj = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
         mm->add_instruction(migraphx::op::mul{}, adj, f_conv);
@@ -838,7 +842,7 @@ TEST_CASE(conv_int32)
     auto create_int8_quantized_prog = [] {
         migraphx::program p;
 
-    auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sx{migraphx::shape::int32_type, {4, 3, 3, 3}};
         migraphx::shape sw{migraphx::shape::int32_type, {4, 3, 3, 3}};
         auto px = mm->add_parameter("x", sx);
@@ -861,8 +865,8 @@ TEST_CASE(conv_int32)
         auto mw = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fw, fpw);
         auto rw = mm->insert_instruction(insert_loc, migraphx::op::round{}, mw);
         auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
+        auto qw = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
 
         auto q_conv = mm->add_instruction(migraphx::op::quant_convolution{}, qx, qw);
         std::vector<float> v_adj(q_conv->get_shape().elements(), 100.0f);
@@ -919,11 +923,12 @@ TEST_CASE(conv_half)
         auto mw = mm->insert_instruction(insert_loc, migraphx::op::mul{}, fw, fpw);
         auto rw = mm->insert_instruction(insert_loc, migraphx::op::round{}, mw);
         auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw =
-            mm->insert_instruction(insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
+        auto qw = mm->insert_instruction(
+            insert_loc, migraphx::op::convert{migraphx::shape::int8_type}, cw);
 
         auto q_conv = mm->add_instruction(migraphx::op::quant_convolution{}, qx, qw);
-        auto f_conv = mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_conv);
+        auto f_conv =
+            mm->add_instruction(migraphx::op::convert{migraphx::shape::float_type}, q_conv);
         std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
         auto adj   = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
         auto f_res = mm->add_instruction(migraphx::op::mul{}, adj, f_conv);

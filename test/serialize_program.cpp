@@ -8,7 +8,7 @@
 migraphx::program create_program()
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();    
+    auto* mm = p.get_main_module();
 
     auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
     auto two = mm->add_literal(2);

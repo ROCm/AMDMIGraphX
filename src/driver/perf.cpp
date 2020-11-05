@@ -16,8 +16,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-parameter_map
-fill_param_map(parameter_map& m, const program& p, const target& t, bool offload)
+parameter_map fill_param_map(parameter_map& m, const program& p, const target& t, bool offload)
 {
     for(auto&& x : p.get_parameter_shapes())
     {

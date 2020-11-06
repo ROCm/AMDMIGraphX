@@ -615,15 +615,16 @@ struct cpu_gemm
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto src = to_dnnl_memory(args[0], ctx.engine);
-        auto weights = to_dnnl_memory(args[1], ctx.engine);
-        auto dst = to_dnnl_memory(result, ctx.engine);
+        auto src      = to_dnnl_memory(args[0], ctx.engine);
+        auto weights  = to_dnnl_memory(args[1], ctx.engine);
+        auto dst      = to_dnnl_memory(result, ctx.engine);
         auto matmul_d = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
 
         auto matmul_prim = dnnl::matmul(matmul_pd);
 
         // Primitive execution: matrix multiplication with ReLU.
-        matmul_prim.execute(ctx.stream, {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, weights}, {DNNL_ARG_DST, dst}});
+        matmul_prim.execute(
+            ctx.stream, {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, weights}, {DNNL_ARG_DST, dst}});
         // Wait for the computation to finalize.
         ctx.stream.wait();
         read_from_dnnl_memory(result.data(), dst);

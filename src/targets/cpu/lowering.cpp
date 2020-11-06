@@ -627,7 +627,6 @@ struct cpu_gemm
             ctx.stream, {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, weights}, {DNNL_ARG_DST, dst}});
         // Wait for the computation to finalize.
         ctx.stream.wait();
-        read_from_dnnl_memory(result.data(), dst);
         return result;
     }
 #else

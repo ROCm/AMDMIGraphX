@@ -32,15 +32,15 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {decompose{},
+    return {rewrite_rnn{},
+            dead_code_elimination{},
+            decompose{},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},
             rewrite_batchnorm{},
-            dead_code_elimination{},
-            rewrite_rnn{},
             dead_code_elimination{},
             rewrite_pooling{},
             dead_code_elimination{},

@@ -603,30 +603,50 @@ struct cpu_gemm
     std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+#if USE_DNNL
+        check_shapes(inputs, *this).has(2).standard();
+#else
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);
             check_shapes{{c_shape}, *this}.not_broadcasted();
         }
+#endif
         return op.compute_shape(inputs);
+    }
+
+    argument limit3(const argument& a) const
+    {
+        auto s = a.get_shape();
+        auto ndims = s.lens().size();
+        if (ndims > 3)
+        {
+            std::size_t batch = std::accumulate(s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
+            shape s3d{s.type(), {batch, s.lens()[ndims - 2], s.lens()[ndims - 1]}};
+            return a.reshape(s3d);
+        }
+        else
+        {
+            return a;
+        }
     }
 
 #if USE_DNNL
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
+        if (args[0].get_shape().type() == shape::type_t::half_type)
+            return op.compute(output_shape, args);
         argument result{output_shape};
-        auto src      = to_dnnl_memory(args[0], ctx.engine);
-        auto weights  = to_dnnl_memory(args[1], ctx.engine);
-        auto dst      = to_dnnl_memory(result, ctx.engine);
+        auto src      = to_dnnl_memory(limit3(args[0]), ctx.engine);
+        auto weights  = to_dnnl_memory(limit3(args[1]), ctx.engine);
+        auto dst      = to_dnnl_memory(limit3(result), ctx.engine);
         auto matmul_d = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
+        auto matmul_pd = dnnl::matmul::primitive_desc(matmul_d, ctx.engine);
 
         auto matmul_prim = dnnl::matmul(matmul_pd);
 
-        // Primitive execution: matrix multiplication with ReLU.
         matmul_prim.execute(
             ctx.stream, {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, weights}, {DNNL_ARG_DST, dst}});
-        // Wait for the computation to finalize.
-        ctx.stream.wait();
         return result;
     }
 #else

@@ -24,7 +24,7 @@ struct argument : raw_data<argument>
     argument(const shape& s) : m_shape(s)
     {
         auto buffer = std::make_shared<std::vector<char>>(s.bytes());
-        data = [=]() mutable { return buffer->data(); };
+        data        = [=]() mutable { return buffer->data(); };
     }
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>

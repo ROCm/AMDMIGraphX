@@ -24,7 +24,6 @@
 #include <migraphx/pass.hpp>
 #include <migraphx/generate.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
@@ -34,26 +33,26 @@ std::string target::name() const { return "cpu"; }
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
     return {decompose{},
-        dead_code_elimination{},
-        simplify_reshapes{},
-        eliminate_identity{},
-        eliminate_pad{},
-        dead_code_elimination{},
-        rewrite_batchnorm{},
-        dead_code_elimination{},
-        rewrite_rnn{},
-        dead_code_elimination{},
-        rewrite_pooling{},
-        dead_code_elimination{},
-        eliminate_common_subexpression{},
-        dead_code_elimination{},
-        simplify_algebra{},
-        simplify_reshapes{},
-        simplify_algebra{},
-        auto_contiguous{},
-        simplify_reshapes{},
-        propagate_constant{},
-        dead_code_elimination{},
+            dead_code_elimination{},
+            simplify_reshapes{},
+            eliminate_identity{},
+            eliminate_pad{},
+            dead_code_elimination{},
+            rewrite_batchnorm{},
+            dead_code_elimination{},
+            rewrite_rnn{},
+            dead_code_elimination{},
+            rewrite_pooling{},
+            dead_code_elimination{},
+            eliminate_common_subexpression{},
+            dead_code_elimination{},
+            simplify_algebra{},
+            simplify_reshapes{},
+            simplify_algebra{},
+            auto_contiguous{},
+            simplify_reshapes{},
+            propagate_constant{},
+            dead_code_elimination{},
             lowering{},
             dead_code_elimination{}};
 }

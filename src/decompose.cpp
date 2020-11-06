@@ -28,15 +28,15 @@ struct find_dot_add
             return;
         auto a_mat = ins->inputs()[0];
         auto b_mat = ins->inputs()[1];
-        if (not float_equal(dot.alpha, 1))
+        if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
-            auto alpha_broadcast = p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
+            auto alpha_broadcast =
+                p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
             a_mat = p.insert_instruction(ins, op::mul{}, a_mat, alpha_broadcast);
         }
-        auto dot_ins =
-            p.insert_instruction(ins, op::dot{0, 0}, a_mat, b_mat);
-        auto c_ins = ins->inputs()[2];
+        auto dot_ins = p.insert_instruction(ins, op::dot{0, 0}, a_mat, b_mat);
+        auto c_ins   = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
             auto beta = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.beta}});
@@ -54,14 +54,15 @@ struct find_dot_alpha
 
     void apply(program& p, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto dot = any_cast<op::dot>(ins->get_operator());
+        auto ins   = r.result;
+        auto dot   = any_cast<op::dot>(ins->get_operator());
         auto a_mat = ins->inputs()[0];
         auto b_mat = ins->inputs()[1];
-        if (not float_equal(dot.alpha, 1))
+        if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
-            auto alpha_broadcast = p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
+            auto alpha_broadcast =
+                p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
             a_mat = p.insert_instruction(ins, op::mul{}, a_mat, alpha_broadcast);
         }
         p.replace_instruction(ins, op::dot{0, 0}, a_mat, b_mat);
@@ -70,7 +71,10 @@ struct find_dot_alpha
 
 } // namespace
 
-void decompose::apply(program& p) const { match::find_matches(p, find_dot_add{}, find_dot_alpha{}); }
+void decompose::apply(program& p) const
+{
+    match::find_matches(p, find_dot_add{}, find_dot_alpha{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

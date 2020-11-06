@@ -617,11 +617,12 @@ struct cpu_gemm
 
     argument limit3(const argument& a) const
     {
-        auto s = a.get_shape();
+        auto s     = a.get_shape();
         auto ndims = s.lens().size();
-        if (ndims > 3)
+        if(ndims > 3)
         {
-            std::size_t batch = std::accumulate(s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
+            std::size_t batch = std::accumulate(
+                s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
             shape s3d{s.type(), {batch, s.lens()[ndims - 2], s.lens()[ndims - 1]}};
             return a.reshape(s3d);
         }
@@ -634,13 +635,13 @@ struct cpu_gemm
 #if USE_DNNL
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        if (args[0].get_shape().type() == shape::type_t::half_type)
+        if(args[0].get_shape().type() == shape::type_t::half_type)
             return op.compute(output_shape, args);
         argument result{output_shape};
-        auto src      = to_dnnl_memory(limit3(args[0]), ctx.engine);
-        auto weights  = to_dnnl_memory(limit3(args[1]), ctx.engine);
-        auto dst      = to_dnnl_memory(limit3(result), ctx.engine);
-        auto matmul_d = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
+        auto src       = to_dnnl_memory(limit3(args[0]), ctx.engine);
+        auto weights   = to_dnnl_memory(limit3(args[1]), ctx.engine);
+        auto dst       = to_dnnl_memory(limit3(result), ctx.engine);
+        auto matmul_d  = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
         auto matmul_pd = dnnl::matmul::primitive_desc(matmul_d, ctx.engine);
 
         auto matmul_prim = dnnl::matmul(matmul_pd);

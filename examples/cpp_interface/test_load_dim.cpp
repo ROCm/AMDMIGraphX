@@ -4,7 +4,8 @@
 #include <string>
 #include <migraphx/migraphx.hpp>
 
-void load_onnx_file(std::string file_name, migraphx::onnx_options options) {
+void load_onnx_file(std::string file_name, migraphx::onnx_options options)
+{
     auto prog = migraphx::parse_onnx(file_name.c_str(), options);
     std::cout << "Load program is: " << std::endl;
     prog.print();
@@ -22,11 +23,11 @@ std::string process_one_line(std::string line, std::size_t& val)
 {
     std::cout << "line = " << line << std::endl;
     std::size_t start_pos = 0;
-    auto pos = line.find(' ', start_pos);
-    auto name = line.substr(start_pos, pos);
-    auto val_str = line.substr(pos + 1);
-    val = std::stoi(val_str);
-    
+    auto pos              = line.find(' ', start_pos);
+    auto name             = line.substr(start_pos, pos);
+    auto val_str          = line.substr(pos + 1);
+    val                   = std::stoi(val_str);
+
     return name;
 }
 
@@ -34,15 +35,15 @@ migraphx::onnx_options load_option_file(std::string file)
 {
     migraphx::onnx_options options;
     std::ifstream ifs(file);
-    if (!ifs.is_open())
+    if(!ifs.is_open())
     {
         return options;
     }
 
     std::string line;
-    while (std::getline(ifs, line))
+    while(std::getline(ifs, line))
     {
-        if (line.empty())
+        if(line.empty())
             break;
 
         std::size_t val;
@@ -53,9 +54,10 @@ migraphx::onnx_options load_option_file(std::string file)
     return options;
 }
 
-
-int main(int argc, char **argv) {
-    if (argc != 3) {
+int main(int argc, char** argv)
+{
+    if(argc != 3)
+    {
         std::cout << "Usage: " << argv[0] << " onnxfile optionfile" << std::endl;
         return 0;
     }
@@ -66,4 +68,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-

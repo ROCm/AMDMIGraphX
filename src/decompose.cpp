@@ -26,16 +26,16 @@ struct find_dot_add
            not contains({shape::float_type, shape::half_type, shape::double_type},
                         ins->get_shape().type()))
             return;
-        auto a_mat = ins->inputs()[0];
-        auto b_mat = ins->inputs()[1];
+        auto a_ins = ins->inputs()[0];
+        auto b_ins = ins->inputs()[1];
         if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
-            a_mat = p.insert_instruction(ins, op::mul{}, a_mat, alpha_broadcast);
+                p.insert_instruction(ins, op::multibroadcast{a_ins->get_shape().lens()}, alpha);
+            a_ins = p.insert_instruction(ins, op::mul{}, a_ins, alpha_broadcast);
         }
-        auto dot_ins = p.insert_instruction(ins, op::dot{0, 0}, a_mat, b_mat);
+        auto dot_ins = p.insert_instruction(ins, op::dot{1, 0}, a_ins, b_ins);
         auto c_ins   = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
@@ -56,16 +56,16 @@ struct find_dot_alpha
     {
         auto ins   = r.result;
         auto dot   = any_cast<op::dot>(ins->get_operator());
-        auto a_mat = ins->inputs()[0];
-        auto b_mat = ins->inputs()[1];
+        auto a_ins = ins->inputs()[0];
+        auto b_ins = ins->inputs()[1];
         if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{a_mat->get_shape().lens()}, alpha);
-            a_mat = p.insert_instruction(ins, op::mul{}, a_mat, alpha_broadcast);
+                p.insert_instruction(ins, op::multibroadcast{a_ins->get_shape().lens()}, alpha);
+            a_ins = p.insert_instruction(ins, op::mul{}, a_ins, alpha_broadcast);
         }
-        p.replace_instruction(ins, op::dot{0, 0}, a_mat, b_mat);
+        p.replace_instruction(ins, op::dot{1, 0}, a_ins, b_ins);
     }
 };
 

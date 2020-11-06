@@ -617,11 +617,12 @@ struct cpu_gemm
 
     argument limit3(const argument& a) const
     {
-        auto s = a.get_shape();
+        auto s     = a.get_shape();
         auto ndims = s.lens().size();
-        if (ndims > 3)
+        if(ndims > 3)
         {
-            std::size_t batch = std::accumulate(s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
+            std::size_t batch = std::accumulate(
+                s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
             shape s3d{s.type(), {batch, s.lens()[ndims - 2], s.lens()[ndims - 1]}};
             return a.reshape(s3d);
         }

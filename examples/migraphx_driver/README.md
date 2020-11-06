@@ -1,5 +1,5 @@
 # MIGraphX Driver
-There is a new driver as /opt/rocm/bin/migraphx-driver.  The --help command shows options available
+The MIGraphX driver is located under /opt/rocm/bin/migraphx-driver.  The --help command shows options available
 ```
 prompt$ /opt/rocm/bin/migraphx-driver --help
 

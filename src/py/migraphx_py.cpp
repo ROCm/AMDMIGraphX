@@ -208,6 +208,15 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+struct module_wrap
+{
+    migraphx::program* prog;
+};
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")

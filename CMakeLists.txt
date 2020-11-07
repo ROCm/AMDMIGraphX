@@ -43,6 +43,9 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
+# Disable cpu backend by default
+set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options(-std=c++14)
 

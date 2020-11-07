@@ -20,37 +20,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// template <class F>
-// static void print_program(const program& p, F print_func)
-// {
-//     std::unordered_map<instruction_ref, std::string> names;
-//     int count = 0;
-
-//     auto* mm = p.get_main_module();
-//     for(auto ins : iterator_for(*mm))
-//     {
-//         std::string var_name;
-//         if(ins->name() == "@param")
-//         {
-//             var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-//         }
-//         else
-//         {
-//             var_name = "@" + std::to_string(count);
-//             count++;
-//         }
-//         names.emplace(ins, var_name);
-
-//         // TODO: Use all_of
-//         for(auto&& arg : ins->inputs())
-//         {
-//             assert(p.has_instruction(arg) && "Instruction not found");
-//             (void)arg;
-//         }
-
-//         print_func(ins, names);
-//     }
-// }
+struct program_impl
+{
+    // A list is used to keep references to modules of the program
+    std::list<module> modules;
+    std::vector<std::string> input_names;
+    context ctx;
+    std::string target_name;
+};
 
 program::program() {}
 
@@ -63,7 +40,7 @@ program::program(const program& p) { assign(p); }
 // copy assignment operator
 program& program::operator=(program p)
 {
-    std::swap(p.main_module, this->main_module);
+    std::swap(p.impl, this->impl);
     return *this;
 }
 
@@ -94,7 +71,7 @@ bool program::has_instruction(instruction_ref ins) const
     return main_module.has_instruction(ins);
 }
 
-std::size_t program::size() const { return main_module.size(); }
+std::size_t program::size() const { return impl->modules.size(); }
 instruction_ref program::begin() const { return main_module.begin(); }
 instruction_ref program::end() const { return main_module.end(); }
 

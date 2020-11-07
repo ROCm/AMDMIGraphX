@@ -18,6 +18,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+struct program_impl;
+
 /**
  * @brief Stores the instruction stream
  */
@@ -90,7 +92,7 @@ struct program
 
     private:
     void assign(const program& p);
-    module main_module;
+    std::unique_ptr<program_impl> impl;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

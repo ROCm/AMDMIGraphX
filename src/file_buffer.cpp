@@ -10,7 +10,7 @@ std::vector<char> read_buffer(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     std::streamsize size = is.tellg();
-    if (size < 1)
+    if(size < 1)
         MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(0, std::ios::beg);
 

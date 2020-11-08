@@ -46,6 +46,9 @@ struct stream_info
                 auto&& op          = ins->get_operator();
                 if(not is_context_free(op) and op.name()[0] != '@')
                     weight = model.weight(op);
+                // This will ensure a stream will be assigned to return
+                if(op.name() == "@return")
+                    weight = 1;
                 iweights[ins] = weight;
                 weights[ins] =
                     std::accumulate(ins->inputs().begin(),

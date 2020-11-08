@@ -21,7 +21,7 @@ struct logsoftmax
     std::string name() const { return "logsoftmax"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs}.has(1).standard();
+        check_shapes{inputs, *this}.has(1).standard();
         int64_t n_dim = static_cast<int64_t>(inputs[0].lens().size());
         if(axis < -n_dim || axis >= n_dim)
         {

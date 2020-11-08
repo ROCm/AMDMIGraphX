@@ -29,7 +29,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FAST_GELU)
 
 struct fusion
 {
@@ -378,13 +377,18 @@ struct find_gelu
                               match::has_value(M_SQRT1_2)))));
     }
 
+    static auto add_erf()
+    {
+        return match::name("gpu::add")(
+            match::used_once(),
+            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
+    }
+
+    static auto one_half() { return match::args(match::has_value(0.5f)); }
+
     auto matcher() const
     {
-        return match::name("gpu::mul")(match::either_arg(0, 1)(
-            match::name("gpu::mul")(match::any_arg(0, 1)(match::args(match::has_value(0.5f)))),
-            match::name("gpu::add")(
-                match::used_once(),
-                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))))));
+        return match::unordered_tree("gpu::mul", one_half(), add_erf(), match::any());
     }
 
     void apply(program& p, match::matcher_result r) const
@@ -419,6 +423,7 @@ struct find_add_gelu
 
 struct find_gelu_new
 {
+    bool fast_math = true;
 
     static auto pow_fn()
     {
@@ -453,7 +458,7 @@ struct find_gelu_new
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        if(enabled(MIGRAPHX_DISABLE_FAST_GELU{}))
+        if(not fast_math)
             p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
         else
             p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
@@ -830,7 +835,7 @@ struct find_commutative_broadcast
 
 void fuse_ops::apply(program& p) const
 {
-    match::find_matches(p, find_gelu{}, find_gelu_new{});
+    match::find_matches(p, find_gelu{}, find_gelu_new{fast_math});
     run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd{});
     match::find_matches(p,

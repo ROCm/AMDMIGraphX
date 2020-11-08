@@ -6,8 +6,12 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <algorithm>
 
 namespace migraphx {
 
@@ -70,6 +74,7 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
 {
     migraphx::compile_options result{};
     result.offload_copy = options.offload_copy;
+    result.fast_math    = options.fast_math;
     return result;
 }
 
@@ -137,6 +142,18 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+operation create_op(const char* name, const char* attributes)
+{
+    value v = value::object{};
+    if(attributes != nullptr)
+    {
+        v = from_json_string(convert_to_json(std::string(attributes)));
+    }
+    auto op = make_op(name, v);
+
+    return op;
+}
+
 template <class T>
 bool equal(const T& x, const T& y)
 {
@@ -150,7 +167,9 @@ std::vector<argument> run(program& p, const program::parameter_map& params)
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-void print(const program& p) { std::cout << p << std::endl; }
+void print_program(const program& p) { std::cout << p << std::endl; }
+
+void print_module(const module& m) { std::cout << m << std::endl; }
 
 } // namespace migraphx
 

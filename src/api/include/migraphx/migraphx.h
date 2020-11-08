@@ -42,6 +42,7 @@ typedef enum {
 typedef struct
 {
     bool offload_copy;
+    bool fast_math;
 } migraphx_compile_options;
 
 typedef struct
@@ -70,8 +71,14 @@ typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 typedef struct migraphx_shapes* migraphx_shapes_t;
 typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
+typedef struct migraphx_module* migraphx_module_t;
+typedef const struct migraphx_module* const_migraphx_module_t;
+
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
+
+typedef struct migraphx_operation* migraphx_operation_t;
+typedef const struct migraphx_operation* const_migraphx_operation_t;
 
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
@@ -170,7 +177,12 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
 
+migraphx_status migraphx_module_print(const_migraphx_module_t module);
+
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
+
+migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,
+                                                 migraphx_program_t program);
 
 migraphx_status migraphx_program_compile(migraphx_program_t program,
                                          migraphx_target_t target,
@@ -192,6 +204,14 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
+
+migraphx_status migraphx_operation_destroy(migraphx_operation_t operation);
+
+migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
+                                          const char* name,
+                                          const char* attributes);
+
+migraphx_status migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operation);
 
 migraphx_status
 migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options* options);

@@ -663,7 +663,7 @@ def add_handle_preamble():
         string.Template(cpp_handle_preamble).substitute(success=success_type))
 
 
-def add_handle(name, ctype, cpptype, destroy=None):
+def add_handle(name, ctype, cpptype, destroy=None, ref=None):
     opaque_type = ctype + '_t'
 
     def handle_wrap(p):
@@ -688,9 +688,10 @@ def add_handle(name, ctype, cpptype, destroy=None):
             p.cpp_read = '${name}.get_handle_ptr()'
 
     type_map[cpptype] = handle_wrap
-    add_function(destroy or ctype + '_' + 'destroy',
-                 params({name: opaque_type}),
-                 fname='destroy')
+    if not ref:
+        add_function(destroy or ctype + '_' + 'destroy',
+                     params({name: opaque_type}),
+                     fname='destroy')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
     c_api_body_preamble.append(handle_definition.substitute(locals()))
@@ -725,13 +726,37 @@ def vector_c_wrap(p):
         p.read = '${type}(${name}, ${name}+${size})'
 
 
+@cwrap('std::string')
+def string_c_wrap(p):
+    t = Type('char*')
+    if p.returns:
+        if p.type.is_reference():
+            p.add_param(t.add_pointer())
+            p.bad_param('${name} == nullptr', 'Null pointer')
+            p.cpp_write = '${type}(${name})'
+            p.write = ['*${name} = ${result}.c_str()']
+        else:
+            p.add_param(t)
+            p.add_param('size_t', p.name + '_size')
+            p.bad_param('${name} == nullptr', 'Null pointer')
+            p.cpp_write = '${type}(${name})'
+            p.write = [
+                'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
+                '*it = \'\\0\''
+            ]
+    else:
+        p.add_param(t)
+        p.bad_param('${name} == nullptr', 'Null pointer')
+        p.read = '${type}(${name})'
+
+
 class Handle:
-    def __init__(self, name, ctype, cpptype):
+    def __init__(self, name, ctype, cpptype, ref=None):
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
         self.cpp_class = CPPClass(name, ctype)
-        add_handle(name, ctype, cpptype)
+        add_handle(name, ctype, cpptype, ref=ref)
         cpp_type_map[cpptype] = name
 
     def cname(self, name):
@@ -791,10 +816,10 @@ class Handle:
         cpp_classes.append(self.cpp_class)
 
 
-def handle(ctype, cpptype, name=None):
+def handle(ctype, cpptype, name=None, ref=None):
     def with_handle(f):
         n = name or f.__name__
-        h = Handle(n, ctype, cpptype)
+        h = Handle(n, ctype, cpptype, ref=ref)
         f(h)
         h.add_cpp_class()
 

@@ -32,18 +32,20 @@ def rocmtestnode(Map conf) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            pre()
-            stage("image ${variant}") {
-                try {
-                    docker.build("${image}", "${docker_build_args} .")
-                } catch(Exception ex) {
-                    docker.build("${image}", "${docker_build_args} --no-cache .")
+            gitStatusWrapper(credentialsId: 'github-app-rocm-mici', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+                pre()
+                stage("image ${variant}") {
+                    try {
+                        docker.build("${image}", "${docker_build_args} .")
+                    } catch(Exception ex) {
+                        docker.build("${image}", "${docker_build_args} --no-cache .")
 
+                    }
                 }
-            }
-            withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
-                timeout(time: 1, unit: 'HOURS') {
-                    body(cmake_build)
+                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
+                    timeout(time: 1, unit: 'HOURS') {
+                        body(cmake_build)
+                    }
                 }
             }
         }
@@ -124,10 +126,6 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Clang Release') {
         cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
-    }
-}, clang_release_py3: rocmnode('vega') { cmake_build ->
-    stage('Clang Release Python 3') {
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release -DPYTHON_EXECUTABLE=/usr/local/bin/python3")
     }
 }, hip_clang_release: rocmhipclangnode('vega') { cmake_build ->
     stage('Hip Clang Release') {

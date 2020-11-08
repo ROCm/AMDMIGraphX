@@ -5,13 +5,15 @@
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/make_op.hpp>
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -19,6 +21,84 @@
 
 using half   = half_float::half;
 namespace py = pybind11;
+
+#ifdef __clang__
+#define MIGRAPHX_PUSH_UNUSED_WARNING \
+    _Pragma("clang diagnostic push") \
+        _Pragma("clang diagnostic ignored \"-Wused-but-marked-unused\"")
+#define MIGRAPHX_POP_WARNING _Pragma("clang diagnostic pop")
+#else
+#define MIGRAPHX_PUSH_UNUSED_WARNING
+#define MIGRAPHX_POP_WARNING
+#endif
+#define MIGRAPHX_PYBIND11_MODULE(...) \
+    MIGRAPHX_PUSH_UNUSED_WARNING      \
+    PYBIND11_MODULE(__VA_ARGS__)      \
+    MIGRAPHX_POP_WARNING
+
+namespace migraphx {
+
+migraphx::value to_value(py::kwargs kwargs);
+migraphx::value to_value(py::list lst);
+
+template <class T, class F>
+void visit_py(T x, F f)
+{
+    if(py::isinstance<py::kwargs>(x))
+    {
+        f(to_value(x.template cast<py::kwargs>()));
+    }
+    else if(py::isinstance<py::list>(x))
+    {
+        f(to_value(x.template cast<py::list>()));
+    }
+    else if(py::isinstance<py::bool_>(x))
+    {
+        f(x.template cast<bool>());
+    }
+    else if(py::isinstance<py::int_>(x))
+    {
+        f(x.template cast<int>());
+    }
+    else if(py::isinstance<py::float_>(x))
+    {
+        f(x.template cast<float>());
+    }
+    else if(py::isinstance<py::str>(x))
+    {
+        f(x.template cast<std::string>());
+    }
+    else
+    {
+        MIGRAPHX_THROW("VISIT_PY: Unsupported data type!");
+    }
+}
+
+migraphx::value to_value(py::list lst)
+{
+    migraphx::value v = migraphx::value::array{};
+    for(auto val : lst)
+    {
+        visit_py(val, [&](auto py_val) { v.push_back(py_val); });
+    }
+
+    return v;
+}
+
+migraphx::value to_value(py::kwargs kwargs)
+{
+    migraphx::value v = migraphx::value::object{};
+
+    for(auto arg : kwargs)
+    {
+        auto&& key = py::str(arg.first);
+        auto&& val = arg.second;
+        visit_py(val, [&](auto py_val) { v[key] = py_val; });
+    }
+
+    return v;
+}
+} // namespace migraphx
 
 namespace pybind11 {
 namespace detail {
@@ -128,7 +208,16 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-PYBIND11_MODULE(migraphx, m)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+struct module_wrap
+{
+    migraphx::program* prog;
+};
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
         .def(py::init<>())
@@ -167,19 +256,30 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
+    py::class_<migraphx::module_wrap>(m, "module")
+        .def("print", [](const migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; });
+
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
-        .def("compile",
-             [](migraphx::program& p, const migraphx::target& t, bool offload_copy) {
-                 migraphx::compile_options options;
-                 options.offload_copy = offload_copy;
-                 p.compile(t, options);
-             },
-             py::arg("t"),
-             py::arg("offload_copy") = true)
+        .def(
+            "compile",
+            [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
+                migraphx::compile_options options;
+                options.offload_copy = offload_copy;
+                options.fast_math    = fast_math;
+                p.compile(t, options);
+            },
+            py::arg("t"),
+            py::arg("offload_copy") = true,
+            py::arg("fast_math")    = true)
+        .def("get_main_module",
+             [](migraphx::program& p) {
+                 auto mm = p.get_main_module();
+                 return migraphx::module_wrap{mm};
+             })
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::program::parameter_map pm;
@@ -196,6 +296,18 @@ PYBIND11_MODULE(migraphx, m)
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
+
+    py::class_<migraphx::operation>(m, "op")
+        .def(py::init([](const std::string& name, py::kwargs kwargs) {
+            migraphx::value v = migraphx::value::object{};
+            if(kwargs)
+            {
+                v = migraphx::to_value(kwargs);
+            }
+            return migraphx::make_op(name, v);
+        }))
+
+        .def("name", &migraphx::operation::name);
 
     m.def("parse_tf",
           [](const std::string& filename, bool is_nhwc, unsigned int batch_size) {

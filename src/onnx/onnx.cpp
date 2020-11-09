@@ -55,7 +55,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     std::string filename;
-    std::string path = ".";
+    std::string path    = ".";
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {
@@ -2756,7 +2756,7 @@ struct onnx_parser
 
     void parse_from(std::istream& is, std::string name = "")
     {
-        this->filename = std::move(name);
+        this->filename   = std::move(name);
         auto parent_path = fs::path(this->filename).parent_path();
         if(not parent_path.empty())
             this->path = parent_path;

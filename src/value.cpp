@@ -167,6 +167,13 @@ value& value::operator=(std::nullptr_t)
     return *this;
 }
 
+value& value::operator=(const std::initializer_list<value>& i)
+{
+    value rhs = i;
+    std::swap(rhs.x, x);
+    return *this;
+}
+
 bool value::is_array() const { return x ? x->get_type() == array_type : false; }
 const std::vector<value>& value::value::get_array() const
 {

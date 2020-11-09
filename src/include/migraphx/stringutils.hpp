@@ -11,6 +11,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
+#define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
+
 inline std::string
 replace_string(std::string subject, const std::string& search, const std::string& replace)
 {

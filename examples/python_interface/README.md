@@ -1,7 +1,7 @@
 ## Python Interface
 The Python interface has been simplified so that it is no longer necessary to copy in parameters.  An updated version of the webcam example from <a href="https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Getting-started:-using-the-new-features-of-MIGraphX-0.2">MIGraphX examples v0.2</a> is shown below.
 
-A careful comparison with previous example shows it is no longer necessary to allocate the parameters on the GPU or to explicitly copy parameters to the GPU or results from the GPU.  The Python interface handles this by default.
+A careful comparison with previous example shows it is no longer necessary to allocate the parameters on the GPU or to explicitly copy parameters to the GPU or results from the GPU.  The Python API sets offload_copy=True by default when compiling the model (see [migraphx.compile](https://rocmsoftwareplatform.github.io/AMDMIGraphX/doc/html/reference/py.html#migraphx.compile)) which will insert copies into the migraphx::program.
 ```
 import numpy as np
 import cv2
@@ -41,7 +41,7 @@ while (True):
         # display the frame
         cv2.imshow('frame',cropped)
 
-        migraphx_result = model.run({'0':migraphx.argument(image)})
+        migraphx_result = model.run({'0':image})
 
         result = np.array(migraphx_result,copy=False)
 

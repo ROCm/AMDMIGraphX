@@ -88,7 +88,7 @@ __device__ void layernorm(index_int i,
     auto mean = [&](auto z) {
         return auto_block_reduce<MaxBlockSize>(
                    idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
-               relements;
+               value_type(relements);
 
     };
 
@@ -97,7 +97,7 @@ __device__ void layernorm(index_int i,
     value_type m = x - mean(x);
 
     // mean(m ^ 2) + 1e-12
-    value_type r = mean(m * m) + 1e-12;
+    value_type r = mean(m * m) + value_type(1e-12);
 
     // m * rsqrt(mean(m ^ 2) + 1e-12)
     if(in_range)

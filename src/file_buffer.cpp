@@ -1,6 +1,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
 #include <fstream>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -8,18 +9,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 std::vector<char> read_buffer(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
-    if(not is.good())
-        MIGRAPHX_THROW("Bad stream: " + filename);
-    if(not is.is_open())
-        MIGRAPHX_THROW("Cannot open file: " + filename);
     std::streamsize size = is.tellg();
+    if(size < 1)
+        MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
     if(!is.read(buffer.data(), size))
-    {
         MIGRAPHX_THROW("Error reading file: " + filename);
-    }
     return buffer;
 }
 

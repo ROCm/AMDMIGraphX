@@ -6,6 +6,7 @@
 #include <exception>
 #include <vector>
 #include <cassert>
+#include <iostream>
 
 namespace migraphx {
 inline namespace api { // NOLINT
@@ -422,6 +423,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
         {
             const_migraphx_argument_t pout;
             call(&migraphx_arguments_get, &pout, self, pidx);
+
             return argument(pout);
         }
     };
@@ -457,6 +459,14 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
             return shape(pout);
         }
     };
+};
+
+struct module
+{
+    migraphx_module_t mm;
+    module(const migraphx_module_t& m) : mm(m) {}
+
+    void print() const { call(&migraphx_module_print, mm); }
 };
 
 struct program : MIGRAPHX_HANDLE_BASE(program)
@@ -514,7 +524,33 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return pout;
     }
 
+    module get_main_module()
+    {
+        migraphx_module_t p_modu;
+        call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
+        return module{p_modu};
+    }
+
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
+};
+
+struct operation : MIGRAPHX_HANDLE_BASE(operation)
+{
+    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
+
+    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
+
+    operation(const char* name, const char* attributes = nullptr)
+    {
+        this->make_handle(&migraphx_operation_create, name, attributes);
+    }
+
+    std::string name()
+    {
+        std::array<char, 1024> out_name;
+        call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
+        return std::string(out_name.data());
+    }
 };
 
 inline program load(const char* filename, migraphx_file_options options)

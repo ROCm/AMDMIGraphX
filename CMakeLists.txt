@@ -43,6 +43,7 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
+set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options(-std=c++14)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -71,6 +72,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-signed-char-misuse
+        -bugprone-macro-parentheses
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

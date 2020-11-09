@@ -113,6 +113,7 @@ add_library(migraphx_gpu
     concat.cpp
     leaky_relu.cpp
     batch_norm_inference.cpp
+    kernel.cpp
     write_literals.cpp
     rocblas.cpp
     abs.cpp
@@ -131,6 +132,8 @@ add_library(migraphx_gpu
     preallocate_param.cpp
     rnn_variable_seq_lens.cpp
     sync_device.cpp
+    pack_args.cpp
+    compile_hip.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 function(register_migraphx_gpu_ops PREFIX)
@@ -217,6 +220,42 @@ register_op(migraphx_gpu
     INCLUDES migraphx/gpu/context.hpp)
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
+
+# look for offload bundler
+get_filename_component(CMAKE_CXX_COMPILER_PATH "${CMAKE_CXX_COMPILER}" PATH)
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+$")
+    find_program(MIGRAPHX_OFFLOADBUNDLER_BIN clang-offload-bundler
+        HINTS ${CMAKE_CXX_COMPILER_PATH}
+        PATH_SUFFIXES bin
+        PATHS /opt/rocm/llvm
+    )
+else()
+    find_program(MIGRAPHX_EXTRACT_KERNEL extractkernel
+        PATH_SUFFIXES bin
+        HINTS ${CMAKE_CXX_COMPILER_PATH}
+        PATHS
+            /opt/rocm/hip
+            /opt/rocm/hcc
+            /opt/rocm
+    )
+endif()
+
+message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
+message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
+
+# Get flags needed to compile hip
+include(TargetFlags)
+target_flags(HIP_COMPILER_FLAGS hip::device)
+# Remove cuda arch flags
+string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+target_compile_definitions(migraphx_gpu PRIVATE 
+    "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}" 
+    "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}" 
+    "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
+    "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
+)
+
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_compile_options(migraphx_gpu PRIVATE -std=c++17)

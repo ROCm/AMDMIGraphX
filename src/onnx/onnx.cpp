@@ -20,6 +20,7 @@
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/filesystem.hpp>
 
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -54,7 +55,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     std::string filename;
-    std::string path;
+    std::string path = ".";
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {
@@ -2753,17 +2754,12 @@ struct onnx_parser
         return add_broadcastable_binary_op(cd, args[2], "add");
     }
 
-    void get_abs_path()
-    {
-        path = ".";
-        if(contains(filename, '/'))
-            path = filename.substr(0, filename.find_last_of('/'));
-    }
-
     void parse_from(std::istream& is, std::string name = "")
     {
         this->filename = std::move(name);
-        get_abs_path();
+        auto parent_path = fs::path(this->filename).parent_path();
+        if(not parent_path.empty())
+            this->path = parent_path;
 
         onnx::ModelProto model;
         if(model.ParseFromIstream(&is))

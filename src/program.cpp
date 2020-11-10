@@ -114,8 +114,8 @@ std::vector<shape> program::get_output_shapes() const
     return impl->modules["main"].get_output_shapes();
 }
 
-context& program::get_context() const 
-{ 
+context& program::get_context() const
+{
     assert(contains(impl->modules, "main"));
     return impl->modules["main"].get_context();
 }

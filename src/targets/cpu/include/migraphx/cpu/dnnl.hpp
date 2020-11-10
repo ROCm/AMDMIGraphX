@@ -2,6 +2,8 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_DNNL_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
+#include <unordered_map>
 #ifdef USE_DNNL
 #include <dnnl.hpp>
 #include <migraphx/errors.hpp>
@@ -39,18 +41,40 @@ inline dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
     }
 }
 
+template<class R>
+inline dnnl::memory::dims to_dnnl_dims(R&& r)
+{
+    return {r.begin(), r.end()};
+}
+
 inline dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 {
     if(not s.standard())
         MIGRAPHX_THROW("Unsupported layout");
-    dnnl::memory::dims lens(s.lens().begin(), s.lens().end());
     return dnnl::memory::desc(
-        lens, to_dnnl_memory_data_type(s.type()), to_dnnl_memory_format_tag(lens.size()));
+        to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_memory_format_tag(s.lens().size()));
 }
 
 inline dnnl::memory to_dnnl_memory(const argument& a, dnnl::engine& engine)
 {
     return dnnl::memory(to_dnnl_memory_desc(a.get_shape()), engine, a.data());
+}
+
+template<class Primitive, class Context>
+auto execute_dnnl(Context& ctx, std::unordered_map<int, argument> args)
+{
+    using primitive_desc = typename Primitive::primitive_desc;
+    return [&ctx, args](auto f) {
+        std::unordered_map<int, dnnl::memory> m;
+        for(auto&& p:args)
+            m[p.first] = to_dnnl_memory(p.second, ctx.engine);
+        auto desc = f(m);
+        auto pd = primitive_desc(desc, ctx.engine);
+        auto prim = Primitive(pd);
+        prim.execute(ctx.stream, m);
+    };
+
+
 }
 
 } // namespace cpu

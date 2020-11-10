@@ -205,6 +205,16 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
 
     std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+#if USE_DNNL
+    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
+    {
+        argument result{output_shape};
+        execute_dnnl<dnnl::convolution_forward>(ctx, {{DNNL_ARG_SRC, args[0]}, {DNNL_ARG_WEIGHTS, args[1]}, {DNNL_ARG_DST, result}})([&](auto m) {
+            return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference, dnnl::algorithm::convolution_auto, m.at(DNNL_ARG_SRC).get_desc(), m.at(DNNL_ARG_WEIGHTS).get_desc(), m.at(DNNL_ARG_DST).get_desc(), to_dnnl_dims(op.stride), to_dnnl_dims(op.dilation), to_dnnl_dims(op.padding), to_dnnl_dims(op.padding));
+        });
+        return result;
+    }
+#else
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
@@ -263,6 +273,7 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
         });
         return result;
     }
+#endif
 };
 
 template <class Op>
@@ -635,24 +646,13 @@ struct cpu_gemm
 #if USE_DNNL
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-#if 0
-        return op.compute(output_shape, args);
-#else
         if(args[0].get_shape().type() == shape::type_t::half_type)
             return op.compute(output_shape, args);
         argument result{output_shape};
-        auto src       = to_dnnl_memory(limit3(args[0]), ctx.engine);
-        auto weights   = to_dnnl_memory(limit3(args[1]), ctx.engine);
-        auto dst       = to_dnnl_memory(limit3(result), ctx.engine);
-        auto matmul_d  = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
-        auto matmul_pd = dnnl::matmul::primitive_desc(matmul_d, ctx.engine);
-
-        auto matmul_prim = dnnl::matmul(matmul_pd);
-
-        matmul_prim.execute(
-            ctx.stream, {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, weights}, {DNNL_ARG_DST, dst}});
+        execute_dnnl<dnnl::matmul>(ctx, {{DNNL_ARG_SRC, limit3(args[0])}, {DNNL_ARG_WEIGHTS, limit3(args[1])}, {DNNL_ARG_DST, limit3(result)}})([&](auto m) {
+            return dnnl::matmul::desc(m.at(DNNL_ARG_SRC).get_desc(), m.at(DNNL_ARG_WEIGHTS).get_desc(), m.at(DNNL_ARG_DST).get_desc());
+        });
         return result;
-#endif
     }
 #else
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const

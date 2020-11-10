@@ -42,6 +42,7 @@ template <class T, index_int N, class F>
 __device__ auto vec_transform(vec<T, N> x, F f)
 {
     vec<T, N> y = x;
+    // cppcheck-suppress useStlAlgorithm
     for(index_int k = 0; k < N; k++)
         y[k] = f(x[k]);
     return y;

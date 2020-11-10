@@ -8,7 +8,8 @@
 void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
-        *p.get_main_module(), {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+        *p.get_main_module(),
+        {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(cse_test1)
@@ -121,7 +122,7 @@ TEST_CASE(cse_test_literal)
 {
     migraphx::program p1;
     {
-        auto* mm1 = p1.get_main_module();
+        auto* mm1  = p1.get_main_module();
         auto six1  = mm1->add_literal(6);
         auto zero1 = mm1->add_literal(0);
         auto six2  = mm1->add_literal(6);

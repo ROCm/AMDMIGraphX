@@ -25,9 +25,9 @@ void match1()
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l = mm->add_literal(1);
-    auto m = match::standard_shape();
-    auto r = find_match(*mm, m);
+    auto l   = mm->add_literal(1);
+    auto m   = match::standard_shape();
+    auto r   = find_match(*mm, m);
     EXPECT(bool{r.result == l});
 }
 
@@ -119,7 +119,7 @@ TEST_CASE(match_arg4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum  = mm->add_instruction(sum_op{}, one, two);
@@ -278,7 +278,7 @@ TEST_CASE(match_args4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -309,7 +309,7 @@ TEST_CASE(match_args6)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum  = mm->add_instruction(sum_op{}, one, two);
@@ -323,7 +323,7 @@ TEST_CASE(match_args7)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum  = mm->add_instruction(sum_op{}, one, two);
@@ -339,7 +339,7 @@ TEST_CASE(match_either_args1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -355,7 +355,7 @@ TEST_CASE(match_either_args2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -371,7 +371,7 @@ TEST_CASE(match_either_args3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -387,7 +387,7 @@ TEST_CASE(match_either_args_any1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -404,7 +404,7 @@ TEST_CASE(match_either_args_any2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -421,7 +421,7 @@ TEST_CASE(match_either_args_any3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -438,7 +438,7 @@ TEST_CASE(match_either_args_any4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -455,7 +455,7 @@ TEST_CASE(match_either_args_any5)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -714,7 +714,7 @@ TEST_CASE(match_output1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto minus = mm->add_instruction(minus_op{}, two, one);
@@ -729,7 +729,7 @@ TEST_CASE(match_output2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto minus = mm->add_instruction(minus_op{}, two, one);
@@ -744,7 +744,7 @@ TEST_CASE(match_skip_output1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto minus = mm->add_instruction(minus_op{}, two, one);
@@ -759,7 +759,7 @@ TEST_CASE(match_skip_output2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm        = p.get_main_module();
     auto one        = mm->add_literal(1);
     auto two        = mm->add_literal(2);
     auto minus      = mm->add_instruction(minus_op{}, two, one);
@@ -775,7 +775,7 @@ TEST_CASE(match_skip_output3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm         = p.get_main_module();
     auto one         = mm->add_literal(1);
     auto two         = mm->add_literal(2);
     auto minus       = mm->add_instruction(minus_op{}, two, one);
@@ -793,7 +793,7 @@ TEST_CASE(match_skip_output4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto pass = mm->add_instruction(pass_op{}, one);
@@ -808,7 +808,7 @@ TEST_CASE(match_skip_output5)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto pass = mm->add_instruction(pass_op{}, one);
@@ -825,7 +825,7 @@ TEST_CASE(match_skip_output6)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto minus = mm->add_instruction(minus_op{}, two, one);
@@ -842,7 +842,7 @@ TEST_CASE(match_skip_output7)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto two    = mm->add_literal(2);
     auto minus1 = mm->add_instruction(minus_op{}, two, one);
@@ -858,7 +858,7 @@ TEST_CASE(match_bind1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum  = mm->add_instruction(sum_op{}, one, two);
@@ -881,7 +881,7 @@ TEST_CASE(match_has_value1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -896,7 +896,7 @@ TEST_CASE(match_has_value2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -911,7 +911,7 @@ TEST_CASE(match_has_value3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -926,7 +926,7 @@ TEST_CASE(match_has_value4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -941,7 +941,7 @@ TEST_CASE(match_has_value5)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -956,7 +956,7 @@ TEST_CASE(match_has_value6)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);
@@ -971,7 +971,7 @@ TEST_CASE(match_tree1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -987,7 +987,7 @@ TEST_CASE(match_tree2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1003,7 +1003,7 @@ TEST_CASE(match_tree3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1019,7 +1019,7 @@ TEST_CASE(match_tree4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1036,7 +1036,7 @@ TEST_CASE(match_tree5)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1052,7 +1052,7 @@ TEST_CASE(match_tree6)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1068,7 +1068,7 @@ TEST_CASE(match_unordered_tree1)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1085,7 +1085,7 @@ TEST_CASE(match_unordered_tree2)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1102,7 +1102,7 @@ TEST_CASE(match_unordered_tree3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);
@@ -1119,7 +1119,7 @@ TEST_CASE(match_unordered_tree4)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
     auto three = mm->add_literal(3);

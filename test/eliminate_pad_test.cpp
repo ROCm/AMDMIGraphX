@@ -8,7 +8,8 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::instruction_ref
@@ -30,7 +31,7 @@ create_conv(migraphx::instruction_ref& l_img,
 {
     migraphx::shape s_weights{migraphx::shape::int32_type, {4, channels, 3, 3}};
     std::vector<int32_t> weights(4 * channels * 3 * 3);
-    auto* mm = p.get_main_module();
+    auto* mm       = p.get_main_module();
     auto l_weights = mm->add_literal(migraphx::literal{s_weights, weights});
     migraphx::op::convolution op;
     op.padding_mode = padding_mode;
@@ -40,7 +41,7 @@ create_conv(migraphx::instruction_ref& l_img,
 TEST_CASE(rewrite_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm          = p.get_main_module();
     size_t img_dim[2] = {2, 2};
     size_t channels   = 1;
     std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);
@@ -64,7 +65,7 @@ TEST_CASE(rewrite_test_asymmetric)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm          = p.get_main_module();
     size_t img_dim[2] = {2, 2};
     size_t channels   = 1;
     std::vector<int32_t> input(channels * img_dim[0] * img_dim[1]);

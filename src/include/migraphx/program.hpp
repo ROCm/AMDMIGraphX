@@ -17,7 +17,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using module     = program;
+using module = program;
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)

@@ -531,6 +531,7 @@ def variable_batch_test(g1):
 
 if __name__ == '__main__':
     add_test()
+    addv2_test()
     add_bcast_test()
     argmax_test()
     argmin_test()
@@ -552,6 +553,7 @@ if __name__ == '__main__':
     mean_test_nhwc()
     mul_test()
     onehot_test()
+    noop_test()
     pack_test()
     pack_test_nhwc()
     pooling_test()

@@ -211,9 +211,8 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
         argument result{output_shape};
         // In DNNL dilation is zero-based
         auto dilation = op.dilation;
-        std::transform(dilation.begin(), dilation.end(), dilation.begin(), [](auto x) {
-            return x - 1;
-        });
+        std::transform(
+            dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
         execute_dnnl<dnnl::convolution_forward>(ctx,
                                                 {{DNNL_ARG_SRC, args[0]},
                                                  {DNNL_ARG_WEIGHTS, args[1]},

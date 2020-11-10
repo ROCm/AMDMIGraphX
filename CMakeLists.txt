@@ -75,6 +75,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-signed-char-misuse
+        -bugprone-macro-parentheses
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

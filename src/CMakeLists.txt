@@ -2,6 +2,7 @@
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
+include(CheckCXXLinkerFlag)
 
 add_library(migraphx 
     analyze_streams.cpp
@@ -15,6 +16,7 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
+    file_buffer.cpp
     rewrite_batchnorm.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
@@ -37,6 +39,7 @@ add_library(migraphx
     register_target.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    tmp_dir.cpp
     value.cpp
     verify_args.cpp
     json.cpp
@@ -146,6 +149,13 @@ rocm_install_targets(
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+
+check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+if(HAS_LIB_STD_FILESYSTEM)
+target_link_libraries(migraphx PRIVATE -lstdc++fs)
+endif()
+
 
 find_path(HALF_INCLUDE_DIR half.hpp)
 # TODO: Fix the incorrect path

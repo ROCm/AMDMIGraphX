@@ -4,7 +4,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/operators.hpp>
 
-migraphx::instruction_ref add_layernorm(migraphx::program& p, migraphx::instruction_ref x, std::vector<size_t> dims)
+migraphx::instruction_ref
+add_layernorm(migraphx::program& p, migraphx::instruction_ref x, std::vector<size_t> dims)
 {
     auto scale =
         p.add_parameter("scale", migraphx::shape{migraphx::shape::float_type, {dims.back()}});
@@ -61,9 +62,9 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
     {
         migraphx::program p;
         std::vector<size_t> dims = {1, 4, 24};
-        auto x = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
-        auto y = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
-        auto z = p.add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
+        auto x    = p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        auto y    = p.add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
+        auto z    = p.add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
         auto add1 = p.add_instruction(migraphx::op::add{}, x, y);
         auto add2 = p.add_instruction(migraphx::op::add{}, add1, z);
         add_layernorm(p, add2, dims);

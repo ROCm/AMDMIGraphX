@@ -65,7 +65,7 @@ __device__ auto vec_reduce(vec<T, N> x, U init, Op op)
 template <index_int N, class Op, class T, class F>
 __device__ auto auto_block_reduce(index idx, Op op, T init, index_int n, F f)
 {
-    auto r     = block_reduce<N>(idx, op, init, n, f);
+    auto r = block_reduce<N>(idx, op, init, n, f);
     return vec_reduce(r, 0, op);
 }
 

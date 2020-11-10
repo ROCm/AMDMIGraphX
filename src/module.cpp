@@ -419,7 +419,7 @@ instruction_ref module::validate() const
 void module::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
-    this->impl->ctx         = t.get_context();
+    this->impl->ctx = t.get_context();
     run_passes(*this, t.get_passes(this->impl->ctx, options), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())

@@ -30,9 +30,7 @@ struct program_impl
     std::string target_name;
 };
 
-program::program() {
-    impl->modules["main"] = {};
-}
+program::program() { impl->modules["main"] = {}; }
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -47,20 +45,20 @@ program& program::operator=(program p)
     return *this;
 }
 
-void program::assign(const program& p) 
+void program::assign(const program& p)
 {
-    if (!impl)
+    if(!impl)
     {
         impl = std::make_unique<program_impl>();
     }
-    else if (!impl->modules.empty())
+    else if(!impl->modules.empty())
     {
         impl->modules.clear();
     }
-    impl->ctx = p.impl->ctx;
+    impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
 
-    for (auto& modl_pair : p.impl->modules)
+    for(auto& modl_pair : p.impl->modules)
     {
         impl->modules[modl_pair.first] = module(modl_pair.second);
     }
@@ -96,45 +94,37 @@ bool program::has_instruction(instruction_ref ins) const
     return impl->modules["main"].has_instruction(ins);
 }
 
-std::size_t program::size() const { 
-    return impl->modules.size(); 
-}
+std::size_t program::size() const { return impl->modules.size(); }
 
-instruction_ref program::begin() const 
-{ 
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].begin(); 
-}
-
-instruction_ref program::end() const 
-{ 
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].end(); 
-}
-
-std::vector<shape> program::get_output_shapes() const 
-{ 
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_output_shapes(); 
-}
-
-context& program::get_context() const 
-{ 
-    return impl->ctx; 
-}
-
-instruction_ref program::validate() const 
+instruction_ref program::begin() const
 {
     assert(contains(impl->modules, "main"));
-    return impl->modules["main"].validate(); 
+    return impl->modules["main"].begin();
 }
 
-bool program::is_compiled() const 
+instruction_ref program::end() const
 {
-    return not this->impl->target_name.empty();
+    assert(contains(impl->modules, "main"));
+    return impl->modules["main"].end();
 }
 
-void program::compile(const target& t, compile_options options) 
+std::vector<shape> program::get_output_shapes() const
+{
+    assert(contains(impl->modules, "main"));
+    return impl->modules["main"].get_output_shapes();
+}
+
+context& program::get_context() const { return impl->ctx; }
+
+instruction_ref program::validate() const
+{
+    assert(contains(impl->modules, "main"));
+    return impl->modules["main"].validate();
+}
+
+bool program::is_compiled() const { return not this->impl->target_name.empty(); }
+
+void program::compile(const target& t, compile_options options)
 {
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
@@ -145,17 +135,17 @@ void program::compile(const target& t, compile_options options)
     options.trace(*this);
     options.trace();
 
-    for (auto& mp : impl->modules)
+    for(auto& mp : impl->modules)
     {
         auto& m = mp.second;
         m.compile(t, options);
     }
 }
 
-void program::finalize() 
-{ 
+void program::finalize()
+{
     assert(contains(impl->modules, "main"));
-    impl->modules["main"].finalize(); 
+    impl->modules["main"].finalize();
 }
 
 template <class F>
@@ -179,14 +169,14 @@ const int program_file_version = 2;
 value program::to_value() const
 {
     value result;
-    result["version"]     = program_file_version;
+    result["version"] = program_file_version;
     result["target"]  = this->impl->target_name;
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
     result["modules"] = value::object{};
-    auto& module_val = result.at("modules");
-    for (auto& m : impl->modules)
+    auto& module_val  = result.at("modules");
+    for(auto& m : impl->modules)
     {
         module_val[m.first] = m.second.to_value();
     }
@@ -208,7 +198,7 @@ void program::from_value(const value& v)
     }
 
     auto val_modules = v.at("modules");
-    for (auto vv : val_modules)
+    for(auto vv : val_modules)
     {
         auto key = vv.get_key();
         auto val = vv.without_key();
@@ -224,13 +214,10 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     impl->modules["main"].perf_report(os, n, std::move(params));
 }
 
-void program::debug_print() const 
-{ 
-    std::cout << *this << std::endl;
-}
+void program::debug_print() const { std::cout << *this << std::endl; }
 
-void program::debug_print(instruction_ref ins) const 
-{ 
+void program::debug_print(instruction_ref ins) const
+{
     assert(contains(impl->modules, "main"));
     impl->modules["main"].debug_print(ins);
 }
@@ -266,8 +253,8 @@ void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a)
     impl->modules["main"].annotate(os, std::move(a));
 }
 
-module* program::get_main_module() 
-{ 
+module* program::get_main_module()
+{
     if(!contains(impl->modules, "main"))
     {
         impl->modules["main"] = {};
@@ -276,7 +263,7 @@ module* program::get_main_module()
     return &impl->modules["main"];
 }
 
-const module* program::get_main_module() const 
+const module* program::get_main_module() const
 {
     assert(contains(impl->modules, "main"));
     return &impl->modules["main"];
@@ -293,7 +280,7 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    for (auto& mp : p.impl->modules)
+    for(auto& mp : p.impl->modules)
     {
         std::cout << "Module " << mp.first << ": " << std::endl;
         os << mp.second;

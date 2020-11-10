@@ -850,6 +850,7 @@ void fuse_ops::apply(program& p) const
                         find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
                         find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
                         find_add_clip{});
+    run_passes(p, {dead_code_elimination{}});
     match::find_matches(p, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
 }
 

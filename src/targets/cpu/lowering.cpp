@@ -635,8 +635,9 @@ struct cpu_gemm
 #if USE_DNNL
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        return op.compute(output_shape, args);
 #if 0
+        return op.compute(output_shape, args);
+#else
         if (args[0].get_shape().type() == shape::type_t::half_type)
             return op.compute(output_shape, args);
         argument result{output_shape};

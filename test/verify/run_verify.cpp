@@ -71,7 +71,7 @@ target_info run_verify::get_target_info(const std::string& name) const
 
 void run_verify::validate(const migraphx::target& t,
                           const migraphx::program& p,
-                          const migraphx::program::parameter_map& m) const
+                          const migraphx::parameter_map& m) const
 {
     auto ti = get_target_info(t.name());
     if(ti.validate)
@@ -79,22 +79,20 @@ void run_verify::validate(const migraphx::target& t,
 }
 
 std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
-                                                    migraphx::program::parameter_map inputs) const
+                                                    migraphx::parameter_map inputs) const
 {
     migraphx::ref::target t{};
     auto_print pp{p, t.name()};
     compile_check(p, t);
     return p.eval(std::move(inputs));
 }
-std::pair<migraphx::program, std::vector<migraphx::argument>>
-run_verify::run_target(const migraphx::target& t,
-                       migraphx::program p,
-                       const migraphx::program::parameter_map& inputs) const
+std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
+    const migraphx::target& t, migraphx::program p, const migraphx::parameter_map& inputs) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, (trace_target == t.name()));
-    migraphx::program::parameter_map m;
+    migraphx::parameter_map m;
     for(auto&& input : inputs)
     {
         m[input.first] = t.copy_to(input.second);
@@ -137,7 +135,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     }
     if(not target_names.empty())
     {
-        migraphx::program::parameter_map m;
+        migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
             m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));

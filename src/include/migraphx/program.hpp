@@ -18,7 +18,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 using module     = program;
-using module_ref = module*;
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
@@ -26,6 +25,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 struct program_impl;
 
 const operation& get_operation(instruction_ref ins);
+using parameter_map = std::unordered_map<std::string, argument>;
 
 /**
  * @brief Stores the instruction stream
@@ -44,8 +44,6 @@ struct program
     program& operator=(program);
 
     ~program() noexcept;
-
-    using parameter_map = std::unordered_map<std::string, argument>;
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -143,6 +141,7 @@ struct program
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
     module* get_main_module() { return this; }
+    const module* get_main_module() const { return this; }
 
     private:
     void assign(const program& p);

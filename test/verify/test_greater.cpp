@@ -9,12 +9,13 @@ struct test_greater : verify_program<test_greater>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
 
         migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
-        auto input1 = p.add_parameter("x", s);
-        auto input2 = p.add_parameter("y", s);
-        auto r      = p.add_instruction(migraphx::op::greater{}, input1, input2);
-        p.add_return({r});
+        auto input1 = mm->add_parameter("x", s);
+        auto input2 = mm->add_parameter("y", s);
+        auto r      = mm->add_instruction(migraphx::op::greater{}, input1, input2);
+        mm->add_return({r});
         return p;
     };
 };

@@ -9,6 +9,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
+
 
 /**
  * Remove memory allocations. This will create a parameter which is the max of all memory used in
@@ -19,7 +21,7 @@ struct eliminate_allocation
     std::string allocation_op{};
     std::size_t alignment = 32;
     std::string name() const { return "eliminate_allocation"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

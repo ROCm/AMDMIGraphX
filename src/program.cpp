@@ -30,7 +30,10 @@ struct program_impl
     std::string target_name;
 };
 
-program::program() { impl->modules["main"] = {}; }
+program::program() : impl(std::make_unique<program_impl>())
+{ 
+    impl->modules["main"] = {}; 
+}
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -282,7 +285,7 @@ std::ostream& operator<<(std::ostream& os, const program& p)
 {
     for(auto& mp : p.impl->modules)
     {
-        std::cout << "Module " << mp.first << ": " << std::endl;
+        os << "Module " << mp.first << ": " << std::endl;
         os << mp.second;
         os << std::endl;
     }

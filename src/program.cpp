@@ -114,7 +114,11 @@ std::vector<shape> program::get_output_shapes() const
     return impl->modules["main"].get_output_shapes();
 }
 
-context& program::get_context() const { return impl->ctx; }
+context& program::get_context() const 
+{ 
+    assert(contains(impl->modules, "main"));
+    return impl->modules["main"].get_context();
+}
 
 instruction_ref program::validate() const
 {
@@ -282,7 +286,7 @@ std::ostream& operator<<(std::ostream& os, const program& p)
 {
     for(auto& mp : p.impl->modules)
     {
-        os << "Module " << mp.first << ": " << std::endl;
+        // os << "Module " << mp.first << ": " << std::endl;
         os << mp.second;
         os << std::endl;
     }

@@ -23,9 +23,8 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
-    std::vector<std::string> input_names;
     context ctx;
-    std::string target_name;
+    std::vector<std::string> input_names;
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -417,18 +416,10 @@ instruction_ref module::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-bool module::is_compiled() const { return not this->impl->target_name.empty(); }
-
 void module::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
-    assert(not this->is_compiled());
-    this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
-    if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        options.trace = tracer{std::cout};
-    options.trace(*this);
-    options.trace();
     run_passes(*this, t.get_passes(this->impl->ctx, options), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
@@ -557,9 +548,6 @@ value module::to_value() const
 {
     value result;
     result["version"] = module_file_version;
-    result["target"]  = this->impl->target_name;
-    if(not this->impl->target_name.empty())
-        result["context"] = this->impl->ctx.to_value();
     value nodes;
     print_module(*this, [&](auto ins, const auto& names) {
         value node;
@@ -585,13 +573,6 @@ void module::from_value(const value& v)
     auto version = v.at("version").to<int>();
     if(version != module_file_version)
         std::cout << "Warning: Module version mismatch" << std::endl;
-    this->impl->target_name = v.at("target").to<std::string>();
-    if(not this->impl->target_name.empty())
-    {
-        target t        = make_target(this->impl->target_name);
-        this->impl->ctx = t.get_context();
-        this->impl->ctx.from_value(v.at("context"));
-    }
 
     std::unordered_map<std::string, instruction_ref> instructions;
     for(const value& node : v.at("nodes"))

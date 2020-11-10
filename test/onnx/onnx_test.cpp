@@ -21,7 +21,7 @@ migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode
         migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 
     // remove the last identity instruction
-    auto last_ins = std::prev(prog.end());
+    auto last_ins = std::prev(mm->end());
     if(last_ins->name() == "@return")
     {
         mm->remove_instruction(last_ins);

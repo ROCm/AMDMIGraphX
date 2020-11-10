@@ -87,8 +87,8 @@ struct program
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
-    module* get_main_module() { return &main_module; }
-    const module* get_main_module() const { return &main_module; }
+    module* get_main_module();
+    const module* get_main_module() const;
 
     private:
     void assign(const program& p);

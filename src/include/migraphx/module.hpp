@@ -116,8 +116,6 @@ struct module
 
     void compile(const target& t, compile_options options = compile_options{});
 
-    bool is_compiled() const;
-
     void finalize();
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;

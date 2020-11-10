@@ -13,7 +13,7 @@ struct gemm_literal : verify_program<gemm_literal>
         migraphx::shape b_shape{migraphx::shape::float_type, {4, 4}};
 
         auto a = p.add_literal(migraphx::generate_literal(a_shape));
-        auto b   = p.add_parameter("b", b_shape);
+        auto b = p.add_parameter("b", b_shape);
         p.add_instruction(migraphx::op::dot{}, a, b);
 
         return p;

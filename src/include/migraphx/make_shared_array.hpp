@@ -13,7 +13,7 @@ std::shared_ptr<T> make_shared_array(size_t size)
     return std::shared_ptr<T>(new T[size], std::default_delete<T[]>()); // NOLINT
 }
 
-template<class T, class Iterator>
+template <class T, class Iterator>
 std::shared_ptr<T> make_shared_array(Iterator start, Iterator last)
 {
     auto result = make_shared_array<T>(std::distance(start, last));

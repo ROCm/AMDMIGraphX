@@ -638,13 +638,13 @@ struct cpu_gemm
 #if 0
         return op.compute(output_shape, args);
 #else
-        if (args[0].get_shape().type() == shape::type_t::half_type)
+        if(args[0].get_shape().type() == shape::type_t::half_type)
             return op.compute(output_shape, args);
         argument result{output_shape};
-        auto src      = to_dnnl_memory(limit3(args[0]), ctx.engine);
-        auto weights  = to_dnnl_memory(limit3(args[1]), ctx.engine);
-        auto dst      = to_dnnl_memory(limit3(result), ctx.engine);
-        auto matmul_d = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
+        auto src       = to_dnnl_memory(limit3(args[0]), ctx.engine);
+        auto weights   = to_dnnl_memory(limit3(args[1]), ctx.engine);
+        auto dst       = to_dnnl_memory(limit3(result), ctx.engine);
+        auto matmul_d  = dnnl::matmul::desc(src.get_desc(), weights.get_desc(), {}, dst.get_desc());
         auto matmul_pd = dnnl::matmul::primitive_desc(matmul_d, ctx.engine);
 
         auto matmul_prim = dnnl::matmul(matmul_pd);

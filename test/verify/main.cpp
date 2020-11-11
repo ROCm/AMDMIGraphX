@@ -9,7 +9,8 @@
 inline void check_gpu_streams(const migraphx::program& p)
 {
 #ifdef HAVE_GPU
-    auto races = migraphx::gpu::analyze_streams(p);
+    const auto* mm = p.get_main_module();
+    auto races     = migraphx::gpu::analyze_streams(*mm);
     for(auto&& race : races)
     {
         std::cout << "FAILED: " << std::endl;
@@ -23,7 +24,7 @@ inline void check_gpu_streams(const migraphx::program& p)
 #endif
 }
 
-void validate_gpu(const migraphx::program& p, const migraphx::program::parameter_map& m)
+void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
 {
     check_gpu_streams(p);
     // Program should have an output parameter

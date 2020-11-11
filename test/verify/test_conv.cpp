@@ -9,11 +9,12 @@ struct test_conv : verify_program<test_conv>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         auto input =
-            p.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
-            p.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        p.add_instruction(migraphx::op::convolution{}, input, weights);
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        mm->add_instruction(migraphx::op::convolution{}, input, weights);
         return p;
     }
 };

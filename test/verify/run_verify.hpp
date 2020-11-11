@@ -8,7 +8,7 @@
 struct target_info
 {
     using validation_function =
-        std::function<void(const migraphx::program& p, const migraphx::program::parameter_map& m)>;
+        std::function<void(const migraphx::program& p, const migraphx::parameter_map& m)>;
     bool parallel = true;
     validation_function validate;
 };
@@ -16,14 +16,14 @@ struct target_info
 struct run_verify
 {
     std::vector<migraphx::argument> run_ref(migraphx::program p,
-                                            migraphx::program::parameter_map inputs) const;
+                                            migraphx::parameter_map inputs) const;
     std::pair<migraphx::program, std::vector<migraphx::argument>>
     run_target(const migraphx::target& t,
                migraphx::program p,
-               const migraphx::program::parameter_map& inputs) const;
+               const migraphx::parameter_map& inputs) const;
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
-                  const migraphx::program::parameter_map& m) const;
+                  const migraphx::parameter_map& m) const;
     void verify(const std::string& name, const migraphx::program& p) const;
     void run(int argc, const char* argv[]) const;
 

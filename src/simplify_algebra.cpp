@@ -50,7 +50,7 @@ struct find_mul_conv
                                                           match::name("broadcast").bind("a")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
@@ -86,7 +86,7 @@ struct find_mul_slice_conv
             match::name("broadcast")(match::is_constant()).bind("a")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins       = r.result;
         auto slice_ins = r.instructions["slice"];
@@ -169,7 +169,7 @@ struct find_mul_add
             match::is_constant().bind("a")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto a_ins = r.instructions["a"];
@@ -191,7 +191,7 @@ struct find_add_lit_broadcast
             match::either_arg(0, 1)(op_lit_broadcast("add", "a", "x"), lit_broadcast().bind("b")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -211,7 +211,7 @@ struct find_double_add_lit_broadcast
             match::args(op_lit_broadcast("add", "a", "x"), op_lit_broadcast("add", "b", "y")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -249,7 +249,7 @@ struct find_inner_broadcast
             match::args(match::name("broadcast").bind("x"), match::name("broadcast").bind("y")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -294,7 +294,7 @@ struct find_concat_op
         return op.name() == "broadcast" or op.attributes().contains("pointwise");
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
@@ -425,7 +425,7 @@ struct find_splits
         return groups;
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -520,7 +520,7 @@ struct find_split_concat
             match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -618,7 +618,7 @@ struct find_add_convs
                  input.strides()[3] * n}};
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins       = r.result;
         auto a_conv    = r.instructions["a"];
@@ -689,7 +689,7 @@ struct find_conv_dot_horiz_fusion
 {
     auto matcher() const { return horiz_conv_dot(); }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
 
@@ -762,7 +762,7 @@ struct find_div_const
         return match::name("div")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -782,7 +782,7 @@ struct find_sub_const
         return match::name("sub")(match::arg(1)(match::is_constant().bind("c")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
@@ -803,7 +803,7 @@ struct find_rsqrt
             match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -828,7 +828,7 @@ struct find_split_reshape
             .bind("reshape");
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto slc = r.instructions["slice"];
         auto rsp = r.instructions["reshape"];
@@ -904,7 +904,7 @@ struct find_split_transpose
             .bind("trans");
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto slc   = r.instructions["slice"];
         auto trans = r.instructions["trans"];
@@ -949,7 +949,7 @@ struct find_split_transpose
     }
 };
 
-void simplify_algebra::apply(program& p) const
+void simplify_algebra::apply(module& p) const
 {
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)

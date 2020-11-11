@@ -11,6 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Remove pads if they can be written as an
@@ -19,11 +20,11 @@ struct program;
 struct eliminate_pad
 {
     std::string name() const { return "eliminate_pad"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
     template <class T>
-    void update_op(T, const instruction_ref& input, const instruction_ref& ins, program& p) const;
+    void update_op(T, const instruction_ref& input, const instruction_ref& ins, module& p) const;
 
-    void update_pooling(const instruction_ref& input, const instruction_ref& ins, program& p) const;
+    void update_pooling(const instruction_ref& input, const instruction_ref& ins, module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

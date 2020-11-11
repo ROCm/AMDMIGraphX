@@ -1,4 +1,4 @@
-#include <migraphx/cpu/gemm.hpp>
+#include <migraphx/cpu/migemm.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/shape_for_each.hpp>

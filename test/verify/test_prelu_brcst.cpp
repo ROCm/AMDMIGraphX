@@ -9,11 +9,12 @@ struct test_prelu_brcst : verify_program<test_prelu_brcst>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {6}};
-        auto x   = p.add_parameter("x", s);
-        auto slp = p.add_parameter("slp", s);
-        auto r   = p.add_instruction(migraphx::op::prelu{}, x, slp);
-        p.add_return({r});
+        auto x   = mm->add_parameter("x", s);
+        auto slp = mm->add_parameter("slp", s);
+        auto r   = mm->add_instruction(migraphx::op::prelu{}, x, slp);
+        mm->add_return({r});
 
         return p;
     }

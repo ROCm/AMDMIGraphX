@@ -8,13 +8,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 struct program;
+using module = program;
 
 namespace gpu {
 
 struct eliminate_workspace
 {
     std::string name() const { return "eliminate_workspace"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -9,9 +9,10 @@ struct test_sin : verify_program<test_sin>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {10}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::sin{}, x);
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::sin{}, x);
         return p;
     }
 };

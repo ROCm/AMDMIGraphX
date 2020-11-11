@@ -65,7 +65,7 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<instruction
     return try_compute_shape(ins, inputs);
 }
 
-void eliminate_contiguous::apply(program& p) const
+void eliminate_contiguous::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

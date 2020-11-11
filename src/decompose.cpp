@@ -18,7 +18,7 @@ struct find_dot_add
 {
     auto matcher() const { return match::name("dot")(match::nargs(3)); }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
         auto dot = any_cast<op::dot>(ins->get_operator());
@@ -71,7 +71,7 @@ struct find_dot_alpha
 
 } // namespace
 
-void decompose::apply(program& p) const
+void decompose::apply(module& p) const
 {
     match::find_matches(p, find_dot_add{}, find_dot_alpha{});
 }

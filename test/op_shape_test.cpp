@@ -9,11 +9,12 @@ template <class... Ts>
 void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     std::vector<migraphx::shape> shapes{xs...};
     std::vector<migraphx::instruction_ref> args(shapes.size());
     std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
-    p.add_instruction(op, args);
+        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+    mm->add_instruction(op, args);
     if(p.get_output_shapes().back() != expected)
     {
         std::cout << "FAILED: Incorrect shape for " << op.name() << ": ";
@@ -27,11 +28,12 @@ template <class... Ts>
 void throws_shape(const migraphx::operation& op, Ts... xs)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     std::vector<migraphx::shape> shapes{xs...};
     std::vector<migraphx::instruction_ref> args(shapes.size());
     std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return p.add_outline(s); });
-    bool thrown = test::throws([&] { p.add_instruction(op, args); });
+        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+    bool thrown = test::throws([&] { mm->add_instruction(op, args); });
     if(not thrown)
     {
         std::cout << "FAILED: No error found for " << op.name() << ": ";

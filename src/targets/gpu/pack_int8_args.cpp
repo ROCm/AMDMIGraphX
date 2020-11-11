@@ -10,7 +10,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void pack_int8_args::apply(program& p) const
+void pack_int8_args::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

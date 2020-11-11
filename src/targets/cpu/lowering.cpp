@@ -291,6 +291,8 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
     }
 #endif
 };
+template struct cpu_convolution<op::quant_convolution>;
+template struct cpu_convolution<op::convolution>;
 
 template <class Op>
 struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
@@ -384,6 +386,7 @@ struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
         return result;
     }
 };
+template struct cpu_deconvolution<op::deconvolution>;
 
 struct cpu_im2col
 {
@@ -774,7 +777,7 @@ struct cpu_quant_gemm
         return result;
     }
 };
-MIGRAPHX_REGISTER_OP(cpu_gemm)
+MIGRAPHX_REGISTER_OP(cpu_quant_gemm)
 
 struct leaky_relu_op
 {
@@ -834,6 +837,8 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
         return result;
     }
 };
+template struct cpu_unary<leaky_relu_op>;
+template struct cpu_unary<elu_op>;
 
 template <class Op>
 struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
@@ -899,6 +904,8 @@ struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
         return result;
     }
 };
+template struct cpu_softmax<op::softmax>;
+template struct cpu_softmax<op::logsoftmax>;
 
 struct cpu_rnn_var_sl_last_output
 {
@@ -950,40 +957,32 @@ MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 struct cpu_apply
 {
     program* prog;
-    std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
+    std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
 
-    template <class T>
-    auto simple_op()
+    void add_extend_op(const std::string& op_name, const std::string& cpu_name)
     {
-        return [this](instruction_ref ins) { apply_simple_op<T>(ins); };
-    }
-
-    template <class T, class Op>
-    auto extend_op()
-    {
-        return [this](instruction_ref ins) { apply_extend_op<T, Op>(ins); };
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto&& op                         = ins->get_operator();
+            return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+        });
     }
 
     void init()
     {
-        apply_map["batch_norm_inference"] =
-            extend_op<cpu_batch_norm_inference, op::batch_norm_inference>();
-        apply_map["convolution"] = extend_op<cpu_convolution<op::convolution>, op::convolution>();
-        apply_map["deconvolution"] =
-            extend_op<cpu_deconvolution<op::deconvolution>, op::deconvolution>();
-        apply_map["dot"]       = extend_op<cpu_gemm, op::dot>();
-        apply_map["quant_dot"] = extend_op<cpu_quant_gemm, op::quant_dot>();
-        apply_map["quant_convolution"] =
-            extend_op<cpu_convolution<op::quant_convolution>, op::quant_convolution>();
-        apply_map["elu"]        = extend_op<cpu_unary<elu_op>, op::elu>();
-        apply_map["im2col"]     = extend_op<cpu_im2col, op::im2col>();
-        apply_map["leaky_relu"] = extend_op<cpu_unary<leaky_relu_op>, op::leaky_relu>();
-        apply_map["logsoftmax"] = extend_op<cpu_softmax<op::logsoftmax>, op::logsoftmax>();
-        apply_map["lrn"]        = extend_op<cpu_lrn, op::lrn>();
-        apply_map["pad"]        = extend_op<cpu_pad, op::pad>();
-        apply_map["softmax"]    = extend_op<cpu_softmax<op::softmax>, op::softmax>();
-        apply_map["rnn_var_sl_last_output"] =
-            extend_op<cpu_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
+        add_extend_op("batch_norm_inference", "cpu::batch_norm_inference");
+        add_extend_op("convolution", "cpu::convolution");
+        add_extend_op("deconvolution", "cpu::deconvolution");
+        add_extend_op("dot", "cpu::dot");
+        add_extend_op("quant_dot", "cpu::quant_dot");
+        add_extend_op("quant_convolution", "cpu::quant_convolution");
+        add_extend_op("elu", "cpu::elu");
+        add_extend_op("im2col", "cpu::im2col");
+        add_extend_op("leaky_relu", "cpu::leaky_relu");
+        add_extend_op("logsoftmax", "cpu::logsoftmax");
+        add_extend_op("lrn", "cpu::lrn");
+        add_extend_op("pad", "cpu::pad");
+        add_extend_op("softmax", "cpu::softmax");
+        add_extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
     }
 
     void apply()
@@ -1006,31 +1005,32 @@ struct cpu_apply
         }
     }
 
-    void apply_cpu_op(instruction_ref ins) const
+    instruction_ref apply_cpu_op(instruction_ref ins) const
     {
-        prog->replace_instruction(ins, cpu_op{ins->get_operator()}, ins->inputs());
+        return prog->replace_instruction(ins, cpu_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>
-    void apply_simple_op(instruction_ref ins)
+    instruction_ref apply_simple_op(instruction_ref ins)
     {
-        prog->replace_instruction(ins, T{}, ins->inputs());
+        return prog->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
-    void apply_extend_op(instruction_ref ins)
+    instruction_ref apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->get_operator());
-        prog->replace_instruction(ins, T{op}, ins->inputs());
+        return prog->replace_instruction(ins, T{op}, ins->inputs());
     }
 
-    void apply_pooling(instruction_ref ins) const
+    instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")
-            prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
+            return prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
+            return prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
+        return ins;
     }
 };
 

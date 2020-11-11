@@ -19,6 +19,8 @@
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/filesystem.hpp>
 
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -52,6 +54,8 @@ namespace onnx = onnx_for_migraphx;
 
 struct onnx_parser
 {
+    std::string filename;
+    std::string path    = ".";
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {
@@ -193,7 +197,7 @@ struct onnx_parser
         map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
     }
 
-    static operation load(const std::string& name, const node_info& info)
+    operation load(const std::string& name, const node_info& info) const
     {
         auto op = make_op(name);
         auto v  = op.to_value();
@@ -2756,8 +2760,13 @@ struct onnx_parser
         return add_broadcastable_binary_op(cd, args[2], "add");
     }
 
-    void parse_from(std::istream& is)
+    void parse_from(std::istream& is, std::string name = "")
     {
+        this->filename   = std::move(name);
+        auto parent_path = fs::path(this->filename).parent_path();
+        if(not parent_path.empty())
+            this->path = parent_path;
+
         onnx::ModelProto model;
         if(model.ParseFromIstream(&is))
         {
@@ -2791,7 +2800,9 @@ struct onnx_parser
     void parse_graph(const onnx::GraphProto& graph)
     {
         for(auto&& f : graph.initializer())
+        {
             instructions[f.name()] = mm->add_literal(parse_tensor(f));
+        }
 
         for(auto&& input : graph.input())
         {
@@ -2922,7 +2933,7 @@ struct onnx_parser
         return literal{{t, {size}}, r.begin(), r.end()};
     }
 
-    static literal parse_value(const onnx::AttributeProto& attr)
+    literal parse_value(const onnx::AttributeProto& attr) const
     {
         switch(attr.type())
         {
@@ -2943,9 +2954,17 @@ struct onnx_parser
         MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
     }
 
-    static literal parse_tensor(const onnx::TensorProto& t)
+    literal parse_tensor(const onnx::TensorProto& t) const
     {
         std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
+        if(not t.external_data().empty())
+        {
+            const std::string& data_file = t.external_data().at(0).value();
+            auto raw_buffer              = read_buffer(path + "/" + data_file);
+            std::string s(raw_buffer.begin(), raw_buffer.end());
+            auto type = get_type(t.data_type());
+            return create_literal(type, dims, s.data());
+        }
         if(t.has_raw_data())
         {
             const std::string& s = t.raw_data();
@@ -3010,7 +3029,7 @@ struct onnx_parser
         return literal{{shape_type, dims}, data.begin(), data.end()};
     }
 
-    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims)
+    shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const
     {
         shape::type_t shape_type = get_type(t.tensor_type().elem_type());
         if(!input_dims.empty())
@@ -3084,7 +3103,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 program parse_onnx(const std::string& name, const onnx_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
-    return parse_onnx_from(options, input);
+    return parse_onnx_from(options, input, name);
 }
 
 program parse_onnx_buffer(const std::string& buffer, const onnx_options& options)

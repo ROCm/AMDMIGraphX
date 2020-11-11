@@ -2,6 +2,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/msgpack.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <fstream>
 
 namespace migraphx {

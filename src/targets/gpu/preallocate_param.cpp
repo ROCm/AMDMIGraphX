@@ -10,7 +10,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void preallocate_param::apply(program& p) const
+void preallocate_param::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

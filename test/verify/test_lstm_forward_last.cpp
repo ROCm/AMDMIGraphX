@@ -16,6 +16,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         float clip              = 0.0f;
 
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
@@ -27,16 +28,16 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         migraphx::shape ic_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
         migraphx::shape pph_shape{migraphx::shape::float_type, {num_dirct, 3 * hidden_size}};
 
-        auto seq  = p.add_parameter("seq", in_shape);
-        auto w    = p.add_parameter("w", w_shape);
-        auto r    = p.add_parameter("r", r_shape);
-        auto bias = p.add_parameter("bias", b_shape);
-        auto ih   = p.add_parameter("ih", ih_shape);
-        auto len  = p.add_literal(migraphx::literal(l_shape, {1, 2}));
-        auto ic   = p.add_parameter("ic", ic_shape);
-        auto pph  = p.add_parameter("pph", pph_shape);
+        auto seq  = mm->add_parameter("seq", in_shape);
+        auto w    = mm->add_parameter("w", w_shape);
+        auto r    = mm->add_parameter("r", r_shape);
+        auto bias = mm->add_parameter("bias", b_shape);
+        auto ih   = mm->add_parameter("ih", ih_shape);
+        auto len  = mm->add_literal(migraphx::literal(l_shape, {1, 2}));
+        auto ic   = mm->add_parameter("ic", ic_shape);
+        auto pph  = mm->add_parameter("pph", pph_shape);
 
-        auto output = p.add_instruction(
+        auto output = mm->add_instruction(
             migraphx::op::lstm{
                 hidden_size,
                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -50,7 +51,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
             ih,
             ic,
             pph);
-        p.add_instruction(migraphx::op::rnn_last_hs_output{}, output, len);
+        mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output, len);
 
         return p;
     }

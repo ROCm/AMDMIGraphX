@@ -9,13 +9,14 @@ struct test_less_brcst : verify_program<test_less_brcst>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s0{migraphx::shape::float_type, {3, 3}};
-        auto l0 = p.add_parameter("x", s0);
+        auto l0 = mm->add_parameter("x", s0);
         migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-        auto l1  = p.add_parameter("y", s1);
-        auto bl1 = p.add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
-        auto r   = p.add_instruction(migraphx::op::less{}, l0, bl1);
-        p.add_return({r});
+        auto l1  = mm->add_parameter("y", s1);
+        auto bl1 = mm->add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
+        auto r   = mm->add_instruction(migraphx::op::less{}, l0, bl1);
+        mm->add_return({r});
 
         return p;
     };

@@ -67,7 +67,7 @@ using interval_ptr = live_interval*;
 
 struct memory_coloring_impl
 {
-    memory_coloring_impl(program* p, std::string alloc_op, bool p_verify)
+    memory_coloring_impl(module* p, std::string alloc_op, bool p_verify)
         : p_program(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify)
     {
         instr2_live.clear();
@@ -145,7 +145,7 @@ struct memory_coloring_impl
             return (i1->offset > i2->offset);
         }
     };
-    program* p_program;
+    module* p_program;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.
     std::vector<live_interval> live_intervals;

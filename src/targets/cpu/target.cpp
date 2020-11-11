@@ -54,6 +54,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             propagate_constant{},
             dead_code_elimination{},
             lowering{},
+            eliminate_contiguous{},
             dead_code_elimination{}};
 }
 

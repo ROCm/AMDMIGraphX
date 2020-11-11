@@ -800,16 +800,7 @@ struct cpu_apply
             {
                 apply_map.at(it->name())(it);
             }
-            else if(is_context_free(it->get_operator()))
-            {
-                apply_cpu_op(it);
-            }
         }
-    }
-
-    instruction_ref apply_cpu_op(instruction_ref ins) const
-    {
-        return prog->replace_instruction(ins, cpu_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>

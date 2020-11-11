@@ -71,10 +71,7 @@ struct find_dot_alpha
 
 } // namespace
 
-void decompose::apply(module& p) const
-{
-    match::find_matches(p, find_dot_add{}, find_dot_alpha{});
-}
+void decompose::apply(module& p) const { match::find_matches(p, find_dot_add{}, find_dot_alpha{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

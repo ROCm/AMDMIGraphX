@@ -174,127 +174,6 @@ struct cpu_lrn
 };
 MIGRAPHX_REGISTER_OP(cpu_lrn)
 
-template <class V, class T, class... Ts>
-void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
-{
-    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
-}
-
-template <class T, class... Ts>
-auto visit_quantize(T&& x, Ts&&... xs)
-{
-    return [&](auto v) {
-        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_quantize_impl(v, x, xs...);
-    };
-}
-
-template <class Op>
-struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
-{
-    cpu_convolution() = default;
-
-    cpu_convolution(Op pop) : op(std::move(pop)) {}
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-#if USE_DNNL
-    argument compute(context& ctx, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        // In DNNL dilation is zero-based
-        auto dilation = op.dilation;
-        std::transform(
-            dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
-        execute_dnnl<dnnl::convolution_forward>(ctx,
-                                                {{DNNL_ARG_SRC, args[0]},
-                                                 {DNNL_ARG_WEIGHTS, args[1]},
-                                                 { DNNL_ARG_DST,
-                                                   result }})([&](auto m) {
-            return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference,
-                                                   dnnl::algorithm::convolution_auto,
-                                                   m.at(DNNL_ARG_SRC).get_desc(),
-                                                   m.at(DNNL_ARG_WEIGHTS).get_desc(),
-                                                   m.at(DNNL_ARG_DST).get_desc(),
-                                                   to_dnnl_dims(op.stride),
-                                                   to_dnnl_dims(dilation),
-                                                   to_dnnl_dims(op.padding),
-                                                   to_dnnl_dims(op.padding));
-        });
-        return result;
-    }
-#else
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_quantize(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            auto in_lens = input.get_shape().lens();
-
-            auto wei_lens = weights.get_shape().lens();
-            auto wei_n    = wei_lens[0];
-            auto wei_c    = wei_lens[1];
-            std::vector<std::size_t> win_size(wei_lens.begin() + 1, wei_lens.end());
-
-            par_for(output_shape.elements(), [&](auto i) {
-                auto idx_o = output_shape.multi(i);
-                auto w     = idx_o[1];
-                auto n_dim = idx_o.size();
-
-                std::vector<std::ptrdiff_t> win_start;
-                for(std::size_t dim = 2; dim < n_dim; ++dim)
-                {
-                    auto d_2 = dim - 2;
-                    win_start.push_back(std::ptrdiff_t(idx_o[dim] * op.stride[d_2]) -
-                                        std::ptrdiff_t(op.padding[d_2]));
-                }
-                const auto group_id = w / (wei_n / op.group);
-
-                shape win_shape{output_shape.type(), win_size};
-
-                double acc = 0.0;
-                shape_for_each(win_shape, [&](auto idx_win) {
-                    auto k           = idx_win[0];
-                    const auto in_ch = group_id * wei_c + k;
-                    std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
-                    idx[1] = in_ch;
-                    std::transform(idx_win.begin() + 1,
-                                   idx_win.end(),
-                                   win_start.begin(),
-                                   idx.begin() + 2,
-                                   [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });
-                    std::vector<std::ptrdiff_t> idx_wei(idx_o.size());
-                    idx_wei[0] = w;
-                    std::copy(idx_win.begin(), idx_win.end(), idx_wei.begin() + 1);
-                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx.begin(),
-                                  idx.end(),
-                                  in_lens.begin(),
-                                  in_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
-                    {
-                        acc +=
-                            input(idx.begin(), idx.end()) * weights(idx_wei.begin(), idx_wei.end());
-                    }
-                });
-
-                output[i] = acc;
-            });
-        });
-        return result;
-    }
-#endif
-};
-template struct cpu_convolution<op::quant_convolution>;
-template struct cpu_convolution<op::convolution>;
-
 template <class Op>
 struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
 {
@@ -622,97 +501,6 @@ struct cpu_pad
 };
 MIGRAPHX_REGISTER_OP(cpu_pad)
 
-struct cpu_gemm
-{
-    op::dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-    std::string name() const { return "cpu::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-#if USE_DNNL
-        check_shapes(inputs, *this).has(2).standard();
-#else
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
-#endif
-        return op.compute_shape(inputs);
-    }
-
-    argument limit3(const argument& a) const
-    {
-        auto s     = a.get_shape();
-        auto ndims = s.lens().size();
-        if(ndims > 3)
-        {
-            std::size_t batch = std::accumulate(
-                s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
-            shape s3d{s.type(), {batch, s.lens()[ndims - 2], s.lens()[ndims - 1]}};
-            return a.reshape(s3d);
-        }
-        else
-        {
-            return a;
-        }
-    }
-
-#if USE_DNNL
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
-    {
-        if(args[0].get_shape().type() == shape::type_t::half_type)
-            return op.compute(output_shape, args);
-        argument result{output_shape};
-        execute_dnnl<dnnl::matmul>(ctx,
-                                   {{DNNL_ARG_SRC, limit3(args[0])},
-                                    {DNNL_ARG_WEIGHTS, limit3(args[1])},
-                                    {DNNL_ARG_DST, limit3(result)}})([&](auto m) {
-            return dnnl::matmul::desc(m.at(DNNL_ARG_SRC).get_desc(),
-                                      m.at(DNNL_ARG_WEIGHTS).get_desc(),
-                                      m.at(DNNL_ARG_DST).get_desc());
-        });
-        return result;
-    }
-#else
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrices, and C is of the same shape as A * B
-        if(args.size() == 3)
-        {
-            // no need to consider the value of args[2]
-            if(op.beta == 0.0f)
-            {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            }
-            else
-            {
-                visit_all(result, args[2])([&](auto output, auto input) {
-                    std::copy(input.begin(), input.end(), output.begin());
-                });
-            }
-
-            migemm(result, args[0], args[1], op.alpha, op.beta);
-
-            return result;
-        }
-
-        // 2 input arguments
-        migemm(result, args[0], args[1], op.alpha, 0.0f);
-
-        return result;
-    }
-#endif
-};
-MIGRAPHX_REGISTER_OP(cpu_gemm)
-
 struct cpu_quant_gemm
 {
     op::quant_dot op;
@@ -960,7 +748,7 @@ struct cpu_apply
     module* prog;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
 
-    void add_extend_op(const std::string& op_name, const std::string& cpu_name)
+    void extend_op(const std::string& op_name, const std::string& cpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
@@ -968,22 +756,32 @@ struct cpu_apply
         });
     }
 
+    void extend_dnnl_op(const std::string& op_name, const std::string& cpu_name, const std::string& dnnl_name)
+    {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto&& op = ins->get_operator();
+            if (has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
+                return prog->replace_instruction(ins, make_op(dnnl_name, op.to_value()), ins->inputs());
+            return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+        });
+    }
+
     void init()
     {
-        add_extend_op("batch_norm_inference", "cpu::batch_norm_inference");
-        add_extend_op("convolution", "cpu::convolution");
-        add_extend_op("deconvolution", "cpu::deconvolution");
-        add_extend_op("dot", "cpu::dot");
-        add_extend_op("quant_dot", "cpu::quant_dot");
-        add_extend_op("quant_convolution", "cpu::quant_convolution");
-        add_extend_op("elu", "cpu::elu");
-        add_extend_op("im2col", "cpu::im2col");
-        add_extend_op("leaky_relu", "cpu::leaky_relu");
-        add_extend_op("logsoftmax", "cpu::logsoftmax");
-        add_extend_op("lrn", "cpu::lrn");
-        add_extend_op("pad", "cpu::pad");
-        add_extend_op("softmax", "cpu::softmax");
-        add_extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
+        extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
+        extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
+        extend_op("batch_norm_inference", "cpu::batch_norm_inference");
+        extend_op("deconvolution", "cpu::deconvolution");
+        extend_op("elu", "cpu::elu");
+        extend_op("im2col", "cpu::im2col");
+        extend_op("leaky_relu", "cpu::leaky_relu");
+        extend_op("logsoftmax", "cpu::logsoftmax");
+        extend_op("lrn", "cpu::lrn");
+        extend_op("pad", "cpu::pad");
+        extend_op("quant_convolution", "cpu::quant_convolution");
+        extend_op("quant_dot", "cpu::quant_dot");
+        extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
+        extend_op("softmax", "cpu::softmax");
     }
 
     void apply()

@@ -931,6 +931,39 @@ TEST_CASE(expand_test)
     EXPECT(p == prog);
 }
 
+migraphx::program create_external_data_prog()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s(migraphx::shape::float_type, {1, 1, 224, 224});
+    migraphx::shape s2(migraphx::shape::float_type, {10, 1, 11, 11});
+    std::vector<float> weight_data(1210, 1);
+    std::vector<float> bias_data(10, 1);
+    auto bias    = mm->add_literal(migraphx::literal({migraphx::shape::float_type, {10}}, bias_data));
+    auto weights = mm->add_literal(migraphx::literal(s2, weight_data));
+    auto param   = mm->add_parameter("input", s);
+    auto conv    = mm->add_instruction(migraphx::op::convolution{}, param, weights);
+    auto bias_bcast = mm->add_instruction(migraphx::op::broadcast{1, {1, 10, 214, 214}}, bias);
+    mm->add_instruction(migraphx::op::add{}, conv, bias_bcast);
+    return p;
+}
+
+TEST_CASE(external_data_test)
+{
+    migraphx::program p = create_external_data_prog();
+
+    auto prog = optimize_onnx("external_data_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(external_data_diff_path_test)
+{
+    migraphx::program p = create_external_data_prog();
+
+    auto prog = optimize_onnx("ext_path/external_data_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(flatten_test)
 {
     migraphx::program p;

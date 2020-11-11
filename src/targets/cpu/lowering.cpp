@@ -756,12 +756,15 @@ struct cpu_apply
         });
     }
 
-    void extend_dnnl_op(const std::string& op_name, const std::string& cpu_name, const std::string& dnnl_name)
+    void extend_dnnl_op(const std::string& op_name,
+                        const std::string& cpu_name,
+                        const std::string& dnnl_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
-            if (has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return prog->replace_instruction(ins, make_op(dnnl_name, op.to_value()), ins->inputs());
+            if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
+                return prog->replace_instruction(
+                    ins, make_op(dnnl_name, op.to_value()), ins->inputs());
             return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
         });
     }

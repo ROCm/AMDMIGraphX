@@ -122,21 +122,19 @@ struct dnnl_convolution : auto_register_op<dnnl_convolution>
         auto dilation = op.dilation;
         std::transform(
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
-        execute_dnnl<dnnl::convolution_forward>(ctx,
-                                                {{DNNL_ARG_SRC, args[0]},
-                                                 {DNNL_ARG_WEIGHTS, args[1]},
-                                                 { DNNL_ARG_DST,
-                                                   result }})([&](auto m) {
-            return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference,
-                                                   dnnl::algorithm::convolution_auto,
-                                                   m.at(DNNL_ARG_SRC).get_desc(),
-                                                   m.at(DNNL_ARG_WEIGHTS).get_desc(),
-                                                   m.at(DNNL_ARG_DST).get_desc(),
-                                                   to_dnnl_dims(op.stride),
-                                                   to_dnnl_dims(dilation),
-                                                   to_dnnl_dims(op.padding),
-                                                   to_dnnl_dims(op.padding));
-        });
+        execute_dnnl<dnnl::convolution_forward>(
+            ctx, {{DNNL_ARG_SRC, args[0]}, {DNNL_ARG_WEIGHTS, args[1]}, {DNNL_ARG_DST, result}})(
+            [&](auto m) {
+                return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference,
+                                                       dnnl::algorithm::convolution_auto,
+                                                       m.at(DNNL_ARG_SRC).get_desc(),
+                                                       m.at(DNNL_ARG_WEIGHTS).get_desc(),
+                                                       m.at(DNNL_ARG_DST).get_desc(),
+                                                       to_dnnl_dims(op.stride),
+                                                       to_dnnl_dims(dilation),
+                                                       to_dnnl_dims(op.padding),
+                                                       to_dnnl_dims(op.padding));
+            });
         return result;
     }
 };

@@ -962,7 +962,7 @@ struct cpu_apply
     void add_extend_op(const std::string& op_name, const std::string& cpu_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
-            auto&& op                         = ins->get_operator();
+            auto&& op = ins->get_operator();
             return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
         });
     }

@@ -47,12 +47,12 @@ template <class C, class T>
 auto generic_find_at_impl(rank<0>, C&& c, const T& x)
 {
     auto n = std::distance(c.begin(), c.end());
-    if (x >= n)
+    if(x >= n)
         return c.end();
     return std::next(c.begin(), x);
 }
 
-template <class C, class T, class=typename C::mapped_type>
+template <class C, class T, class = typename C::mapped_type>
 decltype(auto) generic_at_impl(rank<1>, const C&, T&& it)
 {
     return it->second;
@@ -80,16 +80,15 @@ template <class C, class T>
 decltype(auto) at(C&& c, const T& x, const std::string& msg = "")
 {
     auto it = detail::generic_find_at_impl(rank<2>{}, c, x);
-    if (it == c.end()) 
+    if(it == c.end())
     {
-        if (msg.empty())
+        if(msg.empty())
             MIGRAPHX_THROW("At operator out of range for " + get_type_name(c));
         else
             MIGRAPHX_THROW(msg);
     }
     return detail::generic_at_impl(rank<2>{}, c, it);
 }
-
 
 template <class C, class T>
 bool contains(const C& c, const T& x)

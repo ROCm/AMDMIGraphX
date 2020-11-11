@@ -11,7 +11,10 @@ std::unordered_map<std::string, operation>& op_map()
     return m;
 }
 void register_op(const operation& op) { op_map()[op.name()] = op; }
-operation load_op(const std::string& name) { return at(op_map(), name, "Operator not found: " + name); }
+operation load_op(const std::string& name)
+{
+    return at(op_map(), name, "Operator not found: " + name);
+}
 
 std::vector<std::string> get_operators()
 {

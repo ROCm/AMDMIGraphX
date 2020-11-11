@@ -16,21 +16,22 @@ struct test_gru_forward_seq1 : verify_program<test_gru_forward_seq1>
         float clip              = 0.0f;
 
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, hidden_size}};
-        auto seq = p.add_parameter("seq", in_shape);
-        auto w   = p.add_parameter("w", w_shape);
-        auto r   = p.add_parameter("r", r_shape);
-        p.add_instruction(migraphx::op::gru{hidden_size,
-                                            {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                            migraphx::op::rnn_direction::forward,
-                                            clip},
-                          seq,
-                          w,
-                          r);
+        auto seq = mm->add_parameter("seq", in_shape);
+        auto w   = mm->add_parameter("w", w_shape);
+        auto r   = mm->add_parameter("r", r_shape);
+        mm->add_instruction(migraphx::op::gru{hidden_size,
+                                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
+                                              migraphx::op::rnn_direction::forward,
+                                              clip},
+                            seq,
+                            w,
+                            r);
 
         return p;
     }

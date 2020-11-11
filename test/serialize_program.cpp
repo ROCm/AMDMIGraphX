@@ -8,11 +8,12 @@
 migraphx::program create_program()
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
-    auto x   = p.add_parameter("x", {migraphx::shape::int32_type});
-    auto two = p.add_literal(2);
-    auto add = p.add_instruction(migraphx::op::add{}, x, two);
-    p.add_return({add});
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto two = mm->add_literal(2);
+    auto add = mm->add_instruction(migraphx::op::add{}, x, two);
+    mm->add_return({add});
     return p;
 }
 

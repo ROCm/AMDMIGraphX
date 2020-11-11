@@ -66,7 +66,7 @@ struct find_reshaper
             match::any_of[match::outputs()](match::name(reshaper_names())));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         std::vector<instruction_ref> reshapes{ins};
@@ -113,7 +113,7 @@ struct find_nop_reshapes
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         p.replace_instruction(ins, ins->inputs().front());
@@ -128,7 +128,7 @@ struct find_transpose
             match::skip_output(match::name("contiguous"))(match::name("transpose"))));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         auto x   = ins;
@@ -201,7 +201,7 @@ struct find_nested_slice
         return result;
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins   = mr.result;
         auto slice = ins->inputs().front();
@@ -230,7 +230,7 @@ struct find_concat_transpose
         return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
@@ -279,7 +279,7 @@ struct find_nested_concat
         return op.axis;
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins  = mr.result;
         auto axis = get_axis(ins);
@@ -298,7 +298,7 @@ struct find_nested_concat
     }
 };
 
-void simplify_reshapes::apply(program& p) const
+void simplify_reshapes::apply(module& p) const
 {
     for(int i = 0; i < 2; i++)
     {

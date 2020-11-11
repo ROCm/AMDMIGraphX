@@ -28,7 +28,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_rnn::apply(program& prog) const
+void rewrite_rnn::apply(module& prog) const
 {
     for(auto ins : iterator_for(prog))
     {
@@ -47,13 +47,13 @@ void rewrite_rnn::apply(program& prog) const
     }
 }
 
-void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
+void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "rnn");
     // could be 3 to 6 inputs, but the parse_rnn function will
     // append undefined operators to make 6 arguments when parsing
     // an onnx file. Another case is user can have num of arguments
-    // when writing their program.
+    // when writing their module.
     auto args = ins->inputs();
 
     shape seq_shape         = args[0]->get_shape();
@@ -210,7 +210,7 @@ void rewrite_rnn::apply_vanilla_rnn(program& prog, instruction_ref ins) const
 }
 
 std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
-                                                           program& prog,
+                                                           module& prog,
                                                            instruction_ref ins,
                                                            std::vector<instruction_ref> inputs,
                                                            operation& actv_func) const
@@ -336,7 +336,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
     }
 }
 
-void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
+void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "gru");
     const auto actv_funcs = gru_actv_funcs(ins);
@@ -502,7 +502,7 @@ void rewrite_rnn::apply_gru(program& prog, instruction_ref ins) const
 }
 
 std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
-                                                   program& prog,
+                                                   module& prog,
                                                    instruction_ref ins,
                                                    std::vector<instruction_ref> inputs,
                                                    int linear_before_reset,
@@ -685,7 +685,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
 }
 
 // for lstm operators
-void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
+void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "lstm");
     auto args = ins->inputs();
@@ -927,7 +927,7 @@ void rewrite_rnn::apply_lstm(program& prog, instruction_ref ins) const
 }
 
 std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
-                                                    program& prog,
+                                                    module& prog,
                                                     instruction_ref ins,
                                                     std::vector<instruction_ref> inputs,
                                                     const operation& actv_func1,
@@ -1158,7 +1158,7 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
     }
 }
 
-bool rewrite_rnn::is_variable_seq_lens(const program& prog, instruction_ref seq_lens) const
+bool rewrite_rnn::is_variable_seq_lens(const module& prog, instruction_ref seq_lens) const
 {
     bool is_var_lens = false;
     if(seq_lens != prog.end())
@@ -1188,7 +1188,7 @@ bool rewrite_rnn::is_variable_seq_lens(const program& prog, instruction_ref seq_
 }
 
 std::size_t
-rewrite_rnn::get_seq_len(const program& prog, instruction_ref input, instruction_ref seq_lens) const
+rewrite_rnn::get_seq_len(const module& prog, instruction_ref input, instruction_ref seq_lens) const
 {
     bool is_var_lens = is_variable_seq_lens(prog, seq_lens);
     auto input_shape = input->get_shape();
@@ -1204,7 +1204,7 @@ rewrite_rnn::get_seq_len(const program& prog, instruction_ref input, instruction
     return length;
 }
 
-instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
+instruction_ref rewrite_rnn::replace_last_hs_output(module& prog,
                                                     instruction_ref ins,
                                                     instruction_ref seq_lens,
                                                     instruction_ref last_hs_output,
@@ -1243,7 +1243,7 @@ instruction_ref rewrite_rnn::replace_last_hs_output(program& prog,
     return result_ins;
 }
 
-void rewrite_rnn::replace_last_cell_output(program& prog,
+void rewrite_rnn::replace_last_cell_output(module& prog,
                                            instruction_ref ins,
                                            instruction_ref seq_lens,
                                            instruction_ref cell_outputs,
@@ -1281,7 +1281,7 @@ void rewrite_rnn::replace_last_cell_output(program& prog,
     }
 }
 
-instruction_ref rewrite_rnn::pad_hidden_states(program& prog,
+instruction_ref rewrite_rnn::pad_hidden_states(module& prog,
                                                instruction_ref seq,
                                                instruction_ref seq_lens,
                                                instruction_ref hs) const

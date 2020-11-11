@@ -27,6 +27,7 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -885,7 +886,7 @@ MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
 struct cpu_apply
 {
-    program* prog;
+    module* prog;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
     template <class T>
@@ -970,7 +971,7 @@ struct cpu_apply
     }
 };
 
-void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(module& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

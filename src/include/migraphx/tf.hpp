@@ -12,6 +12,8 @@ struct tf_options
 {
     bool is_nhwc            = false;
     unsigned int batch_size = 1;
+    /// Explicitly specify the dims of an input
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
 };
 
 /// Create a program from a tf pb file (default is nhwc format)

@@ -40,8 +40,11 @@ struct loader
     bool optimize               = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
+    bool override_dim           = false;
     std::string output_type;
     std::string output;
+    std::vector<std::string> param_dims;
+
 
     void parse(argument_parser& ap)
     {
@@ -59,6 +62,8 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(override_dim, {"--override_dim"}, ap.help("Override dims of a parameter"));
+        ap(param_dims, {"--dim_val"}, ap.help("Dim of a parameter (format: \"name:{d1, d2, ..., dn}\")"), ap.append());
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
@@ -81,11 +86,61 @@ struct loader
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
+    static auto parse_dim_info(const std::string& str)
+    {
+        std::pair<std::string, std::vector<std::size_t>> result;
+        std::vector<std::size_t> dims;
+        std::size_t start_pos = 0;
+        auto pos = str.find(':', start_pos);
+        assert(pos != std::string::npos);
+        auto name = str.substr(start_pos, pos);
+        start_pos = str.find('{', pos + 1);
+        assert(start_pos != std::string::npos);
+        pos = str.find('}', start_pos + 1);
+        assert(pos != std::string::npos);
+        auto dim_str = str.substr(start_pos + 1, pos - start_pos - 1);
+        start_pos = 0;
+        while (true)
+        {
+            pos = dim_str.find(',', start_pos);
+            if (pos == std::string::npos)
+                break;
+
+            auto sub_str = dim_str.substr(start_pos, pos - start_pos);
+            dims.push_back(std::stoi(sub_str));
+            start_pos = pos + 1;
+        }
+        dims.push_back(std::stoi(dim_str.substr(start_pos)));
+
+        return std::make_pair<>(name, dims);
+    }
+
+    static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
+    {
+        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        for (const auto& s : param_dims_info)
+        {
+            auto pd = parse_dim_info(s);
+            if (!pd.first.empty())
+            {
+                map_input_dims[pd.first] = pd.second;
+            }
+        }
+
+        return map_input_dims;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
+            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+            if (override_dim)
+            {
+                map_input_dims = parse_param_dims(param_dims);
+            }
+
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -104,11 +159,12 @@ struct loader
                 options.default_dim_value      = batch;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
+                options.map_input_dims = map_input_dims;
                 p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch});
+                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims});
             }
             else if(file_type == "json")
             {

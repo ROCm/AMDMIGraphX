@@ -10,7 +10,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_allocation::apply(program& p) const
+void eliminate_allocation::apply(module& p) const
 {
     assert(alignment > 0);
 

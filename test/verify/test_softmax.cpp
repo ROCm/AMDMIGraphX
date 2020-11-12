@@ -10,9 +10,10 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{T, {512, 4, 1067, 6}};
-        auto param = p.add_parameter("0", s);
-        p.add_instruction(migraphx::op::softmax{Axis}, param);
+        auto param = mm->add_parameter("0", s);
+        mm->add_instruction(migraphx::op::softmax{Axis}, param);
 
         return p;
     }

@@ -8,6 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Simplify many algebraic instructions to more efficient versions.
@@ -15,7 +16,7 @@ struct program;
 struct simplify_algebra
 {
     std::string name() const { return "simplify_algebra"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -91,15 +91,15 @@ struct loader
         std::pair<std::string, std::vector<std::size_t>> result;
         std::vector<std::size_t> dims;
         std::size_t name_start = 0;
-        auto dim_start = str.find('{', name_start);
+        auto dim_start         = str.find('{', name_start);
         assert(dim_start != std::string::npos);
         auto name_end = str.find_last_not_of(':', dim_start - 1);
         assert(name_end != std::string::npos);
-        auto name = str.substr(name_start, name_end - name_start + 1);
+        auto name    = str.substr(name_start, name_end - name_start + 1);
         auto dim_end = str.find('}', dim_start);
         assert(dim_end != std::string::npos);
-        auto dim_str = str.substr(dim_start + 1, dim_end - dim_start - 1);
-        std::size_t start_pos    = 0;
+        auto dim_str          = str.substr(dim_start + 1, dim_end - dim_start - 1);
+        std::size_t start_pos = 0;
         while(true)
         {
             auto pos = dim_str.find(',', start_pos);

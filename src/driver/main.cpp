@@ -40,7 +40,6 @@ struct loader
     bool optimize               = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
-    bool override_dim           = false;
     std::string output_type;
     std::string output;
     std::vector<std::string> param_dims;
@@ -61,10 +60,9 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
-        ap(override_dim, {"--override_dim"}, ap.help("Override dims of a parameter"));
         ap(param_dims,
            {"--dim_val"},
-           ap.help("Dim of a parameter (format: \"name:{d1, d2, ..., dn}\")"),
+           ap.help("Dim of a parameter (format: \"name:{d1,d2,...,dn}\" (no space in the string))"),
            ap.append());
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
@@ -92,19 +90,19 @@ struct loader
     {
         std::pair<std::string, std::vector<std::size_t>> result;
         std::vector<std::size_t> dims;
-        std::size_t start_pos = 0;
-        auto pos              = str.find(':', start_pos);
-        assert(pos != std::string::npos);
-        auto name = str.substr(start_pos, pos);
-        start_pos = str.find('{', pos + 1);
-        assert(start_pos != std::string::npos);
-        pos = str.find('}', start_pos + 1);
-        assert(pos != std::string::npos);
-        auto dim_str = str.substr(start_pos + 1, pos - start_pos - 1);
-        start_pos    = 0;
+        std::size_t name_start = 0;
+        auto dim_start = str.find('{', name_start);
+        assert(dim_start != std::string::npos);
+        auto name_end = str.find_last_not_of(':', dim_start - 1);
+        assert(name_end != std::string::npos);
+        auto name = str.substr(name_start, name_end - name_start + 1);
+        auto dim_end = str.find('}', dim_start);
+        assert(dim_end != std::string::npos);
+        auto dim_str = str.substr(dim_start + 1, dim_end - dim_start - 1);
+        std::size_t start_pos    = 0;
         while(true)
         {
-            pos = dim_str.find(',', start_pos);
+            auto pos = dim_str.find(',', start_pos);
             if(pos == std::string::npos)
                 break;
 
@@ -137,12 +135,7 @@ struct loader
         program p;
         if(model.empty())
         {
-            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
-            if(override_dim)
-            {
-                map_input_dims = parse_param_dims(param_dims);
-            }
-
+            auto map_input_dims = parse_param_dims(param_dims);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))

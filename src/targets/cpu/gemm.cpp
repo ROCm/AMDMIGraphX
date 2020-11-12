@@ -15,15 +15,12 @@ namespace cpu {
 #if USE_DNNL
 struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
 {
-    std::vector<int> arg_map(int) const
-    {
-        return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
-    }
+    std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
     // Batch must be a single dimension
     shape adjust_shape(shape x) const
     {
-        auto s = base_adjust_shape(std::move(x));
+        auto s     = base_adjust_shape(std::move(x));
         auto ndims = s.lens().size();
         if(ndims > 3)
         {
@@ -40,9 +37,7 @@ struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
 
     dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return dnnl::matmul::desc(m.at(DNNL_ARG_SRC),
-                                      m.at(DNNL_ARG_WEIGHTS),
-                                      m.at(DNNL_ARG_DST));
+        return dnnl::matmul::desc(m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_WEIGHTS), m.at(DNNL_ARG_DST));
     }
 };
 #endif

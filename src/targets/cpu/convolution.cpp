@@ -105,26 +105,24 @@ template struct cpu_convolution<op::convolution>;
 #if USE_DNNL
 struct dnnl_convolution : dnnl_op<dnnl_convolution, dnnl::convolution_forward, op::convolution>
 {
-    std::vector<int> arg_map(int) const
-    {
-        return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
-    }
+    std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
-    dnnl::convolution_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    dnnl::convolution_forward::desc
+    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         // In DNNL dilation is zero-based
         auto dilation = op.dilation;
         std::transform(
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
         return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference,
-                                                       dnnl::algorithm::convolution_auto,
-                                                       m.at(DNNL_ARG_SRC),
-                                                       m.at(DNNL_ARG_WEIGHTS),
-                                                       m.at(DNNL_ARG_DST),
-                                                       to_dnnl_dims(op.stride),
-                                                       to_dnnl_dims(dilation),
-                                                       to_dnnl_dims(op.padding),
-                                                       to_dnnl_dims(op.padding));
+                                               dnnl::algorithm::convolution_auto,
+                                               m.at(DNNL_ARG_SRC),
+                                               m.at(DNNL_ARG_WEIGHTS),
+                                               m.at(DNNL_ARG_DST),
+                                               to_dnnl_dims(op.stride),
+                                               to_dnnl_dims(dilation),
+                                               to_dnnl_dims(op.padding),
+                                               to_dnnl_dims(op.padding));
     }
 };
 #endif

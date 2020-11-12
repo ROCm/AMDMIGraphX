@@ -101,12 +101,13 @@ struct reduce_dims_base
     }
 };
 
-template<class X, class... Xs>
+template <class X, class... Xs>
 bool is_standard_offset(const X& x, const Xs&... xs)
 {
-    if (all_of({x, xs...}, [](const auto& s) { return s.standard(); }))
+    if(all_of({x, xs...}, [](const auto& s) { return s.standard(); }))
         return true;
-    if (all_of({x, xs...}, [](const auto& s) { return s.packed(); }) and all_of({xs...}, [&](const auto& s) { return s == x; }))
+    if(all_of({x, xs...}, [](const auto& s) { return s.packed(); }) and
+       all_of({xs...}, [&](const auto& s) { return s == x; }))
         return true;
     return false;
 }
@@ -115,7 +116,7 @@ template <class... Ts>
 auto pointwise(Ts... xs)
 {
     return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) {
-        if (is_standard_offset(xs.get_shape()...))
+        if(is_standard_offset(xs.get_shape()...))
         {
             ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
                 for(auto i = start; i < end; i++)
@@ -135,7 +136,6 @@ auto pointwise(Ts... xs)
                     ++mi;
                 }
             });
-
         }
     };
 }

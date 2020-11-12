@@ -11,6 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Process negative axis attributes of ops
@@ -19,7 +20,7 @@ struct program;
 struct normalize_ops
 {
     std::string name() const { return "normalize_ops"; }
-    void apply(program& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

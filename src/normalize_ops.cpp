@@ -12,9 +12,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void normalize_ops::apply(program& p) const
+void normalize_ops::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         auto inputs = ins->inputs();
         if(inputs.empty())
@@ -24,7 +24,7 @@ void normalize_ops::apply(program& p) const
         migraphx::operation tuned_op = ins->get_operator();
         if(normalize_attributes(tuned_op, lens))
         {
-            p.replace_instruction(ins, tuned_op, inputs);
+            m.replace_instruction(ins, tuned_op, inputs);
         }
     }
 }

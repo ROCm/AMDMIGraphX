@@ -84,7 +84,7 @@ struct reduce_dims_base
     {
         if(reduce_shapes.empty())
             return args[i];
-        return args.at(i).reshape(reduce_shapes.at(i+1));
+        return args.at(i).reshape(reduce_shapes.at(i + 1));
     }
 
     argument get_output() const
@@ -164,13 +164,14 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
     {
         argument result = get_output();
 
-        visit_all(result, get_arg(args, 0), get_arg(args, 1))([&](auto output, auto input1, auto input2) {
-            auto op2 = op;
-            pointwise(output, input1, input2)(
-                ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {
-                    z = op2.apply()(x, y);
-                });
-        });
+        visit_all(result, get_arg(args, 0), get_arg(args, 1))(
+            [&](auto output, auto input1, auto input2) {
+                auto op2 = op;
+                pointwise(output, input1, input2)(
+                    ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {
+                        z = op2.apply()(x, y);
+                    });
+            });
 
         return result;
     }

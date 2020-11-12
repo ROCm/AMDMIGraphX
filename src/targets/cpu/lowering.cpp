@@ -331,106 +331,6 @@ struct cpu_im2col
 };
 MIGRAPHX_REGISTER_OP(cpu_im2col)
 
-struct max_pool
-{
-    static std::string name() { return "max"; }
-    template <class T>
-    static T start()
-    {
-        return std::numeric_limits<T>::lowest();
-    }
-
-    static double apply(double x, double y)
-    {
-        double m = std::max(x, y);
-        return (m);
-    }
-
-    static double final(double x, std::size_t) { return (x); }
-};
-
-struct avg_pool
-{
-    static std::string name() { return "average"; }
-
-    template <class T>
-    static double start()
-    {
-        return 0.0;
-    }
-
-    static double apply(double x, double y) { return x + y; }
-
-    static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
-};
-
-template <class Op>
-struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
-{
-    cpu_pooling() = default;
-
-    cpu_pooling(op::pooling pop) : op(std::move(pop)) {}
-
-    op::pooling op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::pooling_" + Op::name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            using type   = typename decltype(output)::value_type;
-            auto in_s    = input.get_shape();
-            auto in_lens = in_s.lens();
-            std::vector<std::size_t> vec_len(in_lens.begin() + 2, in_lens.end());
-
-            par_for(output_shape.elements(), [&](auto i) {
-                auto idx_o = output_shape.multi(i);
-                auto n_dim = idx_o.size();
-                std::vector<std::size_t> win_start;
-                std::vector<std::size_t> win_size;
-                for(std::size_t dim = 2; dim < n_dim; ++dim)
-                {
-                    auto d_2  = dim - 2;
-                    int start = static_cast<int>(idx_o[dim] * op.stride[d_2]) -
-                                static_cast<int>(op.padding[d_2]);
-                    int end = std::min(start + op.lengths[d_2], in_lens[dim]);
-                    start   = std::max(start, 0);
-                    win_start.push_back(start);
-                    win_size.push_back(end - start);
-                }
-
-                shape win_shape{output_shape.type(), win_size};
-                auto pool_size = win_shape.elements();
-                double acc     = Op::template start<type>();
-                shape_for_each(win_shape, [&](auto idx_w) {
-                    auto idx = idx_o;
-                    std::transform(idx_w.begin(),
-                                   idx_w.end(),
-                                   win_start.begin(),
-                                   idx.begin() + 2,
-                                   [](auto ii, auto jj) { return ii + jj; });
-                    if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
-                       idx < in_lens)
-                    {
-                        acc = Op::apply(acc, input[in_s.index(idx)]);
-                    }
-                });
-
-                output[i] = type(Op::final(acc, pool_size));
-            });
-        });
-
-        return result;
-    }
-};
-
 struct cpu_op
 {
     operation op = op::identity{};
@@ -702,11 +602,24 @@ struct cpu_apply
         });
     }
 
+    void extend_dnnl_op(const std::string& op_name,
+                        const std::string& dnnl_name)
+    {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto&& op = ins->get_operator();
+            if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
+                return prog->replace_instruction(
+                    ins, make_op(dnnl_name, op.to_value()), ins->inputs());
+            return ins;
+        });
+    }
+
     void init()
     {
         extend_dnnl_op("add", "cpu::add", "dnnl::add");
         extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
+        extend_dnnl_op("concat", "dnnl::concat");
         extend_op("add", "cpu::add");
         extend_op("batch_norm_inference", "cpu::batch_norm_inference");
         extend_op("deconvolution", "cpu::deconvolution");
@@ -738,26 +651,16 @@ struct cpu_apply
         }
     }
 
-    template <class T>
-    instruction_ref apply_simple_op(instruction_ref ins)
-    {
-        return prog->replace_instruction(ins, T{}, ins->inputs());
-    }
-
-    template <class T, class Op>
-    instruction_ref apply_extend_op(instruction_ref ins)
-    {
-        auto&& op = any_cast<Op>(ins->get_operator());
-        return prog->replace_instruction(ins, T{op}, ins->inputs());
-    }
-
     instruction_ref apply_pooling(instruction_ref ins) const
     {
-        auto&& op = any_cast<op::pooling>(ins->get_operator());
-        if(op.mode == "max")
-            return prog->replace_instruction(ins, cpu_pooling<max_pool>{op}, ins->inputs());
-        else if(op.mode == "average")
-            return prog->replace_instruction(ins, cpu_pooling<avg_pool>{op}, ins->inputs());
+        auto&& op = ins->get_operator();
+        if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type)
+            return prog->replace_instruction(ins, make_op("dnnl::pooling", op.to_value()), ins->inputs());
+        std::string mode = op.to_value()["mode"].to<std::string>();
+        if(mode == "max")
+            return prog->replace_instruction(ins, make_op("cpu::pooling_max", op.to_value()), ins->inputs());
+        else if(mode == "average")
+            return prog->replace_instruction(ins, make_op("cpu::pooling_avgerage", op.to_value()), ins->inputs());
         return ins;
     }
 };

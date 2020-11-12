@@ -1,7 +1,9 @@
 
 add_library(migraphx_cpu
     add.cpp
+    concat.cpp
     convolution.cpp
+    pooling.cpp
     gemm.cpp
     target.cpp
     lowering.cpp

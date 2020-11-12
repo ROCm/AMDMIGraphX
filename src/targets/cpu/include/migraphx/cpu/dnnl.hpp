@@ -125,7 +125,7 @@ struct dnnl_op : auto_register_op<Derived>
     std::vector<int> arg_map(int size) const
     {
         std::vector<int> result(size);
-        std::iota(result.begin(), result.end(), 1);
+        std::iota(result.begin(), result.end(), DNNL_ARG_SRC_0);
         return result;
     }
     shape base_adjust_shape(const shape& s) const
@@ -162,12 +162,16 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return result;
     }
+    template<class T>
+    auto get_primitive_desc(const T& desc) const -> decltype(typename Primitive::primitive_desc(desc, get_dnnl_context().engine))
+    {
+        return typename Primitive::primitive_desc(desc, get_dnnl_context().engine);
+    }
     Primitive get_primitive(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        using primitive_desc = typename Primitive::primitive_desc;
         const auto& self     = static_cast<const Derived&>(*this);
         auto desc            = self.get_desc(m);
-        auto pd              = primitive_desc(desc, get_dnnl_context().engine);
+        auto pd              = self.get_primitive_desc(desc);
         return Primitive(pd);
     }
     std::string name() const { return "dnnl::" + op.name(); }

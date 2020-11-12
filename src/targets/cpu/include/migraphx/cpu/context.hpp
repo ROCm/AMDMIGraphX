@@ -39,11 +39,12 @@ struct context
     template <class F>
     void bulk_execute(std::size_t n, std::size_t min_grain, F f)
     {
-        const auto threadsize = std::min<std::size_t>(std::thread::hardware_concurrency(), n / min_grain);
+        const auto threadsize =
+            std::min<std::size_t>(std::thread::hardware_concurrency(), n / min_grain);
         std::size_t grainsize = std::ceil(static_cast<double>(n) / threadsize);
         par_for(threadsize, 1, [&](auto tid) {
-            std::size_t work = tid*grainsize;
-            f(work, std::min(n, work+grainsize));
+            std::size_t work = tid * grainsize;
+            f(work, std::min(n, work + grainsize));
         });
     }
 

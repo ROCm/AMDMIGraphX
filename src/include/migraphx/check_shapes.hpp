@@ -211,12 +211,11 @@ struct check_shapes
         return begin + i;
     }
 
-
     check_shapes slice(long start) const { return {get(start), end, name}; }
 
     check_shapes slice(long start, long last) const { return {get(start), get(last), name}; }
 
-private:
+    private:
     static bool batch_not_transposed_strides(const std::vector<std::size_t>& strides)
     {
         if(strides.size() <= 2)

@@ -21,11 +21,11 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
     else
     {
         std::size_t grainsize = std::ceil(static_cast<double>(n) / threadsize);
-        #pragma omp parallel num_threads(threadsize)
+#pragma omp parallel num_threads(threadsize)
         {
-            std::size_t tid = omp_get_thread_num();
-            std::size_t work = tid*grainsize;
-            f(work, std::min(n, work+grainsize));
+            std::size_t tid  = omp_get_thread_num();
+            std::size_t work = tid * grainsize;
+            f(work, std::min(n, work + grainsize));
         }
     }
 }
@@ -33,8 +33,7 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
 template <class F>
 void parallel_for(std::size_t n, std::size_t min_grain, F f)
 {
-    const auto threadsize =
-        std::min<std::size_t>(omp_get_num_threads(), n / min_grain);
+    const auto threadsize = std::min<std::size_t>(omp_get_num_threads(), n / min_grain);
     parallel_for_impl(n, threadsize, f);
 }
 

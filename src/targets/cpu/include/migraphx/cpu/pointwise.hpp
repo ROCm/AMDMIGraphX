@@ -13,12 +13,11 @@ namespace cpu {
 
 struct multi_index
 {
-    multi_index(const shape& s, std::size_t i)
-    : n(s.lens().size())
+    multi_index(const shape& s, std::size_t i) : n(s.lens().size())
     {
         assert(n < max_size);
         std::copy(s.lens().begin(), s.lens().end(), dims);
-        s.multi_copy(i, index, index+max_size);
+        s.multi_copy(i, index, index + max_size);
     }
 
     std::size_t size() const { return n; }
@@ -29,10 +28,7 @@ struct multi_index
     std::size_t* end() { return index + size(); }
     const std::size_t* end() const { return index + size(); }
 
-    std::size_t offset(const shape& s) const
-    {
-        return s.index(begin(), end());
-    }
+    std::size_t offset(const shape& s) const { return s.index(begin(), end()); }
 
     void carry()
     {
@@ -66,21 +62,21 @@ struct multi_index
         return result;
     }
 
-private:
+    private:
     static const std::size_t max_size = 6;
     std::size_t index[max_size];
     std::size_t dims[max_size];
     std::size_t n;
 };
 
-template<class... Ts>
+template <class... Ts>
 auto pointwise(Ts... xs)
 {
     return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) {
         assert(base_shape.lens().size() <= 6);
         ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
             multi_index mi(base_shape, start);
-            for(auto i = start;i < end;i++)
+            for(auto i = start; i < end; i++)
             {
                 f(xs.data()[mi.offset(xs.get_shape())]...);
                 ++mi;
@@ -110,12 +106,11 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        
+
         visit_all(result, args[0])([&](auto output, auto input) {
             auto op2 = op;
-            pointwise(output, input)(ctx, output.get_shape(), 1024, [op2](auto& y, auto x) {
-                y = op2.apply()(x);
-            });
+            pointwise(output, input)(
+                ctx, output.get_shape(), 1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
         });
 
         return result;
@@ -143,12 +138,13 @@ struct cpu_binary : auto_register_op<cpu_binary<Op>>
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        
+
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
             auto op2 = op;
-            pointwise(output, input1, input2)(ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {
-                z = op2.apply()(x, y);
-            });
+            pointwise(output, input1, input2)(
+                ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {
+                    z = op2.apply()(x, y);
+                });
         });
 
         return result;

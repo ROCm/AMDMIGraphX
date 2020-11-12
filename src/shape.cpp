@@ -146,7 +146,7 @@ std::vector<std::size_t> shape::multi(std::size_t i) const
     assert(this->standard());
 
     std::vector<std::size_t> indices(lens().size());
-    multi_copy(i, indices.data(), indices.data()+lens().size());
+    multi_copy(i, indices.data(), indices.data() + lens().size());
 
     return indices;
 }

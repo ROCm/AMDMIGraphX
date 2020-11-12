@@ -103,7 +103,7 @@ auto execute_dnnl(Context& ctx, std::unordered_map<int, argument> args)
     };
 }
 
-template <class Derived, class Primitive, class Op>
+template<class Derived, class Primitive, class Op>
 struct dnnl_op : auto_register_op<Derived>
 {
     Op op;
@@ -125,23 +125,36 @@ struct dnnl_op : auto_register_op<Derived>
     std::vector<int> arg_map(int size) const
     {
         std::vector<int> result(size);
-        std::iota(result.begin(), result.end(), 0);
+        std::iota(result.begin(), result.end(), 1);
         return result;
     }
     shape base_adjust_shape(const shape& s) const
     {
-        // TODO: Compensate for broadcast shapes
+        if (s.broadcasted())
+        {
+            auto lens = s.lens();
+            auto strides = s.strides();
+            std::transform(strides.begin(), strides.end(), lens.begin(), lens.begin(), [](auto stride, auto len) -> std::size_t {
+                if (stride == 0)
+                    return 1;
+                else
+                    return len;
+            });
+            return shape{s.type(), lens};
+        }
         return s;
     }
-    shape adjust_shape(shape s) const { return base_adjust_shape(std::move(s)); }
-    std::unordered_map<int, dnnl::memory::desc>
-    to_memory_desc(const shape& output_shape, const std::vector<shape>& inputs) const
+    shape adjust_shape(shape s) const
+    {
+        return base_adjust_shape(std::move(s));
+    }
+    std::unordered_map<int, dnnl::memory::desc> to_memory_desc(const shape& output_shape, const std::vector<shape>& inputs) const
     {
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
         result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape));
-        auto m               = self.arg_map(inputs.size());
-        for(int i = 0; i < inputs.size(); i++)
+        auto m = self.arg_map(inputs.size());
+        for(int i = 0;i< inputs.size();i++)
         {
             result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i]));
         }
@@ -150,27 +163,30 @@ struct dnnl_op : auto_register_op<Derived>
     Primitive get_primitive(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         using primitive_desc = typename Primitive::primitive_desc;
-        const auto& self     = static_cast<const Derived&>(*this);
-        auto desc            = self.get_desc(m);
-        auto pd              = primitive_desc(desc, get_dnnl_context().engine);
+        const auto& self = static_cast<const Derived&>(*this);
+        auto desc = self.get_desc(m);
+        auto pd   = primitive_desc(desc, get_dnnl_context().engine);
         return Primitive(pd);
     }
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes(inputs, *this).standard();
-        return op.compute_shape(inputs);
+        // check_shapes(inputs, *this).standard();
+        auto r = op.compute_shape(inputs);
+        // Call to get_primitive to make sure an algo is available
+        get_primitive(to_memory_desc(r, inputs));
+        return r;
     }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         const auto& self = static_cast<const Derived&>(*this);
-        auto md          = to_memory_desc(output_shape, to_shapes(args));
-        auto prim        = get_primitive(md);
-        auto arg_lookup  = self.arg_map(args.size());
+        auto md = to_memory_desc(output_shape, to_shapes(args));
+        auto prim = get_primitive(md);
+        auto arg_lookup = self.arg_map(args.size());
         std::unordered_map<int, dnnl::memory> m;
         m[DNNL_ARG_DST] = to_dnnl_memory(md[DNNL_ARG_DST], result);
-        for(int i = 0; i < args.size(); i++)
+        for(int i=0;i<args.size();i++)
             m[arg_lookup[i]] = to_dnnl_memory(md[arg_lookup[i]], args[i]);
         prim.execute(get_dnnl_context().stream, m);
         return result;

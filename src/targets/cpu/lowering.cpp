@@ -704,6 +704,7 @@ struct cpu_apply
 
     void init()
     {
+        extend_dnnl_op("add", "cpu::add", "dnnl::add");
         extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
         extend_op("add", "cpu::add");

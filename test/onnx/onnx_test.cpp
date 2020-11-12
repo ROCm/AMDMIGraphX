@@ -1993,7 +1993,7 @@ TEST_CASE(reshape_non_standard_test)
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm              = p.get_main_module();
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     mm->add_literal(migraphx::literal{ss, ds});

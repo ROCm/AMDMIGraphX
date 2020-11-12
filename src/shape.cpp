@@ -146,16 +146,23 @@ std::vector<std::size_t> shape::multi(std::size_t i) const
     assert(this->standard());
 
     std::vector<std::size_t> indices(lens().size());
+    multi_copy(i, indices.data(), indices.data()+lens().size());
+
+    return indices;
+}
+
+void shape::multi_copy(std::size_t i, std::size_t* start, std::size_t* end) const
+{
+    assert(this->standard());
+    assert(lens().size() <= (end - start));
     std::transform(strides().begin(),
                    strides().end(),
                    lens().begin(),
-                   indices.begin(),
+                   start,
                    [&](std::size_t stride, std::size_t len) {
                        assert(len > 0 and stride > 0);
                        return (i / stride) % len;
                    });
-
-    return indices;
 }
 
 bool shape::packed() const { return this->elements() == this->element_space(); }

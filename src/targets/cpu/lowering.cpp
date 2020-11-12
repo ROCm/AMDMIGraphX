@@ -501,73 +501,6 @@ struct cpu_pad
 };
 MIGRAPHX_REGISTER_OP(cpu_pad)
 
-struct cpu_quant_gemm
-{
-    op::quant_dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::quant_dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
-        return op.compute_shape(inputs);
-    }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrices, and C is of the same shape to A * B
-
-        // first, convert the args[0] and args[1] from int8_t to int32_t
-        argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
-        argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
-        arg_0.visit([&](auto output) {
-            args.at(0).visit(
-                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
-        });
-
-        arg_1.visit([&](auto output) {
-            args.at(1).visit(
-                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
-        });
-
-        if(args.size() == 3)
-        {
-            // no need to consider the value of args[2]
-            if(op.beta == 0)
-            {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            }
-            else
-            {
-                visit_all(result, args[2])([&](auto output, auto input) {
-                    std::copy(input.begin(), input.end(), output.begin());
-                });
-            }
-
-            migemm(result, arg_0, arg_1, op.alpha, op.beta);
-
-            return result;
-        }
-
-        // 2 input arguments
-        migemm(result, arg_0, arg_1, op.alpha, int32_t{0});
-
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_quant_gemm)
-
 struct leaky_relu_op
 {
     op::leaky_relu op;
@@ -591,12 +524,12 @@ struct elu_op
 };
 
 template <typename Op>
-struct cpu_unary : auto_register_op<cpu_unary<Op>>
+struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
 {
-    cpu_unary() = default;
+    cpu_unary2() = default;
 
     template <class T>
-    cpu_unary(T pop) : op(Op{std::move(pop)})
+    cpu_unary2(T pop) : op(Op{std::move(pop)})
     {
     }
 
@@ -626,8 +559,8 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
         return result;
     }
 };
-template struct cpu_unary<leaky_relu_op>;
-template struct cpu_unary<elu_op>;
+template struct cpu_unary2<leaky_relu_op>;
+template struct cpu_unary2<elu_op>;
 
 template <class Op>
 struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
@@ -773,6 +706,7 @@ struct cpu_apply
     {
         extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
+        extend_op("add", "cpu::add");
         extend_op("batch_norm_inference", "cpu::batch_norm_inference");
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("elu", "cpu::elu");

@@ -1,5 +1,6 @@
 
 add_library(migraphx_cpu
+    add.cpp
     convolution.cpp
     gemm.cpp
     target.cpp

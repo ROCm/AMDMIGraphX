@@ -74,6 +74,7 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
     std::string name() const { return "cpu::dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        check_shapes{inputs, *this}.standard();
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);
@@ -113,7 +114,7 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
     }
 };
 
-struct cpu_quant_gemm : auto_register_op<cpu_gemm>
+struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
 {
     op::quant_dot op;
 
@@ -126,6 +127,7 @@ struct cpu_quant_gemm : auto_register_op<cpu_gemm>
     std::string name() const { return "cpu::quant_dot"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        check_shapes{inputs, *this}.standard();
         if(inputs.size() == 3)
         {
             auto c_shape = inputs.at(2);

@@ -13,10 +13,6 @@ namespace cpu {
 #ifdef USE_DNNL
 struct context
 {
-    dnnl::engine engine;
-    dnnl::stream stream;
-
-    context() : engine(dnnl::engine::kind::cpu, 0), stream(engine) {}
     void finish() const {}
 
     template <class F>

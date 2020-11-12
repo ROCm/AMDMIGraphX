@@ -50,6 +50,13 @@ struct multi_index
         index[0] += overflow;
     }
 
+    multi_index& operator+=(std::size_t i)
+    {
+        index[size() - 1] += i;
+        carry();
+        return *this;
+    }
+
     multi_index& operator++()
     {
         index[size() - 1]++;
@@ -64,7 +71,7 @@ struct multi_index
     }
 
     private:
-    static const std::size_t max_size = 3;
+    static const std::size_t max_size = 5;
     std::size_t index[max_size];
     std::size_t dims[max_size];
     std::size_t n;
@@ -94,19 +101,42 @@ struct reduce_dims_base
     }
 };
 
+template<class X, class... Xs>
+bool is_standard_offset(const X& x, const Xs&... xs)
+{
+    if (all_of({x, xs...}, [](const auto& s) { return s.standard(); }))
+        return true;
+    if (all_of({x, xs...}, [](const auto& s) { return s.packed(); }) and all_of({xs...}, [&](const auto& s) { return s == x; }))
+        return true;
+    return false;
+}
+
 template <class... Ts>
 auto pointwise(Ts... xs)
 {
     return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) {
-        assert(base_shape.lens().size() <= 6);
-        ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
-            multi_index mi(base_shape, start);
-            for(auto i = start; i < end; i++)
-            {
-                f(xs.data()[mi.offset(xs.get_shape())]...);
-                ++mi;
-            }
-        });
+        if (is_standard_offset(xs.get_shape()...))
+        {
+            ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
+                for(auto i = start; i < end; i++)
+                {
+                    f(xs.data()[i]...);
+                }
+            });
+        }
+        else
+        {
+            assert(base_shape.lens().size() <= 6);
+            ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
+                multi_index mi(base_shape, start);
+                for(auto i = start; i < end; i++)
+                {
+                    f(xs.data()[mi.offset(xs.get_shape())]...);
+                    ++mi;
+                }
+            });
+
+        }
     };
 }
 

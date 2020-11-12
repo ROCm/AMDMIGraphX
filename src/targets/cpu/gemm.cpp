@@ -12,55 +12,40 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-struct dnnl_gemm : auto_register_op<dnnl_gemm>
+#if USE_DNNL
+struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
 {
-    op::dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    std::vector<int> arg_map(int) const
     {
-        return migraphx::reflect(self.op, f);
-    }
-    std::string name() const { return "dnnl::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes(inputs, *this).has(2).standard();
-        return op.compute_shape(inputs);
+        return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS};
     }
 
-    argument limit3(const argument& a) const
+    // Batch must be a single dimension
+    shape adjust_shape(shape x) const
     {
-        auto s     = a.get_shape();
+        auto s = base_adjust_shape(std::move(x));
         auto ndims = s.lens().size();
         if(ndims > 3)
         {
             std::size_t batch = std::accumulate(
                 s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});
             shape s3d{s.type(), {batch, s.lens()[ndims - 2], s.lens()[ndims - 1]}};
-            return a.reshape(s3d);
+            return s3d;
         }
         else
         {
-            return a;
+            return s;
         }
     }
 
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
+    dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        if(args[0].get_shape().type() == shape::type_t::half_type)
-            return op.compute(output_shape, args);
-        argument result{output_shape};
-        execute_dnnl<dnnl::matmul>(ctx,
-                                   {{DNNL_ARG_SRC, limit3(args[0])},
-                                    {DNNL_ARG_WEIGHTS, limit3(args[1])},
-                                    {DNNL_ARG_DST, limit3(result)}})([&](auto m) {
-            return dnnl::matmul::desc(m.at(DNNL_ARG_SRC).get_desc(),
-                                      m.at(DNNL_ARG_WEIGHTS).get_desc(),
-                                      m.at(DNNL_ARG_DST).get_desc());
-        });
-        return result;
+        return dnnl::matmul::desc(m.at(DNNL_ARG_SRC),
+                                      m.at(DNNL_ARG_WEIGHTS),
+                                      m.at(DNNL_ARG_DST));
     }
 };
+#endif
 
 struct cpu_gemm : auto_register_op<cpu_gemm>
 {

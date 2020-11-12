@@ -5,6 +5,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/cpu/context.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/register_op.hpp>
 
 namespace migraphx {
@@ -63,10 +64,34 @@ struct multi_index
     }
 
     private:
-    static const std::size_t max_size = 6;
+    static const std::size_t max_size = 3;
     std::size_t index[max_size];
     std::size_t dims[max_size];
     std::size_t n;
+};
+
+struct reduce_dims_base
+{
+    std::vector<shape> reduce_shapes;
+
+    void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
+    {
+        inputs.insert(inputs.begin(), output_shape);
+        reduce_shapes = reduce_dims(inputs);
+    }
+
+    argument get_arg(const std::vector<argument>& args, std::size_t i) const
+    {
+        if(reduce_shapes.empty())
+            return args[i];
+        return args.at(i).reshape(reduce_shapes.at(i+1));
+    }
+
+    argument get_output() const
+    {
+        argument a{reduce_shapes[0]};
+        return a;
+    }
 };
 
 template <class... Ts>
@@ -86,7 +111,7 @@ auto pointwise(Ts... xs)
 }
 
 template <class Op>
-struct cpu_unary : auto_register_op<cpu_unary<Op>>
+struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
 {
     Op op;
 
@@ -105,20 +130,20 @@ struct cpu_unary : auto_register_op<cpu_unary<Op>>
 
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result = get_output();
 
-        visit_all(result, args[0])([&](auto output, auto input) {
+        visit_all(result, get_arg(args, 0))([&](auto output, auto input) {
             auto op2 = op;
             pointwise(output, input)(
                 ctx, output.get_shape(), 1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
         });
 
-        return result;
+        return result.reshape(output_shape);
     }
 };
 
 template <class Op>
-struct cpu_binary : auto_register_op<cpu_binary<Op>>
+struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
 {
     Op op;
 
@@ -137,9 +162,9 @@ struct cpu_binary : auto_register_op<cpu_binary<Op>>
 
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result = get_output();
 
-        visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
+        visit_all(result, get_arg(args, 0), get_arg(args, 1))([&](auto output, auto input1, auto input2) {
             auto op2 = op;
             pointwise(output, input1, input2)(
                 ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {

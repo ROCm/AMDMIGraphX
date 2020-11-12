@@ -1037,7 +1037,7 @@ struct tf_parser
             shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
             std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
 
-            if (contains(map_input_dims, name))
+            if(contains(map_input_dims, name))
             {
                 dims = map_input_dims.at(name);
             }
@@ -1409,8 +1409,8 @@ program parse_tf(const std::string& name, tf_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc    = options.is_nhwc;
-    parser.batch_size = options.batch_size;
+    parser.is_nhwc        = options.is_nhwc;
+    parser.batch_size     = options.batch_size;
     parser.map_input_dims = options.map_input_dims;
 
 #ifndef NDEBUG

@@ -8,6 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Rewrite pooling to reduce_mean
@@ -15,7 +16,7 @@ struct program;
 struct rewrite_pooling
 {
     std::string name() const { return "rewrite_pooling"; }
-    void apply(program& prog) const;
+    void apply(module& prog) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -9,6 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Remove identical instructions.
@@ -16,7 +17,7 @@ struct program;
 struct eliminate_common_subexpression
 {
     std::string name() const { return "eliminate_common_subexpression"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

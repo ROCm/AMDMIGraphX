@@ -16,14 +16,15 @@ migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
     auto prog                      = migraphx::parse_onnx(name, options);
+    auto* mm                       = prog.get_main_module();
     if(eliminate_deadcode)
-        migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
+        migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 
     // remove the last identity instruction
-    auto last_ins = std::prev(prog.end());
+    auto last_ins = std::prev(mm->end());
     if(last_ins->name() == "@return")
     {
-        prog.remove_instruction(last_ins);
+        mm->remove_instruction(last_ins);
     }
 
     return prog;
@@ -1992,7 +1993,7 @@ TEST_CASE(reshape_non_standard_test)
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
-    auto* mm              = p.get_main_module();
+    auto* mm = p.get_main_module();
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
     mm->add_literal(migraphx::literal{ss, ds});
@@ -2545,7 +2546,7 @@ TEST_CASE(transpose_gather_test)
 
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
-    EXPECT(mm->sort() == prog.sort());
+    EXPECT(p.sort() == prog.sort());
 }
 
 TEST_CASE(undefined_test)

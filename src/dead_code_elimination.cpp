@@ -29,7 +29,7 @@ std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
         return -n;
 }
 
-void dead_code_elimination::apply(program& p) const
+void dead_code_elimination::apply(module& p) const
 {
     auto last = std::prev(p.end());
     for(auto ins : iterator_for(p))

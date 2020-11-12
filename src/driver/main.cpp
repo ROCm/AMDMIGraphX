@@ -135,10 +135,12 @@ struct loader
         if(trim > 0)
         {
             auto last = std::prev(p.end(), trim);
-            p.remove_instructions(last, p.end());
+            auto* mm  = p.get_main_module();
+            mm->remove_instructions(last, p.end());
         }
         if(optimize)
-            migraphx::run_passes(p,
+        {
+            migraphx::run_passes(*p.get_main_module(),
                                  {
                                      migraphx::rewrite_batchnorm{},
                                      migraphx::eliminate_identity{},
@@ -152,6 +154,7 @@ struct loader
                                      migraphx::eliminate_pad{},
                                      migraphx::dead_code_elimination{},
                                  });
+        }
         return p;
     }
 
@@ -204,7 +207,7 @@ struct program_params
 
     auto generate(const program& p, const target& t, bool offload)
     {
-        program::parameter_map m;
+        parameter_map m;
         for(auto&& s : fill0)
             m[s] = fill_argument(p.get_parameter_shape(s), 0);
         for(auto&& s : fill1)

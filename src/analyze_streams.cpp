@@ -14,7 +14,7 @@ bool happens_before(const std::vector<std::size_t>& e1, const std::vector<std::s
            not std::equal(e1.begin(), e1.end(), e2.begin(), e2.end(), std::greater_equal<>{});
 }
 
-std::vector<stream_race> analyze_streams(const program& p, const stream_model& m)
+std::vector<stream_race> analyze_streams(const module& p, const stream_model& m)
 {
     using vector_clock = std::vector<std::size_t>;
     std::vector<stream_race> races;

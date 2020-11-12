@@ -882,7 +882,7 @@ MIGRAPHX_REGISTER_OP(ref_rnn_var_sl_last_output)
 
 struct ref_apply
 {
-    program* prog;
+    module* modl;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
     template <class T>
@@ -922,7 +922,7 @@ struct ref_apply
     void apply()
     {
         init();
-        for(auto it : iterator_for(*prog))
+        for(auto it : iterator_for(*modl))
         {
             if(it->name() == "pooling")
             {
@@ -941,33 +941,33 @@ struct ref_apply
 
     void apply_ref_op(instruction_ref ins) const
     {
-        prog->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
+        modl->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        prog->replace_instruction(ins, T{}, ins->inputs());
+        modl->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->get_operator());
-        prog->replace_instruction(ins, T{op}, ins->inputs());
+        modl->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")
-            prog->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
+            modl->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            prog->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
+            modl->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 
-void lowering::apply(program& p) const { ref_apply{&p}.apply(); }
+void lowering::apply(module& m) const { ref_apply{&m}.apply(); }
 
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS

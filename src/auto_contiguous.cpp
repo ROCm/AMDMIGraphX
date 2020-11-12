@@ -7,7 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void auto_contiguous::apply(program& p) const
+void auto_contiguous::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

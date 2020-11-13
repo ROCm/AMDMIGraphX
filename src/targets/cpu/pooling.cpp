@@ -60,16 +60,17 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
     }
 
     std::string name() const { return "cpu::pooling_" + Op::name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { 
-      inputs.pop_back();
-      return op.compute_shape(inputs); 
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        inputs.pop_back();
+        return op.compute_shape(inputs);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
-    
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         visit_all(args.back(), args[0])([&](auto output, auto input) {

@@ -39,16 +39,17 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
     }
 
     std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { 
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
         inputs.pop_back();
-        return op.compute_shape(inputs); 
+        return op.compute_shape(inputs);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
     }
-    
+
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         visit_quantize(args.back(), args[0], args[1])([&](auto output, auto input, auto weights) {

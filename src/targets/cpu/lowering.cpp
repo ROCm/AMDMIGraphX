@@ -588,15 +588,9 @@ struct cpu_literal
 
     std::string name() const { return "cpu::literal"; }
 
-    shape compute_shape(std::vector<shape>) const
-    {
-        return data.get_shape();
-    }
+    shape compute_shape(std::vector<shape>) const { return data.get_shape(); }
 
-    argument compute(const shape&, std::vector<argument>) const
-    {
-        return data;
-    }
+    argument compute(const shape&, std::vector<argument>) const { return data; }
 
     friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
     {

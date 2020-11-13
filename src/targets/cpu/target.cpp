@@ -42,8 +42,6 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
-            rewrite_pooling{},
-            dead_code_elimination{},
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},

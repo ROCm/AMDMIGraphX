@@ -16,15 +16,16 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
         float clip              = 0.0f;
 
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, hidden_size}};
-        auto seq = p.add_parameter("seq", in_shape);
-        auto w   = p.add_parameter("w", w_shape);
-        auto r   = p.add_parameter("r", r_shape);
-        auto hs  = p.add_instruction(
+        auto seq = mm->add_parameter("seq", in_shape);
+        auto w   = mm->add_parameter("w", w_shape);
+        auto r   = mm->add_parameter("r", r_shape);
+        auto hs  = mm->add_instruction(
             migraphx::op::lstm{
                 hidden_size,
                 {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
@@ -33,8 +34,8 @@ struct test_lstm_two_outputs : verify_program<test_lstm_two_outputs>
             seq,
             w,
             r);
-        auto last_hs = p.add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
-        p.add_return({hs, last_hs});
+        auto last_hs = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
+        mm->add_return({hs, last_hs});
 
         return p;
     }

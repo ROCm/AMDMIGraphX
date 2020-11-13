@@ -9,9 +9,10 @@ struct test_tan : verify_program<test_tan>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {16}};
-        auto x = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::tan{}, x);
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::tan{}, x);
         return p;
     }
 };

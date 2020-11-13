@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_identity::apply(program& p) const
+void eliminate_identity::apply(module& p) const
 {
     auto last = std::prev(p.end());
     for(auto ins : iterator_for(p))

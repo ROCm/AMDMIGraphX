@@ -18,7 +18,7 @@
 void run_lowering(migraphx::program& p)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(p,
+    migraphx::run_passes(*p.get_main_module(),
                          {migraphx::auto_contiguous{},
                           migraphx::gpu::lowering{&ctx, false},
                           migraphx::dead_code_elimination{},
@@ -30,12 +30,13 @@ TEST_CASE(tanh_shape)
 {
     auto create_program = [] {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto x   = p.add_parameter("x", s);
-        auto tx  = p.add_instruction(migraphx::op::transpose{{1, 0}}, x);
-        auto txh = p.add_instruction(migraphx::op::tanh{}, tx);
-        auto sum = p.add_instruction(migraphx::op::add{}, txh, txh);
-        p.add_instruction(migraphx::op::contiguous{}, sum);
+        auto x   = mm->add_parameter("x", s);
+        auto tx  = mm->add_instruction(migraphx::op::transpose{{1, 0}}, x);
+        auto txh = mm->add_instruction(migraphx::op::tanh{}, tx);
+        auto sum = mm->add_instruction(migraphx::op::add{}, txh, txh);
+        mm->add_instruction(migraphx::op::contiguous{}, sum);
 
         return p;
     };
@@ -59,7 +60,7 @@ TEST_CASE(tanh_shape)
     }
     EXPECT(p1 != p2);
 
-    migraphx::run_passes(p2,
+    migraphx::run_passes(*p2.get_main_module(),
                          {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }

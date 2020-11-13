@@ -22,7 +22,7 @@ struct find_dot_add
                         match::name("dot")(match::nargs(2)).bind("dot"))));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins     = r.result;
         auto dot_ins = r.instructions["dot"];
@@ -36,7 +36,7 @@ struct find_dot_add
 };
 } // namespace
 
-void remap::apply(program& p) const { match::find_matches(p, find_dot_add{}); }
+void remap::apply(module& p) const { match::find_matches(p, find_dot_add{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

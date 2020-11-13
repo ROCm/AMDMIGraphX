@@ -209,7 +209,7 @@ struct matcher_result
 
 /// Match a single instruction
 template <class M>
-matcher_result match_instruction(program& p, instruction_ref ins, M&& m)
+matcher_result match_instruction(module& p, instruction_ref ins, M&& m)
 {
     assert(ins != p.end());
     matcher_result result;
@@ -223,7 +223,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 
 /// Find matches for an instruction in the program
 template <class... Ms>
-void find_matches(program& p, instruction_ref ins, Ms&&... ms)
+void find_matches(module& p, instruction_ref ins, Ms&&... ms)
 {
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
@@ -250,7 +250,7 @@ void find_matches(program& p, instruction_ref ins, Ms&&... ms)
 
 /// Find matches in a program
 template <class... Ms>
-void find_matches(program& p, Ms&&... ms)
+void find_matches(module& p, Ms&&... ms)
 {
     for(auto ins : iterator_for(p))
     {
@@ -264,7 +264,7 @@ struct find_skip
     M m;
     M matcher() const { return m; }
 
-    void apply(program&, const matcher_result&) const {}
+    void apply(module&, const matcher_result&) const {}
 };
 
 template <class M>

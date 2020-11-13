@@ -16,7 +16,7 @@ TEST_CASE(averagepool_notset_test)
     std::vector<float> data_x = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
                                  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
     migraphx::shape s_x{migraphx::shape::float_type, {1, 1, 5, 5}};
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s_x, data_x.data());
 
     auto result = p.eval(pp).back();
@@ -34,7 +34,7 @@ TEST_CASE(averagepool_nt_cip_test)
     std::vector<float> data_x = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
                                  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
     migraphx::shape s_x{migraphx::shape::float_type, {1, 1, 5, 5}};
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s_x, data_x.data());
 
     auto result = p.eval(pp).back();
@@ -56,7 +56,7 @@ TEST_CASE(gather_elements)
     migraphx::shape s_ind{migraphx::shape::int32_type, {2, 3}};
     std::vector<int> ind = {2, 1, 2, 0, 1, 0};
 
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["data"]    = migraphx::argument(s_data, data.data());
     pp["indices"] = migraphx::argument(s_ind, ind.data());
 
@@ -135,7 +135,7 @@ TEST_CASE(resize_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     std::vector<float> dx = {1.0f, 2.0f, 3.0f, 4.0f};
 
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
 
     auto result = p.eval(pp).back();
@@ -156,7 +156,7 @@ TEST_CASE(selu_test)
     migraphx::shape xs{migraphx::shape::double_type, {2, 3}};
     std::vector<double> x_data = {1.1, 2.1, 0.0, -1.3, -5.3, 12.0};
 
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(xs, x_data.data());
 
     auto result = p.eval(pp).back();
@@ -175,7 +175,7 @@ TEST_CASE(upsample_test)
     std::vector<float> x_data = {1, 2, 3, 4};
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
 
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, x_data.data());
 
     auto result = p.eval(pp).back();
@@ -201,7 +201,7 @@ TEST_CASE(where_test)
     migraphx::shape y_shape{migraphx::shape::float_type, {2, 1, 2, 2}};
     std::vector<float> y_data(8, 2.0f);
 
-    migraphx::program::parameter_map pp;
+    migraphx::parameter_map pp;
     pp["c"] = migraphx::argument(c_shape, c_data.data());
     pp["x"] = migraphx::argument(x_shape, x_data.data());
     pp["y"] = migraphx::argument(y_shape, y_data.data());

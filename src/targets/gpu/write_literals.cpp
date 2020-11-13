@@ -2,6 +2,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
 
 namespace migraphx {
@@ -10,7 +11,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
-void write_literals::apply(program& p) const
+void write_literals::apply(module& p) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;

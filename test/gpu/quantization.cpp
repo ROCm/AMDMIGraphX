@@ -37,13 +37,13 @@ TEST_CASE(int8_quantization)
 {
     auto run_prog = [](migraphx::program p,
                        const migraphx::target& t,
-                       migraphx::program::parameter_map& m_in,
+                       migraphx::parameter_map& m_in,
                        std::vector<float>& res) {
-        std::vector<migraphx::program::parameter_map> cali_data;
+        std::vector<migraphx::parameter_map> cali_data;
         cali_data.push_back(m_in);
         migraphx::quantize_int8(p, t, cali_data);
         p.compile(t);
-        migraphx::program::parameter_map m;
+        migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
             if(m_in.count(x.first) > 0)
@@ -62,20 +62,21 @@ TEST_CASE(int8_quantization)
 
     auto create_program = [] {
         migraphx::program p;
+        auto* mm = p.get_main_module();
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        auto pa = p.add_parameter("a", sa);
-        auto pb = p.add_parameter("b", sb);
-        auto pc = p.add_parameter("c", sc);
-        p.add_instruction(migraphx::op::dot{}, pa, pb, pc);
+        auto pa = mm->add_parameter("a", sa);
+        auto pb = mm->add_parameter("b", sb);
+        auto pc = mm->add_parameter("c", sc);
+        mm->add_instruction(migraphx::op::dot{}, pa, pb, pc);
 
         return p;
     };
 
     {
         auto p = create_program();
-        migraphx::program::parameter_map m;
+        migraphx::parameter_map m;
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};

@@ -10,7 +10,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-void eliminate_concat::apply(program& p) const
+void eliminate_concat::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {

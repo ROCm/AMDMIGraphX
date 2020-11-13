@@ -678,16 +678,15 @@ struct cpu_apply
     instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op = ins->get_operator();
-        auto v = op.to_value();
-        if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and not v["ceil_mode"].to<bool>())
+        auto v    = op.to_value();
+        if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
+           not v["ceil_mode"].to<bool>())
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         std::string mode = v["mode"].to<std::string>();
         if(mode == "max")
-            return replace(
-                ins, make_op("cpu::pooling_max", v));
+            return replace(ins, make_op("cpu::pooling_max", v));
         else if(mode == "average")
-            return replace(
-                ins, make_op("cpu::pooling_average", v));
+            return replace(ins, make_op("cpu::pooling_average", v));
         return ins;
     }
 

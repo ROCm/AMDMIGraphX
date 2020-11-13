@@ -13,8 +13,9 @@ struct dnnl_relu : dnnl_op<dnnl_relu, dnnl::eltwise_forward, op::relu>
 {
     dnnl::eltwise_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference, dnnl::algorithm::eltwise_relu,
-                                  m.at(DNNL_ARG_SRC_0));
+        return dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference,
+                                           dnnl::algorithm::eltwise_relu,
+                                           m.at(DNNL_ARG_SRC_0));
     }
 };
 #endif

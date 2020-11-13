@@ -107,7 +107,8 @@ template <class Derived, class Primitive, class Op>
 struct dnnl_op : auto_register_op<Derived>
 {
     Op op;
-    std::function<argument(context& ctx, const argument& result, const std::vector<argument>& args)> execute;
+    std::function<argument(context& ctx, const argument& result, const std::vector<argument>& args)>
+        execute;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

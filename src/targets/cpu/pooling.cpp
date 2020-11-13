@@ -119,18 +119,17 @@ struct dnnl_pooling : dnnl_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC}; }
 
-    dnnl::pooling_forward::desc
-    get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    dnnl::pooling_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         auto algo = op.mode == "max" ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
         return dnnl::pooling_forward::desc(dnnl::prop_kind::forward_inference,
-                                               algo,
-                                               m.at(DNNL_ARG_SRC),
-                                               m.at(DNNL_ARG_DST),
-                                               to_dnnl_dims(op.stride),
-                                               to_dnnl_dims(op.lengths),
-                                               to_dnnl_dims(op.padding),
-                                               to_dnnl_dims(op.padding));
+                                           algo,
+                                           m.at(DNNL_ARG_SRC),
+                                           m.at(DNNL_ARG_DST),
+                                           to_dnnl_dims(op.stride),
+                                           to_dnnl_dims(op.lengths),
+                                           to_dnnl_dims(op.padding),
+                                           to_dnnl_dims(op.padding));
     }
 };
 #endif

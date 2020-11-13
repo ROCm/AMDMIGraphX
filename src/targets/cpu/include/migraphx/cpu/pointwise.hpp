@@ -83,7 +83,7 @@ struct reduce_dims_base
 
     void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
     {
-        inputs.insert(inputs.begin(), output_shape);
+        // inputs.insert(inputs.begin(), output_shape);
         reduce_shapes = reduce_dims(inputs);
     }
 
@@ -91,7 +91,7 @@ struct reduce_dims_base
     {
         if(reduce_shapes.empty())
             return args[i];
-        return args.at(i).reshape(reduce_shapes.at(i + 1));
+        return args.at(i).reshape(reduce_shapes.at(i));
     }
 
     argument get_output() const
@@ -153,14 +153,14 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
     std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this}.has(2);
         auto s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result = get_output();
+        argument result = get_arg(args, args.size() - 1);
 
         visit_all(result, get_arg(args, 0))([&](auto output, auto input) {
             auto op2 = op;

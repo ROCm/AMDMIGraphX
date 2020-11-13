@@ -55,11 +55,7 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.standard();
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
+        inputs.pop_back();
         return op.compute_shape(inputs);
     }
 
@@ -108,11 +104,7 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.standard();
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
+        inputs.pop_back();
         return op.compute_shape(inputs);
     }
 

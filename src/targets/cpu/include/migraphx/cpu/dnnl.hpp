@@ -107,7 +107,7 @@ template <class Derived, class Primitive, class Op>
 struct dnnl_op : auto_register_op<Derived>
 {
     Op op;
-    std::function<argument(context& ctx, const argument& result, const std::vector<argument>& args)>
+    std::function<argument(context& ctx, const std::vector<argument>& args)>
         execute;
 
     template <class Self, class F>
@@ -177,33 +177,41 @@ struct dnnl_op : auto_register_op<Derived>
         return Primitive(pd);
     }
     std::string name() const { return "dnnl::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
+        // Compensate for allocation
+        inputs.pop_back();
         // check_shapes(inputs, *this).standard();
         auto r = op.compute_shape(inputs);
         // Call to get_primitive to make sure an algo is available
         get_primitive(to_memory_desc(r, inputs));
         return r;
     }
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape&, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        return execute(ctx, result, args);
+        return execute(ctx, args);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 
     void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
     {
+        // Compensate for allocation
+        inputs.pop_back();
         const auto& self = static_cast<const Derived&>(*this);
         auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
         auto arg_lookup  = self.arg_map(inputs.size());
-        execute = [=](context&, const argument& result, const std::vector<argument>& args) {
+        execute = [=](context&, const std::vector<argument>& args) {
             std::unordered_map<int, dnnl::memory> m;
-            m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), result);
-            for(int i = 0; i < args.size(); i++)
+            m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), args.back());
+            for(int i = 0; i < args.size() - 1; i++)
                 m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
             prim.execute(get_dnnl_context().stream, m);
-            return result;
+            return args.back();
         };
     }
 };

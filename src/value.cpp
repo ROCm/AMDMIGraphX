@@ -303,7 +303,7 @@ value& value::at(const std::string& pkey)
     if(r == nullptr)
         MIGRAPHX_THROW("Not an object");
     if(r == end())
-        MIGRAPHX_THROW("Key not found");
+        MIGRAPHX_THROW("Key not found: " + pkey);
     return *r;
 }
 const value& value::at(const std::string& pkey) const

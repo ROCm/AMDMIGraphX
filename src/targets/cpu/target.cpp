@@ -17,6 +17,7 @@
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/cpu/target.hpp>
@@ -53,7 +54,10 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             lowering{},
             eliminate_contiguous{},
-            dead_code_elimination{}};
+            dead_code_elimination{},
+            memory_coloring{"cpu::allocate"},
+            dead_code_elimination{}
+        };
 }
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }

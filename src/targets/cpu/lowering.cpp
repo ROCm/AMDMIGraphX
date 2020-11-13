@@ -580,11 +580,37 @@ struct cpu_apply
 {
     module* prog;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
+    std::unordered_map<instruction_ref, std::string> prog_output_names{};
+    instruction_ref last{};
 
-    void extend_op(const std::string& op_name, const std::string& cpu_name)
+
+    void create_output_names()
+    {
+        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        if(this->last->name() == "@return")
+        {
+            const auto& prog_outputs = last->inputs();
+            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
+
+            std::transform(prog_outputs.begin(),
+                           prog_outputs.end(),
+                           outputs_alias.begin(),
+                           [](const auto& i) { return instruction::get_output_alias(i); });
+
+            std::size_t index = 0;
+            for(auto ins : outputs_alias)
+            {
+                prog_output_names[ins] = "#output_" + std::to_string(index++);
+            }
+        }
+    }
+
+    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate=false)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
+            if (allocate)
+                replace(ins, make_op(cpu_name, op.to_value()));
             return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
         });
     }
@@ -596,9 +622,9 @@ struct cpu_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return prog->replace_instruction(
-                    ins, make_op(dnnl_name, op.to_value()), ins->inputs());
-            return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+                return replace(
+                    ins, make_op(dnnl_name, op.to_value()));
+            return replace(ins, make_op(cpu_name, op.to_value()));
         });
     }
 
@@ -607,22 +633,22 @@ struct cpu_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return prog->replace_instruction(
-                    ins, make_op(dnnl_name, op.to_value()), ins->inputs());
+                return replace(
+                    ins, make_op(dnnl_name, op.to_value()));
             return ins;
         });
     }
 
     void init()
     {
+        create_output_names();
         extend_dnnl_op("add", "cpu::add", "dnnl::add");
         extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
         extend_dnnl_op("relu", "cpu::relu", "dnnl::relu");
         extend_dnnl_op("concat", "dnnl::concat");
-        extend_op("add", "cpu::add");
         extend_op("batch_norm_inference", "cpu::batch_norm_inference");
-        extend_op("contiguous", "cpu::contiguous");
+        extend_op("contiguous", "cpu::contiguous", true);
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("elu", "cpu::elu");
         extend_op("im2col", "cpu::im2col");
@@ -652,12 +678,12 @@ struct cpu_apply
         }
     }
 
-    instruction_ref apply_pooling(instruction_ref ins) const
+    instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op = ins->get_operator();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type)
-            return prog->replace_instruction(
-                ins, make_op("dnnl::pooling", op.to_value()), ins->inputs());
+            return replace(
+                ins, make_op("dnnl::pooling", op.to_value()));
         std::string mode = op.to_value()["mode"].to<std::string>();
         if(mode == "max")
             return prog->replace_instruction(
@@ -666,6 +692,28 @@ struct cpu_apply
             return prog->replace_instruction(
                 ins, make_op("cpu::pooling_avgerage", op.to_value()), ins->inputs());
         return ins;
+    }
+
+    instruction_ref replace(instruction_ref ins, const operation& op)
+    {
+        auto inputs = ins->inputs();
+        inputs.push_back(insert_allocation(ins, ins->get_shape()));
+        return prog->replace_instruction(ins, op, inputs);
+    }
+
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    {
+        auto ins_alias = instruction::get_output_alias(ins);
+        if(last->name() == "@return" and prog_output_names.count(ins_alias) > 0)
+        {
+            return prog->add_parameter(prog_output_names[ins_alias], s);
+        }
+        else if(ins == last)
+        {
+            return prog->add_parameter("output", s);
+        }
+
+        return prog->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
     }
 };
 

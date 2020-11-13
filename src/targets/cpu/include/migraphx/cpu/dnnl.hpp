@@ -107,7 +107,7 @@ template <class Derived, class Primitive, class Op>
 struct dnnl_op : auto_register_op<Derived>
 {
     Op op;
-    // std::function<argument(const std::vector<argument>&)> execute;
+    std::function<argument(context& ctx, const argument& result, const std::vector<argument>& args)> execute;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -184,19 +184,26 @@ struct dnnl_op : auto_register_op<Derived>
         get_primitive(to_memory_desc(r, inputs));
         return r;
     }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        return execute(ctx, result, args);
+    }
+
+    void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
+    {
         const auto& self = static_cast<const Derived&>(*this);
-        auto md          = to_memory_desc(output_shape, to_shapes(args));
+        auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
-        auto arg_lookup  = self.arg_map(args.size());
-        std::unordered_map<int, dnnl::memory> m;
-        m[DNNL_ARG_DST] = to_dnnl_memory(md[DNNL_ARG_DST], result);
-        for(int i = 0; i < args.size(); i++)
-            m[arg_lookup[i]] = to_dnnl_memory(md[arg_lookup[i]], args[i]);
-        prim.execute(get_dnnl_context().stream, m);
-        return result;
+        auto arg_lookup  = self.arg_map(inputs.size());
+        execute = [=](context&, const argument& result, const std::vector<argument>& args) {
+            std::unordered_map<int, dnnl::memory> m;
+            m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), result);
+            for(int i = 0; i < args.size(); i++)
+                m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
+            prim.execute(get_dnnl_context().stream, m);
+            return result;
+        };
     }
 };
 

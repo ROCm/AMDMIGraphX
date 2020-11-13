@@ -52,7 +52,7 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
         return migraphx::reflect(self.op, f);
     }
     std::string name() const { return "cpu::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.standard();
         inputs.pop_back();
@@ -64,9 +64,8 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
         return shapes.size() - 1;
     }
 
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape&, std::vector<argument> args) const
     {
-        argument result{output_shape};
         // 3 inputs, it is alpha * A * B + beta * C, then
         // A and B are matrices, and C is of the same shape as A * B
         if(args.size() == 3)
@@ -74,24 +73,24 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
             // no need to consider the value of args[2]
             if(op.beta == 0.0f)
             {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
+                args.back().visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
             }
             else
             {
-                visit_all(result, args[2])([&](auto output, auto input) {
+                visit_all(args.back(), args[2])([&](auto output, auto input) {
                     std::copy(input.begin(), input.end(), output.begin());
                 });
             }
 
-            migemm(result, args[0], args[1], op.alpha, op.beta);
+            migemm(args.back(), args[0], args[1], op.alpha, op.beta);
 
-            return result;
+            return args.back();
         }
 
         // 2 input arguments
-        migemm(result, args[0], args[1], op.alpha, 0.0f);
+        migemm(args.back(), args[0], args[1], op.alpha, 0.0f);
 
-        return result;
+        return args.back();
     }
 };
 
@@ -106,7 +105,7 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
     }
 
     std::string name() const { return "cpu::quant_dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.standard();
         inputs.pop_back();
@@ -118,9 +117,8 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
         return shapes.size() - 1;
     }
 
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context&, const shape&, std::vector<argument> args) const
     {
-        argument result{output_shape};
         // 3 inputs, it is alpha * A * B + beta * C, then
         // A and B are matrices, and C is of the same shape to A * B
 
@@ -142,24 +140,24 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
             // no need to consider the value of args[2]
             if(op.beta == 0)
             {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
+                args.back().visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
             }
             else
             {
-                visit_all(result, args[2])([&](auto output, auto input) {
+                visit_all(args.back(), args[2])([&](auto output, auto input) {
                     std::copy(input.begin(), input.end(), output.begin());
                 });
             }
 
-            migemm(result, arg_0, arg_1, op.alpha, op.beta);
+            migemm(args.back(), arg_0, arg_1, op.alpha, op.beta);
 
-            return result;
+            return args.back();
         }
 
         // 2 input arguments
-        migemm(result, arg_0, arg_1, op.alpha, int32_t{0});
+        migemm(args.back(), arg_0, arg_1, op.alpha, int32_t{0});
 
-        return result;
+        return args.back();
     }
 };
 

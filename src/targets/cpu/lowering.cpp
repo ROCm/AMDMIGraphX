@@ -653,8 +653,8 @@ struct cpu_apply
         extend_op("logsoftmax", "cpu::logsoftmax");
         extend_op("lrn", "cpu::lrn");
         extend_op("pad", "cpu::pad");
-        extend_op("quant_convolution", "cpu::quant_convolution");
-        extend_op("quant_dot", "cpu::quant_dot");
+        extend_op("quant_convolution", "cpu::quant_convolution", true);
+        extend_op("quant_dot", "cpu::quant_dot", true);
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
         extend_op("softmax", "cpu::softmax");
     }
@@ -678,15 +678,16 @@ struct cpu_apply
     instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op = ins->get_operator();
-        if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type)
+        auto v = op.to_value();
+        if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and not v["ceil_mode"].to<bool>())
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
-        std::string mode = op.to_value()["mode"].to<std::string>();
+        std::string mode = v["mode"].to<std::string>();
         if(mode == "max")
-            return prog->replace_instruction(
-                ins, make_op("cpu::pooling_max", op.to_value()), ins->inputs());
+            return replace(
+                ins, make_op("cpu::pooling_max", v));
         else if(mode == "average")
-            return prog->replace_instruction(
-                ins, make_op("cpu::pooling_avgerage", op.to_value()), ins->inputs());
+            return replace(
+                ins, make_op("cpu::pooling_average", v));
         return ins;
     }
 

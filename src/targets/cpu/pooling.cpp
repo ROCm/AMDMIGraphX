@@ -60,7 +60,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
     }
 
     std::string name() const { return "cpu::pooling_" + Op::name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         inputs.pop_back();
         return op.compute_shape(inputs);

@@ -39,7 +39,7 @@ struct cpu_convolution : auto_register_op<cpu_convolution<Op>>
     }
 
     std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         inputs.pop_back();
         return op.compute_shape(inputs);

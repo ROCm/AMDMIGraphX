@@ -112,8 +112,6 @@ struct module
 
     instruction_ref validate() const;
 
-    void compile(const target& t, compile_options options = compile_options{});
-
     void finalize(context& ctx);
 
     void perf_report(std::ostream& os, context& ctx, std::size_t n, parameter_map params) const;

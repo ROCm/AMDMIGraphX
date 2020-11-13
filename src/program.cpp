@@ -134,11 +134,20 @@ void program::compile(const target& t, compile_options options)
 
     options.trace(*this);
     options.trace();
+    auto&& passes = t.get_passes(this->impl->ctx, options);
 
     for(auto& mp : impl->modules)
     {
-        auto& m = mp.second;
-        m.compile(t, options);
+        auto& modl = mp.second;
+        assert(modl.validate() == modl.end());
+        run_passes(modl, passes, options.trace);
+        auto invalid = this->validate();
+        if(invalid != modl.end())
+        {
+            auto index = std::distance(modl.begin(), invalid);
+            MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " + std::to_string(index));
+        }
+        modl.finalize(this->impl->ctx);
     }
 }
 

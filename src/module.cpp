@@ -412,20 +412,6 @@ instruction_ref module::validate() const
                         [&](const instruction& i) { return !i.valid(impl->instructions.begin()); });
 }
 
-void module::compile(const target& t, compile_options options)
-{
-    assert(this->validate() == impl->instructions.end());
-    auto ctx = t.get_context();
-    run_passes(*this, t.get_passes(ctx, options), options.trace);
-    auto invalid = this->validate();
-    if(invalid != impl->instructions.end())
-    {
-        auto index = std::distance(impl->instructions.begin(), invalid);
-        MIGRAPHX_THROW("Invalid module from compilation at instruction " + std::to_string(index));
-    }
-    this->finalize(ctx);
-}
-
 void module::finalize(context& ctx)
 {
     for(auto ins : iterator_for(*this))

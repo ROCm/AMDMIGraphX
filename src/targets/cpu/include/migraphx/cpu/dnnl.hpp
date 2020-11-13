@@ -65,11 +65,9 @@ inline dnnl::memory::dims to_dnnl_dims(R&& r)
 
 inline dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 {
-    if(not s.standard())
-        MIGRAPHX_THROW("Unsupported layout");
     return dnnl::memory::desc(to_dnnl_dims(s.lens()),
                               to_dnnl_memory_data_type(s.type()),
-                              to_dnnl_memory_format_tag(s.lens().size()));
+                              to_dnnl_dims(s.strides()));
 }
 
 inline dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)

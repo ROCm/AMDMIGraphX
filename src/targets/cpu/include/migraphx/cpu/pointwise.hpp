@@ -208,7 +208,7 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
                     });
             });
 
-        return result;
+        return result.reshape(output_shape);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

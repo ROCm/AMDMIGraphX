@@ -583,7 +583,6 @@ struct cpu_apply
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     instruction_ref last{};
 
-
     void create_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(prog->end()));
@@ -605,11 +604,11 @@ struct cpu_apply
         }
     }
 
-    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate=false)
+    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = false)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
-            if (allocate)
+            if(allocate)
                 replace(ins, make_op(cpu_name, op.to_value()));
             return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
         });
@@ -622,8 +621,7 @@ struct cpu_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return replace(
-                    ins, make_op(dnnl_name, op.to_value()));
+                return replace(ins, make_op(dnnl_name, op.to_value()));
             return replace(ins, make_op(cpu_name, op.to_value()));
         });
     }
@@ -633,8 +631,7 @@ struct cpu_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return replace(
-                    ins, make_op(dnnl_name, op.to_value()));
+                return replace(ins, make_op(dnnl_name, op.to_value()));
             return ins;
         });
     }
@@ -682,8 +679,7 @@ struct cpu_apply
     {
         auto&& op = ins->get_operator();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type)
-            return replace(
-                ins, make_op("dnnl::pooling", op.to_value()));
+            return replace(ins, make_op("dnnl::pooling", op.to_value()));
         std::string mode = op.to_value()["mode"].to<std::string>();
         if(mode == "max")
             return prog->replace_instruction(

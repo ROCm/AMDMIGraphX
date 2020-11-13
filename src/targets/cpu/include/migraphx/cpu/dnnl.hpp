@@ -107,8 +107,7 @@ template <class Derived, class Primitive, class Op>
 struct dnnl_op : auto_register_op<Derived>
 {
     Op op;
-    std::function<argument(context& ctx, const std::vector<argument>& args)>
-        execute;
+    std::function<argument(context& ctx, const std::vector<argument>& args)> execute;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -205,7 +204,7 @@ struct dnnl_op : auto_register_op<Derived>
         auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
         auto arg_lookup  = self.arg_map(inputs.size());
-        execute = [=](context&, const std::vector<argument>& args) {
+        execute          = [=](context&, const std::vector<argument>& args) {
             std::unordered_map<int, dnnl::memory> m;
             m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), args.back());
             for(int i = 0; i < args.size() - 1; i++)

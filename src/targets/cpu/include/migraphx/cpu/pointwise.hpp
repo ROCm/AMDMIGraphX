@@ -170,6 +170,11 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
 
         return result.reshape(output_shape);
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 template <class Op>
@@ -185,14 +190,14 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
     std::string name() const { return "cpu::" + op.name(); }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{inputs, *this}.has(3);
         auto s = inputs.at(0);
         return {s.type(), s.lens()};
     }
 
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
-        argument result = get_output();
+        argument result = get_arg(args, args.size() - 1);
 
         visit_all(result, get_arg(args, 0), get_arg(args, 1))(
             [&](auto output, auto input1, auto input2) {
@@ -204,6 +209,11 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
             });
 
         return result;
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 };
 

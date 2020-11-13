@@ -59,6 +59,11 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
         return op.compute_shape(inputs);
     }
 
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
@@ -106,6 +111,11 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
         check_shapes{inputs, *this}.standard();
         inputs.pop_back();
         return op.compute_shape(inputs);
+    }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
     }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const

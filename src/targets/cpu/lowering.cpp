@@ -51,84 +51,6 @@ typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::ena
     return x;
 }
 
-//
-// cpu implemenataion of batch norm for inference
-//
-// inputs are:
-// args[0] -> input data buffer
-// args[1] -> mini batch mean
-// args[2] -> mini batch variance
-// args[3] -> gamma
-// args[4] -> bias
-//
-// The equation to compute batch norm for inference is:
-//
-// output[i] = bias + gamma * (input[i] + mean) / sqrt(variance + epsilon)
-//
-// the input data format should be nchw
-//
-struct cpu_batch_norm_inference
-{
-    op::batch_norm_inference op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::batch_norm_inference"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument output{output_shape};
-
-        double epsilon           = op.epsilon;
-        auto input               = args[0];
-        auto arg_gamma           = args[1];
-        auto arg_bias            = args[2];
-        auto mini_batch_mean     = args[3];
-        auto mini_batch_variance = args[4];
-
-        if(op.bn_mode == op::batch_norm_inference::spatial)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx = output_shape.multi(i);
-                        auto c   = idx[1];
-                        assert((variance[c] + epsilon) > 0);
-                        result[i] =
-                            gamma[c] * (buffer[i] - mean[c]) / std::sqrt(variance[c] + epsilon) +
-                            bias[c];
-                    });
-                });
-        }
-
-        if(op.bn_mode == op::batch_norm_inference::per_activation)
-        {
-            visit_all(output, input, mini_batch_mean, mini_batch_variance, arg_gamma, arg_bias)(
-                [&](auto result, auto buffer, auto mean, auto variance, auto gamma, auto bias) {
-                    par_for(output_shape.elements(), [&](auto i) {
-                        auto idx   = output_shape.multi(i);
-                        idx[0]     = 0;
-                        auto index = output_shape.index(idx);
-
-                        assert((variance[index] + epsilon) > 0);
-                        result[i] = gamma[index] * (buffer[i] - mean[index]) /
-                                        std::sqrt(variance[index] + epsilon) +
-                                    bias[index];
-                    });
-                });
-        }
-
-        return output;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_batch_norm_inference)
-
 struct cpu_lrn
 {
     op::lrn op;
@@ -588,9 +510,15 @@ struct cpu_literal
 
     std::string name() const { return "cpu::literal"; }
 
-    shape compute_shape(std::vector<shape>) const { return data.get_shape(); }
+    shape compute_shape(std::vector<shape>) const
+    {
+        return data.get_shape();
+    }
 
-    argument compute(const shape&, std::vector<argument>) const { return data; }
+    argument compute(const shape&, std::vector<argument>) const
+    {
+        return data;
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
     {
@@ -667,7 +595,6 @@ struct cpu_apply
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
         extend_dnnl_op("relu", "cpu::relu", "dnnl::relu");
         extend_dnnl_op("concat", "dnnl::concat");
-        extend_op("batch_norm_inference", "cpu::batch_norm_inference");
         extend_op("contiguous", "cpu::contiguous", true);
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("elu", "cpu::elu");

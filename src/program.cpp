@@ -145,7 +145,8 @@ void program::compile(const target& t, compile_options options)
         if(invalid != modl.end())
         {
             auto index = std::distance(modl.begin(), invalid);
-            MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " + std::to_string(index));
+            MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " +
+                           std::to_string(index));
         }
         modl.finalize(this->impl->ctx);
     }

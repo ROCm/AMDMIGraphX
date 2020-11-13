@@ -618,9 +618,11 @@ struct cpu_apply
         extend_dnnl_op("add", "cpu::add", "dnnl::add");
         extend_dnnl_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_op("dot", "cpu::dot", "dnnl::dot");
+        extend_dnnl_op("relu", "cpu::relu", "dnnl::relu");
         extend_dnnl_op("concat", "dnnl::concat");
         extend_op("add", "cpu::add");
         extend_op("batch_norm_inference", "cpu::batch_norm_inference");
+        extend_op("contiguous", "cpu::contiguous");
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("elu", "cpu::elu");
         extend_op("im2col", "cpu::im2col");

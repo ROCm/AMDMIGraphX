@@ -114,10 +114,7 @@ std::vector<shape> program::get_output_shapes() const
     return impl->modules["main"].get_output_shapes();
 }
 
-context& program::get_context() const
-{
-    return impl->ctx;
-}
+context& program::get_context() const { return impl->ctx; }
 
 instruction_ref program::validate() const
 {

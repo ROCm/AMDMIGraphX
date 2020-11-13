@@ -503,7 +503,7 @@ std::vector<argument> generic_eval(const module& p,
 
 std::vector<argument> module::eval(context& ctx, parameter_map params) const
 {
-    // auto& ctx = this->impl->ctx;
+// auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
     auto sctx          = ctx;
     auto check_context = [&](auto f) {

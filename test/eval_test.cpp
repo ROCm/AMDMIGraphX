@@ -509,11 +509,11 @@ TEST_CASE(debug_print_test)
     auto* mm2 = p2.get_main_module();
     auto one2 = mm2->add_literal(1);
 
-    auto program_out = migraphx::trim(capture_output([&] { p.debug_print(); }));
-    auto ins_out     = migraphx::trim(capture_output([&] { p.debug_print(one); }));
-    auto inss_out    = migraphx::trim(capture_output([&] { p.debug_print(onev); }));
-    auto end_out     = migraphx::trim(capture_output([&] { p.debug_print(p.end()); }));
-    auto p2_ins_out  = migraphx::trim(capture_output([&] { p.debug_print(one2); }));
+    auto program_out = migraphx::trim(capture_output([&] { mm->debug_print(); }));
+    auto ins_out     = migraphx::trim(capture_output([&] { mm->debug_print(one); }));
+    auto inss_out    = migraphx::trim(capture_output([&] { mm->debug_print(onev); }));
+    auto end_out     = migraphx::trim(capture_output([&] { mm->debug_print(p.end()); }));
+    auto p2_ins_out  = migraphx::trim(capture_output([&] { mm->debug_print(one2); }));
 
     EXPECT(program_out == ins_out);
     EXPECT(inss_out == ins_out);

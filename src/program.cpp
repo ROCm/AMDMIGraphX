@@ -116,8 +116,7 @@ std::vector<shape> program::get_output_shapes() const
 
 context& program::get_context() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_context();
+    return impl->ctx;
 }
 
 instruction_ref program::validate() const
@@ -149,7 +148,7 @@ void program::compile(const target& t, compile_options options)
 void program::finalize()
 {
     assert(contains(impl->modules, "main"));
-    impl->modules["main"].finalize();
+    impl->modules["main"].finalize(impl->ctx);
 }
 
 template <class F>
@@ -165,7 +164,7 @@ std::vector<argument> generic_eval(const program& p,
 std::vector<argument> program::eval(parameter_map params) const
 {
     assert(contains(impl->modules, "main"));
-    return impl->modules["main"].eval(std::move(params));
+    return impl->modules["main"].eval(impl->ctx, std::move(params));
 }
 
 const int program_file_version = 2;
@@ -207,7 +206,7 @@ void program::from_value(const value& v)
         auto key = vv.get_key();
         auto val = vv.without_key();
         module modl;
-        modl.from_value(val);
+        modl.from_value(val, this->impl->ctx);
         impl->modules[key] = modl;
     }
 }
@@ -215,22 +214,10 @@ void program::from_value(const value& v)
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     assert(contains(impl->modules, "main"));
-    impl->modules["main"].perf_report(os, n, std::move(params));
+    impl->modules["main"].perf_report(os, impl->ctx, n, std::move(params));
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
-
-void program::debug_print(instruction_ref ins) const
-{
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].debug_print(ins);
-}
-
-void program::debug_print(const std::vector<instruction_ref>& inss) const
-{
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].debug_print(inss);
-}
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
@@ -248,13 +235,15 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     assert(contains(impl->modules, "main"));
-    impl->modules["main"].dry_run(std::move(params));
+    impl->modules["main"].dry_run(impl->ctx, std::move(params));
 }
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
     assert(contains(impl->modules, "main"));
-    impl->modules["main"].annotate(os, std::move(a));
+    auto& modl = impl->modules.at("main");
+    std::cout << modl.name() << ":" << std::endl;
+    modl.annotate(os, std::move(a));
 }
 
 module* program::get_main_module()
@@ -286,7 +275,7 @@ std::ostream& operator<<(std::ostream& os, const program& p)
 {
     for(auto& mp : p.impl->modules)
     {
-        // os << "Module " << mp.first << ": " << std::endl;
+        os << "Module " << mp.first << ": " << std::endl;
         os << mp.second;
         os << std::endl;
     }

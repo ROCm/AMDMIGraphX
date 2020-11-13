@@ -129,8 +129,8 @@ struct program_model
         for(auto&& race : races)
         {
             std::cout << "Race:\n";
-            p.debug_print(race.ins);
-            p.debug_print(race.before);
+            mm->debug_print(race.ins);
+            mm->debug_print(race.before);
         }
     }
 };

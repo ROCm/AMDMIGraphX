@@ -23,7 +23,6 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
-    context ctx;
     std::vector<std::string> input_names;
 };
 
@@ -117,7 +116,6 @@ void module::assign(const module& m)
     {
         impl->instructions.clear();
     }
-    impl->ctx         = m.impl->ctx;
     impl->input_names = m.impl->input_names;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
@@ -407,8 +405,6 @@ std::vector<shape> module::get_output_shapes() const
     }
 }
 
-context& module::get_context() const { return impl->ctx; }
-
 instruction_ref module::validate() const
 {
     return std::find_if(impl->instructions.begin(),
@@ -419,22 +415,22 @@ instruction_ref module::validate() const
 void module::compile(const target& t, compile_options options)
 {
     assert(this->validate() == impl->instructions.end());
-    this->impl->ctx = t.get_context();
-    run_passes(*this, t.get_passes(this->impl->ctx, options), options.trace);
+    auto ctx = t.get_context();
+    run_passes(*this, t.get_passes(ctx, options), options.trace);
     auto invalid = this->validate();
     if(invalid != impl->instructions.end())
     {
         auto index = std::distance(impl->instructions.begin(), invalid);
         MIGRAPHX_THROW("Invalid module from compilation at instruction " + std::to_string(index));
     }
-    this->finalize();
+    this->finalize(ctx);
 }
 
-void module::finalize()
+void module::finalize(context& ctx)
 {
     for(auto ins : iterator_for(*this))
     {
-        ins->finalize(this->impl->ctx);
+        ins->finalize(ctx);
     }
 }
 
@@ -505,9 +501,9 @@ std::vector<argument> generic_eval(const module& p,
     return {results.at(std::prev(p.end()))};
 }
 
-std::vector<argument> module::eval(parameter_map params) const
+std::vector<argument> module::eval(context& ctx, parameter_map params) const
 {
-    auto& ctx = this->impl->ctx;
+    // auto& ctx = this->impl->ctx;
 #ifndef NDEBUG
     auto sctx          = ctx;
     auto check_context = [&](auto f) {
@@ -568,7 +564,8 @@ value module::to_value() const
     result["nodes"] = nodes;
     return result;
 }
-void module::from_value(const value& v)
+
+void module::from_value(const value& v, context& ctx)
 {
     auto version = v.at("version").to<int>();
     if(version != module_file_version)
@@ -604,7 +601,7 @@ void module::from_value(const value& v)
         }
         instructions[node.at("output").to<std::string>()] = output;
     }
-    this->finalize();
+    this->finalize(ctx);
 }
 
 double common_average(const std::vector<double>& v)
@@ -614,12 +611,12 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
-void module::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+void module::perf_report(std::ostream& os, context& ctx, std::size_t n, parameter_map params) const
 {
     using milliseconds = std::chrono::duration<double, std::milli>;
-    auto& ctx          = this->impl->ctx;
+    // auto& ctx          = this->impl->ctx;
     // Run once by itself
-    eval(params);
+    eval(ctx, params);
     ctx.finish();
     // Run and time entire module
     std::vector<double> total_vec;
@@ -627,7 +624,7 @@ void module::perf_report(std::ostream& os, std::size_t n, parameter_map params) 
     for(std::size_t i = 0; i < n; i++)
     {
         total_vec.push_back(time<milliseconds>([&] {
-            eval(params);
+            eval(ctx, params);
             ctx.finish();
         }));
     }
@@ -657,7 +654,7 @@ void module::perf_report(std::ostream& os, std::size_t n, parameter_map params) 
     overhead_vec.reserve(n);
     for(std::size_t i = 0; i < n; i++)
     {
-        overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
+        overhead_vec.push_back(time<milliseconds>([&] { dry_run(ctx, params); }));
     }
 
     double total_time             = common_average(total_vec);
@@ -873,9 +870,9 @@ void module::print_cpp(std::ostream& os) const
     });
 }
 
-void module::dry_run(std::unordered_map<std::string, argument> params) const
+void module::dry_run(context& ctx, std::unordered_map<std::string, argument> params) const
 {
-    auto& ctx = this->impl->ctx;
+    // auto& ctx = this->impl->ctx;
     generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
 }
 

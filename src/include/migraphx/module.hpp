@@ -44,7 +44,7 @@ struct module
 
     ~module() noexcept;
 
-    std::string name() const;
+    const std::string name() const { return module_name; }
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -100,7 +100,7 @@ struct module
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    std::vector<argument> eval(parameter_map params) const;
+    std::vector<argument> eval(context& ctx, parameter_map params) const;
 
     bool has_instruction(instruction_ref ins) const;
 
@@ -110,18 +110,16 @@ struct module
 
     std::vector<shape> get_output_shapes() const;
 
-    context& get_context() const;
-
     instruction_ref validate() const;
 
     void compile(const target& t, compile_options options = compile_options{});
 
-    void finalize();
+    void finalize(context& ctx);
 
-    void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
+    void perf_report(std::ostream& os, context& ctx, std::size_t n, parameter_map params) const;
 
     value to_value() const;
-    void from_value(const value& v);
+    void from_value(const value& v, context& ctx);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -129,7 +127,7 @@ struct module
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
 
-    void dry_run(parameter_map params) const;
+    void dry_run(context& ctx, parameter_map params) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
@@ -142,6 +140,7 @@ struct module
     private:
     void assign(const module& m);
     std::unique_ptr<module_impl> impl;
+    std::string module_name;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

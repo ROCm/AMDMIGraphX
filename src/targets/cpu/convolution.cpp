@@ -118,11 +118,11 @@ struct dnnl_convolution : dnnl_op<dnnl_convolution, dnnl::convolution_forward, o
 
     shape adjust_shape(shape x, int i) const
     {
-        auto s     = base_adjust_shape(std::move(x));
-        if (i == 1 and op.group > 1)
+        auto s = base_adjust_shape(std::move(x));
+        if(i == 1 and op.group > 1)
         {
             // TODO: Add support for transposed weights
-            if (not s.standard())
+            if(not s.standard())
                 MIGRAPHX_THROW("Weights for grouped convolution must be standard");
             auto lens = s.lens();
             lens.insert(lens.begin(), op.group);

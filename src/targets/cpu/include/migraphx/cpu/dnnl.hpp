@@ -202,6 +202,18 @@ struct dnnl_op : auto_register_op<Derived>
         auto prim        = get_primitive(md);
         auto arg_lookup  = self.arg_map(inputs.size());
         execute          = [=](context&, const std::vector<argument>& args) {
+#ifndef NDEBUG
+            // Check that the memory descriptors have not changed
+            auto debug_args = args;
+            debug_args.pop_back();
+            auto debug_md = to_memory_desc(output_shape, to_shapes(debug_args));
+            for(auto&& p:debug_md)
+            {
+                if (p.second == md.at(p.first))
+                    continue;
+                MIGRAPHX_THROW("Memory descriptor has changed for: " + std::to_string(p.first));
+            }
+#endif
             std::unordered_map<int, dnnl::memory> m;
             m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), args.back());
             for(int i = 0; i < args.size() - 1; i++)

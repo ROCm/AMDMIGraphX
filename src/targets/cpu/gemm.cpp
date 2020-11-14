@@ -75,7 +75,7 @@ struct cpu_gemm : auto_register_op<cpu_gemm>
     {
         // 3 inputs, it is alpha * A * B + beta * C, then
         // A and B are matrices, and C is of the same shape as A * B
-        if(args.size() == 3)
+        if(args.size() == 4)
         {
             // no need to consider the value of args[2]
             if(op.beta == 0.0f)
@@ -142,7 +142,7 @@ struct cpu_quant_gemm : auto_register_op<cpu_quant_gemm>
                 [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
         });
 
-        if(args.size() == 3)
+        if(args.size() == 4)
         {
             // no need to consider the value of args[2]
             if(op.beta == 0)

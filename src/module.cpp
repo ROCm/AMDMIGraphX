@@ -551,7 +551,7 @@ value module::to_value() const
     return result;
 }
 
-void module::from_value(const value& v, context& ctx)
+void module::from_value(const value& v)
 {
     auto version = v.at("version").to<int>();
     if(version != module_file_version)
@@ -587,7 +587,6 @@ void module::from_value(const value& v, context& ctx)
         }
         instructions[node.at("output").to<std::string>()] = output;
     }
-    this->finalize(ctx);
 }
 
 double common_average(const std::vector<double>& v)

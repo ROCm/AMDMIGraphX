@@ -117,7 +117,7 @@ struct module
     void perf_report(std::ostream& os, context& ctx, std::size_t n, parameter_map params) const;
 
     value to_value() const;
-    void from_value(const value& v, context& ctx);
+    void from_value(const value& v);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

@@ -213,7 +213,8 @@ void program::from_value(const value& v)
         auto key = vv.get_key();
         auto val = vv.without_key();
         module modl;
-        modl.from_value(val, this->impl->ctx);
+        modl.from_value(val);
+        modl.finalize(this->impl->ctx);
         impl->modules[key] = modl;
     }
 }

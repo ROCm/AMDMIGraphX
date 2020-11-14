@@ -81,9 +81,8 @@ struct reduce_dims_base
 {
     std::vector<shape> reduce_shapes;
 
-    void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
+    void finalize(context&, const shape&, std::vector<shape> inputs)
     {
-        // inputs.insert(inputs.begin(), output_shape);
         reduce_shapes = reduce_dims(inputs);
     }
 

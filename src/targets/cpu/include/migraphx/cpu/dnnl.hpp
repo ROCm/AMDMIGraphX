@@ -207,9 +207,9 @@ struct dnnl_op : auto_register_op<Derived>
             auto debug_args = args;
             debug_args.pop_back();
             auto debug_md = to_memory_desc(output_shape, to_shapes(debug_args));
-            for(auto&& p:debug_md)
+            for(auto&& p : debug_md)
             {
-                if (p.second == md.at(p.first))
+                if(p.second == md.at(p.first))
                     continue;
                 MIGRAPHX_THROW("Memory descriptor has changed for: " + std::to_string(p.first));
             }

@@ -24,7 +24,8 @@ struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
         auto ndims = s.lens().size();
         if(ndims > 3)
         {
-            if (not std::is_sorted(s.strides().begin(), s.strides().begin() + (ndims - 2), std::greater<>{}))
+            if(not std::is_sorted(
+                   s.strides().begin(), s.strides().begin() + (ndims - 2), std::greater<>{}))
                 MIGRAPHX_THROW("Batch transposed");
             std::size_t batch = std::accumulate(
                 s.lens().begin(), s.lens().begin() + (ndims - 2), 1, std::multiplies<>{});

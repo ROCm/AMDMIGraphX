@@ -18,7 +18,7 @@ struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
     // Batch must be a single dimension
-    shape adjust_shape(shape x) const
+    shape adjust_shape(shape x, int) const
     {
         auto s     = base_adjust_shape(std::move(x));
         auto ndims = s.lens().size();

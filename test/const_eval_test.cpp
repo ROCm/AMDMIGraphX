@@ -93,7 +93,7 @@ TEST_CASE(op_test3)
 {
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto one  = mm->add_literal(1);
     auto two  = mm->add_literal(2);
     auto sum1 = mm->add_instruction(sum_op{}, one, two);

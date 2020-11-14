@@ -171,9 +171,10 @@ struct scheduler
         return result;
     }
 
-    void run_pass(migraphx::program& p) { 
+    void run_pass(migraphx::program& p)
+    {
         auto* mm = p.get_main_module();
-        migraphx::run_passes(*mm, {migraphx::schedule{model}}); 
+        migraphx::run_passes(*mm, {migraphx::schedule{model}});
     }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
@@ -256,7 +257,7 @@ TEST_CASE(single_entry)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
@@ -275,7 +276,7 @@ TEST_CASE(stream_free)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(stream_free_op{}, one);
     auto onep2  = mm->add_instruction(stream_free_op{}, one);
@@ -292,7 +293,7 @@ TEST_CASE(zero_record)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
@@ -314,7 +315,7 @@ TEST_CASE(zero_merge1)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
@@ -334,13 +335,13 @@ TEST_CASE(zero_merge2)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
     auto binary = mm->add_instruction(migraphx::op::identity{},
-                                    mm->add_instruction(migraphx::op::identity{}, onep1),
-                                    mm->add_instruction(migraphx::op::identity{}, onep2));
+                                      mm->add_instruction(migraphx::op::identity{}, onep1),
+                                      mm->add_instruction(migraphx::op::identity{}, onep2));
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -356,7 +357,7 @@ TEST_CASE(zero_merge3)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto onep1 = mm->add_instruction(unary_op{}, one);
     auto onep2 = mm->add_instruction(unary_op{}, one);
@@ -381,13 +382,13 @@ TEST_CASE(zero_merge4)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto onep1 = mm->add_instruction(unary_op{}, one);
     auto onep2 = mm->add_instruction(unary_op{}, one);
     auto id    = mm->add_instruction(migraphx::op::identity{},
-                                mm->add_instruction(migraphx::op::identity{}, onep1),
-                                mm->add_instruction(migraphx::op::identity{}, onep2));
+                                  mm->add_instruction(migraphx::op::identity{}, onep1),
+                                  mm->add_instruction(migraphx::op::identity{}, onep2));
     auto final = mm->add_instruction(unary_op{}, id);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -408,7 +409,7 @@ TEST_CASE(double_entry)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_instruction(stream_free_op{}, mm->add_literal(1));
     auto two    = mm->add_instruction(stream_free_op{}, mm->add_literal(2));
     auto onep   = mm->add_instruction(unary_op{}, one);
@@ -429,7 +430,7 @@ TEST_CASE(two_branches)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = mm->add_instruction(unary_op{}, one);
@@ -450,7 +451,7 @@ TEST_CASE(four_branches)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto c1     = chain(p, 4, unary_op{}, one);
     auto c2     = chain(p, 3, unary_op{}, one);
@@ -480,7 +481,7 @@ TEST_CASE(five_branches)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto c1     = chain(p, 5, unary_op{}, one);
     auto c2     = chain(p, 4, unary_op{}, one);
@@ -514,7 +515,7 @@ TEST_CASE(four_branches_eq)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
@@ -542,7 +543,7 @@ TEST_CASE(seq_merge)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto c1      = chain(p, 2, unary_op{}, one);
     auto i1      = mm->add_instruction(unary_op{}, one);
@@ -577,7 +578,7 @@ TEST_CASE(par_merge)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
@@ -620,7 +621,7 @@ TEST_CASE(inner_par_merge)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
@@ -675,7 +676,7 @@ TEST_CASE(par_merge_multi_entry)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto start1  = mm->add_instruction(unary_op{}, one);
     auto c1      = chain(p, 3, unary_op{}, start1);
@@ -720,7 +721,7 @@ TEST_CASE(inner_split1)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = mm->add_instruction(unary_op{}, one);
@@ -749,7 +750,7 @@ TEST_CASE(inner_split2)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto c1     = chain(p, 2, unary_op{}, one);
     auto i1     = mm->add_instruction(unary_op{}, one);
@@ -777,7 +778,7 @@ TEST_CASE(inception_resnet)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm = p.get_main_module();
+    auto* mm    = p.get_main_module();
     auto one    = mm->add_literal(1);
     auto input  = mm->add_instruction(unary_op{}, one);
     auto c1     = chain(p, 2, unary_op{}, input);

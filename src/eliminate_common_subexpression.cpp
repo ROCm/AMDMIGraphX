@@ -11,7 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Range>
-void cse_range(program& p, Range&& r)
+void cse_range(module& p, Range&& r)
 {
     std::unordered_multimap<std::string, instruction_ref> instructions;
     std::unordered_set<instruction_ref> processed_ins;
@@ -42,7 +42,7 @@ void cse_range(program& p, Range&& r)
     }
 }
 
-void eliminate_common_subexpression::apply(program& p) const { cse_range(p, iterator_for(p)); }
+void eliminate_common_subexpression::apply(module& p) const { cse_range(p, iterator_for(p)); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

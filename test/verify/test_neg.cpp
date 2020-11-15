@@ -9,10 +9,11 @@ struct test_neg : verify_program<test_neg>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
 
         migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
-        auto input = p.add_parameter("x", s);
-        p.add_instruction(migraphx::op::neg{}, input);
+        auto input = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::op::neg{}, input);
         return p;
     };
 };

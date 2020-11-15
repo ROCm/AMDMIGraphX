@@ -14,15 +14,16 @@ struct test_batchnorm_inference_2 : verify_program<test_batchnorm_inference_2>
     migraphx::program create_program() const
     {
         migraphx::program p;
+        auto* mm = p.get_main_module();
 
         migraphx::shape s{migraphx::shape::float_type, {batches, channels, height, width}};
         migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto x        = p.add_parameter("x", s);
-        auto scale    = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
-        auto bias     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
-        auto mean     = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
-        auto variance = p.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        p.add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        auto x        = mm->add_parameter("x", s);
+        auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
+        auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
+        auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
+        auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
+        mm->add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
         return p;
     }
 };

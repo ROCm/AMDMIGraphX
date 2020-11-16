@@ -33,7 +33,7 @@ void adjust_allocation::apply(module& p) const
         if(alias_ins->name() == "@param")
         {
             auto copy = p.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
-            auto tail = range(std::next(final), p.end());
+            auto tail = range(std::next(copy), p.end());
             for(auto i : iterator_for(tail))
             {
                 if(contains(i->inputs(), ins))

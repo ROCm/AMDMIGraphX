@@ -19,7 +19,7 @@ rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
 find_path(BLAZE_INCLUDE blaze/Blaze.h)
 find_package(Threads)
-find_package(dnnl)
+find_package(dnnl REQUIRED)
 
 rocm_clang_tidy_check(migraphx_cpu)
 target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)

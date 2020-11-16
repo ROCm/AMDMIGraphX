@@ -149,7 +149,7 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Release') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
     }
-}, gcc7: rocmnode('rocmtest') { cmake_build ->
+}, gcc7: rocmhipclangnode('rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"

@@ -50,23 +50,27 @@ struct multi_index
         index[0] += overflow;
     }
 
-    multi_index& operator+=(std::size_t i)
+    void increment(std::size_t i)
     {
         index[size() - 1] += i;
         carry();
+    }
+
+    multi_index& operator+=(std::size_t i)
+    {
+        increment(i);
         return *this;
     }
 
     multi_index& operator++()
     {
-        index[size() - 1]++;
-        carry();
+        increment(1);
         return *this;
     }
-    multi_index operator++(int)
+    const multi_index operator++(int)
     {
         multi_index result = *this;
-        ++*this;
+        increment(1);
         return result;
     }
 
@@ -156,7 +160,7 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         auto s = inputs.at(0);
         return {s.type(), s.lens()};
     }
-
+    // cppcheck-suppress constParameter
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result = get_arg(args, args.size() - 1);
@@ -194,6 +198,7 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
         return {s.type(), s.lens()};
     }
 
+    // cppcheck-suppress constParameter
     argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
     {
         argument result = get_arg(args, args.size() - 1);

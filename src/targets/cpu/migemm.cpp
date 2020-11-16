@@ -8,60 +8,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-template <class T>
-using matrix = blaze::CustomMatrix<T, blaze::unaligned, blaze::unpadded>; // NOLINT
-
-template <class T>
-static auto make_mat(tensor_view<T> x)
-{
-    const auto& s = x.get_shape();
-    // assert(s.lens().size() == 2);
-    std::size_t n_dims = s.lens().size();
-    std::size_t dim_0  = n_dims - 2;
-    std::size_t dim_1  = n_dims - 1;
-    if(s.transposed())
-        return matrix<T>{x.data(), s.lens()[dim_1], s.lens()[dim_0], s.strides()[dim_1]};
-    return matrix<T>{x.data(), s.lens()[dim_0], s.lens()[dim_1], s.strides()[dim_0]};
-}
-
-template <class T, class F>
-static void visit_mat(tensor_view<T> x, F f)
-{
-    auto mat = make_mat(x);
-    if(x.get_shape().transposed())
-        f(blaze::trans(mat));
-    else
-        f(mat);
-}
-
-template <class T>
-struct is_fast_gemm_type : std::false_type
-{
-};
-
-// template <>
-// struct is_fast_gemm_type<float> : std::true_type
-// {
-// };
-
-template <class T, class F>
-void migemm_impl(
-    tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta, std::true_type)
-{
-    visit_mat(amat, [&](const auto& a) {
-        visit_mat(bmat, [&](const auto& b) {
-            auto c = make_mat(cmat);
-            c      = beta * c;
-            // This is a simple optimization to avoid
-            // compute A * B if alpha is 0.0
-            if(alpha != 0.0)
-            {
-                c = c + alpha * a * b;
-            }
-        });
-    });
-}
-
 template <class T, class F>
 void migemm_impl(
     tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta, std::false_type)
@@ -91,17 +37,7 @@ template <class T, class F>
 void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta)
 {
     auto lens = amat.get_shape().lens();
-    bool batch_mul =
-        std::accumulate(
-            lens.rbegin() + 2, lens.rend(), std::size_t{1}, std::multiplies<std::size_t>()) == 1;
-    if(batch_mul)
-    {
-        migemm_impl(cmat, amat, bmat, alpha, beta, is_fast_gemm_type<T>{});
-    }
-    else
-    {
-        migemm_impl(cmat, amat, bmat, alpha, beta, std::false_type{});
-    }
+    migemm_impl(cmat, amat, bmat, alpha, beta, std::false_type{});
 }
 
 template <class F>

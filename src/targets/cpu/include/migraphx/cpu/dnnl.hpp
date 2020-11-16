@@ -24,10 +24,12 @@ struct dnnl_context
 
 inline dnnl_context& get_dnnl_context()
 {
-    static dnnl_context ctx{};
+    static dnnl_context ctx{}; // NOLINT
     return ctx;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wswitch-enum"
 inline dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
 {
     using dt = dnnl::memory::data_type;
@@ -42,6 +44,7 @@ inline dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
     default: MIGRAPHX_THROW("Unsupported data type");
     }
 }
+#pragma clang diagnostic pop
 
 inline dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
 {
@@ -65,8 +68,9 @@ inline dnnl::memory::dims to_dnnl_dims(R&& r)
 
 inline dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 {
-    return dnnl::memory::desc(
-        to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides()));
+    return {
+        to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides())
+    };
 }
 
 inline dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)
@@ -79,27 +83,6 @@ inline dnnl::memory to_dnnl_memory(const argument& a)
     return to_dnnl_memory(to_dnnl_memory_desc(a.get_shape()), a);
 }
 
-// Remove
-inline dnnl::memory to_dnnl_memory(const argument& a, const dnnl::engine& engine)
-{
-    return dnnl::memory(to_dnnl_memory_desc(a.get_shape()), engine, a.data());
-}
-
-template <class Primitive, class Context>
-auto execute_dnnl(Context& ctx, std::unordered_map<int, argument> args)
-{
-    using primitive_desc = typename Primitive::primitive_desc;
-    return [&ctx, args](auto f) {
-        std::unordered_map<int, dnnl::memory> m;
-        for(auto&& p : args)
-            m[p.first] = to_dnnl_memory(p.second, get_dnnl_context().engine);
-        auto desc = f(m);
-        auto pd   = primitive_desc(desc, get_dnnl_context().engine);
-        auto prim = Primitive(pd);
-        prim.execute(get_dnnl_context().stream, m);
-    };
-}
-
 template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
 {
@@ -109,7 +92,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         std::vector<shape> shapes(args.size());
         std::transform(
-            args.begin(), args.end(), shapes.begin(), [](argument a) { return a.get_shape(); });
+            args.begin(), args.end(), shapes.begin(), [](const argument& a) { return a.get_shape(); });
         return shapes;
     }
     // Map arg index to arg in dnnl
@@ -139,7 +122,7 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return s;
     }
-    shape adjust_shape(shape s, int) const { return base_adjust_shape(std::move(s)); }
+    shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
     std::unordered_map<int, dnnl::memory::desc>
     to_memory_desc(const shape& output_shape, const std::vector<shape>& inputs) const
     {
@@ -166,7 +149,7 @@ struct dnnl_op : auto_register_op<Derived>
         auto pd          = self.get_primitive_desc(desc);
         return Primitive(pd);
     }
-    argument compute(context& ctx, const shape&, std::vector<argument> args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         return execute(ctx, args);
     }

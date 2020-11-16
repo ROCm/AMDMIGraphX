@@ -151,9 +151,10 @@ std::vector<std::size_t> shape::multi(std::size_t i) const
     return indices;
 }
 
-void shape::multi_copy(std::size_t i, std::size_t* start, std::size_t* end) const
+void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const
 {
     assert(this->standard());
+    (void)end;
     assert(lens().size() <= (end - start));
     std::transform(strides().begin(),
                    strides().end(),

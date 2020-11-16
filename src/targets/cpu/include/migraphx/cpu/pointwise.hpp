@@ -67,7 +67,7 @@ struct multi_index
         increment(1);
         return *this;
     }
-    const multi_index operator++(int)
+    multi_index operator++(int)
     {
         multi_index result = *this;
         increment(1);
@@ -85,7 +85,7 @@ struct reduce_dims_base
 {
     std::vector<shape> reduce_shapes;
 
-    void finalize(context&, const shape&, std::vector<shape> inputs)
+    void finalize(context&, const shape&, const std::vector<shape>& inputs)
     {
         reduce_shapes = reduce_dims(inputs);
     }
@@ -161,7 +161,7 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         return {s.type(), s.lens()};
     }
     // cppcheck-suppress constParameter
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
 
@@ -199,7 +199,7 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
     }
 
     // cppcheck-suppress constParameter
-    argument compute(context& ctx, const shape& output_shape, std::vector<argument> args) const
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
 

@@ -119,7 +119,7 @@ struct dnnl_convolution
 
     shape adjust_shape(shape x, int i) const
     {
-        auto s = base_adjust_shape(std::move(x));
+        auto s = base_adjust_shape(x);
         if(i == 1 and op.group > 1)
         {
             // TODO: Add support for transposed weights

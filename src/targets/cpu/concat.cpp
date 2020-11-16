@@ -25,7 +25,9 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
     desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         std::vector<dnnl::memory::desc> srcs;
-        for(auto i = 0; i < m.size() - 1; i++)
+        srcs.reserve(m.size() - 1);
+
+for(auto i = 0; i < m.size() - 1; i++)
         {
             srcs.push_back(m.at(DNNL_ARG_MULTIPLE_SRC + i));
         }

@@ -20,7 +20,7 @@ struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
     // Batch must be a single dimension
     shape adjust_shape(shape x, int) const
     {
-        auto s     = base_adjust_shape(std::move(x));
+        auto s     = base_adjust_shape(x);
         auto ndims = s.lens().size();
         if(ndims > 3)
         {

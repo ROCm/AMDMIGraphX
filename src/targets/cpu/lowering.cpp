@@ -510,9 +510,9 @@ struct cpu_literal
 
     std::string name() const { return "cpu::literal"; }
 
-    shape compute_shape(std::vector<shape>) const { return data.get_shape(); }
+    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
 
-    argument compute(const shape&, std::vector<argument>) const { return data; }
+    argument compute(const shape&, const std::vector<argument>&) const { return data; }
 
     friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
     {
@@ -623,7 +623,7 @@ struct cpu_apply
         }
     }
 
-    instruction_ref apply_literal(instruction_ref ins)
+    instruction_ref apply_literal(instruction_ref ins) const
     {
         return prog->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
     }

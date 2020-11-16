@@ -20,7 +20,8 @@ struct cpu_copy : reduce_dims_base, auto_register_op<cpu_copy>
         return inputs.at(1);
     }
     // cppcheck-suppress constParameter
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
 

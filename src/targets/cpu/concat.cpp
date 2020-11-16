@@ -27,7 +27,7 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
         std::vector<dnnl::memory::desc> srcs;
         srcs.reserve(m.size() - 1);
 
-for(auto i = 0; i < m.size() - 1; i++)
+        for(auto i = 0; i < m.size() - 1; i++)
         {
             srcs.push_back(m.at(DNNL_ARG_MULTIPLE_SRC + i));
         }

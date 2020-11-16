@@ -161,7 +161,8 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         return {s.type(), s.lens()};
     }
     // cppcheck-suppress constParameter
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
 
@@ -199,7 +200,8 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
     }
 
     // cppcheck-suppress constParameter
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         argument result = get_arg(args, args.size() - 1);
 

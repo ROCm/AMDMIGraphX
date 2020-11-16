@@ -22,6 +22,8 @@ struct allocation_model
 {
     /// A name of the target-dependent allocate operator
     std::string name() const;
+    /// A name of the target-dependent copy operator
+    std::string copy() const;
     /// Create an allocation operator for the given shape
     operation allocate(const shape& s) const;
 };
@@ -34,6 +36,7 @@ struct allocation_model
  * struct allocation_model
  * {
  *      std::string name() const;
+ *      std::string copy() const;
  *      operation allocate(const shape& s) const;
  * };
  *
@@ -108,6 +111,12 @@ struct allocation_model
         return (*this).private_detail_te_get_handle().name();
     }
 
+    std::string copy() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().copy();
+    }
+
     operation allocate(const shape& s) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -129,6 +138,7 @@ struct allocation_model
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::string name() const                 = 0;
+        virtual std::string copy() const                 = 0;
         virtual operation allocate(const shape& s) const = 0;
     };
 
@@ -161,6 +171,8 @@ struct allocation_model
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::string name() const override { return private_detail_te_value.name(); }
+
+        std::string copy() const override { return private_detail_te_value.copy(); }
 
         operation allocate(const shape& s) const override
         {

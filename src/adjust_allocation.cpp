@@ -34,9 +34,9 @@ void adjust_allocation::apply(module& p) const
         {
             auto copy = p.insert_instruction(std::next(ins), make_op(model.copy()), ins, alias_ins);
             auto tail = range(std::next(final), p.end());
-            for(auto i:iterator_for(tail))
+            for(auto i : iterator_for(tail))
             {
-                if (contains(i->inputs(), ins))
+                if(contains(i->inputs(), ins))
                     instruction::replace_argument(i, ins, copy);
             }
         }

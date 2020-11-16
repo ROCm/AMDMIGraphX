@@ -4,6 +4,8 @@
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/normalize_attributes.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -18,11 +20,18 @@ struct concat
         return migraphx::reflect(self.op, f);
     }
 
+    migraphx::value attributes() const
+    {
+        migraphx::value normalize;
+        normalize["axis"] = migraphx::value::array{migraphx::op::normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "eliminate_concat::concat"; }
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
         inputs.pop_back();
-        return op.compute_shape(std::move(inputs));
+        return op.normalize_compute_shape(std::move(inputs));
     }
     migraphx::argument compute(migraphx::context&,
                                const migraphx::shape& output_shape,

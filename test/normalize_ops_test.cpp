@@ -40,7 +40,8 @@ struct normalize_test_op
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::program create_gather(int64_t axis)

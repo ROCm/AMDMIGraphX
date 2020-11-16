@@ -224,6 +224,7 @@ struct value
     }
 
     value& operator=(std::nullptr_t);
+    value& operator=(const std::initializer_list<value>& i);
 
     bool is_array() const;
     const std::vector<value>& get_array() const;

@@ -5,9 +5,9 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -25,8 +25,16 @@ struct unsqueeze
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axes"] =
+            value::array{normalize_attribute::include_min, normalize_attribute::use_output};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "unsqueeze"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard_or_scalar();
         auto input_shape = inputs[0];
@@ -43,17 +51,11 @@ struct unsqueeze
 
         std::size_t new_size = old_lens.size() + axes.size();
 
-        // in case of axes to be negative, tune to positive
-        std::vector<int64_t> tuned_axes(axes.size());
-        std::transform(axes.begin(), axes.end(), tuned_axes.begin(), [new_size](auto i) {
-            return i >= 0 ? i : i + new_size;
-        });
-
         std::vector<std::size_t> new_lens(new_size);
         std::size_t p = 0;
         for(std::size_t i = 0; i < new_size; i++)
         {
-            if(std::find(tuned_axes.begin(), tuned_axes.end(), i) != tuned_axes.end())
+            if(std::find(axes.begin(), axes.end(), i) != axes.end())
             {
                 new_lens[i] = 1;
             }

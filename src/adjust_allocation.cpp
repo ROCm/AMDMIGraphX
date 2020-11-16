@@ -27,8 +27,6 @@ void adjust_allocation::apply(module& p) const
             continue;
         auto alloc_ins = p.insert_instruction(ins, model.allocate(ins->get_shape()));
         p.replace_instruction(alias_ins, alloc_ins);
-
-        
     }
 }
 

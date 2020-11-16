@@ -560,8 +560,8 @@ struct cpu_apply
     }
 
     void extend_dnnl_extend_op(const std::string& op_name,
-                        const std::string& cpu_name,
-                        const std::string& dnnl_name)
+                               const std::string& cpu_name,
+                               const std::string& dnnl_name)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();

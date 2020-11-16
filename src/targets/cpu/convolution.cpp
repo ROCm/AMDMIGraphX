@@ -112,7 +112,8 @@ template struct cpu_convolution<op::quant_convolution>;
 template struct cpu_convolution<op::convolution>;
 
 #if USE_DNNL
-struct dnnl_convolution : dnnl_extend_op<dnnl_convolution, dnnl::convolution_forward, op::convolution>
+struct dnnl_convolution
+    : dnnl_extend_op<dnnl_convolution, dnnl::convolution_forward, op::convolution>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 

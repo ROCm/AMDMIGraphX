@@ -25,8 +25,7 @@ struct cpu_copy : reduce_dims_base, auto_register_op<cpu_copy>
         argument result = get_arg(args, args.size() - 1);
 
         visit_all(result, get_arg(args, 0))([&](auto output, auto input) {
-            pointwise(output, input)(
-                ctx, output.get_shape(), 1024, [](auto& y, auto x) { y = x; });
+            pointwise(output, input)(ctx, output.get_shape(), 1024, [](auto& y, auto x) { y = x; });
         });
 
         return result.reshape(output_shape);
@@ -41,7 +40,3 @@ struct cpu_copy : reduce_dims_base, auto_register_op<cpu_copy>
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-
-
-

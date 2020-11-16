@@ -40,18 +40,19 @@ struct normalize_test_op
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::program create_gather(int64_t axis)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape sd{migraphx::shape::float_type, {2, 3, 4}};
     migraphx::shape si{migraphx::shape::int64_type, {2, 3}};
-    auto di = p.add_parameter("data", sd);
-    auto ii = p.add_parameter("ind", si);
-    auto r  = p.add_instruction(migraphx::make_op("gather", {{"axis", axis}}), di, ii);
-    p.add_return({r});
+    auto di = mm->add_parameter("data", sd);
+    auto ii = mm->add_parameter("ind", si);
+    auto r  = mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), di, ii);
+    mm->add_return({r});
 
     return p;
 }
@@ -78,10 +79,11 @@ TEST_CASE(gather_test_1)
 migraphx::program create_reduce_mean(const std::vector<int64_t>& axes)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
-    auto si = p.add_parameter("data", s);
-    auto r  = p.add_instruction(migraphx::make_op("reduce_mean", {{"axes", axes}}), si);
-    p.add_return({r});
+    auto si = mm->add_parameter("data", s);
+    auto r  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", axes}}), si);
+    mm->add_return({r});
 
     return p;
 }
@@ -109,11 +111,12 @@ migraphx::program create_slice(const std::vector<int64_t>& axes,
                                const std::vector<int64_t>& ends)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
-    auto si = p.add_parameter("data", s);
-    auto r  = p.add_instruction(
+    auto si = mm->add_parameter("data", s);
+    auto r  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), si);
-    p.add_return({r});
+    mm->add_return({r});
 
     return p;
 }
@@ -139,10 +142,11 @@ TEST_CASE(slice_test_1)
 migraphx::program create_test_op(const std::vector<int64_t>& axes)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape sd{migraphx::shape::float_type, {2, 3, 4}};
-    auto di = p.add_parameter("data", sd);
-    auto r  = p.add_instruction(normalize_test_op{axes}, di);
-    p.add_return({r});
+    auto di = mm->add_parameter("data", sd);
+    auto r  = mm->add_instruction(normalize_test_op{axes}, di);
+    mm->add_return({r});
 
     return p;
 }

@@ -18,6 +18,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
+
 struct program_impl;
 
 /**
@@ -72,6 +75,7 @@ struct program
     void from_value(const value& v);
 
     void debug_print() const;
+    void debug_print(instruction_ref ins) const;
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
 

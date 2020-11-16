@@ -17,9 +17,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
-
 const operation& get_operation(instruction_ref ins);
 
 struct module_impl;
@@ -100,8 +97,6 @@ struct module
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
-    std::vector<argument> eval(context& ctx, parameter_map params) const;
-
     bool has_instruction(instruction_ref ins) const;
 
     std::size_t size() const;
@@ -114,8 +109,6 @@ struct module
 
     void finalize(context& ctx);
 
-    void perf_report(std::ostream& os, context& ctx, std::size_t n, parameter_map params) const;
-
     value to_value() const;
     void from_value(const value& v);
 
@@ -124,8 +117,6 @@ struct module
     void debug_print(const std::vector<instruction_ref>& inss) const;
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
-
-    void dry_run(context& ctx, parameter_map params) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 

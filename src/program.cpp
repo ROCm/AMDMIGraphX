@@ -6,10 +6,10 @@
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/generic_eval.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -29,6 +29,69 @@ struct program_impl
     context ctx;
     std::string target_name;
 };
+
+static void print_instruction(std::ostream& os,
+                              instruction_ref ins,
+                              const std::unordered_map<instruction_ref, std::string>& names)
+{
+    os << names.at(ins) << " = ";
+
+    os << ins->get_operator();
+
+    if(ins->name() == "@literal")
+    {
+        if(ins->get_literal().get_shape().elements() > 10)
+            os << "{ ... }";
+        else
+            os << "{" << ins->get_literal() << "}";
+    }
+
+    if(!ins->inputs().empty())
+    {
+        char delim = '(';
+        for(auto&& arg : ins->inputs())
+        {
+            os << delim << names.at(arg);
+            delim = ',';
+        }
+        os << ")";
+    }
+
+    // skip return instruction shape
+    if(ins->name() != "@return")
+        os << " -> " << ins->get_shape();
+}
+
+template <class F>
+static void print_program(const program& p, F print_func)
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    int count = 0;
+
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        std::string var_name;
+        if(ins->name() == "@param")
+        {
+            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        }
+        else
+        {
+            var_name = "@" + std::to_string(count);
+            count++;
+        }
+        names.emplace(ins, var_name);
+
+        // TODO: Use all_of
+        for(auto&& arg : ins->inputs())
+        {
+            assert(p.has_instruction(arg) && "Instruction not found");
+            (void)arg;
+        }
+
+        print_func(ins, names);
+    }
+}
 
 program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {}; }
 
@@ -170,8 +233,39 @@ std::vector<argument> generic_eval(const program& p,
 
 std::vector<argument> program::eval(parameter_map params) const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].eval(impl->ctx, std::move(params));
+    auto& ctx = this->impl->ctx;
+#ifndef NDEBUG
+    auto sctx          = ctx;
+    auto check_context = [&](auto f) {
+        assert(is_shared(ctx, sctx));
+        auto x = f();
+        sctx   = ctx;
+        return x;
+    };
+#else
+    auto check_context = [](auto f) { return f(); };
+#endif
+
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+
+    if(trace_level > 0)
+    {
+        return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
+            ctx.finish();
+            std::cout << "Run instruction: ";
+            this->debug_print(ins);
+            auto result = check_context(f);
+            ctx.finish();
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+                std::cout << "Ouput: " << result << std::endl;
+            return result;
+        });
+    }
+    else
+    {
+        return generic_eval(
+            *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
+    }
 }
 
 const int program_file_version = 2;
@@ -219,13 +313,136 @@ void program::from_value(const value& v)
     }
 }
 
+double common_average(const std::vector<double>& v)
+{
+    std::size_t n = v.size() / 4;
+    double total  = std::accumulate(v.begin() + n, v.end() - n, 0.0);
+    return total / std::distance(v.begin() + n, v.end() - n);
+}
+
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].perf_report(os, impl->ctx, n, std::move(params));
+    using milliseconds = std::chrono::duration<double, std::milli>;
+    auto& ctx          = this->impl->ctx;
+    // Run once by itself
+    eval(params);
+    ctx.finish();
+    // Run and time entire program
+    std::vector<double> total_vec;
+    total_vec.reserve(n);
+    for(std::size_t i = 0; i < n; i++)
+    {
+        total_vec.push_back(time<milliseconds>([&] {
+            eval(params);
+            ctx.finish();
+        }));
+    }
+    std::sort(total_vec.begin(), total_vec.end());
+    std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
+    // Fill the map
+    generic_eval(*this, ctx, params, [&](auto ins, auto) {
+        ins_vec[ins].reserve(n);
+        return argument{};
+    });
+    // Run and time each instruction
+    for(std::size_t i = 0; i < n; i++)
+    {
+        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
+            argument result;
+            ins_vec[ins].push_back(time<milliseconds>([&] {
+                result = f();
+                ctx.finish();
+            }));
+            return result;
+        });
+    }
+    for(auto&& p : ins_vec)
+        std::sort(p.second.begin(), p.second.end());
+    // Run and time implicit overhead
+    std::vector<double> overhead_vec;
+    overhead_vec.reserve(n);
+    for(std::size_t i = 0; i < n; i++)
+    {
+        overhead_vec.push_back(time<milliseconds>([&] { dry_run(params); }));
+    }
+
+    double total_time             = common_average(total_vec);
+    double rate                   = 1000.0 / total_time;
+    double overhead_time          = common_average(overhead_vec);
+    double overhead_percent       = overhead_time * 100.0 / total_time;
+    double total_instruction_time = 0.0;
+    std::unordered_map<std::string, double> op_times;
+    for(auto&& p : ins_vec)
+    {
+        double avg = common_average(p.second);
+        op_times[p.first->name()] += avg;
+        total_instruction_time += avg;
+    }
+    double calculate_overhead_time    = total_time - total_instruction_time;
+    double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
+
+    print_program(*this, [&](auto ins, const auto& names) {
+        print_instruction(std::cout, ins, names);
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+
+        double avg     = common_average(ins_vec[ins]);
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << ": " << avg << "ms, " << percent << "%";
+        os << std::endl;
+    });
+
+    os << std::endl;
+    os << "Summary:" << std::endl;
+    std::vector<std::pair<double, std::string>> op_times_sorted;
+    std::transform(op_times.begin(),
+                   op_times.end(),
+                   std::back_inserter(op_times_sorted),
+                   [](auto p) { return std::make_pair(p.second, p.first); });
+    std::sort(op_times_sorted.begin(), op_times_sorted.end(), std::greater<>{});
+    for(auto&& p : op_times_sorted)
+    {
+        auto&& name    = p.second;
+        double avg     = p.first;
+        double percent = std::ceil(100.0 * avg / total_instruction_time);
+        os << name << ": " << avg << "ms, " << percent << "%" << std::endl;
+    }
+
+    os << std::endl;
+
+    os << "Rate: " << rate << "/sec" << std::endl;
+    os << "Total time: " << total_time << "ms" << std::endl;
+    os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms"
+       << ", " << calculate_overhead_time << "ms" << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%"
+       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
+void program::debug_print(instruction_ref ins) const
+{
+    if(ins == this->end())
+    {
+        std::cout << "End instruction" << std::endl;
+        return;
+    }
+    if(not has_instruction(ins))
+    {
+        std::cout << "Instruction not part of program" << std::endl;
+        return;
+    }
+    std::stringstream ss;
+    print_program(*this, [&](auto x, const auto& names) {
+        if(x == ins)
+        {
+            print_instruction(std::cout, x, names);
+            std::cout << std::endl;
+        }
+    });
+}
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
@@ -242,8 +459,8 @@ void program::print_cpp(std::ostream& os) const
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].dry_run(impl->ctx, std::move(params));
+    auto& ctx = this->impl->ctx;
+    generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
 }
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const

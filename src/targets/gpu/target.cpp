@@ -9,6 +9,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/normalize_ops.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/remap.hpp>
@@ -43,6 +44,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
+        normalize_ops{},
         decompose{},
         dead_code_elimination{},
         simplify_reshapes{},

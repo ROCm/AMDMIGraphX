@@ -11,7 +11,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_pad::apply(program& p) const
+void eliminate_pad::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
@@ -30,7 +30,7 @@ void eliminate_pad::apply(program& p) const
 
 void eliminate_pad::update_op(const instruction_ref& input,
                               const instruction_ref& ins,
-                              program& p) const
+                              module& p) const
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
     if(!pad_op.symmetric())
@@ -52,7 +52,7 @@ void eliminate_pad::update_op(const instruction_ref& input,
 
 void eliminate_pad::update_pooling(const instruction_ref& input,
                                    const instruction_ref& ins,
-                                   program& p) const
+                                   module& p) const
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
     if(!pad_op.symmetric())

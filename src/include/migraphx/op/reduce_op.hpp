@@ -7,6 +7,8 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -60,6 +62,13 @@ struct reduce_op : op_name<Derived>
         return pack(f(self.axes, "axes"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axes"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
     {
         auto tuned_axes = axes;
@@ -68,26 +77,11 @@ struct reduce_op : op_name<Derived>
             tuned_axes.resize(n_dim);
             std::iota(tuned_axes.begin(), tuned_axes.end(), 0);
         }
-        else
-        {
-            for(auto& axis : tuned_axes)
-            {
-                int64_t s_dim = static_cast<int64_t>(n_dim);
-                if(axis >= s_dim or axis < -s_dim)
-                {
-                    MIGRAPHX_THROW("REDUCE_OP: axis out of range");
-                }
-                if(axis < 0)
-                {
-                    axis += n_dim;
-                }
-            }
-        }
 
         return tuned_axes;
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);

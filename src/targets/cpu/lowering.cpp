@@ -585,6 +585,7 @@ struct cpu_apply
     {
         create_output_names();
         extend_dnnl_extend_op("add", "cpu::add", "dnnl::add");
+        extend_dnnl_extend_op("mul", "cpu::mul", "dnnl::mul");
         extend_dnnl_extend_op("convolution", "cpu::convolution", "dnnl::convolution");
         extend_dnnl_extend_op("dot", "cpu::dot", "dnnl::dot");
         extend_dnnl_extend_op("relu", "cpu::relu", "dnnl::relu");

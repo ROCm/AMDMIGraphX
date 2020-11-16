@@ -68,9 +68,7 @@ inline dnnl::memory::dims to_dnnl_dims(R&& r)
 
 inline dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
 {
-    return {
-        to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides())
-    };
+    return {to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides())};
 }
 
 inline dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)
@@ -91,8 +89,9 @@ struct dnnl_op : auto_register_op<Derived>
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
     {
         std::vector<shape> shapes(args.size());
-        std::transform(
-            args.begin(), args.end(), shapes.begin(), [](const argument& a) { return a.get_shape(); });
+        std::transform(args.begin(), args.end(), shapes.begin(), [](const argument& a) {
+            return a.get_shape();
+        });
         return shapes;
     }
     // Map arg index to arg in dnnl

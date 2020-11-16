@@ -14,20 +14,19 @@ void adjust_allocation::apply(module& p) const
         if(ins->inputs().empty())
             continue;
 
-        if(ins->name() == "load")
+        // Skip target-independent operators
+        if(ins->get_operator().is_context_free())
             continue;
 
         auto alias_ins = instruction::get_output_alias(ins, true);
-        if(alias_ins->name() == model.name())
-        {
-            // shape allocated is different from actual shape
-            // of the instruction, reallocate and replace the previous one
-            if(alias_ins->get_shape() != ins->get_shape())
-            {
-                auto alloc_ins = p.insert_instruction(ins, model.allocate(ins->get_shape()));
-                p.replace_instruction(alias_ins, alloc_ins);
-            }
-        }
+        if(alias_ins->name() != model.name())
+            continue;
+        // shape allocated is different from actual shape
+        // of the instruction, reallocate and replace the previous one
+        if(alias_ins->get_shape() == ins->get_shape())
+            continue;
+        auto alloc_ins = p.insert_instruction(ins, model.allocate(ins->get_shape()));
+        p.replace_instruction(alias_ins, alloc_ins);
     }
 }
 

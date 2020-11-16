@@ -1,5 +1,6 @@
 
 add_library(migraphx_cpu
+    allocation_model.cpp
     allocate.cpp
     add.cpp
     contiguous.cpp

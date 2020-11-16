@@ -180,12 +180,12 @@ struct tf_parser
         add_generic_op("Identity", op::identity{});
         add_generic_op("LessEqual", op::identity{});
         add_generic_op("Relu", op::relu{});
-        // add_generic_op("Relu6", op::clip{6.0, 0.0});
         add_generic_op("Rsqrt", op::rsqrt{});
         add_generic_op("Tanh", op::tanh{});
         add_generic_op("StopGradient", op::identity{});
 
         add_binary_op("Add", op::add{});
+        add_binary_op("AddV2", op::add{});
         add_binary_op("Mul", op::mul{});
         add_binary_op("Pow", op::pow{});
         add_binary_op("SquaredDifference", op::sqdiff{});
@@ -204,6 +204,7 @@ struct tf_parser
         add_mem_op("DepthwiseConv2dNative", &tf_parser::parse_depthwiseconv);
         add_mem_op("ExpandDims", &tf_parser::parse_expanddims, false);
         add_mem_op("FusedBatchNorm", &tf_parser::parse_batchnorm);
+        add_mem_op("FusedBatchNormV3", &tf_parser::parse_batchnorm);
         add_mem_op("GatherV2", &tf_parser::parse_gather, false);
         add_mem_op("MatMul", &tf_parser::parse_matmul, false);
         add_mem_op("MaxPool", &tf_parser::parse_pooling);
@@ -1060,6 +1061,9 @@ struct tf_parser
             auto&& node = nodes.at(name);
             // assert ops ignored
             if(node.op() == "Assert" or contains(name, "Assert"))
+                return;
+            // noOps ignored
+            if(node.op() == "NoOp" or contains(name, "NoOp"))
                 return;
             std::vector<instruction_ref> args;
 

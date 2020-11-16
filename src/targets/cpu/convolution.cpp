@@ -141,14 +141,14 @@ struct dnnl_convolution
         std::transform(
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
         return {dnnl::prop_kind::forward_inference,
-                                               dnnl::algorithm::convolution_auto,
-                                               m.at(DNNL_ARG_SRC),
-                                               m.at(DNNL_ARG_WEIGHTS),
-                                               m.at(DNNL_ARG_DST),
-                                               to_dnnl_dims(op.stride),
-                                               to_dnnl_dims(dilation),
-                                               to_dnnl_dims(op.padding),
-                                               to_dnnl_dims(op.padding)};
+                dnnl::algorithm::convolution_auto,
+                m.at(DNNL_ARG_SRC),
+                m.at(DNNL_ARG_WEIGHTS),
+                m.at(DNNL_ARG_DST),
+                to_dnnl_dims(op.stride),
+                to_dnnl_dims(dilation),
+                to_dnnl_dims(op.padding),
+                to_dnnl_dims(op.padding)};
     }
 };
 #endif

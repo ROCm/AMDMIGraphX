@@ -132,13 +132,13 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
     {
         auto algo = op.mode == "max" ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
         return {dnnl::prop_kind::forward_inference,
-                                           algo,
-                                           m.at(DNNL_ARG_SRC),
-                                           m.at(DNNL_ARG_DST),
-                                           to_dnnl_dims(op.stride),
-                                           to_dnnl_dims(op.lengths),
-                                           to_dnnl_dims(op.padding),
-                                           to_dnnl_dims(op.padding)};
+                algo,
+                m.at(DNNL_ARG_SRC),
+                m.at(DNNL_ARG_DST),
+                to_dnnl_dims(op.stride),
+                to_dnnl_dims(op.lengths),
+                to_dnnl_dims(op.padding),
+                to_dnnl_dims(op.padding)};
     }
 };
 #endif

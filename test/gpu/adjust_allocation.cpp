@@ -62,7 +62,8 @@ TEST_CASE(tanh_shape)
     EXPECT(p1 != p2);
 
     migraphx::run_passes(*p2.get_main_module(),
-                         {migraphx::adjust_allocation{migraphx::gpu::gpu_allocation_model{}}, migraphx::dead_code_elimination{}});
+                         {migraphx::adjust_allocation{migraphx::gpu::gpu_allocation_model{}},
+                          migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }
 

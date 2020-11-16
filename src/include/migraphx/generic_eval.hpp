@@ -92,4 +92,3 @@ std::vector<argument> generic_eval(const module& p,
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif
-

@@ -5,4 +5,4 @@
 shape:
 (
 stopgradientStopGradient0*
-T0"
+T0"¸

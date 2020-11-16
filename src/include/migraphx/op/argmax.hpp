@@ -6,6 +6,8 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,14 +23,21 @@ struct argmax
         return pack(f(self.axis, "axis"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axis"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "argmax"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto lens     = inputs[0].lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis >= n_dim || axis < -n_dim)
+        if(axis >= n_dim || axis < 0)
         {
             MIGRAPHX_THROW("ARGMAX: axis is out of range.");
         }

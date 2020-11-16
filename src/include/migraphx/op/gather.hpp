@@ -8,6 +8,8 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -17,7 +19,7 @@ namespace op {
 
 struct gather
 {
-    int axis = 0;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -25,27 +27,25 @@ struct gather
         return pack(f(self.axis, "axis"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axis"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "gather"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).standard();
         auto lens = inputs[0].lens();
-        int n_dim = static_cast<int>(lens.size());
-        if(axis >= n_dim || axis < -n_dim)
-        {
-            MIGRAPHX_THROW("Gather: axis is out of range.");
-        }
-
-        // negative axis means counting dimensions from back
-        int axis_index = (axis < 0) ? (n_dim + axis) : axis;
-
         auto type = inputs[0].type();
-        lens.erase(lens.begin() + axis_index);
+        lens.erase(lens.begin() + axis);
         if(!inputs[1].scalar())
         {
             auto ind_lens = inputs[1].lens();
-            lens.insert(lens.begin() + axis_index, ind_lens.begin(), ind_lens.end());
+            lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
         }
 
         // for scalar output
@@ -61,10 +61,8 @@ struct gather
     {
         argument result{output_shape};
         // negative axis means counting dimensions from back
-        auto lens      = args[0].get_shape().lens();
-        int axis_index = (axis < 0) ? static_cast<int>(lens.size() + axis) : axis;
-
-        std::size_t axis_dim_size = lens[axis_index];
+        auto lens                 = args[0].get_shape().lens();
+        std::size_t axis_dim_size = lens[axis];
         // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
@@ -76,14 +74,14 @@ struct gather
                 }
                 else
                 {
-                    auto out_lens        = data.get_shape().lens();
-                    out_lens[axis_index] = indices.get_shape().elements();
+                    auto out_lens  = data.get_shape().lens();
+                    out_lens[axis] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                     shape_for_each(out_comp_shape, [&](const auto& out_idx) {
-                        auto data_idx        = out_idx;
-                        auto in_index        = indices[data_idx[axis_index]];
-                        in_index             = (in_index < 0) ? in_index + axis_dim_size : in_index;
-                        data_idx[axis_index] = in_index;
+                        auto data_idx  = out_idx;
+                        auto in_index  = indices[data_idx[axis]];
+                        in_index       = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                        data_idx[axis] = in_index;
                         output[out_comp_shape.index(out_idx.begin(), out_idx.end())] =
                             data(data_idx.begin(), data_idx.end());
                     });

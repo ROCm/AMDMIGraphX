@@ -44,7 +44,7 @@ struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
 
     dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return dnnl::matmul::desc(m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_WEIGHTS), m.at(DNNL_ARG_DST));
+        return {m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_WEIGHTS), m.at(DNNL_ARG_DST)};
     }
 };
 #endif

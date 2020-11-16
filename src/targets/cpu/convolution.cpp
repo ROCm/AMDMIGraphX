@@ -117,7 +117,7 @@ struct dnnl_convolution
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
-    shape adjust_shape(shape x, int i) const
+    shape adjust_shape(const shape& x, int i) const
     {
         auto s = base_adjust_shape(x);
         if(i == 1 and op.group > 1)
@@ -140,7 +140,7 @@ struct dnnl_convolution
         auto dilation = op.dilation;
         std::transform(
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
-        return dnnl::convolution_forward::desc(dnnl::prop_kind::forward_inference,
+        return {dnnl::prop_kind::forward_inference,
                                                dnnl::algorithm::convolution_auto,
                                                m.at(DNNL_ARG_SRC),
                                                m.at(DNNL_ARG_WEIGHTS),
@@ -148,7 +148,7 @@ struct dnnl_convolution
                                                to_dnnl_dims(op.stride),
                                                to_dnnl_dims(dilation),
                                                to_dnnl_dims(op.padding),
-                                               to_dnnl_dims(op.padding));
+                                               to_dnnl_dims(op.padding)};
     }
 };
 #endif

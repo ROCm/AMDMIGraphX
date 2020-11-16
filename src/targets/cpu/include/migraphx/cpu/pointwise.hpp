@@ -67,7 +67,7 @@ struct multi_index
         increment(1);
         return *this;
     }
-    multi_index operator++(int)
+    multi_index operator++(int) // NOLINT
     {
         multi_index result = *this;
         increment(1);

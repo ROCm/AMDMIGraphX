@@ -31,7 +31,7 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
         {
             srcs.push_back(m.at(DNNL_ARG_MULTIPLE_SRC + i));
         }
-        return desc{m.at(DNNL_ARG_DST), std::size_t(op.axis), srcs};
+        return {m.at(DNNL_ARG_DST), std::size_t(op.axis), srcs};
     }
 
     auto get_primitive_desc(const desc& d) const

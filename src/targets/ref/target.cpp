@@ -7,6 +7,7 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/normalize_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -16,7 +17,8 @@ std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {rewrite_rnn{},
+    return {normalize_ops{},
+            rewrite_rnn{},
             dead_code_elimination{},
             auto_contiguous{},
             dead_code_elimination{},

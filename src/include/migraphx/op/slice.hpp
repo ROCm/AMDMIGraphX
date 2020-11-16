@@ -5,6 +5,8 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -23,6 +25,23 @@ struct slice
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+    }
+
+    value attributes() const
+    {
+        value normalize     = value::object{};
+        normalize["axes"]   = value::array{normalize_attribute::include_min};
+        normalize["starts"] = value::array{normalize_attribute::clip_max,
+                                           normalize_attribute::clip_min,
+                                           normalize_attribute::include_max,
+                                           normalize_attribute::use_len,
+                                           normalize_attribute::include_min};
+        normalize["ends"]   = value::array{normalize_attribute::clip_max,
+                                         normalize_attribute::clip_min,
+                                         normalize_attribute::include_max,
+                                         normalize_attribute::use_len,
+                                         normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
     }
 
     std::string name() const { return "slice"; }
@@ -111,30 +130,34 @@ struct slice
         return offset;
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         auto input_shape        = inputs[0];
         auto t                  = input_shape.type();
         const auto& old_lens    = input_shape.lens();
         const auto& old_strides = input_shape.strides();
+
+        if(std::any_of(
+               axes.begin(), axes.end(), [&](auto i) { return (i >= old_lens.size() and i < 0); }))
+        {
+            MIGRAPHX_THROW("SLICE: input axis " + to_string_range(axes) + " out of range");
+        }
+
         if(starts.size() != axes.size() || axes.size() != ends.size())
         {
             MIGRAPHX_THROW("SLICE: inconsistent sizes");
         }
 
-        std::vector<int64_t> tuned_axes   = axes;
-        std::vector<int64_t> tuned_starts = starts;
-        std::vector<int64_t> tuned_ends   = ends;
-        tune_attributes(tuned_axes, tuned_starts, tuned_ends, old_lens);
         std::vector<std::size_t> new_lens = old_lens;
-        for(std::size_t i = 0; i < tuned_axes.size(); i++)
+        for(std::size_t i = 0; i < axes.size(); i++)
         {
-            auto axis      = tuned_axes[i];
-            new_lens[axis] = fix_index(old_lens, axis, tuned_ends[i]) -
-                             fix_index(old_lens, axis, tuned_starts[i]);
+            auto axis = axes[i];
+            new_lens[axis] =
+                fix_index(old_lens, axis, ends[i]) - fix_index(old_lens, axis, starts[i]);
         }
         return shape{t, new_lens, old_strides};
     }
+
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto input  = args[0];

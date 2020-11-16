@@ -26,6 +26,7 @@
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/normalize_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +36,8 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {decompose{},
+    return {normalize_ops{},
+            decompose{},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},

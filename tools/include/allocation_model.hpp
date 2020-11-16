@@ -22,6 +22,8 @@ struct allocation_model
 {
     /// A name of the target-dependent allocate operator
     std::string name() const;
+    /// A name of the target-dependent copy operator
+    std::string copy() const;
     /// Create an allocation operator for the given shape
     operation allocate(const shape& s) const;
 };
@@ -31,6 +33,7 @@ struct allocation_model
 <%
 interface('allocation_model',
     virtual('name', returns='std::string', const=True),
+    virtual('copy', returns='std::string', const=True),
     virtual('allocate', s='const shape&', returns='operation', const=True)
 )
 %>

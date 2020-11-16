@@ -11,6 +11,8 @@ operation gpu_allocation_model::allocate(const shape& s) const
     return make_op(name(), {{"shape", to_value(s)}});
 }
 
+std::string gpu_allocation_model::copy() const { return "hip::copy"; }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

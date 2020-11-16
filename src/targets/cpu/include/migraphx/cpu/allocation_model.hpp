@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_GPU_ALLOCATION_MODEL_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_GPU_ALLOCATION_MODEL_HPP
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_CPU_ALLOCATION_MODEL_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_CPU_ALLOCATION_MODEL_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
@@ -7,16 +7,17 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace cpu {
 
-struct gpu_allocation_model
+struct cpu_allocation_model
 {
     std::string name() const;
     std::string copy() const;
     operation allocate(const shape& s) const;
 };
 
-} // namespace gpu
+} // namespace cpu
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -97,6 +97,7 @@ target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CUR
 
 add_library(migraphx_gpu
     analyze_streams.cpp
+    allocation_model.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp
@@ -123,7 +124,6 @@ add_library(migraphx_gpu
     convert.cpp
     lrn.cpp
     schedule_model.cpp
-    adjust_allocation.cpp
     pack_int8_args.cpp
     clip.cpp
     int8_gemm_pack.cpp

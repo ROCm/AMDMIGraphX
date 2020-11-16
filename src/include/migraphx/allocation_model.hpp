@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_CONCAT_OPT_HPP
-#define MIGRAPHX_GUARD_CONCAT_OPT_HPP
+#ifndef MIGRAPHX_GUARD_ALLOCATION_MODEL_HPP
+#define MIGRAPHX_GUARD_ALLOCATION_MODEL_HPP
 
 #include <cassert>
 #include <string>
@@ -8,24 +8,22 @@
 #include <type_traits>
 #include <utility>
 
-#include <migraphx/operation.hpp>
-#include <migraphx/op/concat.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/operation.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 #ifdef DOXYGEN
 
-/// An interface for target-dependent optimization for the concat instruction
-struct concat_optimization
+/// An interface for target-dependent allocation
+struct allocation_model
 {
-    /// The name of the target-dependent concat operator
-    std::string name() const;
     /// A name of the target-dependent allocate operator
-    std::string allocate() const;
-    /// Return the target-independent concat operator
-    op::concat get_concat(const operation& op) const;
+    std::string name() const;
+    /// Create an allocation operator for the given shape
+    operation allocate(const shape& s) const;
 };
 
 #else
@@ -33,22 +31,21 @@ struct concat_optimization
 /*
  * Type-erased interface for:
  *
- * struct concat_optimization
+ * struct allocation_model
  * {
  *      std::string name() const;
- *      std::string allocate() const;
- *      op::concat get_concat(const operation& op) const;
+ *      operation allocate(const shape& s) const;
  * };
  *
  */
 
-struct concat_optimization
+struct allocation_model
 {
     // Constructors
-    concat_optimization() = default;
+    allocation_model() = default;
 
     template <typename PrivateDetailTypeErasedT>
-    concat_optimization(PrivateDetailTypeErasedT value)
+    allocation_model(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
                   typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
@@ -58,7 +55,7 @@ struct concat_optimization
 
     // Assignment
     template <typename PrivateDetailTypeErasedT>
-    concat_optimization& operator=(PrivateDetailTypeErasedT value)
+    allocation_model& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
@@ -68,7 +65,7 @@ struct concat_optimization
         }
         else
         {
-            concat_optimization rhs(value);
+            allocation_model rhs(value);
             swap(private_detail_te_handle_mem_var, rhs.private_detail_te_handle_mem_var);
         }
         return *this;
@@ -111,20 +108,14 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().name();
     }
 
-    std::string allocate() const
+    operation allocate(const shape& s) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().allocate();
+        return (*this).private_detail_te_get_handle().allocate(s);
     }
 
-    op::concat get_concat(const operation& op) const
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_concat(op);
-    }
-
-    friend bool is_shared(const concat_optimization& private_detail_x,
-                          const concat_optimization& private_detail_y)
+    friend bool is_shared(const allocation_model& private_detail_x,
+                          const allocation_model& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
                private_detail_y.private_detail_te_handle_mem_var;
@@ -137,9 +128,8 @@ struct concat_optimization
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                         = 0;
-        virtual std::string allocate() const                     = 0;
-        virtual op::concat get_concat(const operation& op) const = 0;
+        virtual std::string name() const                 = 0;
+        virtual operation allocate(const shape& s) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -172,12 +162,10 @@ struct concat_optimization
 
         std::string name() const override { return private_detail_te_value.name(); }
 
-        std::string allocate() const override { return private_detail_te_value.allocate(); }
-
-        op::concat get_concat(const operation& op) const override
+        operation allocate(const shape& s) const override
         {
 
-            return private_detail_te_value.get_concat(op);
+            return private_detail_te_value.allocate(s);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;
@@ -216,19 +204,19 @@ struct concat_optimization
 };
 
 template <typename ValueType>
-inline const ValueType* any_cast(const concat_optimization* x)
+inline const ValueType* any_cast(const allocation_model* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType* any_cast(concat_optimization* x)
+inline ValueType* any_cast(allocation_model* x)
 {
     return x->any_cast<ValueType>();
 }
 
 template <typename ValueType>
-inline ValueType& any_cast(concat_optimization& x)
+inline ValueType& any_cast(allocation_model& x)
 {
     auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)
@@ -237,7 +225,7 @@ inline ValueType& any_cast(concat_optimization& x)
 }
 
 template <typename ValueType>
-inline const ValueType& any_cast(const concat_optimization& x)
+inline const ValueType& any_cast(const allocation_model& x)
 {
     const auto* y = x.any_cast<typename std::remove_reference<ValueType>::type>();
     if(y == nullptr)

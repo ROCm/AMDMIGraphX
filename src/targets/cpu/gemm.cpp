@@ -13,7 +13,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 #if USE_DNNL
-struct dnnl_gemm : dnnl_op<dnnl_gemm, dnnl::matmul, op::dot>
+struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 

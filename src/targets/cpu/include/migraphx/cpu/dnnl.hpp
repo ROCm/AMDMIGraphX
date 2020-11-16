@@ -100,17 +100,11 @@ auto execute_dnnl(Context& ctx, std::unordered_map<int, argument> args)
     };
 }
 
-template <class Derived, class Primitive, class Op>
+template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
 {
-    Op op;
     std::function<argument(context& ctx, const std::vector<argument>& args)> execute;
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
     {
         std::vector<shape> shapes(args.size());
@@ -172,17 +166,6 @@ struct dnnl_op : auto_register_op<Derived>
         auto pd          = self.get_primitive_desc(desc);
         return Primitive(pd);
     }
-    std::string name() const { return "dnnl::" + op.name(); }
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        // Compensate for allocation
-        inputs.pop_back();
-        // check_shapes(inputs, *this).standard();
-        auto r = op.compute_shape(inputs);
-        // Call to get_primitive to make sure an algo is available
-        get_primitive(to_memory_desc(r, inputs));
-        return r;
-    }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const
     {
         return execute(ctx, args);
@@ -221,6 +204,30 @@ struct dnnl_op : auto_register_op<Derived>
             prim.execute(get_dnnl_context().stream, m);
             return args.back();
         };
+    }
+};
+
+template <class Derived, class Primitive, class Op>
+struct dnnl_extend_op : dnnl_op<Derived, Primitive>
+{
+    Op op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "dnnl::" + op.name(); }
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        // Compensate for allocation
+        inputs.pop_back();
+        // check_shapes(inputs, *this).standard();
+        auto r = op.compute_shape(inputs);
+        // Call to get_primitive to make sure an algo is available
+        this->get_primitive(this->to_memory_desc(r, inputs));
+        return r;
     }
 };
 

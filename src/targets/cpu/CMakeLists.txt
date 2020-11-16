@@ -6,6 +6,7 @@ add_library(migraphx_cpu
     contiguous.cpp
     concat.cpp
     convolution.cpp
+    copy.cpp
     pooling.cpp
     relu.cpp
     gemm.cpp

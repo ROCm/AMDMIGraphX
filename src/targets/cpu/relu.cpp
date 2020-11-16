@@ -9,7 +9,7 @@ namespace cpu {
 template struct cpu_unary<op::relu>;
 
 #if USE_DNNL
-struct dnnl_relu : dnnl_op<dnnl_relu, dnnl::eltwise_forward, op::relu>
+struct dnnl_relu : dnnl_extend_op<dnnl_relu, dnnl::eltwise_forward, op::relu>
 {
     dnnl::eltwise_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {

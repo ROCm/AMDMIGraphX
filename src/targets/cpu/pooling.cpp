@@ -124,7 +124,7 @@ template struct cpu_pooling<avg_pool>;
 template struct cpu_pooling<max_pool>;
 
 #if USE_DNNL
-struct dnnl_pooling : dnnl_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
+struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC}; }
 

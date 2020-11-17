@@ -1409,7 +1409,7 @@ struct tf_parser
     }
 };
 
-program parse_tf(const std::string& name, tf_options options)
+program parse_tf(const std::string& name, const tf_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;

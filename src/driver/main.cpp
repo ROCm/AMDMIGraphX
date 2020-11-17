@@ -94,8 +94,8 @@ struct loader
         assert(dim_start != std::string::npos);
         auto name_end = str.find_last_not_of(':', dim_start - 1);
         assert(name_end != std::string::npos);
-        std::string name    = str.substr(name_start, name_end - name_start + 1);
-        auto dim_end = str.find('}', dim_start);
+        std::string name = str.substr(name_start, name_end - name_start + 1);
+        auto dim_end     = str.find('}', dim_start);
         assert(dim_end != std::string::npos);
         auto dim_str          = str.substr(dim_start + 1, dim_end - dim_start - 1);
         std::size_t start_pos = 0;

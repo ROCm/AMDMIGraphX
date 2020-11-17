@@ -206,7 +206,7 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
         // Compensate for allocation
         inputs.pop_back();
         // check_shapes(inputs, *this).standard();
-        auto r = op.compute_shape(inputs);
+        auto r = migraphx::compute_shape(op, inputs);
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));
         return r;

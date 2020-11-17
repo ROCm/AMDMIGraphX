@@ -305,7 +305,7 @@ void program::from_value(const value& v)
     for(const auto& vv : val_modules)
     {
         const auto& key = vv.get_key();
-        auto val = vv.without_key();
+        auto val        = vv.without_key();
         module modl;
         modl.from_value(val);
         modl.finalize(this->impl->ctx);

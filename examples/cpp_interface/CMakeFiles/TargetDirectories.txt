@@ -1,4 +1,0 @@
-/home/amt/AMDMIGraphX/examples/cpp_interface/CMakeFiles/rebuild_cache.dir
-/home/amt/AMDMIGraphX/examples/cpp_interface/CMakeFiles/utils.dir
-/home/amt/AMDMIGraphX/examples/cpp_interface/CMakeFiles/edit_cache.dir
-/home/amt/AMDMIGraphX/examples/cpp_interface/CMakeFiles/test_load_onnx.dir

@@ -1,1 +1,0 @@
-/usr/bin/c++     CMakeFiles/test_load_onnx.dir/test_load_onnx.cpp.o  -o test_load_onnx  -L/home/scxiao/Workplace/projects/AMDMIGraphX/build_debug/lib -Wl,-rpath,/home/scxiao/Workplace/projects/AMDMIGraphX/build_debug/lib:/home/amt/AMDMIGraphX/examples/cpp_interface -lmigraphx_c libutils.so 

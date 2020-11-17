@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project (Test_migraphx_c_api)
 
-set (MIGRAPHX_FOLDER /home/scxiao/Workplace/projects/AMDMIGraphX)
-#set (MIGRAPHX_FOLDER /home/scxiao/Workplace/projects/MIGraph)
-#set (MIGRAPHX_FOLDER /home/scxiao/Workplace/projects/migraphx_onnx_backend)
-set (MIGRAPHX_BUILD ${MIGRAPHX_FOLDER}/build_debug)
-#set (MIGRAPHX_BUILD ${MIGRAPHX_FOLDER}/build)
+set (MIGRAPHX_FOLDER $HOME/AMDMIGraphX)
+set (MIGRAPHX_BUILD ${MIGRAPHX_FOLDER}/build)
 
 set (CMAKE_CXX_STANDARD 14)
 

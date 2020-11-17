@@ -36,7 +36,6 @@ void migemm_impl(
 template <class T, class F>
 void migemm_impl(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta)
 {
-    auto lens = amat.get_shape().lens();
     migemm_impl(cmat, amat, bmat, alpha, beta, std::false_type{});
 }
 

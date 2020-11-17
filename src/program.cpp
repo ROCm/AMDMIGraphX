@@ -302,9 +302,9 @@ void program::from_value(const value& v)
     }
 
     auto val_modules = v.at("modules");
-    for(auto vv : val_modules)
+    for(const auto& vv : val_modules)
     {
-        auto key = vv.get_key();
+        const auto& key = vv.get_key();
         auto val = vv.without_key();
         module modl;
         modl.from_value(val);

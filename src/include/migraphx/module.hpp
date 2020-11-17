@@ -41,7 +41,7 @@ struct module
 
     ~module() noexcept;
 
-    const std::string name() const { return module_name; }
+    std::string name() const { return module_name; }
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)

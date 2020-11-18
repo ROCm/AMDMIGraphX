@@ -64,13 +64,12 @@ def rocmtest(m) {
 }
 
 def rocmnodename(name) {
-    def node_name = 'rocmtest || rocm'
-    if(name == 'fiji') {
-        node_name = 'rocmtest && fiji';
-    } else if(name == 'vega') {
-        node_name = 'rocmtest && vega';
-    } else {
-        node_name = name
+    def rocmtest_name = "(rocmtest || migraphx)"
+    def node_name = "${rocmtest_name}"
+    if(name == "fiji") {
+        node_name = "${rocmtest_name} && fiji";
+    } else if(name == "vega") {
+        node_name = "${rocmtest_name} && vega";
     }
     return node_name
 }

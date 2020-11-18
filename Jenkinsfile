@@ -87,17 +87,7 @@ def rocmhipclangnode(name, body) {
 }
 
 // Static checks
-rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
-    stage('Clang Tidy') {
-        sh '''
-            rm -rf build
-            mkdir build
-            cd build
-            CXX=hcc cmake .. 
-            make -j$(nproc) -k analyze
-        '''
-    }
-}, format: rocmnode('rocmtest') { cmake_build ->
+rocmtest format: rocmnode('rocmtest') { cmake_build ->
     stage('Format') {
         sh '''
             find . -iname \'*.h\' \
@@ -154,7 +144,15 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
-        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        def debug_flags = "-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+
+    }
+}, codecov: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 7 Codecov') {
+        def linker_flags = '-fuse-ld=gold'
+        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
+        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer"
         cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }

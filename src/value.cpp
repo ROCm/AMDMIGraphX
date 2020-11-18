@@ -98,7 +98,7 @@ void set_vector(std::shared_ptr<value_base_impl>& x,
 
 value::value(const std::initializer_list<value>& i) : x(nullptr)
 {
-    if(i.size() == 2 and i.begin()->is_string())
+    if(i.size() == 2 and i.begin()->is_string() and i.begin()->get_key().empty())
     {
         key    = i.begin()->get_string();
         auto r = (i.begin() + 1)->x;

@@ -2,6 +2,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <sstream>
 #include <string>
 #include "test.hpp"
@@ -36,6 +37,15 @@ TEST_CASE(make_op_from_value2)
 {
     migraphx::operation x = migraphx::make_op("convolution", {{"padding", {1, 1}}});
     migraphx::operation y = migraphx::op::convolution{{1, 1}};
+    EXPECT(x == y);
+}
+
+TEST_CASE(make_rnn_op_from_value)
+{
+    migraphx::op::rnn_direction dirct = migraphx::op::rnn_direction::reverse;
+    migraphx::operation x             = migraphx::make_op(
+        "rnn_var_sl_shift_output", {{"output_name", "hidden_states"}, {"direction", dirct}});
+    migraphx::operation y = migraphx::op::rnn_var_sl_shift_output{"hidden_states", dirct};
     EXPECT(x == y);
 }
 

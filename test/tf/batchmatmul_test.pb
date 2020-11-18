@@ -1,14 +1,14 @@
 
 :
-0Placeholder*
-shape:*
-dtype0
+0Placeholder*
+dtype0*
+shape:
 :
 1Placeholder*
 dtype0*
 shape:
-D
-batchmatmul1BatchMatMul01*
+F
+batchmatmul1BatchMatMulV201*
+T0*
 adj_x(*
-adj_y(*
-T0"
+adj_y("¸

@@ -124,7 +124,7 @@ int main(int argc, char const* argv[])
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 1, 28, 28}};
         std::cout << s << std::endl;
         auto* ptr = input.data();
-        migraphx::program::parameter_map m;
+        migraphx::parameter_map m;
         m["output"] =
             migraphx::gpu::to_gpu(migraphx::generate_argument(prog.get_parameter_shape("output")));
         for(int i = 0; i < 20; i++)

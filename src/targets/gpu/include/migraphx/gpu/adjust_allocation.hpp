@@ -13,7 +13,7 @@ namespace gpu {
 struct adjust_allocation
 {
     std::string name() const { return "gpu::adjust_allocation"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace gpu

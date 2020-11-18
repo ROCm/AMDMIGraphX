@@ -16,14 +16,15 @@ migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
     auto prog                      = migraphx::parse_onnx(name, options);
+    auto* mm                       = prog.get_main_module();
     if(eliminate_deadcode)
-        migraphx::run_passes(prog, {migraphx::dead_code_elimination{}});
+        migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
 
     // remove the last identity instruction
-    auto last_ins = std::prev(prog.end());
+    auto last_ins = std::prev(mm->end());
     if(last_ins->name() == "@return")
     {
-        prog.remove_instruction(last_ins);
+        mm->remove_instruction(last_ins);
     }
 
     return prog;
@@ -927,6 +928,38 @@ TEST_CASE(expand_test)
     mm->add_instruction(migraphx::op::multibroadcast{{2, 3, 4, 5}}, param);
 
     auto prog = optimize_onnx("expand_test.onnx");
+    EXPECT(p == prog);
+}
+
+migraphx::program create_external_data_prog()
+{
+    migraphx::program p;
+    migraphx::shape s(migraphx::shape::float_type, {1, 1, 224, 224});
+    migraphx::shape s2(migraphx::shape::float_type, {10, 1, 11, 11});
+    std::vector<float> weight_data(1210, 1);
+    std::vector<float> bias_data(10, 1);
+    auto bias    = p.add_literal(migraphx::literal({migraphx::shape::float_type, {10}}, bias_data));
+    auto weights = p.add_literal(migraphx::literal(s2, weight_data));
+    auto param   = p.add_parameter("input", s);
+    auto conv    = p.add_instruction(migraphx::op::convolution{}, param, weights);
+    auto bias_bcast = p.add_instruction(migraphx::op::broadcast{1, {1, 10, 214, 214}}, bias);
+    p.add_instruction(migraphx::op::add{}, conv, bias_bcast);
+    return p;
+}
+
+TEST_CASE(external_data_test)
+{
+    migraphx::program p = create_external_data_prog();
+
+    auto prog = optimize_onnx("external_data_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(external_data_diff_path_test)
+{
+    migraphx::program p = create_external_data_prog();
+
+    auto prog = optimize_onnx("ext_path/external_data_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -1960,23 +1993,24 @@ TEST_CASE(reshape_non_standard_test)
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    p.add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto inx = p.add_parameter("X", sx);
+    auto inx = mm->add_parameter("X", sx);
 
-    p.add_instruction(migraphx::op::undefined{});
+    mm->add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {4, 7};
-    auto li              = p.add_literal(migraphx::literal(si, ind));
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = p.add_instruction(migraphx::op::reshape{{8}}, inx);
-    auto r    = p.add_instruction(migraphx::op::gather{0}, lrsp, li);
-    p.add_return({r});
+    auto lrsp = mm->add_instruction(migraphx::op::reshape{{8}}, inx);
+    auto r    = mm->add_instruction(migraphx::op::gather{0}, lrsp, li);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
 
@@ -1986,23 +2020,24 @@ TEST_CASE(resize_downsample_f_test)
 TEST_CASE(resize_downsample_c_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    p.add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto inx = p.add_parameter("X", sx);
+    auto inx = mm->add_parameter("X", sx);
 
-    p.add_instruction(migraphx::op::undefined{});
+    mm->add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {0, 2};
-    auto li              = p.add_literal(migraphx::literal(si, ind));
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = p.add_instruction(migraphx::op::reshape{{8}}, inx);
-    auto r    = p.add_instruction(migraphx::op::gather{0}, lrsp, li);
-    p.add_return({r});
+    auto lrsp = mm->add_instruction(migraphx::op::reshape{{8}}, inx);
+    auto r    = mm->add_instruction(migraphx::op::gather{0}, lrsp, li);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_downsample_c_test.onnx");
 
@@ -2012,23 +2047,24 @@ TEST_CASE(resize_downsample_c_test)
 TEST_CASE(resize_outsize_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::vector<int64_t> out_len = {1, 1, 4, 6};
     migraphx::shape so{migraphx::shape::int64_type, {4}};
-    p.add_literal(migraphx::literal(so, out_len));
+    mm->add_literal(migraphx::literal(so, out_len));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto inx = p.add_parameter("X", sx);
+    auto inx = mm->add_parameter("X", sx);
 
-    p.add_instruction(migraphx::op::undefined{});
+    mm->add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3};
-    auto li              = p.add_literal(migraphx::literal(si, ind));
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = p.add_instruction(migraphx::op::reshape{{4}}, inx);
-    auto r    = p.add_instruction(migraphx::op::gather{0}, lrsp, li);
-    p.add_return({r});
+    auto lrsp = mm->add_instruction(migraphx::op::reshape{{4}}, inx);
+    auto r    = mm->add_instruction(migraphx::op::gather{0}, lrsp, li);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_outsize_test.onnx");
 
@@ -2038,23 +2074,24 @@ TEST_CASE(resize_outsize_test)
 TEST_CASE(resize_upsample_pc_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::vector<float> ds = {1.0f, 1.0f, 2.0f, 1.5f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    p.add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto inx = p.add_parameter("X", sx);
+    auto inx = mm->add_parameter("X", sx);
 
-    p.add_instruction(migraphx::op::undefined{});
+    mm->add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 4, 5, 5, 6, 7, 7};
-    auto li              = p.add_literal(migraphx::literal(si, ind));
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = p.add_instruction(migraphx::op::reshape{{8}}, inx);
-    auto r    = p.add_instruction(migraphx::op::gather{0}, lrsp, li);
-    p.add_return({r});
+    auto lrsp = mm->add_instruction(migraphx::op::reshape{{8}}, inx);
+    auto r    = mm->add_instruction(migraphx::op::gather{0}, lrsp, li);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_upsample_pc_test.onnx");
 
@@ -2064,23 +2101,24 @@ TEST_CASE(resize_upsample_pc_test)
 TEST_CASE(resize_upsample_pf_test)
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
     std::vector<float> ds = {1.0f, 1.0f, 2.0f, 3.0f};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    p.add_literal(migraphx::literal{ss, ds});
+    mm->add_literal(migraphx::literal{ss, ds});
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto inx = p.add_parameter("X", sx);
+    auto inx = mm->add_parameter("X", sx);
 
-    p.add_instruction(migraphx::op::undefined{});
+    mm->add_instruction(migraphx::op::undefined{});
 
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-    auto li              = p.add_literal(migraphx::literal(si, ind));
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = p.add_instruction(migraphx::op::reshape{{4}}, inx);
-    auto r    = p.add_instruction(migraphx::op::gather{0}, lrsp, li);
-    p.add_return({r});
+    auto lrsp = mm->add_instruction(migraphx::op::reshape{{4}}, inx);
+    auto r    = mm->add_instruction(migraphx::op::gather{0}, lrsp, li);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_upsample_pf_test.onnx");
 
@@ -2509,7 +2547,7 @@ TEST_CASE(transpose_gather_test)
 
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
-    EXPECT(mm->sort() == prog.sort());
+    EXPECT(p.sort() == prog.sort());
 }
 
 TEST_CASE(undefined_test)

@@ -13,13 +13,14 @@
 migraphx::program create_program()
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
-    auto x = p.add_parameter("x", {migraphx::shape::int64_type});
-    auto y = p.add_parameter("y", {migraphx::shape::int64_type});
+    auto x = mm->add_parameter("x", {migraphx::shape::int64_type});
+    auto y = mm->add_parameter("y", {migraphx::shape::int64_type});
 
-    auto sum = p.add_instruction(sum_op{}, x, y);
-    auto one = p.add_literal(1);
-    p.add_instruction(sum_op{}, sum, one);
+    auto sum = mm->add_instruction(sum_op{}, x, y);
+    auto one = mm->add_literal(1);
+    mm->add_instruction(sum_op{}, sum, one);
 
     return p;
 }
@@ -60,14 +61,16 @@ TEST_CASE(program_copy)
 {
     auto create_program_1 = [] {
         migraphx::program p;
+        auto* mm = p.get_main_module();
+
         migraphx::shape s{migraphx::shape::float_type, {3, 4, 5}};
         std::vector<float> data(3 * 4 * 5);
         std::iota(data.begin(), data.end(), 1.0f);
-        auto l2  = p.add_literal(migraphx::literal(s, data));
-        auto p1  = p.add_parameter("x", s);
-        auto po  = p.add_outline(s);
-        auto sum = p.add_instruction(migraphx::op::add{}, l2, po);
-        p.add_instruction(migraphx::op::mul{}, sum, p1);
+        auto l2  = mm->add_literal(migraphx::literal(s, data));
+        auto p1  = mm->add_parameter("x", s);
+        auto po  = mm->add_outline(s);
+        auto sum = mm->add_instruction(migraphx::op::add{}, l2, po);
+        mm->add_instruction(migraphx::op::mul{}, sum, p1);
 
         return p;
     };
@@ -114,13 +117,15 @@ TEST_CASE(program_copy)
 
     {
         migraphx::program p1;
+        auto* mm1 = p1.get_main_module();
+
         migraphx::shape s1{migraphx::shape::float_type, {2, 3}};
         migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
         migraphx::shape s3{migraphx::shape::float_type, {2, 6}};
-        auto para1 = p1.add_parameter("m1", s1);
-        auto para2 = p1.add_parameter("m2", s2);
-        auto para3 = p1.add_parameter("m3", s3);
-        p1.add_instruction(migraphx::op::dot{0.31f, 0.28f}, para1, para2, para3);
+        auto para1 = mm1->add_parameter("m1", s1);
+        auto para2 = mm1->add_parameter("m2", s2);
+        auto para3 = mm1->add_parameter("m3", s3);
+        mm1->add_instruction(migraphx::op::dot{0.31f, 0.28f}, para1, para2, para3);
 
         migraphx::program p2{};
         p2 = p1;

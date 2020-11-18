@@ -45,6 +45,8 @@ add_library(migraphx
     convert_to_json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
+    normalize_attributes.cpp
+    normalize_ops.cpp
 )
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -177,6 +179,11 @@ add_subdirectory(tf)
 
 add_subdirectory(py)
 add_subdirectory(targets/ref)
+if(MIGRAPHX_ENABLE_CPU)
+add_subdirectory(targets/cpu)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
+endif()
 if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)

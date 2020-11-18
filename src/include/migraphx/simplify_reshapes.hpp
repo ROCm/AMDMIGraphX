@@ -9,6 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Eliminate redundant reshapes.
@@ -16,7 +17,7 @@ struct program;
 struct simplify_reshapes
 {
     std::string name() const { return "simplify_reshapes"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

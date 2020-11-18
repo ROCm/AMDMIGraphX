@@ -10,7 +10,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_pooling::apply(program& prog) const
+void rewrite_pooling::apply(module& prog) const
 {
     for(auto ins : iterator_for(prog))
     {

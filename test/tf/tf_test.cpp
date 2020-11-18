@@ -12,7 +12,10 @@
 #include <migraphx/tf.hpp>
 #include "test.hpp"
 
-migraphx::program parse_tf(const std::string& name, bool is_nhwc, const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {})
+migraphx::program
+parse_tf(const std::string& name,
+         bool is_nhwc,
+         const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {})
 {
     return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1, dim_params});
 }

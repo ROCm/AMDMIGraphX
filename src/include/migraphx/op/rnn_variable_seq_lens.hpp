@@ -24,7 +24,7 @@ struct rnn_var_sl_shift_output
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_name, "hidden_states"), f(self.direction, "direction"));
+        return pack(f(self.output_name, "output_name"), f(self.direction, "direction"));
     }
 
     std::string name() const { return "rnn_var_sl_shift_output"; }

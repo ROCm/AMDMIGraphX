@@ -37,7 +37,7 @@ struct test_layernorm : verify_program<test_layernorm>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 1, 5};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         add_layernorm(*mm, x, dims);
@@ -50,7 +50,7 @@ struct test_layernorm2 : verify_program<test_layernorm2>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 4, 24};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         add_layernorm(*mm, x, dims);
@@ -63,7 +63,7 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 4, 24};
         auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
         auto y    = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});

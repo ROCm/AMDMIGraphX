@@ -43,6 +43,9 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
+# Disable cpu backend by default
+set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options(-std=c++14)
 
@@ -72,6 +75,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-signed-char-misuse
+        -bugprone-macro-parentheses
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

@@ -259,6 +259,20 @@ TEST_CASE(nop_transpose3)
     EXPECT(std::distance(p.begin(), p.end()) == n - 1);
 }
 
+TEST_CASE(nop_convert)
+{
+    migraphx::program p;
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
+    auto x = p.add_parameter("x", s);
+    auto t = p.add_instruction(migraphx::op::convert{migraphx::shape::float_type}, x);
+    p.add_return({t});
+    auto out_shape = p.get_output_shapes().back();
+    auto n         = std::distance(p.begin(), p.end());
+    run_pass(p);
+    EXPECT(p.get_output_shapes().back() == out_shape);
+    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+}
+
 TEST_CASE(concat_transpose1)
 {
     migraphx::program p;

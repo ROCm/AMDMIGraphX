@@ -6,8 +6,8 @@ set (MIGRAPHX_BUILD ${MIGRAPHX_FOLDER}/build)
 
 set (CMAKE_CXX_STANDARD 14)
 
-include_directories(${MIGRAPHX_FOLDER}/src/api/include)
-link_directories(${MIGRAPHX_BUILD}/lib)
+include_directories(../../src/api/include)
+link_directories(../../lib)
 
 file(GLOB util_SRC "*.cpp")
 file(GLOB test_SRC test_*.cpp)

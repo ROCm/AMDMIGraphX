@@ -21,18 +21,14 @@ void eliminate_pad::apply(module& p) const
         auto input = ins->inputs().front();
         if(input->name() != "pad")
             continue;
-        if(op_name == "convolution")
-            update_op(op::convolution{}, input, ins, p);
-        else if(op_name == "im2col")
-            update_op(op::im2col{}, input, ins, p);
+        if(op_name == "convolution" or op_name == "im2col")
+            update_op(input, ins, p);
         else if(op_name == "pooling")
             update_pooling(input, ins, p);
     }
 }
 
-template <class T>
-void eliminate_pad::update_op(T,
-                              const instruction_ref& input,
+void eliminate_pad::update_op(const instruction_ref& input,
                               const instruction_ref& ins,
                               module& p) const
 {
@@ -45,8 +41,8 @@ void eliminate_pad::update_op(T,
 
     std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
 
-    T op       = any_cast<T>(ins->get_operator());
-    op.padding = new_pads;
+    auto op = ins->get_operator();
+    op.from_value({"padding", new_pads});
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = input->inputs().front();

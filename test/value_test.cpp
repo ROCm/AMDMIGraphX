@@ -72,12 +72,30 @@ TEST_CASE(value_construct_bool)
     EXPECT(v.get_key().empty());
 }
 
-TEST_CASE(value_construct_enum)
+TEST_CASE(value_construct_enum1)
 {
     migraphx::value v = enum_type::a;
     EXPECT(v.is_int64());
     EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::a));
     EXPECT(bool{v.to<enum_type>() == enum_type::a});
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_enum2)
+{
+    migraphx::value v = enum_type::b;
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::b));
+    EXPECT(bool{v.to<enum_type>() == enum_type::b});
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_construct_enum3)
+{
+    migraphx::value v = enum_type::c;
+    EXPECT(v.is_int64());
+    EXPECT(v.get_int64() == static_cast<std::uint64_t>(enum_type::c));
+    EXPECT(bool{v.to<enum_type>() == enum_type::c});
     EXPECT(v.get_key().empty());
 }
 
@@ -465,6 +483,36 @@ TEST_CASE(value_emplace_object)
     EXPECT(v["three"].is_int64());
     EXPECT(v["three"].get_int64() == 3);
     EXPECT(v["three"].get_key() == "three");
+}
+
+TEST_CASE(value_construct_object_string_value)
+{
+    migraphx::value v = {{"one", "onev"}, {"two", "twov"}};
+    EXPECT(v.is_object());
+    EXPECT(v.size() == 2);
+    EXPECT(not v.empty());
+    EXPECT(v.data() != nullptr);
+    EXPECT(v.at("one").is_string());
+    EXPECT(v.at("one").get_key() == "one");
+    EXPECT(v.at("one").get_string() == "onev");
+    EXPECT(v.at("two").is_string());
+    EXPECT(v.at("two").get_key() == "two");
+    EXPECT(v.at("two").get_string() == "twov");
+}
+
+TEST_CASE(value_construct_object_string_mixed_value)
+{
+    migraphx::value v = {{"one", "onev"}, {"two", 2}};
+    EXPECT(v.is_object());
+    EXPECT(v.size() == 2);
+    EXPECT(not v.empty());
+    EXPECT(v.data() != nullptr);
+    EXPECT(v.at("one").is_string());
+    EXPECT(v.at("one").get_key() == "one");
+    EXPECT(v.at("one").get_string() == "onev");
+    EXPECT(v.at("two").is_int64());
+    EXPECT(v.at("two").get_key() == "two");
+    EXPECT(v.at("two").get_int64() == 2);
 }
 
 TEST_CASE(value_compare)

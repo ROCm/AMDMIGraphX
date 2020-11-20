@@ -25,7 +25,7 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..
-        make tidy VERBOSE=1
+        make tidy-target-migraphx_onnx-onnx_cpp VERBOSE=1
 
 
 

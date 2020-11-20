@@ -23,6 +23,7 @@ jobs:
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
         env
+        ldd /opt/rocm/llvm/bin/clang-tidy
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..

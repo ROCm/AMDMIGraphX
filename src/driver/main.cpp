@@ -63,7 +63,8 @@ struct loader
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
-           ap.append(), ap.nargs(2));
+           ap.append(),
+           ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
@@ -120,16 +121,16 @@ struct loader
     {
         std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
         std::string name = "";
-        for (auto&& x : param_dims_info)
+        for(auto&& x : param_dims_info)
         {
-            if (x[0] == '@')
+            if(x[0] == '@')
             {
                 name = x.substr(1);
             }
             else
             {
                 map_input_dims[name].push_back(value_parser<std::size_t>::apply(x));
-            }            
+            }
         }
 
         return map_input_dims;
@@ -545,6 +546,6 @@ int main(int argc, const char* argv[])
     {
         run_command<main_command>(args);
     }
-    
+
     return 0;
 }

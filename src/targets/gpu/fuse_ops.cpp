@@ -238,6 +238,13 @@ struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 };
 MIGRAPHX_REGISTER_OP(hip_layernorm)
 
+struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
+{
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&) {}
+};
+MIGRAPHX_REGISTER_OP(hip_triadd_layernorm)
+
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
@@ -338,6 +345,22 @@ struct find_layernorm
             return;
 
         p.replace_instruction(ins, hip_layernorm{}, x_ins, args.back());
+    }
+};
+
+struct find_triadd_layernorm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::layernorm")(match::arg(0)(match::name("gpu::triadd")(
+            match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto triadd = ins->inputs().front();
+        p.replace_instruction(ins, hip_triadd_layernorm{}, triadd->inputs());
     }
 };
 
@@ -827,7 +850,8 @@ void fuse_ops::apply(module& p) const
                         find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
                         find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
                         find_add_clip{});
-    match::find_matches(p, find_gemm_add{}, find_commutative_broadcast{});
+    run_passes(p, {dead_code_elimination{}});
+    match::find_matches(p, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
 }
 
 } // namespace gpu

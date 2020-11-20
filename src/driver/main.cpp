@@ -61,9 +61,9 @@ struct loader
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(param_dims,
-           {"--dim_val"},
-           ap.help("Dim of a parameter (format: \"name:{d1,d2,...,dn}\" (no space in the string))"),
-           ap.append());
+           {"--input-dim"},
+           ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(), ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
@@ -119,13 +119,17 @@ struct loader
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
     {
         std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
-        for(const auto& s : param_dims_info)
+        std::string name = "";
+        for (auto&& x : param_dims_info)
         {
-            auto pd = parse_dim_info(s);
-            if(!pd.first.empty())
+            if (x[0] == '@')
             {
-                map_input_dims[pd.first] = pd.second;
+                name = x.substr(1);
             }
+            else
+            {
+                map_input_dims[name].push_back(value_parser<std::size_t>::apply(x));
+            }            
         }
 
         return map_input_dims;
@@ -253,8 +257,8 @@ struct program_params
     std::vector<std::string> fill1{};
     void parse(argument_parser& ap)
     {
-        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append());
-        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
+        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
+        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
     auto generate(const program& p, const target& t, bool offload)
@@ -524,8 +528,13 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+
+    // no argument, print the help infomration by default
     if(args.empty())
-        return 0;
+    {
+        args.push_back("-h");
+    }
+
     auto&& m = get_commands();
     auto cmd = args.front();
     if(m.count(cmd) > 0)
@@ -536,5 +545,6 @@ int main(int argc, const char* argv[])
     {
         run_command<main_command>(args);
     }
+    
     return 0;
 }

@@ -1,5 +1,5 @@
 #include <migraphx/register_target.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/target.hpp>
 #include "test.hpp"
 

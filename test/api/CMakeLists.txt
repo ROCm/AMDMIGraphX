@@ -11,7 +11,7 @@ function(add_api_test TEST_NAME TEST_SRC)
 endfunction()
 
 
-add_api_test(cpu test_cpu.cpp)
+add_api_test(ref test_cpu.cpp)
 add_api_test(save_load test_save_load.cpp)
 add_api_test(op test_op_construct.cpp)
 if(MIGRAPHX_ENABLE_GPU)

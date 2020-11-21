@@ -9,6 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Remove identity instructions. Currently when used as the last pass, it will
@@ -18,7 +19,7 @@ struct program;
 struct eliminate_identity
 {
     std::string name() const { return "eliminate_identity"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

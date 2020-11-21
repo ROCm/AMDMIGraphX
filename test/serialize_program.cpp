@@ -1,5 +1,5 @@
 #include <migraphx/program.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/op/add.hpp>
 #include "test.hpp"
@@ -8,11 +8,12 @@
 migraphx::program create_program()
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
 
-    auto x   = p.add_parameter("x", {migraphx::shape::int32_type});
-    auto two = p.add_literal(2);
-    auto add = p.add_instruction(migraphx::op::add{}, x, two);
-    p.add_return({add});
+    auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
+    auto two = mm->add_literal(2);
+    auto add = mm->add_instruction(migraphx::op::add{}, x, two);
+    mm->add_return({add});
     return p;
 }
 
@@ -57,7 +58,7 @@ TEST_CASE(as_file)
 TEST_CASE(compiled)
 {
     migraphx::program p1 = create_program();
-    p1.compile(migraphx::cpu::target{});
+    p1.compile(migraphx::ref::target{});
     std::vector<char> buffer = migraphx::save_buffer(p1);
     migraphx::program p2     = migraphx::load_buffer(buffer);
     EXPECT(p1.sort() == p2.sort());

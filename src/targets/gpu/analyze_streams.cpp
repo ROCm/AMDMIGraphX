@@ -28,7 +28,7 @@ struct hip_stream_model
     bool is_wait(migraphx::instruction_ref ins) const { return ins->name() == "gpu::wait_event"; }
 };
 
-stream_model make_stream_model(const program& p)
+stream_model make_stream_model(const module& p)
 {
     hip_stream_model m;
     std::size_t stream = 0;
@@ -49,7 +49,7 @@ stream_model make_stream_model(const program& p)
     return m;
 }
 
-std::vector<stream_race> analyze_streams(const program& p)
+std::vector<stream_race> analyze_streams(const module& p)
 {
     return migraphx::analyze_streams(p, make_stream_model(p));
 }

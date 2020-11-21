@@ -2,6 +2,7 @@
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
+include(CheckCXXLinkerFlag)
 
 add_library(migraphx 
     analyze_streams.cpp
@@ -15,6 +16,7 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
+    file_buffer.cpp
     rewrite_batchnorm.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
@@ -36,12 +38,15 @@ add_library(migraphx
     register_target.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
+    tmp_dir.cpp
     value.cpp
     verify_args.cpp
     json.cpp
     convert_to_json.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
+    normalize_attributes.cpp
+    normalize_ops.cpp
 )
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -146,6 +151,13 @@ rocm_install_targets(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+
+check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+if(HAS_LIB_STD_FILESYSTEM)
+target_link_libraries(migraphx PRIVATE -lstdc++fs)
+endif()
+
+
 find_path(HALF_INCLUDE_DIR half.hpp)
 # TODO: Fix the incorrect path
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
@@ -155,6 +167,9 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
+add_library(migraphx_all_targets INTERFACE)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
+
 set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
@@ -163,14 +178,21 @@ add_subdirectory(onnx)
 add_subdirectory(tf)
 
 add_subdirectory(py)
+add_subdirectory(targets/ref)
+if(MIGRAPHX_ENABLE_CPU)
 add_subdirectory(targets/cpu)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
+endif()
 if(MIGRAPHX_ENABLE_GPU)
 list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
+target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
+target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
 endif()
 
 rocm_export_targets(
-  TARGETS migraphx::migraphx
+  TARGETS migraphx::migraphx migraphx_all_targets
   NAMESPACE migraphx::
   DEPENDS
     ${PACKAGE_DEPENDS}

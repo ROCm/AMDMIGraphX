@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
     <message>
         <id>UnusedDeref</id>
@@ -8,6 +9,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern> if \( ([!] )*?(strlen) \( \w+? \) ([>] [0] )*?\) { </pattern>
     <message>
         <id>StrlenEmptyString</id>
@@ -16,6 +18,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern> [;{}] [*] \w+? (\+\+|\-\-) ; </pattern>
     <message>
         <id>UnusedDeref</id>
@@ -42,6 +45,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>mutable \w+</pattern>
     <message>
         <id>MutableVariable</id>
@@ -50,6 +54,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>(memcpy|strcpy|strncpy|strcat|strncat) \(</pattern>
     <message>
         <id>useStlAlgorithms</id>
@@ -58,6 +63,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>memset \(</pattern>
     <message>
         <id>useStlAlgorithms</id>
@@ -66,6 +72,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>memcmp \(</pattern>
     <message>
         <id>useStlAlgorithms</id>
@@ -74,6 +81,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>memchr \(</pattern>
     <message>
         <id>useStlAlgorithms</id>
@@ -82,6 +90,7 @@
     </message>
 </rule>
 <rule>
+    <tokenlist>normal</tokenlist>
     <pattern>\\W(fclose|free|hipFree|hipHostFree|hipFreeArray|hipMemFree|hipStreamDestroy|hipEventDestroy|hipArrayDestroy|hipCtxDestroy|hipDestroyTextureObject|hipDestroySurfaceObject) \(</pattern>
     <message>
         <id>useManagePointer</id>
@@ -90,7 +99,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>raw</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[] (__device__ |__host__ )+(\(|{)]]></pattern>
     <message>
         <id>LambdaAttribute</id>
@@ -99,7 +108,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>raw</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[hipLaunchKernelGGL \( (?!\( \w+ < \w+ > \))]]></pattern>
     <message>
         <id>UseDeviceLaunch</id>
@@ -315,7 +324,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ \[ \1 \] ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -324,7 +333,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -333,7 +342,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -342,7 +351,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \w+ \[ \1 \] \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -351,7 +360,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = (?:\w+ :: )*\w+ \( \w+ \[ \1 \] , \w+ \[ \1 \] \) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -360,7 +369,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { (?:(?<idx1>\w+) \+\+|\+\+ (?<idx2>\w+)) ; if (\([^()]*(?-1)*[^()]*\)) { \w+ = \g{idx1}|\g{idx2} ; (?:break ; )?(?:return [^;]*; )?} }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -369,7 +378,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { if (\([^()]*(?-1)*[^()]*\)) { \w+ = (?<idx>\w) ; (?:break ; )?(?:return [^;]*; )?} (?:(\g{idx}) \+\+|\+\+ (\g{idx})) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -378,7 +387,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { (?:(?<idx1>\w+) \+\+|\+\+ (?<idx2>\w+)) ; if (\([^()]*(?-1)*[^()]*\)) { return \g{idx1}|\g{idx2} ; } }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>
@@ -387,7 +396,7 @@
     </message>
 </rule>
 <rule>
-    <tokenlist>simple</tokenlist>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) : (?:[^()]*(\([^()]*(?-1)*[^()]*\)))*[^)]*\) { if (\([^()]*(?-1)*[^()]*\)) { return (?<idx>\w+) ; } (?:(\g{idx}) \+\+|\+\+ (\g{idx})) ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>

@@ -87,36 +87,6 @@ struct loader
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
-    static auto parse_dim_info(const std::string& str)
-    {
-        std::vector<std::size_t> dims;
-        std::size_t name_start = 0;
-        auto dim_start         = str.find('{', name_start);
-        assert(dim_start != std::string::npos);
-        auto name_end = str.find_last_not_of(':', dim_start - 1);
-        assert(name_end != std::string::npos);
-        std::string name = str.substr(name_start, name_end - name_start + 1);
-        auto dim_end     = str.find('}', dim_start);
-        assert(dim_end != std::string::npos);
-        auto dim_str          = str.substr(dim_start + 1, dim_end - dim_start - 1);
-        std::size_t start_pos = 0;
-        while(true)
-        {
-            auto pos = dim_str.find(',', start_pos);
-            if(pos == std::string::npos)
-                break;
-
-            auto sub_str = dim_str.substr(start_pos, pos - start_pos);
-            dims.push_back(std::stoi(sub_str));
-            start_pos = pos + 1;
-        }
-        dims.push_back(std::stoi(dim_str.substr(start_pos)));
-
-        std::pair<std::string, std::vector<std::size_t>> result = {name, dims};
-
-        return result;
-    }
-
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
     {
         std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;

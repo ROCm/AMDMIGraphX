@@ -202,7 +202,7 @@ void visit_all_impl(const shape& s, V&& v, Ts&&... xs)
 template <class T, class... Ts>
 auto visit_all(T&& x, Ts&&... xs)
 {
-    auto&& s                                   = x.get_shape();
+    auto&& s = x.get_shape();
     // cppcheck-supress redundantInitialization
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
     if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))

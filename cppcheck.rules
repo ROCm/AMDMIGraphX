@@ -98,15 +98,15 @@
         <summary>Use manage pointer for resource management</summary>
     </message>
 </rule>
-<rule>
-    <tokenlist>normal</tokenlist>
+<!-- <rule>
+    <tokenlist>raw</tokenlist>
     <pattern><![CDATA[] (__device__ |__host__ )+(\(|{)]]></pattern>
     <message>
         <id>LambdaAttribute</id>
         <severity>warning</severity>
         <summary>Attributes to lambdas must come after parameter list.</summary>
     </message>
-</rule>
+</rule> -->
 <rule>
     <tokenlist>normal</tokenlist>
     <pattern><![CDATA[hipLaunchKernelGGL \( (?!\( \w+ < \w+ > \))]]></pattern>

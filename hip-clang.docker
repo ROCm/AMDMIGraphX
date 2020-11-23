@@ -48,6 +48,8 @@ RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
+RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
+
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt

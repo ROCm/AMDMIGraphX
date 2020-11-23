@@ -1,4 +1,4 @@
-FROM ubuntu:xenial-20180417
+FROM ubuntu:18.04
 
 ARG PREFIX=/usr/local
 

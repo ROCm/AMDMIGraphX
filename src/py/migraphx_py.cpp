@@ -256,9 +256,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module_wrap>(m, "module").def("print", [](const migraphx::module_wrap& mm) {
-        std::cout << *mm.prog << std::endl;
-    });
+    py::class_<migraphx::module_wrap>(m, "module")
+        .def("print", [](const migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; });
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
@@ -294,9 +293,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  return p.eval(pm);
              })
         .def("sort", &migraphx::program::sort)
-        .def("print", [](const migraphx::program& p) {
-            std::cout << p << std::endl;
-        })
+        .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });

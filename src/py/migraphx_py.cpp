@@ -213,14 +213,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module_wrap
 {
     migraphx::program* prog;
-    operator const migraphx::program&() const
-    {
-        return *prog;
-    }
-    operator migraphx::program&()
-    {
-        return *prog;
-    }
+    operator const migraphx::program&() const { return *prog; }
+    operator migraphx::program&() { return *prog; }
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
@@ -268,7 +262,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("print", [](const migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
-        .def("__repr__", [](const migraphx::module_wrap& mm) { return migraphx::to_string(*mm.prog); });
+        .def("__repr__",
+             [](const migraphx::module_wrap& mm) { return migraphx::to_string(*mm.prog); });
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })

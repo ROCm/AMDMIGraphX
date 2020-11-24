@@ -3,7 +3,14 @@ name: tidy
 on: push
 
 jobs:
-  build:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+  tidy:
     runs-on: ubuntu-18.04
 
     steps:
@@ -27,7 +34,33 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..
-        make -j2 onnx-proto tf-proto cppcheck tidy
+        make -j2 -k onnx-proto tf-proto tidy
+
+  cppcheck:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Clang tidy
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        env
+        ldd /opt/rocm/llvm/bin/clang-tidy
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off ..
+        make -j2 cppcheck
         
 
 

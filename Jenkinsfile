@@ -43,7 +43,7 @@ def rocmtestnode(Map conf) {
                     }
                 }
                 withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
-                    timeout(time: 1, unit: 'HOURS') {
+                    timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }
                 }

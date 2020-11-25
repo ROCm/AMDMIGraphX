@@ -118,7 +118,8 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
     stage('Hip Clang Release') {
         // def sanitizers = "undefined"
         // def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off")
+        def debug_flags = "-g -O1"
+        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, clang_release: rocmnode('vega') { cmake_build ->
     stage('Hip Clang Release') {
@@ -130,7 +131,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build("/opt/rocm/bin/hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {

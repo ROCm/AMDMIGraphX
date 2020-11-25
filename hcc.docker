@@ -58,6 +58,6 @@ RUN cget -p $PREFIX ignore \
     ROCmSoftwarePlatform/MIOpen \
     ROCmSoftwarePlatform/MIOpenGEMM \
     ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/hcc/bin/hcc
+RUN cget -p $PREFIX init --cxx /opt/rocm/bin/hcc
 RUN cget -p $PREFIX install -f dev-requirements.txt
 

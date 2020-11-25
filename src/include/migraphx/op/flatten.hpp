@@ -8,6 +8,8 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -25,23 +27,23 @@ struct flatten
         return pack(f(self.axis, "axis"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axis"] =
+            value::array{normalize_attribute::include_min, normalize_attribute::include_max};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "flatten"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto&& lens   = inputs.front().lens();
-        int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis > n_dim or axis < -n_dim)
-        {
-            MIGRAPHX_THROW("FLATTEN: axis for flatten is out of range");
-        }
-
-        auto tuned_axis = (axis < 0) ? axis + n_dim : axis;
-
-        auto x = std::accumulate(
-            lens.begin(), lens.begin() + tuned_axis, std::size_t{1}, std::multiplies<>{});
-        auto y = std::accumulate(
-            lens.begin() + tuned_axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+        auto&& lens = inputs.front().lens();
+        auto x =
+            std::accumulate(lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+        auto y =
+            std::accumulate(lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
         return {inputs.at(0).type(), {x, y}};
     }
     argument compute(shape output_shape, std::vector<argument> args) const

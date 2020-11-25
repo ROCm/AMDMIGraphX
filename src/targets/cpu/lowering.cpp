@@ -27,6 +27,7 @@
 #include <migraphx/cpu/gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -784,7 +785,10 @@ struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
     }
 
     std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return op.normalize_compute_shape(inputs);
+    }
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
@@ -882,7 +886,7 @@ MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
 struct cpu_apply
 {
-    program* prog;
+    module* prog;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
     template <class T>
@@ -967,7 +971,7 @@ struct cpu_apply
     }
 };
 
-void lowering::apply(program& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(module& p) const { cpu_apply{&p}.apply(); }
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

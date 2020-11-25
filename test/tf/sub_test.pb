@@ -1,12 +1,12 @@
 
 :
-0Placeholder*
-shape:*
-dtype0
+0Placeholder*
+dtype0*
+shape:
 :
-1Placeholder*
-shape:*
-dtype0
+1Placeholder*
+dtype0*
+shape:
 
 sub1Sub01*
-T0"
+T0"¸

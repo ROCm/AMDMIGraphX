@@ -77,7 +77,7 @@ MIGRAPHX_REGISTER_OP(wait_event)
 MIGRAPHX_REGISTER_OP(set_stream)
 
 std::size_t schedule_model::concurrency() const { return streams; }
-void schedule_model::sched(program& p, instruction_ref ins, std::size_t n) const
+void schedule_model::sched(module& p, instruction_ref ins, std::size_t n) const
 {
     auto last_stream = std::find_if(std::make_reverse_iterator(ins),
                                     std::make_reverse_iterator(p.begin()),
@@ -92,11 +92,11 @@ void schedule_model::sched(program& p, instruction_ref ins, std::size_t n) const
     p.insert_instruction(ins, set_stream{n});
 }
 
-void schedule_model::wait(program& p, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::wait(module& p, instruction_ref ins, std::size_t wait_id) const
 {
     p.insert_instruction(ins, wait_event{wait_id});
 }
-void schedule_model::record(program& p, instruction_ref ins, std::size_t wait_id) const
+void schedule_model::record(module& p, instruction_ref ins, std::size_t wait_id) const
 {
     p.insert_instruction(std::next(ins), record_event{wait_id});
 }

@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/.apt_3.7/ xenial main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/3.3/ xenial main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -58,6 +58,6 @@ RUN cget -p $PREFIX ignore \
     ROCmSoftwarePlatform/MIOpen \
     ROCmSoftwarePlatform/MIOpenGEMM \
     ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
+RUN cget -p $PREFIX init --cxx /opt/rocm/hcc/bin/hcc
 RUN cget -p $PREFIX install -f dev-requirements.txt
 

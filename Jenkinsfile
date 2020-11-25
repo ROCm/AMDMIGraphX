@@ -20,7 +20,7 @@ def rocmtestnode(Map conf) {
         """
         echo cmd
         sh cmd
-        if (compiler == "hcc") {
+        if (compiler != "hcc") {
             // Only archive from master or develop
             if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
                 archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
@@ -80,9 +80,9 @@ def rocmnode(name, body) {
     }
 }
 
-def rocmhipclangnode(name, body) {
+def rochccmnode(name, body) {
     return { label ->
-        rocmtestnode(variant: label, node: rocmnodename(name), docker_build_args: '-f hip-clang.docker', body: body)
+        rocmtestnode(variant: label, node: rocmnodename(name), docker_build_args: '-f hcc.docker', body: body)
     }
 }
 
@@ -104,24 +104,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
             | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
         '''
     }
-}, clang_debug: rocmnode('vega') { cmake_build ->
-    stage('Clang Debug') {
-        // TODO: Enable integer
-        def sanitizers = "undefined"
-        def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
-    }
-}, clang_release: rocmnode('vega') { cmake_build ->
-    stage('Clang Release') {
-        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=release")
-        stash includes: 'build/*.deb', name: 'migraphx-package'
-    }
-}, hip_clang_release: rocmhipclangnode('vega') { cmake_build ->
-    stage('Hip Clang Release') {
-        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
-        // stash includes: 'build/*.deb', name: 'migraphx-package'
-    }
-}, hip_clang_tidy: rocmhipclangnode('rocmtest') { cmake_build ->
+}, clang_tidy: rocmnode('rocmtest') { cmake_build ->
     stage('Hip Clang Tidy') {
         sh '''
             rm -rf build
@@ -130,6 +113,24 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
             CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
             make -j$(nproc) -k analyze
         '''
+    }
+}, clang_debug: rocmnode('vega') { cmake_build ->
+    stage('Hip Clang Release') {
+        // def sanitizers = "undefined"
+        // def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off")
+    }
+}, clang_release: rocmnode('vega') { cmake_build ->
+    stage('Hip Clang Release') {
+        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
+        stash includes: 'build/*.deb', name: 'migraphx-package'
+    }
+}, hcc_debug: rochccmnode('vega') { cmake_build ->
+    stage('Clang Debug') {
+        // TODO: Enable integer
+        def sanitizers = "undefined"
+        def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, gcc5: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Debug') {

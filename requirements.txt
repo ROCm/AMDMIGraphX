@@ -1,5 +1,5 @@
 google/protobuf@v3.11.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
-RadeonOpenCompute/rocm-cmake@2621bc70bbc1171165a50bc33ba7825795a7e315 --build
+RadeonOpenCompute/rocm-cmake@2d62bac --build
 ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06
 ROCmSoftwarePlatform/MIOpen@2.4.0
 nlohmann/json@v3.8.0

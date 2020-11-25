@@ -1,0 +1,125 @@
+name: analyze
+
+on: push
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+  tidy:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for tidy
+      uses: actions/cache@v1.1.0
+        with:
+        path: tidy-cache
+        key: ${ { matrix.config.name } }-tidy-cache-${ { steps.cache_timestamp.outputs.timestamp } }
+        restore-keys: |
+            ${ { matrix.config.name } }-tidy-cache-
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Clang tidy
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off -DCLANG_TIDY_CACHE=/data/tidy-cache ..
+        make -j2 -k onnx-proto tf-proto tidy
+
+  cppcheck:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for cppcheck
+      uses: actions/cache@v1.1.0
+        with:
+        path: cppcheck-cache
+        key: ${ { matrix.config.name } }-cppcheck-cache-${ { steps.cache_timestamp.outputs.timestamp } }
+        restore-keys: |
+            ${ { matrix.config.name } }-cppcheck-cache-
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Cppcheck
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache ..
+        make -j2 cppcheck
+
+    format:
+      runs-on: ubuntu-18.04
+
+      steps:
+      - uses: actions/checkout@v2
+
+      # In this step, this action saves a list of existing images,
+      # the cache is created without them in the post run.
+      # It also restores the cache if it exists.
+      - uses: satackey/action-docker-layer-caching@v0.0.8
+        # Ignore the failure of a step and avoid terminating the job.
+        continue-on-error: true
+
+      - name: Build the Docker image
+        run: docker build . --file hip-clang.docker --tag migraphx
+
+      - name: Check formatting
+        shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+        run: |
+          find . -iname '*.h' \
+                -o -iname '*.hpp' \
+                -o -iname '*.cpp' \
+                -o -iname '*.h.in' \
+                -o -iname '*.hpp.in' \
+                -o -iname '*.cpp.in' \
+                -o -iname '*.cl' \
+            | grep -v 'build/' \
+            | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-5.0 -style=file {} | diff - {}'
+            find . -iname '*.py' \
+            | grep -v 'build/'  \
+            | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+        
+
+
+

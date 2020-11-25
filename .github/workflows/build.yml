@@ -31,15 +31,5 @@ jobs:
         cget install -f requirements.txt
     - name: Build and test
       run: |
-        periodic() {
-            while :; do
-                    echo periodic
-                    date
-                    sleep 3
-                done
-        }
-        periodic &
-        periodic_pid=$!
         rm dev-requirements.txt
         cget build -T check
-        kill $periodic_pid

@@ -46,13 +46,16 @@ function(py_add_module NAME)
 endfunction()
 set(PYTHON_SEARCH_VERSIONS 2.7 3.5 3.6 3.7 3.8 3.9)
 
-set(PYTHON_VERSIONS)
+set(_PYTHON_VERSIONS)
 foreach(PYTHON_VERSION ${PYTHON_SEARCH_VERSIONS})
     find_python(${PYTHON_VERSION})
     if(TARGET python${PYTHON_VERSION}::headers)
         message(STATUS "Python ${PYTHON_VERSION} found.")
-        list(APPEND PYTHON_VERSIONS ${PYTHON_VERSION})
+        list(APPEND _PYTHON_VERSIONS ${PYTHON_VERSION})
     else()
         message(STATUS "Python ${PYTHON_VERSION} not found.")
     endif()
 endforeach()
+
+# Make the variable global
+set(PYTHON_VERSIONS "${_PYTHON_VERSIONS}" CACHE INTERNAL "" FORCE)

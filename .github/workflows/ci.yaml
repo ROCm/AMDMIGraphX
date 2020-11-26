@@ -125,6 +125,12 @@ jobs:
 
     runs-on: ubuntu-18.04
 
+    env:
+      CCACHE_COMPRESS: 6
+      CCACHE_DIR: ${{github.workspace}}/ccache
+      CCACHE_MAXSIZE: "500M"
+
+
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
@@ -149,6 +155,7 @@ jobs:
         cget install pfultz2/rocm-recipes
         cget ignore ROCmSoftwarePlatform/rocBLAS ROCmSoftwarePlatform/MIOpen
         cget install -f requirements.txt
+        cget install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
         cget install ccache@v4.1
     - name: Prepare timestamp
       id: cache_timestamp
@@ -160,11 +167,11 @@ jobs:
     - name: Cache files for ccache
       uses: actions/cache@v1.1.0
       with:
-        path: cache
-        key: cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        path: ccache
+        key: ccache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            cache-${{ steps.cache_timestamp.outputs.timestamp }}
-            cache-
+            ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+            ccache-
 
     - name: Build and test
       run: |

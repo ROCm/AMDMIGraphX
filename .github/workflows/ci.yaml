@@ -135,10 +135,10 @@ jobs:
         configuration:
           - debug
           - release
-        python: On
+        python: ["On"]
         include:
           - configuration: debug
-            python: Off
+            python: "Off"
 
 
 

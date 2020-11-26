@@ -139,7 +139,9 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: ${{ runner.os }}-cget-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-cget-1-${{ hashFiles('requirements.txt') }}
+
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -147,10 +149,27 @@ jobs:
         cget install pfultz2/rocm-recipes
         cget ignore ROCmSoftwarePlatform/rocBLAS ROCmSoftwarePlatform/MIOpen
         cget install -f requirements.txt
+        cget install ccache@v4.1
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for ccache
+      uses: actions/cache@v1.1.0
+      with:
+        path: cache
+        key: cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+            cache-${{ steps.cache_timestamp.outputs.timestamp }}
+            cache-
+
     - name: Build and test
       run: |
         rm dev-requirements.txt
-        cget build -T check
+        cget build -T check -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         
 
 

@@ -120,7 +120,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         '''
     }
 }, clang_debug: rocmnode('vega') { cmake_build ->
-    stage('Hip Clang Release') {
+    stage('Hip Clang Debug') {
         // def sanitizers = "undefined"
         // def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         def debug_flags = "-g -O1"

@@ -73,6 +73,10 @@ RUN cget -p $PREFIX ignore \
 RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
 RUN cget -p $PREFIX install -f dev-requirements.txt
 
+# Install latest ccache version
+RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
+RUN cget -p $PREFIX install ccache@v4.1
+
 # Install newer cmake for onnx runtime
 RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 

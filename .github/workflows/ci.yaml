@@ -34,9 +34,10 @@ jobs:
       uses: actions/cache@v1.1.0
       with:
         path: tidy-cache
-        key: ${{ matrix.config.name }}-tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            ${{ matrix.config.name }}-tidy-cache-
+            tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+            tidy-cache-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -73,9 +74,10 @@ jobs:
       uses: actions/cache@v1.1.0
       with:
         path: cppcheck-cache
-        key: ${{ matrix.config.name }}-cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            ${{ matrix.config.name }}-cppcheck-cache-
+            cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+            cppcheck-cache-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx

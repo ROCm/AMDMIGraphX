@@ -192,12 +192,14 @@ jobs:
         rm dev-requirements.txt
         cget build -T check --${{matrix.configuration}} -DMIGRAPHX_ENABLE_PYTHON=${{matrix.python}} -DCMAKE_CXX_FLAGS_DEBUG='-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=undefined,address -fno-sanitize-recover=undefined,address' -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      
     - name: Upload code coverage
       if: "matrix.configuration == 'debug'"
       env:
         CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
       run: |
-        set -x
         sudo apt-get install -y lcov
         cd $(cget build --path)
         lcov --directory . --capture --output-file $(pwd)/coverage.info

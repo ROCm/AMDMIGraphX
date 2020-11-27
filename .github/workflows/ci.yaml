@@ -185,7 +185,7 @@ jobs:
         CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/cget/bin/ccache
         CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/cget/bin/ccache
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
-        CXXFLAGS: -pthread
+        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5
       run: |
         mkdir build
         cd build

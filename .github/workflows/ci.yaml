@@ -135,12 +135,6 @@ jobs:
         configuration:
           - debug
           - release
-        python: ["On"]
-        include:
-          - configuration: debug
-            python: "Off"
-
-
 
     steps:
     - uses: actions/checkout@v2
@@ -193,7 +187,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=${{matrix.configuration}} -DMIGRAPHX_ENABLE_PYTHON=${{matrix.python}} -DCMAKE_CXX_FLAGS_DEBUG='-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=undefined,address -fno-sanitize-recover=undefined,address' -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+        cmake .. -DCMAKE_BUILD_TYPE=${{matrix.configuration}} -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release'}} -DCMAKE_CXX_FLAGS_DEBUG='-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=undefined,address -fno-sanitize-recover=undefined,address' -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
         cmake --build . --target check -- -j2
 
     # - name: Setup tmate session

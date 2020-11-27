@@ -197,7 +197,7 @@ jobs:
       env:
         CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
       run: |
-        apt install lcov
+        sudo apt-get install -y lcov
         cd $(cget build --path)
         lcov --directory . --capture --output-file $(pwd)/coverage.info
         lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info

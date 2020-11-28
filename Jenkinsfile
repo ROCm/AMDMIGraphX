@@ -110,13 +110,6 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/bin/hcc", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, gcc5: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC 5 Debug') {
-        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=debug")
-    }
-    stage('GCC 5 Release') {
-        cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
-    }
 }
 
 def onnxnode(name, body) {

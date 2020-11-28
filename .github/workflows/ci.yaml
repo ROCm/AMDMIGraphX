@@ -200,7 +200,7 @@ jobs:
     #   uses: mxschmitt/action-tmate@v3
 
     - name: Upload code coverage
-      if: "matrix.configuration == 'debug'"
+      if: "matrix.configuration == 'debug' && matrix.os == 'ubuntu-18.04'"
       env:
         CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
       run: |

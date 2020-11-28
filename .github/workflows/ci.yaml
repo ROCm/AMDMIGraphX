@@ -1,0 +1,213 @@
+name: migraphx
+
+on: push
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+  tidy:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for tidy
+      uses: pat-s/always-upload-cache@v2.1.3
+      with:
+        path: tidy-cache
+        key: tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+            tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+            tidy-cache-
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Clang tidy
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCLANG_TIDY_DEPEND_ON_TARGET=Off -DCLANG_TIDY_CACHE=/data/tidy-cache ..
+        make -j2 -k onnx-proto tf-proto tidy
+
+  cppcheck:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for cppcheck
+      uses: pat-s/always-upload-cache@v2.1.3
+      with:
+        path: cppcheck-cache
+        key: cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+            cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+            cppcheck-cache-
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Cppcheck
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        mkdir build
+        cd build
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache ..
+        make -j2 cppcheck
+
+  format:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # In this step, this action saves a list of existing images,
+    # the cache is created without them in the post run.
+    # It also restores the cache if it exists.
+    - uses: satackey/action-docker-layer-caching@v0.0.8
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
+
+    - name: Check formatting
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      run: |
+        find . -iname '*.h' \
+              -o -iname '*.hpp' \
+              -o -iname '*.cpp' \
+              -o -iname '*.h.in' \
+              -o -iname '*.hpp.in' \
+              -o -iname '*.cpp.in' \
+              -o -iname '*.cl' \
+          | grep -v 'build/' \
+          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-5.0 -style=file {} | diff - {}'
+          find . -iname '*.py' \
+          | grep -v 'build/'  \
+          | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+  build:
+
+    runs-on: ubuntu-18.04
+
+    env:
+      CCACHE_COMPRESS: 6
+      CCACHE_DIR: ${{github.workspace}}/ccache
+      CCACHE_MAXSIZE: "500M"
+
+    strategy:
+      matrix:
+        configuration:
+          - debug
+          - release
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Cache dependencies
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+      uses: actions/cache@v2
+      with:
+        # This path is specific to Ubuntu
+        path: ${{ github.workspace }}/cget
+        # Look to see if there is a cache hit for the corresponding requirements file
+        key: ${{ runner.os }}-cget-1-${{ hashFiles('requirements.txt') }}
+
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install cget
+        cget install pfultz2/rocm-recipes
+        cget ignore ROCmSoftwarePlatform/rocBLAS ROCmSoftwarePlatform/MIOpen
+        cget install -f requirements.txt
+        cget install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
+        cget install ccache@v4.1
+    - name: Prepare timestamp
+      id: cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        message("::set-output name=timestamp::${current_date}")
+
+    - name: Cache files for ccache
+      # Ignore the failure of a step and avoid terminating the job.
+      continue-on-error: true
+      uses: pat-s/always-upload-cache@v2.1.3
+      with:
+        path: ccache
+        key: ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+            ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+            ccache-
+
+    - name: Build and test
+      env:
+        CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/cget/bin/ccache
+        CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/cget/bin/ccache
+        CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
+        CXXFLAGS: -Werror -pthread --param ggc-min-expand=20
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=${{matrix.configuration}} -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} -DCMAKE_CXX_FLAGS_DEBUG='-g1 -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=undefined,address -fno-sanitize-recover=undefined,address' -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+        make -j2 check
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+
+    - name: Upload code coverage
+      if: "matrix.configuration == 'debug'"
+      env:
+        CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+      run: |
+        sudo apt-get install -y lcov
+        cd build
+        lcov --directory . --capture --output-file $(pwd)/coverage.info
+        lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
+        lcov --list $(pwd)/coverage.info
+        curl -s https://codecov.io/bash | bash
+        echo "Uploaded"
+        
+
+
+

@@ -91,35 +91,7 @@ def rochccmnode(name, body) {
     }
 }
 
-// Static checks
-rocmtest format: rocmnode('rocmtest') { cmake_build ->
-    stage('Format') {
-        sh '''
-            find . -iname \'*.h\' \
-                -o -iname \'*.hpp\' \
-                -o -iname \'*.cpp\' \
-                -o -iname \'*.h.in\' \
-                -o -iname \'*.hpp.in\' \
-                -o -iname \'*.cpp.in\' \
-                -o -iname \'*.cl\' \
-            | grep -v 'build/' \
-            | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-5.0 -style=file {} | diff - {}\'
-            find . -iname \'*.py\' \
-            | grep -v 'build/'  \
-            | xargs -n 1 -P 1 -I{} -t sh -c \'yapf {} | diff - {}\'
-        '''
-    }
-}, clang_tidy: rocmnode('rocmtest') { cmake_build ->
-    stage('Hip Clang Tidy') {
-        sh '''
-            rm -rf build
-            mkdir build
-            cd build
-            CXX=/opt/rocm/llvm/bin/clang++ cmake .. 
-            make -j$(nproc) -k analyze
-        '''
-    }
-}, clang_debug: rocmnode('vega') { cmake_build ->
+rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     stage('Hip Clang Debug') {
         // def sanitizers = "undefined"
         // def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
@@ -132,7 +104,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }, hcc_debug: rochccmnode('vega') { cmake_build ->
-    stage('Clang Debug') {
+    stage('Hcc Debug') {
         // TODO: Enable integer
         def sanitizers = "undefined"
         def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
@@ -144,35 +116,6 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
     }
     stage('GCC 5 Release') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
-    }
-}, gcc7: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC 7 Debug') {
-        def linker_flags = '-fuse-ld=gold'
-        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
-        // TODO: Add bounds-strict
-        def sanitizers = "undefined,address"
-        def debug_flags = "-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
-
-    }
-}, codecov: rocmnode('rocmtest') { cmake_build ->
-    stage('GCC 7 Codecov') {
-        def linker_flags = '-fuse-ld=gold'
-        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
-        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
-
-    }
-    stage('Codecov') {
-        env.CODECOV_TOKEN="8545af1c-f90b-4345-92a5-0d075503ca56"
-        sh '''
-            cd build
-            lcov --directory . --capture --output-file $(pwd)/coverage.info
-            lcov --remove $(pwd)/coverage.info '/usr/*' --output-file $(pwd)/coverage.info
-            lcov --list $(pwd)/coverage.info
-            curl -s https://codecov.io/bash | bash
-            echo "Uploaded"
-        '''
     }
 }
 

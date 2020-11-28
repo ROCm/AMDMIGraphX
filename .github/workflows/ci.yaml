@@ -121,9 +121,9 @@ jobs:
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
-  build:
+  linux:
 
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
 
     env:
       CCACHE_COMPRESS: 6
@@ -132,6 +132,10 @@ jobs:
 
     strategy:
       matrix:
+        os:
+          - ubuntu-16.04
+          - ubuntu-18.04
+          - ubuntu-20.04
         configuration:
           - debug
           - release
@@ -175,10 +179,10 @@ jobs:
       uses: pat-s/always-upload-cache@v2.1.3
       with:
         path: ccache
-        key: ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: ${{ runner.os }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            ccache-${{ steps.cache_timestamp.outputs.timestamp }}
-            ccache-
+            ${{ runner.os }}-ccache-${{ steps.cache_timestamp.outputs.timestamp }}
+            ${{ runner.os }}-ccache-
 
     - name: Build and test
       env:

@@ -190,7 +190,7 @@ jobs:
         mkdir build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=${{matrix.configuration}} -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} -DCMAKE_CXX_FLAGS_DEBUG='-g1 -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=undefined,address -fno-sanitize-recover=undefined,address' -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
-        make -j2 check VERBOSE=1
+        make -j2 check
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3

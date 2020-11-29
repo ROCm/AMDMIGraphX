@@ -9,7 +9,7 @@ def rocmtestnode(Map conf) {
     def pre = conf.get("pre", {})
     def ccache = "/var/jenkins/.cache/ccache"
     def image = 'migraphxlib'
-    env.CCACHE_COMPRESS = 6
+    env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     def cmake_build = { compiler, flags ->
         def cmd = """

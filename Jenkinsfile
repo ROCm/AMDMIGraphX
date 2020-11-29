@@ -11,8 +11,6 @@ def rocmtestnode(Map conf) {
     def image = 'migraphxlib'
     env.CCACHE_COMPRESS = 6
     env.CCACHE_DIR = ccache
-    env.CMAKE_C_COMPILER_LAUNCHER="ccache"
-    env.CMAKE_CXX_COMPILER_LAUNCHER="ccache"
     def cmake_build = { compiler, flags ->
         def cmd = """
             env
@@ -20,7 +18,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake ${flags} .. 
+            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} .. 
             CTEST_PARALLEL_LEVEL=32 make -j\$(nproc) generate all doc package check VERBOSE=1
         """
         echo cmd

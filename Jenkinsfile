@@ -95,7 +95,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     stage('Hip Clang Debug') {
         // def sanitizers = "undefined"
         // def debug_flags = "-O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        def debug_flags = "-g -O1"
+        def debug_flags = "-g -O2"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, clang_release: rocmnode('vega') { cmake_build ->

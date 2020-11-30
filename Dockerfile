@@ -40,6 +40,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm
 
+RUN locale-gen en_US.UTF-8
+RUN update-locale LANG=en_US.UTF-8
+
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 

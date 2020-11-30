@@ -126,11 +126,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      CCACHE_COMPRESSLEVEL: 20
+      CCACHE_COMPRESSLEVEL: 19
       CCACHE_DIR: ${{github.workspace}}/ccache
       CCACHE_NOHASHDIR: true
       CCACHE_BASEDIR: ${{github.workspace}}
-      CCACHE_MAXSIZE: "500M"
+      CCACHE_MAXSIZE: 1
 
     strategy:
       matrix:
@@ -198,7 +198,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=${{ github.workspace }}/cget/bin/ccache \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer ${{matrix.os != 'ubuntu-16.04' && '-fsanitize-address-use-after-scope' || ''}} -fsanitize=undefined,address -fno-sanitize-recover=undefined,address" -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
+          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -gsplit-dwarf -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer ${{matrix.os != 'ubuntu-16.04' && '-fsanitize-address-use-after-scope' || ''}} -fsanitize=undefined,address -fno-sanitize-recover=undefined,address" -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
         make -j2 check
         ${{ github.workspace }}/cget/bin/ccache -s
         cat /tmp/ccache.log

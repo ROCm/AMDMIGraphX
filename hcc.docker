@@ -28,6 +28,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-pip \
     software-properties-common \
     wget \
+    rocm-clang-ocl \
     rocm-device-libs \
     rocblas \
     zlib1g-dev && \
@@ -52,6 +53,7 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 # Manually ignore rocm dependencies
 RUN cget -p $PREFIX ignore \
+    RadeonOpenCompute/clang-ocl \
     ROCm-Developer-Tools/HIP \
     ROCmSoftwarePlatform/MIOpenGEMM \
     ROCmSoftwarePlatform/rocBLAS

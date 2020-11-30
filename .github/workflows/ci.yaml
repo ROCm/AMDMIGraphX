@@ -128,7 +128,7 @@ jobs:
     env:
       CCACHE_COMPRESSLEVEL: 7
       CCACHE_DIR: ${{github.workspace}}/ccache
-      CCACHE_HASHDIR: 0
+      CCACHE_NOHASHDIR: true
       CCACHE_BASEDIR: ${{github.workspace}}
       CCACHE_MAXSIZE: "500M"
 

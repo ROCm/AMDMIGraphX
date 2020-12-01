@@ -148,10 +148,8 @@ def biasadd_test(g1):
 @tf_test
 def biasadd_scalar_test(g1):
     with g1.as_default():
-        g1_input = tf.compat.v1.placeholder(tf.float32,
-                                            shape=(1, 1),
-                                            name='0')
-        g2_const = tf.constant(1.0, tf.float32, shape=(1,), name='1')
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(1, 1), name='0')
+        g2_const = tf.constant(1.0, tf.float32, shape=(1, ), name='1')
         tf.nn.bias_add(g1_input, g2_const, name='bias_add1')
 
 
@@ -205,7 +203,11 @@ def conv_nchw_test(g1):
                                  dtype=tf.float32,
                                  shape=(3, 3, 3, 32),
                                  name='1')
-        tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", data_format='NCHW', name='conv1')
+        tf.nn.conv2d(g1_input,
+                     g1_weights, [1, 1, 1, 1],
+                     "SAME",
+                     data_format='NCHW',
+                     name='conv1')
 
 
 @tf_test

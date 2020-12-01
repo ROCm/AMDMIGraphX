@@ -204,8 +204,9 @@ TEST_CASE(biasadd_scalar_test)
     migraphx::shape s0{migraphx::shape::float_type, {1, 1}};
     uint64_t axis = 1;
     auto l0       = mm->add_parameter("0", s0);
-    auto l1       = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1.0}});
-    auto l2       = mm->add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
+    auto l1       = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1.0}});
+    auto l2 = mm->add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
     mm->add_instruction(migraphx::op::add{}, l0, l2);
     auto prog = optimize_tf("biasadd_scalar_test.pb", true);
 
@@ -280,7 +281,7 @@ migraphx::program create_conv()
 TEST_CASE(conv_test)
 {
     migraphx::program p = create_conv();
-    auto prog = optimize_tf("conv_test.pb", true);
+    auto prog           = optimize_tf("conv_test.pb", true);
 
     EXPECT(p == prog);
 }
@@ -288,7 +289,7 @@ TEST_CASE(conv_test)
 TEST_CASE(conv_nchw_test)
 {
     migraphx::program p = create_conv();
-    auto prog = optimize_tf("conv_nchw_test.pb", false);
+    auto prog           = optimize_tf("conv_nchw_test.pb", false);
 
     EXPECT(p == prog);
 }

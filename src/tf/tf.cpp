@@ -36,8 +36,6 @@ struct tf_parser
     module* mm              = prog.get_main_module();
     bool is_nhwc            = true;
     unsigned int batch_size = 1;
-    // Specified dims of inputs
-    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -470,7 +468,7 @@ struct tf_parser
                 op.padding[1] = padding[1];
             }
         }
-        return mm->add_instruction(op, {l0, weights});
+        return mm->add_instruction(op, {l0, to_kcxy(args[1])});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,
@@ -1035,22 +1033,13 @@ struct tf_parser
             attribute_map input_attrs = get_attributes(input);
             shape::type_t shape_type  = parse_type(input_attrs.at("dtype").type());
             std::vector<size_t> dims  = parse_dims(input_attrs.at("shape").shape());
-
-            if(contains(map_input_dims, name))
+            if(is_nhwc and dims.size() >= 4)
             {
-                dims = map_input_dims.at(name);
+                reorder_data(dims);
             }
-            else
-            {
-                if(is_nhwc and dims.size() >= 4)
-                {
-                    reorder_data(dims);
-                }
-                std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
-                    return static_cast<int>(dim) <= 0 ? batch_size : dim;
-                });
-            }
-
+            std::transform(dims.begin(), dims.end(), dims.begin(), [&](auto dim) {
+                return static_cast<int>(dim) <= 0 ? batch_size : dim;
+            });
             shape s            = shape{shape_type, dims};
             instructions[name] = to_nhwc(mm->add_parameter(name, s));
         }
@@ -1411,9 +1400,8 @@ program parse_tf(const std::string& name, tf_options options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf_parser parser;
-    parser.is_nhwc        = options.is_nhwc;
-    parser.batch_size     = options.batch_size;
-    parser.map_input_dims = options.map_input_dims;
+    parser.is_nhwc    = options.is_nhwc;
+    parser.batch_size = options.batch_size;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

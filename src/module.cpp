@@ -80,9 +80,8 @@ static void print_module(const module& m, F print_func)
         }
         names.emplace(ins, var_name);
 
-        const auto& ins_inputs = ins->inputs();
-        assert(std::all_of(ins_inputs.begin(),
-                           ins_inputs.end(),
+        assert(std::all_of(ins->inputs().begin(),
+                           ins->inputs().end(),
                            [&](auto arg) { return m.has_instruction(arg); }) &&
                "PRINT_MODULE: Instruction not found");
 

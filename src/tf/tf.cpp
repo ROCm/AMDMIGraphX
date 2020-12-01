@@ -468,7 +468,7 @@ struct tf_parser
                 op.padding[1] = padding[1];
             }
         }
-        return mm->add_instruction(op, {l0, to_kcxy(args[1])});
+        return mm->add_instruction(op, {l0, weights});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,

@@ -49,8 +49,8 @@ struct broadcast
         if(std::all_of(
                broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) { return x == 1; }))
         {
-            if(axis != 0)
-                MIGRAPHX_THROW("BROADCAST: when broadcasting tensor of size 1, axis should be 0");
+            // if(axis != 0)
+            //     MIGRAPHX_THROW("BROADCAST: when broadcasting tensor of size 1, axis should be 0");
             return {t, broadcast_lens, std::move(bcast_strides)};
         }
         else

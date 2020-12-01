@@ -259,6 +259,8 @@ value to_value_op(const T& x)
 template <class T>
 void from_value_op(T& x, const value& v)
 {
+    if(not(v.is_object() or (v.empty() and v.is_array())))
+        MIGRAPHX_THROW("Value is not an object");
     return migraphx::from_value(v, x);
 }
 

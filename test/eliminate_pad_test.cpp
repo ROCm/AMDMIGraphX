@@ -38,7 +38,7 @@ create_conv(migraphx::instruction_ref& l_img,
     return mm->add_instruction(op, l_img, l_weights);
 }
 
-TEST_CASE(rewrite_test)
+TEST_CASE(rewrite_pad)
 {
     migraphx::program p;
     auto* mm          = p.get_main_module();
@@ -56,12 +56,26 @@ TEST_CASE(rewrite_test)
     auto l2 = mm->add_instruction(migraphx::op::pooling{"max"}, padded_img);
     mm->add_instruction(migraphx::op::identity{}, l0, l1, l2);
 
+    auto s0 = l0->get_shape();
+    auto s1 = l1->get_shape();
+    auto s2 = l2->get_shape();
     run_pass(p);
+    EXPECT(l0->get_shape() == s0);
+    EXPECT(l1->get_shape() == s1);
+    EXPECT(l2->get_shape() == s2);
+    auto op0 = l0->get_operator().to_value();
+    auto op1 = l1->get_operator().to_value();
+    auto op2 = l2->get_operator().to_value();
+
+    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
+    EXPECT(op1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
+    EXPECT(op2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
+
     EXPECT(std::none_of(
         p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
-TEST_CASE(rewrite_test_asymmetric)
+TEST_CASE(rewrite_pad_im2col_asymmetric)
 {
     migraphx::program p;
 
@@ -75,7 +89,14 @@ TEST_CASE(rewrite_test_asymmetric)
     auto l_img      = mm->add_literal(migraphx::literal{s_img, input});
     auto padded_img = mm->add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 2, 2}}, l_img);
 
-    create_im2col(padded_img, channels, p);
+    auto l0 = create_im2col(padded_img, channels, p);
+
+    auto s0 = l0->get_shape();
+    run_pass(p);
+    EXPECT(l0->get_shape() == s0);
+    auto op0 = l0->get_operator().to_value();
+
+    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0});
 
     run_pass(p);
     EXPECT(std::any_of(

@@ -21,6 +21,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     gdb \
     git \
     lcov \
+    locales \
     pkg-config \
     python \
     python-dev \

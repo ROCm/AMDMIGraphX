@@ -190,7 +190,7 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CCACHE_LOGFILE: /tmp/ccache.log
-        CXXFLAGS: -Werror -pthread --param ggc-min-expand=20
+        CXXFLAGS: -Werror -pthread --param ggc-min-expand=5 --param ggc-min-heapsize=8192
       run: |
         mkdir build
         cd build

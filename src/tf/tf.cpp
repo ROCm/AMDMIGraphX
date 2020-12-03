@@ -60,9 +60,7 @@ struct tf_parser
 
     instruction_ref to_kcxy(instruction_ref ins) const
     {
-        if(should_transpose(ins))
-            return mm->add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
-        return ins;
+        return mm->add_instruction(op::transpose{{3, 2, 0, 1}}, ins);
     }
 
     instruction_ref make_contiguous(instruction_ref ins) const
@@ -470,7 +468,7 @@ struct tf_parser
                 op.padding[1] = padding[1];
             }
         }
-        return mm->add_instruction(op, {l0, to_kcxy(args[1])});
+        return mm->add_instruction(op, {l0, weights});
     }
 
     instruction_ref parse_depthwiseconv(const std::string&,

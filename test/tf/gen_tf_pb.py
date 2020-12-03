@@ -146,6 +146,14 @@ def biasadd_test(g1):
 
 
 @tf_test
+def biasadd_scalar_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(1, 1), name='0')
+        g2_const = tf.constant(1.0, tf.float32, shape=(1, ), name='1')
+        tf.nn.bias_add(g1_input, g2_const, name='bias_add1')
+
+
+@tf_test
 def cast_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
@@ -183,6 +191,23 @@ def conv_test(g1):
                                  shape=(3, 3, 3, 32),
                                  name='1')
         tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+
+
+@tf_test
+def conv_nchw_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        tf.nn.conv2d(g1_input,
+                     g1_weights, [1, 1, 1, 1],
+                     "SAME",
+                     data_format='NCHW',
+                     name='conv1')
 
 
 @tf_test
@@ -540,10 +565,12 @@ if __name__ == '__main__':
     batchnorm_test()
     batchnormv3_test()
     biasadd_test()
+    biasadd_scalar_test()
     cast_test()
     concat_test()
     const_test()
     conv_test()
+    conv_nchw_test()
     depthwiseconv_test()
     expanddims_test()
     gather_test()

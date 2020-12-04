@@ -184,7 +184,7 @@ TEST_CASE(check_to_value2)
 {
     migraphx::operation op = simple_operation{};
     auto v                 = migraphx::to_value(op);
-    EXPECT(v == migraphx::value{{"data", 1}});
+    EXPECT(v == migraphx::value{{"name", "simple"}, {"operator", {{"data", 1}}}});
 }
 
 TEST_CASE(check_from_value1)

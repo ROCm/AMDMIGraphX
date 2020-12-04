@@ -507,8 +507,8 @@ TEST_CASE(dot_double_2args)
         auto new_alpha = mm->add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
         auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fdot);
         mm->add_instruction(
-            migraphx::make_op(
-                "convert", {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
             alpha_ab);
 
         return p;

@@ -39,13 +39,13 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                 block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
                     data_idx[axis] = j;
                     auto val       = input[data_idx] - batch_max;
-                    return::exp(to_hip_type(val));
+                    return ::exp(to_hip_type(val));
                 });
 
             idx.local_stride(batch_item_num, [&](auto j) __device__ {
                 data_idx[axis]   = j;
                 auto val         = input[data_idx] - batch_max;
-                output[data_idx] =::exp(to_hip_type(val)) / batch_sum;
+                output[data_idx] = ::exp(to_hip_type(val)) / batch_sum;
             });
         });
     });

@@ -41,7 +41,8 @@ struct test_lstm_forward_default_actv1 : verify_program<test_lstm_forward_defaul
                 "lstm",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx ::op ::sigmoid{}})},
+                  migraphx::to_value(
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
                  {"clip", clip}}),
             seq,

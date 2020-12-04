@@ -34,8 +34,9 @@ struct test_lstm_reverse_3args_cell_output : verify_program<test_lstm_reverse_3a
                 "lstm",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx ::op ::sigmoid{}, migraphx ::op ::tanh{}, migraphx ::op ::tanh{}})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::reverse)},
                  {"clip", clip}}),
             seq,

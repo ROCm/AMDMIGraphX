@@ -35,8 +35,9 @@ struct test_lstm_forward_3args_und : verify_program<test_lstm_forward_3args_und>
                 "lstm",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx ::op ::sigmoid{}, migraphx ::op ::tanh{}, migraphx ::op ::tanh{}})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
                  {"clip", clip}}),
             seq,

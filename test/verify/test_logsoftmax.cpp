@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 template <int Axis, migraphx::shape::type_t T>
@@ -13,7 +15,7 @@ struct test_logsoftmax : verify_program<test_logsoftmax<Axis, T>>
         auto* mm = p.get_main_module();
         migraphx::shape s{T, {10, 4, 2080, 6}};
         auto param = mm->add_parameter("0", s);
-        mm->add_instruction(migraphx::op::logsoftmax{Axis}, param);
+        mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", Axis}}), param);
 
         return p;
     }

@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
@@ -22,7 +24,8 @@ struct test_batchnorm_1d : verify_program<test_batchnorm_1d>
         auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
-        mm->add_instruction(migraphx::op::batch_norm_inference{}, x, scale, bias, mean, variance);
+        mm->add_instruction(
+            migraphx::make_op("batch_norm_inference"), x, scale, bias, mean, variance);
         return p;
     }
 };

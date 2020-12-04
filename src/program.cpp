@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <set>
 #include <utility>
+#include <migraphx/make_op.hpp>
+
 #include <unordered_set>
 
 namespace migraphx {
@@ -212,7 +214,7 @@ instruction_ref program::replace_instruction(instruction_ref ins, instruction_re
 
     if(ins == std::prev(this->end()))
     {
-        return replace_instruction(ins, op::identity{}, rep);
+        return replace_instruction(ins, make_op("identity"), rep);
     }
 
     // TODO: Should it be an error if the output is empty?

@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct batch_quant_dot_2 : verify_program<batch_quant_dot_2>
@@ -17,7 +19,8 @@ struct batch_quant_dot_2 : verify_program<batch_quant_dot_2>
         auto l1 = mm->add_parameter("a", m1_shape);
         auto l2 = mm->add_parameter("b", m2_shape);
         auto l3 = mm->add_parameter("c", m3_shape);
-        mm->add_instruction(migraphx::op::quant_dot{1, 3}, l1, l2, l3);
+        mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 3}}), l1, l2, l3);
         return p;
     }
 };

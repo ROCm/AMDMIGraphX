@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25>
@@ -19,7 +21,8 @@ struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25>
         auto l3     = mm->add_parameter("3", m3_shape);
         float alpha = 0.35;
         float beta  = 0.41;
-        mm->add_instruction(migraphx::op::dot{alpha, beta}, l1, l2, l3);
+        mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
 
         return p;
     }

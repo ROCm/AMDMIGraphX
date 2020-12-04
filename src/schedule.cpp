@@ -12,6 +12,8 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <migraphx/make_op.hpp>
+
 #include <set>
 #include <deque>
 #include <chrono>
@@ -556,7 +558,7 @@ void schedule::apply(module& p) const
         std::vector<instruction_ref> args;
         args.push_back(ip.first);
         args.insert(args.end(), ip.second.begin(), ip.second.end());
-        p.insert_instruction(std::next(ip.first), op::identity{}, args);
+        p.insert_instruction(std::next(ip.first), make_op("identity"), args);
     }
 }
 

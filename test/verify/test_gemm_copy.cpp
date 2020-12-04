@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_gemm_copy : verify_program<test_gemm_copy>
@@ -16,8 +18,8 @@ struct test_gemm_copy : verify_program<test_gemm_copy>
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto dr = mm->add_instruction(migraphx::op::dot{}, pa, pb, pc);
-        mm->add_instruction(migraphx::op::add{}, dr, dr);
+        auto dr = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+        mm->add_instruction(migraphx::make_op("add"), dr, dr);
 
         return p;
     }

@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_cos : verify_program<test_cos>
@@ -12,7 +14,7 @@ struct test_cos : verify_program<test_cos>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::double_type, {8}};
         auto x = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::op::cos{}, x);
+        mm->add_instruction(migraphx::make_op("cos"), x);
         return p;
     }
 };

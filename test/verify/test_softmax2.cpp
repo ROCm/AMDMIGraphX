@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_softmax2 : verify_program<test_softmax2>
@@ -12,7 +14,7 @@ struct test_softmax2 : verify_program<test_softmax2>
         auto* mm = p.get_main_module();
         auto x =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1000, 1, 1}});
-        mm->add_instruction(migraphx::op::softmax{}, x);
+        mm->add_instruction(migraphx::make_op("softmax"), x);
         return p;
     }
 };

@@ -1,4 +1,8 @@
 #include <migraphx/op/load.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
 #include "memory_coloring_impl.hpp"
 
 namespace migraphx {
@@ -208,7 +212,9 @@ void memory_coloring_impl::rewrite()
             if(is_allocate(ins))
             {
                 p_program->replace_instruction(
-                    ins, op::load{ins->get_shape(), offset}, scratch_param);
+                    ins,
+                    make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", offset}}),
+                    scratch_param);
             }
         }
     }

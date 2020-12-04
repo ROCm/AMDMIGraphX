@@ -4,6 +4,8 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
@@ -20,7 +22,7 @@ create_im2col(migraphx::instruction_ref& l_img, size_t channels, migraphx::progr
     auto* mm = p.get_main_module();
     migraphx::shape s_weights{migraphx::shape::int32_type, {1, channels, f[0], f[1]}};
     auto l_weights = mm->add_literal(migraphx::literal{s_weights, weights});
-    return mm->add_instruction(migraphx::op::im2col{}, l_img, l_weights);
+    return mm->add_instruction(migraphx::make_op("im2col"), l_img, l_weights);
 }
 
 migraphx::instruction_ref
@@ -49,12 +51,13 @@ TEST_CASE(rewrite_pad)
 
     migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
     auto l_img      = mm->add_literal(migraphx::literal{s_img, input});
-    auto padded_img = mm->add_instruction(migraphx::op::pad{{0, 0, 1, 1, 0, 0, 1, 1}}, l_img);
+    auto padded_img =
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
 
     auto l0 = create_im2col(padded_img, channels, p);
     auto l1 = create_conv(padded_img, channels, p);
-    auto l2 = mm->add_instruction(migraphx::op::pooling{"max"}, padded_img);
-    mm->add_instruction(migraphx::op::identity{}, l0, l1, l2);
+    auto l2 = mm->add_instruction(migraphx::make_op("pooling", {{"mode", "max"}}), padded_img);
+    mm->add_instruction(migraphx::make_op("identity"), l0, l1, l2);
 
     auto s0 = l0->get_shape();
     auto s1 = l1->get_shape();
@@ -87,7 +90,8 @@ TEST_CASE(rewrite_pad_im2col_asymmetric)
 
     migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
     auto l_img      = mm->add_literal(migraphx::literal{s_img, input});
-    auto padded_img = mm->add_instruction(migraphx::op::pad{{0, 0, 0, 0, 0, 0, 2, 2}}, l_img);
+    auto padded_img =
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 2, 2}}}), l_img);
 
     auto l0 = create_im2col(padded_img, channels, p);
 

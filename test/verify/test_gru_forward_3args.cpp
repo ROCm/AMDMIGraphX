@@ -2,6 +2,10 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_gru_forward_3args : verify_program<test_gru_forward_3args>
@@ -25,13 +29,18 @@ struct test_gru_forward_3args : verify_program<test_gru_forward_3args>
         auto seq = mm->add_parameter("seq", in_shape);
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
-        mm->add_instruction(migraphx::op::gru{hidden_size,
-                                              {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                              migraphx::op::rnn_direction::forward,
-                                              clip},
-                            seq,
-                            w,
-                            r);
+        mm->add_instruction(
+            migraphx::make_op(
+                "gru",
+                {{"hidden_size", hidden_size},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx ::op ::sigmoid{},
+                                                                      migraphx ::op ::tanh{}})},
+                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r);
 
         return p;
     }

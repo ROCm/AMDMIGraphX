@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_triadd : verify_program<test_triadd>
@@ -14,8 +16,8 @@ struct test_triadd : verify_program<test_triadd>
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        auto sum = mm->add_instruction(migraphx::op::add{}, x, y);
-        mm->add_instruction(migraphx::op::add{}, sum, z);
+        auto sum = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_instruction(migraphx::make_op("add"), sum, z);
         return p;
     }
 };

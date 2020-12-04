@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_div2 : verify_program<test_div2>
@@ -15,9 +17,10 @@ struct test_div2 : verify_program<test_div2>
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
         auto z    = mm->add_parameter("z", b);
-        auto zb   = mm->add_instruction(migraphx::op::broadcast{1, s.lens()}, z);
-        auto diff = mm->add_instruction(migraphx::op::div{}, x, y);
-        mm->add_instruction(migraphx::op::div{}, diff, zb);
+        auto zb   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), z);
+        auto diff = mm->add_instruction(migraphx::make_op("div"), x, y);
+        mm->add_instruction(migraphx::make_op("div"), diff, zb);
         return p;
     }
 };

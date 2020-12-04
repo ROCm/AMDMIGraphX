@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_conv3d : verify_program<test_conv3d>
@@ -15,7 +17,11 @@ struct test_conv3d : verify_program<test_conv3d>
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3, 3}});
         mm->add_instruction(
-            migraphx::op::convolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
+            migraphx::make_op(
+                "convolution",
+                {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+            input,
+            weights);
         return p;
     }
 };

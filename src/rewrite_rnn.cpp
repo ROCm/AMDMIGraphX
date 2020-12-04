@@ -18,6 +18,8 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/ranges.hpp>
@@ -80,20 +82,26 @@ void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
     if(dirct == op::rnn_direction::bidirectional)
     {
         // input weight matrix
-        auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
-        auto w_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[1]);
+        auto w_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
+        auto w_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
         // hidden state weight matrix
-        auto r_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[2]);
-        auto r_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[2]);
+        auto r_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
+        auto r_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
         // process bias
         instruction_ref bias_forward = prog.end();
         instruction_ref bias_reverse = prog.end();
         if(args.size() >= 4 && args[3]->name() != "undefined")
         {
-            bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
-            bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
+            bias_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
+            bias_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[3]);
         }
 
         // process intial hidden state, it could be the 6th argument
@@ -102,8 +110,10 @@ void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
         instruction_ref ih_reverse{};
         if(args.size() == 6 && args[5]->name() != "undefined")
         {
-            ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
-            ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
+            ih_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
+            ih_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[5]);
         }
         else
         {
@@ -120,8 +130,8 @@ void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
 
         auto ret_reverse =
@@ -131,24 +141,27 @@ void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
                              {args[0], w_reverse, r_reverse, bias_reverse, seq_lens, ih_reverse},
                              actv_funcs.at(1));
 
-        auto concat_output =
-            prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-        last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
+        auto concat_output = prog.insert_instruction(
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
+        last_output =
+            prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_output);
 
         // The following logic is to ensure the last instruction rewritten from
         // rnn operator is a concat instruction
         // sequence len is 1
         if(ret_forward[0] == prog.end())
         {
-            prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
         }
         else
         {
-            ret_forward[0] =
-                prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
-            ret_reverse[0] =
-                prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
-            prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+            ret_forward[0] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[0], ret_forward[1]);
+            ret_reverse[0] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[1], ret_reverse[0]);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 1}}), {ret_forward[0], ret_reverse[0]});
         }
     }
     else
@@ -180,26 +193,27 @@ void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
 
         if(!is_forward and variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
 
         auto ret = vanilla_rnn_cell(
             is_forward, prog, ins, {args[0], w, r, bias, seq_lens, ih}, actv_funcs.at(0));
-        last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+        last_output = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
 
         // following logic is to ensure the last instruction is a
         // concat instruction
         // sequence len is 1
         if(ret[0] == prog.end())
         {
-            prog.replace_instruction(ins, op::concat{0}, ret[1]);
+            prog.replace_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
         }
         else
         {
             auto concat_arg0 = is_forward ? ret[0] : ret[1];
             auto concat_arg1 = is_forward ? ret[1] : ret[0];
-            prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 0}}), concat_arg0, concat_arg1);
         }
     }
 
@@ -225,15 +239,15 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
 
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
-    auto sw      = prog.insert_instruction(ins, op::squeeze{{0}}, w);
-    auto tran_sw = prog.insert_instruction(ins, op::transpose{perm}, sw);
+    auto sw      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
+    auto tran_sw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
 
     // squeeze and transpose r
-    auto sr      = prog.insert_instruction(ins, op::squeeze{{0}}, r);
-    auto tran_sr = prog.insert_instruction(ins, op::transpose{perm}, sr);
+    auto sr      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
+    auto tran_sr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sr);
 
     // initial hidden state
-    auto sih      = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
+    auto sih      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
     auto sih_lens = sih->get_shape().lens();
 
     // bias
@@ -241,30 +255,36 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     if(bias != prog.end())
     {
         long hs    = static_cast<long>(r->get_shape().lens()[2]);
-        auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto wb    = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, sbias);
-        auto rb    = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, sbias);
-        auto wrb   = prog.insert_instruction(ins, op::add{}, wb, rb);
-        bb         = prog.insert_instruction(ins, op::broadcast{1, sih_lens}, wrb);
+        auto sbias = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
+        auto wb    = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), sbias);
+        auto rb = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {hs}}, {"ends", {2 * hs}}}), sbias);
+        auto wrb = prog.insert_instruction(ins, make_op("add"), wb, rb);
+        bb       = prog.insert_instruction(
+            ins, make_op("broadcast", {{"axis", 1}, {"dims", sih_lens}}), wrb);
     }
 
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
-    last_out     = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+    last_out     = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), sih);
     long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
-        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
-        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
-        auto xt_wi   = prog.insert_instruction(ins, op::dot{}, xt, tran_sw);
-        auto ht_ri   = prog.insert_instruction(ins, op::dot{}, sih, tran_sr);
+        auto xt        = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {seq_index}}, {"ends", {seq_index + 1}}}),
+            seq);
+        auto cont_xt = prog.insert_instruction(ins, make_op("contiguous"), xt);
+        xt           = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), cont_xt);
+        auto xt_wi   = prog.insert_instruction(ins, make_op("dot"), xt, tran_sw);
+        auto ht_ri   = prog.insert_instruction(ins, make_op("dot"), sih, tran_sr);
         if(bias != prog.end())
         {
-            xt_wi = prog.insert_instruction(ins, op::add{}, xt_wi, bb);
+            xt_wi = prog.insert_instruction(ins, make_op("add"), xt_wi, bb);
         }
-        auto xt_ht = prog.insert_instruction(ins, op::add{}, xt_wi, ht_ri);
+        auto xt_ht = prog.insert_instruction(ins, make_op("add"), xt_wi, ht_ri);
 
         // apply activation function
         auto ht = prog.insert_instruction(ins, actv_func, xt_ht);
@@ -272,7 +292,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
 
         // add the dimensions of sequence length (axis 0 for sequence length,
         // axis 1 for num_directions
-        last_out = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, ht);
+        last_out = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), ht);
 
         // concatenation for the last last_out is performed in the apply()
         // function to ensure the last instruction is concat, then we have
@@ -281,17 +301,17 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
         {
             if(is_forward)
             {
-                hidden_out =
-                    (seq_index == 0)
-                        ? last_out
-                        : prog.insert_instruction(ins, op::concat{0}, hidden_out, last_out);
+                hidden_out = (seq_index == 0)
+                                 ? last_out
+                                 : prog.insert_instruction(
+                                       ins, make_op("concat", {{"axis", 0}}), hidden_out, last_out);
             }
             else
             {
-                hidden_out =
-                    (seq_index == seq_len - 1)
-                        ? last_out
-                        : prog.insert_instruction(ins, op::concat{0}, last_out, hidden_out);
+                hidden_out = (seq_index == seq_len - 1)
+                                 ? last_out
+                                 : prog.insert_instruction(
+                                       ins, make_op("concat", {{"axis", 0}}), last_out, hidden_out);
             }
         }
     }
@@ -311,7 +331,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
         if(rnn_op.actv_funcs.empty())
         {
             // default is tanh
-            return {op::tanh{}, op::tanh{}};
+            return {make_op("tanh"), make_op("tanh")};
         }
         else if(rnn_op.actv_funcs.size() == 1)
         {
@@ -327,7 +347,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
         if(rnn_op.actv_funcs.empty())
         {
             // default is tanh
-            return {op::tanh{}};
+            return {make_op("tanh")};
         }
         else
         {
@@ -369,20 +389,26 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
     if(dirct == op::rnn_direction::bidirectional)
     {
         // w weight matrix
-        auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
-        auto w_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[1]);
+        auto w_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
+        auto w_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
         // r weight matrix
-        auto r_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[2]);
-        auto r_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[2]);
+        auto r_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
+        auto r_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
         // bias
         instruction_ref bias_forward = prog.end();
         instruction_ref bias_reverse = prog.end();
         if(args.size() >= 4 && args[3]->name() != "undefined")
         {
-            bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
-            bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
+            bias_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
+            bias_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[3]);
         }
 
         // intial hidden state
@@ -390,8 +416,10 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
         instruction_ref ih_reverse{};
         if(args.size() == 6 && args[5]->name() != "undefined")
         {
-            ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
-            ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
+            ih_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
+            ih_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[5]);
         }
         else
         {
@@ -410,8 +438,8 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
 
         auto ret_reverse =
@@ -423,23 +451,26 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
                      actv_funcs.at(2),
                      actv_funcs.at(3));
 
-        auto concat_output =
-            prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-        last_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_output);
+        auto concat_output = prog.insert_instruction(
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
+        last_output =
+            prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_output);
 
         // The following logic is to ensure the last instruction rewritten
         // from gru operator is a concat
         if(ret_forward[0] == prog.end())
         {
-            prog.replace_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
         }
         else
         {
-            ret_forward[0] =
-                prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
-            ret_reverse[0] =
-                prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
-            prog.replace_instruction(ins, op::concat{1}, {ret_forward[0], ret_reverse[0]});
+            ret_forward[0] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[0], ret_forward[1]);
+            ret_reverse[0] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[1], ret_reverse[0]);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 1}}), {ret_forward[0], ret_reverse[0]});
         }
     }
     else
@@ -469,8 +500,8 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
 
         if(!is_forward and variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
 
         auto ret = gru_cell(is_forward,
@@ -481,17 +512,18 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
                             actv_funcs.at(0),
                             actv_funcs.at(1));
 
-        last_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
+        last_output = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
 
         if(ret[0] == prog.end())
         {
-            prog.replace_instruction(ins, op::concat{0}, ret[1]);
+            prog.replace_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
         }
         else
         {
             auto concat_arg0 = is_forward ? ret[0] : ret[1];
             auto concat_arg1 = is_forward ? ret[1] : ret[0];
-            prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+            prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 0}}), concat_arg0, concat_arg1);
         }
     }
 
@@ -529,19 +561,21 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
 
     // w matrix squeeze to 2-dim and do a transpose
     std::vector<int64_t> perm{1, 0};
-    auto sw = prog.insert_instruction(ins, op::squeeze{{0}}, w);
-    auto tw = prog.insert_instruction(ins, op::transpose{perm}, sw);
+    auto sw = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
+    auto tw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
 
     // r slide to two part, zr and h
-    auto sr   = prog.insert_instruction(ins, op::squeeze{{0}}, r);
-    auto rzr  = prog.insert_instruction(ins, op::slice{{0}, {0}, {2 * hs}}, sr);
-    auto trzr = prog.insert_instruction(ins, op::transpose{perm}, rzr);
+    auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
+    auto rzr = prog.insert_instruction(
+        ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2 * hs}}}), sr);
+    auto trzr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), rzr);
 
-    auto rh  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, sr);
-    auto trh = prog.insert_instruction(ins, op::transpose{perm}, rh);
+    auto rh = prog.insert_instruction(
+        ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), sr);
+    auto trh = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), rh);
 
     // initial states
-    auto sih  = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
+    auto sih  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
     size_t bs = ih->get_shape().lens()[1];
 
     // bias
@@ -550,77 +584,100 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     instruction_ref brb_h{};
     if(bias != prog.end())
     {
-        auto sbias = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto wb    = prog.insert_instruction(ins, op::slice{{0}, {0}, {3 * hs}}, sbias);
-        bwb = prog.insert_instruction(ins, op::broadcast{1, {bs, static_cast<size_t>(3 * hs)}}, wb);
+        auto sbias = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
+        auto wb    = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3 * hs}}}), sbias);
+        bwb = prog.insert_instruction(
+            ins,
+            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(3 * hs)}}}),
+            wb);
 
-        auto rb_zr = prog.insert_instruction(ins, op::slice{{0}, {3 * hs}, {5 * hs}}, sbias);
-        auto rb_h  = prog.insert_instruction(ins, op::slice{{0}, {5 * hs}, {6 * hs}}, sbias);
-        brb_zr     = prog.insert_instruction(
-            ins, op::broadcast{1, {bs, static_cast<size_t>(2 * hs)}}, rb_zr);
-        brb_h = prog.insert_instruction(ins, op::broadcast{1, {bs, static_cast<size_t>(hs)}}, rb_h);
+        auto rb_zr = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {3 * hs}}, {"ends", {5 * hs}}}),
+            sbias);
+        auto rb_h = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {5 * hs}}, {"ends", {6 * hs}}}),
+            sbias);
+        brb_zr = prog.insert_instruction(
+            ins,
+            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(2 * hs)}}}),
+            rb_zr);
+        brb_h = prog.insert_instruction(
+            ins,
+            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(hs)}}}),
+            rb_h);
     }
 
     long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
-        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
-        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
+        auto xt        = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {seq_index}}, {"ends", {seq_index + 1}}}),
+            seq);
+        auto cont_xt = prog.insert_instruction(ins, make_op("contiguous"), xt);
+        xt           = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), cont_xt);
 
-        auto xt_w    = prog.insert_instruction(ins, op::dot{}, xt, tw);
-        auto ih1_rzr = prog.insert_instruction(ins, op::dot{}, sih, trzr);
+        auto xt_w    = prog.insert_instruction(ins, make_op("dot"), xt, tw);
+        auto ih1_rzr = prog.insert_instruction(ins, make_op("dot"), sih, trzr);
         if(bias != prog.end())
         {
-            xt_w    = prog.insert_instruction(ins, op::add{}, xt_w, bwb);
-            ih1_rzr = prog.insert_instruction(ins, op::add{}, ih1_rzr, brb_zr);
+            xt_w    = prog.insert_instruction(ins, make_op("add"), xt_w, bwb);
+            ih1_rzr = prog.insert_instruction(ins, make_op("add"), ih1_rzr, brb_zr);
         }
 
-        auto xw_z = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_w);
-        auto xw_r = prog.insert_instruction(ins, op::slice{{1}, {hs}, {2 * hs}}, xt_w);
-        auto xw_h = prog.insert_instruction(ins, op::slice{{1}, {2 * hs}, {3 * hs}}, xt_w);
+        auto xw_z = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {hs}}}), xt_w);
+        auto xw_r = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), xt_w);
+        auto xw_h = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), xt_w);
 
-        auto hr_z = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, ih1_rzr);
-        auto hr_r = prog.insert_instruction(ins, op::slice{{1}, {hs}, {2 * hs}}, ih1_rzr);
+        auto hr_z = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {hs}}}), ih1_rzr);
+        auto hr_r = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), ih1_rzr);
 
-        auto xw_hr_z = prog.insert_instruction(ins, op::add{}, xw_z, hr_z);
+        auto xw_hr_z = prog.insert_instruction(ins, make_op("add"), xw_z, hr_z);
         auto zt      = prog.insert_instruction(ins, actv_func1, xw_hr_z);
 
-        auto xw_hr_r = prog.insert_instruction(ins, op::add{}, xw_r, hr_r);
+        auto xw_hr_r = prog.insert_instruction(ins, make_op("add"), xw_r, hr_r);
         auto rt      = prog.insert_instruction(ins, actv_func1, xw_hr_r);
 
         instruction_ref hr_h{};
         if(linear_before_reset == 0)
         {
             // equation g(Xt*(Wh^T) + (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh)
-            auto rt_ht1 = prog.insert_instruction(ins, op::mul{}, rt, sih);
-            hr_h        = prog.insert_instruction(ins, op::dot{}, rt_ht1, trh);
+            auto rt_ht1 = prog.insert_instruction(ins, make_op("mul"), rt, sih);
+            hr_h        = prog.insert_instruction(ins, make_op("dot"), rt_ht1, trh);
             if(bias != prog.end())
             {
-                hr_h = prog.insert_instruction(ins, op::add{}, hr_h, brb_h);
+                hr_h = prog.insert_instruction(ins, make_op("add"), hr_h, brb_h);
             }
         }
         else
         {
             // equation ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
-            auto ht1_rh = prog.insert_instruction(ins, op::dot{}, sih, trh);
+            auto ht1_rh = prog.insert_instruction(ins, make_op("dot"), sih, trh);
             if(bias != prog.end())
             {
-                ht1_rh = prog.insert_instruction(ins, op::add{}, ht1_rh, brb_h);
+                ht1_rh = prog.insert_instruction(ins, make_op("add"), ht1_rh, brb_h);
             }
-            hr_h = prog.insert_instruction(ins, op::mul{}, rt, ht1_rh);
+            hr_h = prog.insert_instruction(ins, make_op("mul"), rt, ht1_rh);
         }
 
-        auto xw_hr_h = prog.insert_instruction(ins, op::add{}, xw_h, hr_h);
+        auto xw_hr_h = prog.insert_instruction(ins, make_op("add"), xw_h, hr_h);
         auto ht      = prog.insert_instruction(ins, actv_func2, xw_hr_h);
 
         // equation Ht = (1 - zt) (.) ht + zt (.) Ht-1
-        auto one_minus_zt    = prog.insert_instruction(ins, op::sub{}, l1, zt);
-        auto one_minus_zt_ht = prog.insert_instruction(ins, op::mul{}, one_minus_zt, ht);
-        auto zt_ht1          = prog.insert_instruction(ins, op::mul{}, zt, sih);
-        sih                  = prog.insert_instruction(ins, op::add{}, one_minus_zt_ht, zt_ht1);
-        last_output          = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, sih);
+        auto one_minus_zt    = prog.insert_instruction(ins, make_op("sub"), l1, zt);
+        auto one_minus_zt_ht = prog.insert_instruction(ins, make_op("mul"), one_minus_zt, ht);
+        auto zt_ht1          = prog.insert_instruction(ins, make_op("mul"), zt, sih);
+        sih         = prog.insert_instruction(ins, make_op("add"), one_minus_zt_ht, zt_ht1);
+        last_output = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), sih);
 
         if(i < seq_len - 1)
         {
@@ -629,14 +686,16 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                 hidden_states =
                     (seq_index == 0)
                         ? last_output
-                        : prog.insert_instruction(ins, op::concat{0}, hidden_states, last_output);
+                        : prog.insert_instruction(
+                              ins, make_op("concat", {{"axis", 0}}), hidden_states, last_output);
             }
             else
             {
                 hidden_states =
                     (seq_index == seq_len - 1)
                         ? last_output
-                        : prog.insert_instruction(ins, op::concat{0}, last_output, hidden_states);
+                        : prog.insert_instruction(
+                              ins, make_op("concat", {{"axis", 0}}), last_output, hidden_states);
             }
         }
     }
@@ -654,7 +713,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
     if(gru_op.direction == op::rnn_direction::bidirectional)
     {
         if(gru_op.actv_funcs.empty())
-            return {op::sigmoid{}, op::tanh{}, op::sigmoid{}, op::tanh{}};
+            return {make_op("sigmoid"), make_op("tanh"), make_op("sigmoid"), make_op("tanh")};
         else if(gru_op.actv_funcs.size() == 1)
             return {gru_op.actv_funcs.at(0),
                     gru_op.actv_funcs.at(0),
@@ -676,7 +735,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
     else
     {
         if(gru_op.actv_funcs.empty())
-            return {op::sigmoid{}, op::tanh{}};
+            return {make_op("sigmoid"), make_op("tanh")};
         else if(gru_op.actv_funcs.size() == 1)
             return {gru_op.actv_funcs.at(0), gru_op.actv_funcs.at(0)};
         else
@@ -720,20 +779,26 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
     {
         // input weight matrix
         // input weight matrix
-        auto w_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[1]);
-        auto w_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[1]);
+        auto w_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[1]);
+        auto w_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[1]);
 
         // hidden state weight matrix
-        auto r_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[2]);
-        auto r_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[2]);
+        auto r_forward = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
+        auto r_reverse = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
 
         // process bias
         instruction_ref bias_forward = prog.end();
         instruction_ref bias_reverse = prog.end();
         if(args.size() >= 4 && args[3]->name() != "undefined")
         {
-            bias_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[3]);
-            bias_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[3]);
+            bias_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
+            bias_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[3]);
         }
 
         // process intial hidden state, it is the 6th argument
@@ -741,8 +806,10 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
         instruction_ref ih_reverse{};
         if(args.size() >= 6 && args[5]->name() != "undefined")
         {
-            ih_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[5]);
-            ih_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[5]);
+            ih_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
+            ih_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[5]);
         }
         else
         {
@@ -755,8 +822,10 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
         instruction_ref ic_reverse{};
         if(args.size() >= 7 && args[6]->name() != "undefined")
         {
-            ic_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[6]);
-            ic_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[6]);
+            ic_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[6]);
+            ic_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[6]);
         }
         else
         {
@@ -769,8 +838,10 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
         instruction_ref pph_reverse = prog.end();
         if(args.size() == 8 && args[7]->name() != "undefined")
         {
-            pph_forward = prog.insert_instruction(ins, op::slice{{0}, {0}, {1}}, args[7]);
-            pph_reverse = prog.insert_instruction(ins, op::slice{{0}, {1}, {2}}, args[7]);
+            pph_forward = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[7]);
+            pph_reverse = prog.insert_instruction(
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[7]);
         }
 
         auto ret_forward = lstm_cell(true,
@@ -790,8 +861,8 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
         auto ret_reverse = lstm_cell(false,
                                      prog,
@@ -808,12 +879,14 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
                                      actv_funcs.at(4),
                                      actv_funcs.at(5));
 
-        auto concat_hs_output =
-            prog.insert_instruction(ins, op::concat{1}, ret_forward[1], ret_reverse[1]);
-        auto concat_cell_output =
-            prog.insert_instruction(ins, op::concat{1}, ret_forward[3], ret_reverse[3]);
-        last_hs_output   = prog.insert_instruction(ins, op::squeeze{{0}}, concat_hs_output);
-        last_cell_output = prog.insert_instruction(ins, op::squeeze{{0}}, concat_cell_output);
+        auto concat_hs_output = prog.insert_instruction(
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
+        auto concat_cell_output = prog.insert_instruction(
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[3], ret_reverse[3]);
+        last_hs_output =
+            prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_hs_output);
+        last_cell_output =
+            prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_cell_output);
 
         // the following logic is to ensure the last instruction is a concat
         if(ret_forward[0] == prog.end())
@@ -822,21 +895,21 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
         }
         else
         {
-            ret_forward[1] =
-                prog.insert_instruction(ins, op::concat{0}, ret_forward[0], ret_forward[1]);
-            ret_reverse[1] =
-                prog.insert_instruction(ins, op::concat{0}, ret_reverse[1], ret_reverse[0]);
+            ret_forward[1] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[0], ret_forward[1]);
+            ret_reverse[1] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[1], ret_reverse[0]);
 
-            ret_forward[3] =
-                prog.insert_instruction(ins, op::concat{0}, ret_forward[2], ret_forward[3]);
-            ret_reverse[3] =
-                prog.insert_instruction(ins, op::concat{0}, ret_reverse[3], ret_reverse[2]);
-            cell_outputs =
-                prog.insert_instruction(ins, op::concat{1}, ret_forward[3], ret_reverse[3]);
+            ret_forward[3] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[2], ret_forward[3]);
+            ret_reverse[3] = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[3], ret_reverse[2]);
+            cell_outputs = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 1}}), ret_forward[3], ret_reverse[3]);
         }
 
-        hidden_state =
-            prog.replace_instruction(ins, op::concat{1}, {ret_forward[1], ret_reverse[1]});
+        hidden_state = prog.replace_instruction(
+            ins, make_op("concat", {{"axis", 1}}), {ret_forward[1], ret_reverse[1]});
     }
     else
     {
@@ -883,8 +956,8 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
 
         if(!is_forward and variable_seq_len)
         {
-            args[0] =
-                prog.insert_instruction(ins, op::rnn_var_sl_shift_sequence{}, args[0], seq_lens);
+            args[0] = prog.insert_instruction(
+                ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
         auto ret = lstm_cell(is_forward,
                              prog,
@@ -894,24 +967,26 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
                              actv_funcs.at(1),
                              actv_funcs.at(2));
 
-        last_hs_output   = prog.insert_instruction(ins, op::squeeze{{0}}, ret[1]);
-        last_cell_output = prog.insert_instruction(ins, op::squeeze{{0}}, ret[3]);
+        last_hs_output = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
+        last_cell_output =
+            prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[3]);
 
         if(ret[0] == prog.end())
         {
             cell_outputs = ret[3];
-            hidden_state = prog.replace_instruction(ins, op::concat{0}, ret[1]);
+            hidden_state = prog.replace_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
         }
         else
         {
             auto concat_cell_arg0 = is_forward ? ret[2] : ret[3];
             auto concat_cell_arg1 = is_forward ? ret[3] : ret[2];
-            cell_outputs =
-                prog.insert_instruction(ins, op::concat{0}, concat_cell_arg0, concat_cell_arg1);
+            cell_outputs          = prog.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), concat_cell_arg0, concat_cell_arg1);
 
             auto concat_arg0 = is_forward ? ret[0] : ret[1];
             auto concat_arg1 = is_forward ? ret[1] : ret[0];
-            hidden_state = prog.replace_instruction(ins, op::concat{0}, concat_arg0, concat_arg1);
+            hidden_state     = prog.replace_instruction(
+                ins, make_op("concat", {{"axis", 0}}), concat_arg0, concat_arg1);
         }
     }
 
@@ -957,18 +1032,18 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
     std::vector<int64_t> perm{1, 0};
     // w matrix, squeeze and transpose
-    auto sw  = prog.insert_instruction(ins, op::squeeze{{0}}, w);
-    auto tsw = prog.insert_instruction(ins, op::transpose{perm}, sw);
+    auto sw  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
+    auto tsw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
 
     // r matrix, squeeze and transpose
-    auto sr  = prog.insert_instruction(ins, op::squeeze{{0}}, r);
-    auto tsr = prog.insert_instruction(ins, op::transpose{perm}, sr);
+    auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
+    auto tsr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sr);
 
     // initial hidden state
-    auto sih = prog.insert_instruction(ins, op::squeeze{{0}}, ih);
+    auto sih = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
 
     // initial cell state
-    auto sic     = prog.insert_instruction(ins, op::squeeze{{0}}, ic);
+    auto sic     = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ic);
     auto ic_lens = sic->get_shape().lens();
 
     // bias
@@ -976,13 +1051,19 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     if(bias != prog.end())
     {
 
-        auto sbias  = prog.insert_instruction(ins, op::squeeze{{0}}, bias);
-        auto ub_wb  = prog.insert_instruction(ins, op::slice{{0}, {0}, {4 * hs}}, sbias);
-        auto ub_rb  = prog.insert_instruction(ins, op::slice{{0}, {4 * hs}, {8 * hs}}, sbias);
-        auto ub_wrb = prog.insert_instruction(ins, op::add{}, ub_wb, ub_rb);
+        auto sbias = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
+        auto ub_wb = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4 * hs}}}), sbias);
+        auto ub_rb = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {4 * hs}}, {"ends", {8 * hs}}}),
+            sbias);
+        auto ub_wrb = prog.insert_instruction(ins, make_op("add"), ub_wb, ub_rb);
 
         wrb = prog.insert_instruction(
-            ins, op::broadcast{1, {bs, 4 * static_cast<size_t>(hs)}}, ub_wrb);
+            ins,
+            make_op("broadcast", {{"axis", 1}, {"dims", {bs, 4 * static_cast<size_t>(hs)}}}),
+            ub_wrb);
     }
 
     // peep hole
@@ -991,73 +1072,90 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref pphf_brcst{};
     if(pph != prog.end())
     {
-        auto spph  = prog.insert_instruction(ins, op::squeeze{{0}}, pph);
-        auto pphi  = prog.insert_instruction(ins, op::slice{{0}, {0}, {hs}}, spph);
-        pphi_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, pphi);
+        auto spph = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), pph);
+        auto pphi = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), spph);
+        pphi_brcst = prog.insert_instruction(
+            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), pphi);
 
-        auto ppho  = prog.insert_instruction(ins, op::slice{{0}, {hs}, {2 * hs}}, spph);
-        ppho_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, ppho);
+        auto ppho = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {hs}}, {"ends", {2 * hs}}}), spph);
+        ppho_brcst = prog.insert_instruction(
+            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), ppho);
 
-        auto pphf  = prog.insert_instruction(ins, op::slice{{0}, {2 * hs}, {3 * hs}}, spph);
-        pphf_brcst = prog.insert_instruction(ins, op::broadcast{1, ic_lens}, pphf);
+        auto pphf = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), spph);
+        pphf_brcst = prog.insert_instruction(
+            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), pphf);
     }
 
     long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
     for(long i = 0; i < seq_len; ++i)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt = prog.insert_instruction(ins, op::slice{{0}, {seq_index}, {seq_index + 1}}, seq);
-        auto cont_xt = prog.insert_instruction(ins, op::contiguous{}, xt);
-        xt           = prog.insert_instruction(ins, op::squeeze{{0}}, cont_xt);
+        auto xt        = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {seq_index}}, {"ends", {seq_index + 1}}}),
+            seq);
+        auto cont_xt = prog.insert_instruction(ins, make_op("contiguous"), xt);
+        xt           = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), cont_xt);
 
-        auto xt_tsw  = prog.insert_instruction(ins, op::dot{}, xt, tsw);
-        auto sih_tsr = prog.insert_instruction(ins, op::dot{}, sih, tsr);
-        auto xt_sih  = prog.insert_instruction(ins, op::add{}, xt_tsw, sih_tsr);
+        auto xt_tsw  = prog.insert_instruction(ins, make_op("dot"), xt, tsw);
+        auto sih_tsr = prog.insert_instruction(ins, make_op("dot"), sih, tsr);
+        auto xt_sih  = prog.insert_instruction(ins, make_op("add"), xt_tsw, sih_tsr);
         if(bias != prog.end())
         {
-            xt_sih = prog.insert_instruction(ins, op::add{}, xt_sih, wrb);
+            xt_sih = prog.insert_instruction(ins, make_op("add"), xt_sih, wrb);
         }
 
-        auto it_before_actv = prog.insert_instruction(ins, op::slice{{1}, {0}, {hs}}, xt_sih);
-        auto ot_before_actv = prog.insert_instruction(ins, op::slice{{1}, {hs}, {2 * hs}}, xt_sih);
-        auto ft_before_actv =
-            prog.insert_instruction(ins, op::slice{{1}, {2 * hs}, {3 * hs}}, xt_sih);
-        auto ct_before_actv =
-            prog.insert_instruction(ins, op::slice{{1}, {3 * hs}, {4 * hs}}, xt_sih);
+        auto it_before_actv = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {hs}}}), xt_sih);
+        auto ot_before_actv = prog.insert_instruction(
+            ins, make_op("slice", {{"axes", {1}}, {"starts", {hs}}, {"ends", {2 * hs}}}), xt_sih);
+        auto ft_before_actv = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {1}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}),
+            xt_sih);
+        auto ct_before_actv = prog.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {1}}, {"starts", {3 * hs}}, {"ends", {4 * hs}}}),
+            xt_sih);
 
         if(pph != prog.end())
         {
-            auto pphi_ct   = prog.insert_instruction(ins, op::mul{}, pphi_brcst, sic);
-            it_before_actv = prog.insert_instruction(ins, op::add{}, it_before_actv, pphi_ct);
+            auto pphi_ct   = prog.insert_instruction(ins, make_op("mul"), pphi_brcst, sic);
+            it_before_actv = prog.insert_instruction(ins, make_op("add"), it_before_actv, pphi_ct);
 
-            auto pphf_ct   = prog.insert_instruction(ins, op::mul{}, pphf_brcst, sic);
-            ft_before_actv = prog.insert_instruction(ins, op::add{}, ft_before_actv, pphf_ct);
+            auto pphf_ct   = prog.insert_instruction(ins, make_op("mul"), pphf_brcst, sic);
+            ft_before_actv = prog.insert_instruction(ins, make_op("add"), ft_before_actv, pphf_ct);
         }
         auto it = prog.insert_instruction(ins, actv_func1, it_before_actv);
         auto ft = prog.insert_instruction(ins, actv_func1, ft_before_actv);
         auto ct = prog.insert_instruction(ins, actv_func2, ct_before_actv);
 
         // equation Ct = ft (.) Ct-1 + it (.) ct
-        auto ft_cell = prog.insert_instruction(ins, op::mul{}, ft, sic);
-        auto it_ct   = prog.insert_instruction(ins, op::mul{}, it, ct);
-        auto cellt   = prog.insert_instruction(ins, op::add{}, ft_cell, it_ct);
+        auto ft_cell = prog.insert_instruction(ins, make_op("mul"), ft, sic);
+        auto it_ct   = prog.insert_instruction(ins, make_op("mul"), it, ct);
+        auto cellt   = prog.insert_instruction(ins, make_op("add"), ft_cell, it_ct);
 
         if(pph != prog.end())
         {
-            auto ppho_cellt = prog.insert_instruction(ins, op::mul{}, ppho_brcst, cellt);
-            ot_before_actv  = prog.insert_instruction(ins, op::add{}, ot_before_actv, ppho_cellt);
+            auto ppho_cellt = prog.insert_instruction(ins, make_op("mul"), ppho_brcst, cellt);
+            ot_before_actv =
+                prog.insert_instruction(ins, make_op("add"), ot_before_actv, ppho_cellt);
         }
         auto ot = prog.insert_instruction(ins, actv_func1, ot_before_actv);
 
         // Ht = ot (.) h(Ct)
         auto h_cellt = prog.insert_instruction(ins, actv_func3, cellt);
-        auto ht      = prog.insert_instruction(ins, op::mul{}, ot, h_cellt);
+        auto ht      = prog.insert_instruction(ins, make_op("mul"), ot, h_cellt);
 
         sic = cellt;
         sih = ht;
 
-        last_hs_output   = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, ht);
-        last_cell_output = prog.insert_instruction(ins, op::unsqueeze{{0, 1}}, cellt);
+        last_hs_output = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), ht);
+        last_cell_output =
+            prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), cellt);
 
         if(i < seq_len - 1)
         {
@@ -1070,13 +1168,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
             {
                 auto concat_hs_arg0 = is_forward ? hidden_states : last_hs_output;
                 auto concat_hs_arg1 = is_forward ? last_hs_output : hidden_states;
-                hidden_states =
-                    prog.insert_instruction(ins, op::concat{0}, concat_hs_arg0, concat_hs_arg1);
+                hidden_states       = prog.insert_instruction(
+                    ins, make_op("concat", {{"axis", 0}}), concat_hs_arg0, concat_hs_arg1);
 
                 auto concat_cell_arg0 = is_forward ? cell_outputs : last_cell_output;
                 auto concat_cell_arg1 = is_forward ? last_cell_output : cell_outputs;
-                cell_outputs =
-                    prog.insert_instruction(ins, op::concat{0}, concat_cell_arg0, concat_cell_arg1);
+                cell_outputs          = prog.insert_instruction(
+                    ins, make_op("concat", {{"axis", 0}}), concat_cell_arg0, concat_cell_arg1);
             }
         }
     }
@@ -1098,7 +1196,12 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
         switch(num_actv_funcs)
         {
         case 0:
-            return {op::sigmoid{}, op::tanh{}, op::tanh{}, op::sigmoid{}, op::tanh{}, op::tanh{}};
+            return {make_op("sigmoid"),
+                    make_op("tanh"),
+                    make_op("tanh"),
+                    make_op("sigmoid"),
+                    make_op("tanh"),
+                    make_op("tanh")};
 
         case 1:
             return {actv_funcs.at(0),
@@ -1147,7 +1250,7 @@ std::vector<operation> rewrite_rnn::lstm_actv_funcs(instruction_ref ins) const
     {
         switch(num_actv_funcs)
         {
-        case 0: return {op::sigmoid{}, op::tanh{}, op::tanh{}};
+        case 0: return {make_op("sigmoid"), make_op("tanh"), make_op("tanh")};
 
         case 1: return {actv_funcs.at(0), actv_funcs.at(0), actv_funcs.at(0)};
 
@@ -1215,7 +1318,11 @@ instruction_ref rewrite_rnn::replace_last_hs_output(module& prog,
     if(variable_seq_len)
     {
         result_ins = prog.insert_instruction(
-            std::next(ins), op::rnn_var_sl_shift_output{"hidden_states", dirct}, ins, seq_lens);
+            std::next(ins),
+            make_op("rnn_var_sl_shift_output",
+                    {{"output_name", "hidden_states"}, {"direction", dirct}}),
+            ins,
+            seq_lens);
         prog.replace_instruction(ins, result_ins);
         auto hs_outputs = find_all(result_ins->outputs(),
                                    [&](auto i) { return i->name() == "rnn_last_hs_output"; });
@@ -1223,8 +1330,10 @@ instruction_ref rewrite_rnn::replace_last_hs_output(module& prog,
         for(auto& hs_out : hs_outputs)
         {
             auto inputs = hs_out->inputs();
-            prog.replace_instruction(
-                hs_out, op::rnn_var_sl_last_output{dirct}, inputs.front(), seq_lens);
+            prog.replace_instruction(hs_out,
+                                     make_op("rnn_var_sl_last_output", {{"direction", dirct}}),
+                                     inputs.front(),
+                                     seq_lens);
         }
     }
     else
@@ -1258,16 +1367,20 @@ void rewrite_rnn::replace_last_cell_output(module& prog,
     {
         if(!ins_outputs.empty())
         {
-            cell_outputs =
-                prog.insert_instruction(std::next(ins),
-                                        op::rnn_var_sl_shift_output{"cell_outputs", dirct},
-                                        cell_outputs,
-                                        seq_lens);
+            cell_outputs = prog.insert_instruction(
+                std::next(ins),
+                make_op("rnn_var_sl_shift_output",
+                        {{"output_name", "cell_outputs"}, {"direction", dirct}}),
+                cell_outputs,
+                seq_lens);
         }
 
         for(auto co : ins_outputs)
         {
-            prog.replace_instruction(co, op::rnn_var_sl_last_output{dirct}, cell_outputs, seq_lens);
+            prog.replace_instruction(co,
+                                     make_op("rnn_var_sl_last_output", {{"direction", dirct}}),
+                                     cell_outputs,
+                                     seq_lens);
         }
     }
     // replace the rnn_last_cell_output with the last_cell_output. The while
@@ -1300,7 +1413,8 @@ instruction_ref rewrite_rnn::pad_hidden_states(module& prog,
         shape pad_s{s.type(), pad_lens};
         std::vector<float> pad_data(pad_s.elements(), 0.0f);
         auto pl   = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
-        hs_padded = prog.insert_instruction(std::next(hs), op::concat{0}, hs, pl);
+        hs_padded =
+            prog.insert_instruction(std::next(hs), make_op("concat", {{"axis", 0}}), hs, pl);
         prog.replace_instruction(hs, hs_padded);
     }
 

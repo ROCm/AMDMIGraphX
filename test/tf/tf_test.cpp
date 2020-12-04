@@ -9,6 +9,10 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/serialize.hpp>
+
 #include "test.hpp"
 
 migraphx::program parse_tf(const std::string& name, bool is_nhwc)
@@ -35,7 +39,7 @@ TEST_CASE(add_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::op::add{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("add"), l0, l1);
     auto prog = optimize_tf("add_test.pb", false);
 
     EXPECT(p == prog);
@@ -46,7 +50,7 @@ TEST_CASE(addv2_test)
     migraphx::program p;
     auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    p.add_instruction(migraphx::op::add{}, l0, l1);
+    p.add_instruction(migraphx::make_op("add"), l0, l1);
     auto prog = optimize_tf("addv2_test.pb", false);
 
     EXPECT(p == prog);
@@ -61,9 +65,11 @@ TEST_CASE(add_bcast_test)
     migraphx::shape s0{migraphx::shape::float_type, {2, 3}};
     auto l0 = mm->add_parameter("0", s0);
     auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 1}});
-    auto l2 = mm->add_instruction(migraphx::op::multibroadcast{s0.lens()}, l0);
-    auto l3 = mm->add_instruction(migraphx::op::multibroadcast{s0.lens()}, l1);
-    mm->add_instruction(migraphx::op::add{}, l2, l3);
+    auto l2 =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l0);
+    auto l3 =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l1);
+    mm->add_instruction(migraphx::make_op("add"), l2, l3);
     auto prog = optimize_tf("add_bcast_test.pb", false);
 
     EXPECT(p == prog);
@@ -76,8 +82,8 @@ TEST_CASE(argmax_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
-    auto ins = mm->add_instruction(migraphx::op::argmax{2}, l0);
-    mm->add_instruction(migraphx::op::squeeze{{2}}, ins);
+    auto ins = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
     auto prog = parse_tf("argmax_test.pb", false);
 
     EXPECT(p == prog);
@@ -90,8 +96,8 @@ TEST_CASE(argmin_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
-    auto ins = mm->add_instruction(migraphx::op::argmin{2}, l0);
-    mm->add_instruction(migraphx::op::squeeze{{2}}, ins);
+    auto ins = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 2}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
     auto prog = parse_tf("argmin_test.pb", false);
 
     EXPECT(p == prog);
@@ -107,9 +113,9 @@ TEST_CASE(assert_less_equal_test)
     auto l1 = mm->add_parameter("1", s0);
     migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {0, 1}};
     auto l2 = mm->add_literal(l);
-    mm->add_instruction(migraphx::op::add{}, l0, l1);
-    auto l3 = mm->add_instruction(migraphx::op::identity{}, l0, l1);
-    mm->add_instruction(migraphx::op::identity{}, l3, l2);
+    mm->add_instruction(migraphx::make_op("add"), l0, l1);
+    auto l3 = mm->add_instruction(migraphx::make_op("identity"), l0, l1);
+    mm->add_instruction(migraphx::make_op("identity"), l3, l2);
     auto prog = optimize_tf("assert_less_equal_test.pb", false);
 
     EXPECT(p == prog);
@@ -123,10 +129,12 @@ TEST_CASE(batchmatmul_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 8, 4}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 4, 8}});
 
-    auto trans_l0 = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l0);
-    auto trans_l1 = mm->add_instruction(migraphx::op::transpose{{0, 1, 3, 2}}, l1);
+    auto trans_l0 =
+        mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l0);
+    auto trans_l1 =
+        mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
 
-    mm->add_instruction(migraphx::op::dot{}, trans_l0, trans_l1);
+    mm->add_instruction(migraphx::make_op("dot"), trans_l0, trans_l1);
     auto prog = optimize_tf("batchmatmul_test.pb", false);
 
     EXPECT(p == prog);
@@ -189,8 +197,9 @@ TEST_CASE(biasadd_test)
     uint64_t axis = 1;
     auto l0       = mm->add_parameter("0", s0);
     auto l1       = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
-    auto l2       = mm->add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
-    mm->add_instruction(migraphx::op::add{}, l0, l2);
+    auto l2       = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l0->get_shape().lens()}}), l1);
+    mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("biasadd_test.pb", true);
 
     EXPECT(p == prog);
@@ -206,8 +215,9 @@ TEST_CASE(biasadd_scalar_test)
     auto l0       = mm->add_parameter("0", s0);
     auto l1       = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1.0}});
-    auto l2 = mm->add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
-    mm->add_instruction(migraphx::op::add{}, l0, l2);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l0->get_shape().lens()}}), l1);
+    mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("biasadd_scalar_test.pb", true);
 
     EXPECT(p == prog);
@@ -219,7 +229,10 @@ TEST_CASE(cast_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::convert{migraphx::shape::int32_type}, l0);
+    mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+        l0);
     auto prog = optimize_tf("cast_test.pb", false);
 
     EXPECT(p == prog);
@@ -239,7 +252,7 @@ TEST_CASE(concat_test)
     // add the literal using a vector in order to set stride to 1 (like in tf parser)
     mm->add_literal(migraphx::shape{migraphx::shape::int32_type}, std::vector<int>{axis});
 
-    mm->add_instruction(migraphx::op::concat{axis}, l0, l1);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1);
     auto prog = optimize_tf("concat_test.pb", false);
 
     EXPECT(p == prog);
@@ -273,7 +286,7 @@ migraphx::program create_conv()
     op.padding      = {1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
-    auto l2         = mm->add_instruction(migraphx::op::transpose{{3, 2, 0, 1}}, l1);
+    auto l2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {3, 2, 0, 1}}}), l1);
     mm->add_instruction(op, l0, l2);
     return p;
 }
@@ -312,9 +325,9 @@ TEST_CASE(depthwiseconv_test)
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     op.group        = 3;
-    auto l3         = mm->add_instruction(migraphx::op::transpose{{3, 2, 0, 1}}, l1);
-    auto l4         = mm->add_instruction(migraphx::op::contiguous{}, l3);
-    auto l5         = mm->add_instruction(migraphx::op::reshape{{3, 1, 3, 3}}, l4);
+    auto l3 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {3, 2, 0, 1}}}), l1);
+    auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);
+    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3}}}), l4);
     mm->add_instruction(op, l0, l5);
     auto prog = optimize_tf("depthwise_conv_test.pb", true);
 
@@ -329,7 +342,7 @@ TEST_CASE(expanddims_test)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(0);
-    mm->add_instruction(migraphx::op::reshape{{1, 2, 3, 4}}, l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4}}}), l0);
     auto prog = optimize_tf("expanddims_test.pb", false);
 
     EXPECT(p == prog);
@@ -344,7 +357,7 @@ TEST_CASE(expanddims_test_neg_dims)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(-1);
-    mm->add_instruction(migraphx::op::reshape{{2, 3, 4, 1}}, l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4, 1}}}), l0);
     auto prog = optimize_tf("expanddims_neg_test.pb", false);
 
     EXPECT(p == prog);
@@ -362,7 +375,7 @@ TEST_CASE(gather_test)
     mm->add_literal(1);
 
     int axis = 1;
-    mm->add_instruction(migraphx::op::gather{axis}, l0, l1);
+    mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), l0, l1);
     auto prog = optimize_tf("gather_test.pb", false);
 
     EXPECT(p == prog);
@@ -374,7 +387,7 @@ TEST_CASE(identity_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto prog = optimize_tf("identity_test.pb", false);
 
     EXPECT(p == prog);
@@ -388,10 +401,10 @@ TEST_CASE(matmul_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {8, 4}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 8}});
 
-    auto trans_l0 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l0);
-    auto trans_l1 = mm->add_instruction(migraphx::op::transpose{{1, 0}}, l1);
+    auto trans_l0 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l0);
+    auto trans_l1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
 
-    mm->add_instruction(migraphx::op::dot{}, trans_l0, trans_l1);
+    mm->add_instruction(migraphx::make_op("dot"), trans_l0, trans_l1);
     auto prog = optimize_tf("matmul_test.pb", false);
 
     EXPECT(p == prog);
@@ -409,7 +422,7 @@ TEST_CASE(mean_test)
     migraphx::op::reduce_mean op{{2, 3}};
     mm->add_instruction(op, l0);
     auto l3 = mm->add_instruction(op, l0);
-    mm->add_instruction(migraphx::op::squeeze{{2, 3}}, l3);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), l3);
     auto prog = optimize_tf("mean_test.pb", false);
 
     EXPECT(p == prog);
@@ -422,10 +435,10 @@ TEST_CASE(mean_test_nhwc)
     auto* mm = p.get_main_module();
     migraphx::literal l{migraphx::shape{migraphx::shape::int32_type, {2}}, {1, 2}};
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto l1 = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto l1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     migraphx::op::reduce_mean op{{1, 2}};
     auto l2 = mm->add_instruction(op, l1);
-    mm->add_instruction(migraphx::op::squeeze{{1, 2}}, l2);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), l2);
     auto prog = optimize_tf("mean_test_nhwc.pb", true);
 
     EXPECT(p == prog);
@@ -439,7 +452,7 @@ TEST_CASE(mul_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 16}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 16}});
 
-    mm->add_instruction(migraphx::op::mul{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("mul"), l0, l1);
     auto prog = optimize_tf("mul_test.pb", false);
 
     EXPECT(p == prog);
@@ -458,7 +471,7 @@ TEST_CASE(onehot_test)
     auto l1 = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {2, 2}}, {1, 0, 0, 1}});
     int axis = 0;
-    mm->add_instruction(migraphx::op::gather{axis}, l1, l0);
+    mm->add_instruction(migraphx::make_op("gather", {{"axis", axis}}), l1, l0);
     auto prog = optimize_tf("onehot_test.pb", false);
 
     EXPECT(p == prog);
@@ -484,13 +497,15 @@ TEST_CASE(pack_test)
     std::vector<migraphx::instruction_ref> unsqueezed_args;
     int64_t axis = 1;
 
-    std::transform(args.begin(),
-                   args.end(),
-                   std::back_inserter(unsqueezed_args),
-                   [&](migraphx::instruction_ref arg) {
-                       return mm->add_instruction(migraphx::op::unsqueeze{{axis}}, arg);
-                   });
-    mm->add_instruction(migraphx::op::concat{static_cast<int>(axis)}, unsqueezed_args);
+    std::transform(
+        args.begin(),
+        args.end(),
+        std::back_inserter(unsqueezed_args),
+        [&](migraphx::instruction_ref arg) {
+            return mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
+        });
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", static_cast<int>(axis)}}),
+                        unsqueezed_args);
     auto prog = optimize_tf("pack_test.pb", false);
 
     EXPECT(p == prog);
@@ -502,11 +517,11 @@ TEST_CASE(pack_test_nhwc)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt0 = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto lt0 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt1 = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l1);
+    auto lt1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l1);
     auto l2  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto lt2 = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l2);
+    auto lt2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l2);
     std::vector<migraphx::instruction_ref> args{lt0, lt1, lt2};
     std::vector<migraphx::instruction_ref> unsqueezed_args;
     int64_t nchw_axis = 3;
@@ -515,9 +530,11 @@ TEST_CASE(pack_test_nhwc)
                    args.end(),
                    std::back_inserter(unsqueezed_args),
                    [&](migraphx::instruction_ref arg) {
-                       return mm->add_instruction(migraphx::op::unsqueeze{{nchw_axis}}, arg);
+                       return mm->add_instruction(
+                           migraphx::make_op("unsqueeze", {{"axes", {nchw_axis}}}), arg);
                    });
-    mm->add_instruction(migraphx::op::concat{static_cast<int>(nchw_axis)}, unsqueezed_args);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", static_cast<int>(nchw_axis)}}),
+                        unsqueezed_args);
     auto prog = optimize_tf("pack_test_nhwc.pb", true);
 
     EXPECT(p == prog);
@@ -548,7 +565,7 @@ TEST_CASE(pow_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::op::pow{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("pow"), l0, l1);
     auto prog = optimize_tf("pow_test.pb", false);
 
     EXPECT(p == prog);
@@ -560,7 +577,7 @@ TEST_CASE(relu_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::relu{}, l0);
+    mm->add_instruction(migraphx::make_op("relu"), l0);
     auto prog = optimize_tf("relu_test.pb", false);
 
     EXPECT(p == prog);
@@ -575,9 +592,11 @@ TEST_CASE(relu6_test)
     auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, input_lens});
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
-    min_val      = mm->add_instruction(migraphx::op::multibroadcast{input_lens}, min_val);
-    max_val      = mm->add_instruction(migraphx::op::multibroadcast{input_lens}, max_val);
-    mm->add_instruction(migraphx::op::clip{}, l0, min_val, max_val);
+    min_val      = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+    mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     auto prog = optimize_tf("relu6_test.pb", false);
 
     EXPECT(p == prog);
@@ -592,7 +611,7 @@ TEST_CASE(reshape_test)
     migraphx::shape s0{migraphx::shape::int32_type, {4}};
     // in tf, the second arg is a literal that contains new dimensions
     mm->add_literal(migraphx::literal{s0, {1, 1, 1, 16}});
-    mm->add_instruction(migraphx::op::reshape{{1, 1, 1, 16}}, l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 16}}}), l0);
     auto prog = optimize_tf("reshape_test.pb", false);
 
     EXPECT(p == prog);
@@ -604,7 +623,7 @@ TEST_CASE(rsqrt_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::rsqrt{}, l0);
+    mm->add_instruction(migraphx::make_op("rsqrt"), l0);
     auto prog = optimize_tf("rsqrt_test.pb", false);
 
     EXPECT(p == prog);
@@ -651,7 +670,7 @@ TEST_CASE(softmax_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    mm->add_instruction(migraphx::op::softmax{1}, l0);
+    mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l0);
     auto prog = optimize_tf("softmax_test.pb", false);
 
     EXPECT(p == prog);
@@ -668,11 +687,14 @@ TEST_CASE(split_test)
     mm->add_literal(1); // split axis
     mm->add_literal(1); // concat axis
     mm->add_literal(1); // concat axis
-    auto l1 = mm->add_instruction(migraphx::op::slice{axes, {0, 0}, {5, 10}}, l0);
-    auto l2 = mm->add_instruction(migraphx::op::slice{axes, {0, 10}, {5, 20}}, l0);
-    auto l3 = mm->add_instruction(migraphx::op::slice{axes, {0, 20}, {5, 30}}, l0);
-    mm->add_instruction(migraphx::op::concat{1}, l1, l2);
-    mm->add_instruction(migraphx::op::concat{1}, l2, l3);
+    auto l1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 0}}, {"ends", {5, 10}}}), l0);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 10}}, {"ends", {5, 20}}}), l0);
+    auto l3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 20}}, {"ends", {5, 30}}}), l0);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
 
     auto prog = parse_tf("split_test.pb", false);
 
@@ -687,7 +709,7 @@ TEST_CASE(split_test_one_output)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
     mm->add_literal(1); // num_splits
     mm->add_literal(1); // split axis
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
 
     auto prog = parse_tf("split_test_one_output.pb", false);
 
@@ -707,11 +729,14 @@ TEST_CASE(split_test_vector_as_input)
     mm->add_literal(1); // split axis
     mm->add_literal(1); // concat axis
     mm->add_literal(1); // concat axis
-    auto l1 = mm->add_instruction(migraphx::op::slice{axes, {0, 0}, {5, 4}}, l0);
-    auto l2 = mm->add_instruction(migraphx::op::slice{axes, {0, 4}, {5, 19}}, l0);
-    auto l3 = mm->add_instruction(migraphx::op::slice{axes, {0, 19}, {5, 30}}, l0);
-    mm->add_instruction(migraphx::op::concat{1}, l1, l2);
-    mm->add_instruction(migraphx::op::concat{1}, l2, l3);
+    auto l1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 0}}, {"ends", {5, 4}}}), l0);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 4}}, {"ends", {5, 19}}}), l0);
+    auto l3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 19}}, {"ends", {5, 30}}}), l0);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
 
     auto prog = parse_tf("split_test_vector_as_input.pb", false);
 
@@ -725,7 +750,7 @@ TEST_CASE(sqdiff_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::op::sqdiff{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("sqdiff"), l0, l1);
     auto prog = optimize_tf("sqdiff_test.pb", false);
 
     EXPECT(p == prog);
@@ -737,7 +762,7 @@ TEST_CASE(squeeze_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 1}});
-    mm->add_instruction(migraphx::op::squeeze{{0, 3}}, l0);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 3}}}), l0);
     auto prog = optimize_tf("squeeze_test.pb", false);
 
     EXPECT(p == prog);
@@ -749,7 +774,7 @@ TEST_CASE(stopgradient_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto prog = optimize_tf("stopgradient_test.pb", false);
 
     EXPECT(p == prog);
@@ -761,7 +786,7 @@ TEST_CASE(stridedslice_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 10, 1, 1}});
-    auto l1  = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto l1  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     std::size_t num_axes = 4;
     migraphx::op::slice op;
     op.starts = {0, 0, 0, 0};
@@ -770,7 +795,7 @@ TEST_CASE(stridedslice_test)
     std::iota(op.axes.begin(), op.axes.end(), 0);
     auto l2          = mm->add_instruction(op, l1);
     auto shrink_axis = 1;
-    mm->add_instruction(migraphx::op::squeeze{{shrink_axis}}, l2);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {shrink_axis}}}), l2);
     auto prog = optimize_tf("stridedslice_test.pb", true);
 
     EXPECT(p == prog);
@@ -796,9 +821,9 @@ TEST_CASE(stridedslice_masks_test)
     mm->add_literal(migraphx::shape{migraphx::shape::int32_type, {4}},
                     std::vector<int>{1, 1, 1, 1});
 
-    auto l1 = mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    auto l1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     auto l2 = mm->add_instruction(op, l1);
-    mm->add_instruction(migraphx::op::transpose{{0, 3, 1, 2}}, l2);
+    mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 3, 1, 2}}}), l2);
     auto prog = parse_tf("stridedslice_masks_test.pb", true);
 
     EXPECT(p == prog);
@@ -811,7 +836,7 @@ TEST_CASE(sub_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::op::sub{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("sub"), l0, l1);
     auto prog = parse_tf("sub_test.pb", false);
 
     EXPECT(p == prog);
@@ -824,7 +849,7 @@ TEST_CASE(tanh_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::op::sub{}, l0, l1);
+    mm->add_instruction(migraphx::make_op("sub"), l0, l1);
     auto prog = parse_tf("sub_test.pb", false);
 
     EXPECT(p == prog);
@@ -838,7 +863,7 @@ TEST_CASE(transpose_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     migraphx::shape s0{migraphx::shape::int32_type, {4}};
     mm->add_literal(migraphx::literal{s0, {0, 2, 3, 1}});
-    mm->add_instruction(migraphx::op::transpose{{0, 2, 3, 1}}, l0);
+    mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     auto prog = optimize_tf("transpose_test.pb", false);
 
     EXPECT(p == prog);
@@ -850,7 +875,7 @@ TEST_CASE(variable_batch_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto prog = optimize_tf("variable_batch_test.pb", false);
 
     EXPECT(p == prog);

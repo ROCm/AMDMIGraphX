@@ -4,6 +4,8 @@
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/add.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
@@ -116,7 +118,7 @@ TEST_CASE(undefined_test)
     auto* mm   = p.get_main_module();
     auto one   = mm->add_literal(1);
     auto two   = mm->add_literal(2);
-    auto undef = mm->add_instruction(migraphx::op::undefined{});
+    auto undef = mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_instruction(sum_op{}, one, two);
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
@@ -133,8 +135,8 @@ TEST_CASE(duplicate_args1)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_literal(0);
     auto l3  = mm->add_literal(3);
-    mm->add_instruction(migraphx::op::add{}, l3, l3);
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    mm->add_instruction(migraphx::make_op("add"), l3, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);
@@ -149,9 +151,9 @@ TEST_CASE(duplicate_args2)
     auto* mm  = p.get_main_module();
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
-    auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);
-    mm->add_instruction(migraphx::op::add{}, sum1, l3);
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), l0, l3);
+    mm->add_instruction(migraphx::make_op("add"), sum1, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);
@@ -166,10 +168,10 @@ TEST_CASE(duplicate_args3)
     auto* mm  = p.get_main_module();
     auto l0   = mm->add_literal(0);
     auto l3   = mm->add_literal(3);
-    auto sum1 = mm->add_instruction(migraphx::op::add{}, l0, l3);
-    auto sum2 = mm->add_instruction(migraphx::op::add{}, l0, sum1);
-    mm->add_instruction(migraphx::op::add{}, sum2, l3);
-    mm->add_instruction(migraphx::op::identity{}, l0);
+    auto sum1 = mm->add_instruction(migraphx::make_op("add"), l0, l3);
+    auto sum2 = mm->add_instruction(migraphx::make_op("add"), l0, sum1);
+    mm->add_instruction(migraphx::make_op("add"), sum2, l3);
+    mm->add_instruction(migraphx::make_op("identity"), l0);
     auto count = std::distance(p.begin(), p.end());
     run_pass(p);
     EXPECT(std::distance(p.begin(), p.end()) != count);

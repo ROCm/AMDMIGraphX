@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_mul_add : verify_program<test_mul_add>
@@ -15,10 +17,12 @@ struct test_mul_add : verify_program<test_mul_add>
         auto x   = mm->add_parameter("x", s);
         auto a   = mm->add_parameter("a", bs);
         auto b   = mm->add_parameter("b", bs);
-        auto ab  = mm->add_instruction(migraphx::op::broadcast{1, s.lens()}, a);
-        auto bb  = mm->add_instruction(migraphx::op::broadcast{1, s.lens()}, b);
-        auto mul = mm->add_instruction(migraphx::op::mul{}, x, ab);
-        mm->add_instruction(migraphx::op::add{}, mul, bb);
+        auto ab  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), a);
+        auto bb = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), b);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, ab);
+        mm->add_instruction(migraphx::make_op("add"), mul, bb);
         return p;
     }
 };

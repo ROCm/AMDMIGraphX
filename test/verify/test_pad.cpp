@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_pad : verify_program<test_pad>
@@ -16,10 +18,10 @@ struct test_pad : verify_program<test_pad>
         std::vector<int64_t> pads2 = {1, 1, 1, 1, 0, 0, 0, 0};
         std::vector<int64_t> pads3 = {1, 0, 1, 0, 1, 0, 2, 0};
         auto l0                    = mm->add_parameter("x", s0);
-        mm->add_instruction(migraphx::op::pad{pads0}, l0);
-        mm->add_instruction(migraphx::op::pad{pads1}, l0);
-        mm->add_instruction(migraphx::op::pad{pads2}, l0);
-        mm->add_instruction(migraphx::op::pad{pads3}, l0);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads0}}), l0);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads1}}), l0);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads2}}), l0);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", pads3}}), l0);
         return p;
     }
 };

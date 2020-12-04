@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_conv_add : verify_program<test_conv_add>
@@ -16,10 +18,10 @@ struct test_conv_add : verify_program<test_conv_add>
         auto y = mm->add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
         auto v = mm->add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 2));
-        auto conv1 = mm->add_instruction(migraphx::op::convolution{}, x, w);
-        auto conv2 = mm->add_instruction(migraphx::op::convolution{}, y, v);
-        auto sum   = mm->add_instruction(migraphx::op::add{}, conv1, conv2);
-        mm->add_instruction(migraphx::op::exp{}, sum);
+        auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), y, v);
+        auto sum   = mm->add_instruction(migraphx::make_op("add"), conv1, conv2);
+        mm->add_instruction(migraphx::make_op("exp"), sum);
         return p;
     }
 };

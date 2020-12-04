@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_neg : verify_program<test_neg>
@@ -13,7 +15,7 @@ struct test_neg : verify_program<test_neg>
 
         migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
         auto input = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::op::neg{}, input);
+        mm->add_instruction(migraphx::make_op("neg"), input);
         return p;
     };
 };

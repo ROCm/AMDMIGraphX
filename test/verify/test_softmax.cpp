@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 template <int Axis, migraphx::shape::type_t T>
@@ -13,7 +15,7 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
         auto* mm = p.get_main_module();
         migraphx::shape s{T, {512, 4, 1067, 6}};
         auto param = mm->add_parameter("0", s);
-        mm->add_instruction(migraphx::op::softmax{Axis}, param);
+        mm->add_instruction(migraphx::make_op("softmax", {{"axis", Axis}}), param);
 
         return p;
     }

@@ -2,6 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_conv_relu : verify_program<test_conv_relu>
@@ -14,8 +16,8 @@ struct test_conv_relu : verify_program<test_conv_relu>
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto conv = mm->add_instruction(migraphx::op::convolution{}, input, weights);
-        mm->add_instruction(migraphx::op::relu{}, conv);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        mm->add_instruction(migraphx::make_op("relu"), conv);
         return p;
     }
 };

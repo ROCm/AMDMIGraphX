@@ -30,7 +30,7 @@ TEST_CASE(save_op)
     for(const auto& name : migraphx::get_operators())
     {
         auto op1 = migraphx::load_op(name);
-        auto v = migraphx::to_value(op1);
+        auto v   = migraphx::to_value(op1);
         auto op2 = migraphx::from_value<migraphx::operation>(v);
         CHECK(op1 == op2);
     }

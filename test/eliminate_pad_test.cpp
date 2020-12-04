@@ -50,7 +50,7 @@ TEST_CASE(rewrite_pad)
     std::iota(input.begin(), input.end(), 0);
 
     migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
-    auto l_img      = mm->add_literal(migraphx::literal{s_img, input});
+    auto l_img = mm->add_literal(migraphx::literal{s_img, input});
     auto padded_img =
         mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 1, 1, 0, 0, 1, 1}}}), l_img);
 
@@ -89,7 +89,7 @@ TEST_CASE(rewrite_pad_im2col_asymmetric)
     std::iota(input.begin(), input.end(), 0);
 
     migraphx::shape s_img{migraphx::shape::int32_type, {1, channels, img_dim[0], img_dim[1]}};
-    auto l_img      = mm->add_literal(migraphx::literal{s_img, input});
+    auto l_img = mm->add_literal(migraphx::literal{s_img, input});
     auto padded_img =
         mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 2, 2}}}), l_img);
 

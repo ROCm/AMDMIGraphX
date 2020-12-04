@@ -173,7 +173,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
         if(ins_shape.type() != orig_type)
         {
             // check the dead code case to avoid assert
-            bool output_empty = ins->outputs().empty();
+            bool output_empty  = ins->outputs().empty();
             auto ins_orig_type = mm->insert_instruction(
                 std::next(ins), make_op("convert", {{"target_type", orig_type}}), ins);
             if(!output_empty)

@@ -16,15 +16,15 @@ add_layernorm(migraphx::module& m, migraphx::instruction_ref x, std::vector<size
     auto epsilon  = m.add_literal(1e-12f);
     auto exponent = m.add_literal(2.0f);
 
-    auto mean            = m.add_instruction(migraphx::op::reduce_mean({2}), x);
+    auto mean = m.add_instruction(migraphx::op::reduce_mean({2}), x);
     auto mean_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), mean);
     auto sub = m.add_instruction(migraphx::make_op("sub"), x, mean_mbcast);
     auto exponent_mbcast =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", dims}}), exponent);
-    auto pow             = m.add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
-    auto var             = m.add_instruction(migraphx::op::reduce_mean({2}), pow);
-    auto epsilon_mbcast  = m.add_instruction(
+    auto pow            = m.add_instruction(migraphx::make_op("pow"), sub, exponent_mbcast);
+    auto var            = m.add_instruction(migraphx::op::reduce_mean({2}), pow);
+    auto epsilon_mbcast = m.add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", {1, dims.at(1), 1}}}), epsilon);
     auto add_epsilon = m.add_instruction(migraphx::make_op("add"), var, epsilon_mbcast);
     auto sqrt        = m.add_instruction(migraphx::make_op("sqrt"), add_epsilon);

@@ -215,8 +215,8 @@ TEST_CASE(simplify_mul_conv1)
                           {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
         x,
         w);
-    auto a    = mm->add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
-    auto b    = mm->add_instruction(
+    auto a = mm->add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256}}));
+    auto b = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 256, 14, 14}}}), a);
     auto mul = mm->add_instruction(migraphx::make_op("mul"), conv, b);
     mm->add_instruction(pass_op{}, mul);
@@ -543,15 +543,15 @@ TEST_CASE(simplify_concat_add_relu)
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto x      = mm1->add_parameter("x", s);
-        auto y      = mm1->add_parameter("y", s);
-        auto one    = mm1->add_literal({s, {1}});
-        auto two    = mm1->add_literal({s, {2}});
-        auto sum1   = mm1->add_instruction(migraphx::make_op("add"), x, one);
-        auto relu1  = mm1->add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2   = mm1->add_instruction(migraphx::make_op("add"), y, two);
-        auto relu2  = mm1->add_instruction(migraphx::make_op("relu"), sum2);
+        auto* mm1  = p1.get_main_module();
+        auto x     = mm1->add_parameter("x", s);
+        auto y     = mm1->add_parameter("y", s);
+        auto one   = mm1->add_literal({s, {1}});
+        auto two   = mm1->add_literal({s, {2}});
+        auto sum1  = mm1->add_instruction(migraphx::make_op("add"), x, one);
+        auto relu1 = mm1->add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2  = mm1->add_instruction(migraphx::make_op("add"), y, two);
+        auto relu2 = mm1->add_instruction(migraphx::make_op("relu"), sum2);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
         mm1->add_instruction(pass_op{}, concat);
@@ -579,16 +579,16 @@ TEST_CASE(simplify_concat_add_relu_partial)
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto x      = mm1->add_parameter("x", s);
-        auto y      = mm1->add_parameter("y", s);
-        auto one    = mm1->add_literal({s, {1}});
-        auto two    = mm1->add_literal({s, {2}});
-        auto sum1   = mm1->add_instruction(migraphx::make_op("add"), x, one);
-        auto relu1  = mm1->add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2   = mm1->add_instruction(migraphx::make_op("add"), y, two);
-        auto relu2  = mm1->add_instruction(migraphx::make_op("relu"), sum2);
-        auto sum3   = mm1->add_instruction(migraphx::make_op("add"), x, y);
+        auto* mm1  = p1.get_main_module();
+        auto x     = mm1->add_parameter("x", s);
+        auto y     = mm1->add_parameter("y", s);
+        auto one   = mm1->add_literal({s, {1}});
+        auto two   = mm1->add_literal({s, {2}});
+        auto sum1  = mm1->add_instruction(migraphx::make_op("add"), x, one);
+        auto relu1 = mm1->add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2  = mm1->add_instruction(migraphx::make_op("add"), y, two);
+        auto relu2 = mm1->add_instruction(migraphx::make_op("relu"), sum2);
+        auto sum3  = mm1->add_instruction(migraphx::make_op("add"), x, y);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), sum3, relu1, relu2);
         mm1->add_instruction(pass_op{}, concat);
@@ -618,15 +618,15 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
-        auto x      = mm1->add_parameter("x", s);
-        auto y      = mm1->add_parameter("y", s);
-        auto one    = mm1->add_literal(1);
-        auto oneb   = mm1->add_instruction(b, one);
-        auto two    = mm1->add_literal(2);
-        auto twob   = mm1->add_instruction(b, two);
-        auto sum    = mm1->add_instruction(migraphx::make_op("add"), x, y);
+        auto* mm1 = p1.get_main_module();
+        auto b    = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x    = mm1->add_parameter("x", s);
+        auto y    = mm1->add_parameter("y", s);
+        auto one  = mm1->add_literal(1);
+        auto oneb = mm1->add_instruction(b, one);
+        auto two  = mm1->add_literal(2);
+        auto twob = mm1->add_instruction(b, two);
+        auto sum  = mm1->add_instruction(migraphx::make_op("add"), x, y);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), sum, oneb, twob);
         mm1->add_instruction(pass_op{}, concat);
@@ -656,18 +656,18 @@ TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
-        auto x      = mm1->add_parameter("x", s);
-        auto y      = mm1->add_parameter("y", s);
-        auto one    = mm1->add_literal(1);
-        auto oneb   = mm1->add_instruction(b, one);
-        auto two    = mm1->add_literal(2);
-        auto twob   = mm1->add_instruction(b, two);
-        auto sum1   = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1  = mm1->add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2   = mm1->add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2  = mm1->add_instruction(migraphx::make_op("relu"), sum2);
+        auto* mm1  = p1.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x     = mm1->add_parameter("x", s);
+        auto y     = mm1->add_parameter("y", s);
+        auto one   = mm1->add_literal(1);
+        auto oneb  = mm1->add_instruction(b, one);
+        auto two   = mm1->add_literal(2);
+        auto twob  = mm1->add_instruction(b, two);
+        auto sum1  = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1 = mm1->add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2  = mm1->add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2 = mm1->add_instruction(migraphx::make_op("relu"), sum2);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
         mm1->add_instruction(pass_op{}, concat);
@@ -697,18 +697,18 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
-        auto x      = mm1->add_parameter("x", s);
-        auto y      = mm1->add_parameter("y", s);
-        auto one    = mm1->add_literal(1);
-        auto oneb   = mm1->add_instruction(b, one);
-        auto two    = mm1->add_literal(2);
-        auto twob   = mm1->add_instruction(b, two);
-        auto sum1   = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1  = mm1->add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2   = mm1->add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2  = mm1->add_instruction(migraphx::make_op("relu"), sum2);
+        auto* mm1  = p1.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x     = mm1->add_parameter("x", s);
+        auto y     = mm1->add_parameter("y", s);
+        auto one   = mm1->add_literal(1);
+        auto oneb  = mm1->add_instruction(b, one);
+        auto two   = mm1->add_literal(2);
+        auto twob  = mm1->add_instruction(b, two);
+        auto sum1  = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1 = mm1->add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2  = mm1->add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2 = mm1->add_instruction(migraphx::make_op("relu"), sum2);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
         mm1->add_instruction(pass_op{}, concat);
@@ -980,11 +980,11 @@ TEST_CASE(simplify_split_add_relu_reshape)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto* mm1     = p1.get_main_module();
-        auto b        = migraphx::op::broadcast{1, {3, 1, 4}};
-        auto r        = migraphx::op::reshape{{3, 4}};
-        auto input    = mm1->add_parameter("input", s);
-        auto x        = mm1->add_instruction(
+        auto* mm1  = p1.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto r     = migraphx::op::reshape{{3, 4}};
+        auto input = mm1->add_parameter("input", s);
+        auto x     = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
@@ -1030,18 +1030,18 @@ TEST_CASE(simplify_slice_different_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4, 2}};
     migraphx::program p1;
     {
-        auto* mm1     = p1.get_main_module();
-        auto r        = migraphx::op::reshape{{3, 2, 4}};
-        auto input    = mm1->add_parameter("input", s);
-        auto x        = mm1->add_instruction(
+        auto* mm1  = p1.get_main_module();
+        auto r     = migraphx::op::reshape{{3, 2, 4}};
+        auto input = mm1->add_parameter("input", s);
+        auto x     = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), input);
-        auto one      = mm1->add_literal(1);
-        auto oneb     = mm1->add_instruction(
+        auto one  = mm1->add_literal(1);
+        auto oneb = mm1->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {3, 1, 4, 2}}}), one);
-        auto two      = mm1->add_literal(2);
-        auto twob     = mm1->add_instruction(
+        auto two  = mm1->add_literal(2);
+        auto twob = mm1->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 3}, {"dims", {3, 2, 4, 1}}}), two);
         auto sum1     = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
         auto relu1    = mm1->add_instruction(migraphx::make_op("relu"), sum1);
@@ -1150,21 +1150,21 @@ TEST_CASE(simplify_split_add_relu_concat_same_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::program p1;
     {
-        auto* mm1   = p1.get_main_module();
-        auto b      = migraphx::op::broadcast{1, {3, 1, 4}};
-        auto input  = mm1->add_parameter("input", s);
-        auto x      = mm1->add_instruction(
+        auto* mm1  = p1.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
+        auto input = mm1->add_parameter("input", s);
+        auto x     = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = mm1->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
-        auto one    = mm1->add_literal(1);
-        auto oneb   = mm1->add_instruction(b, one);
-        auto two    = mm1->add_literal(2);
-        auto twob   = mm1->add_instruction(b, two);
-        auto sum1   = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1  = mm1->add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2   = mm1->add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2  = mm1->add_instruction(migraphx::make_op("relu"), sum2);
+        auto one   = mm1->add_literal(1);
+        auto oneb  = mm1->add_instruction(b, one);
+        auto two   = mm1->add_literal(2);
+        auto twob  = mm1->add_instruction(b, two);
+        auto sum1  = mm1->add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1 = mm1->add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2  = mm1->add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2 = mm1->add_instruction(migraphx::make_op("relu"), sum2);
         auto concat =
             mm1->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
         mm1->add_instruction(pass_op{}, concat);
@@ -1245,10 +1245,10 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split1)
 
     migraphx::program p2;
     {
-        auto* mm2    = p2.get_main_module();
-        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
-        auto input   = mm2->add_parameter("input", s);
-        auto slice   = mm2->add_instruction(
+        auto* mm2  = p2.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto input = mm2->add_parameter("input", s);
+        auto slice = mm2->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto one     = mm2->add_literal(1);
         auto two     = mm2->add_literal(2);
@@ -1296,10 +1296,10 @@ TEST_CASE(simplify_split_add_relu_used_multiple_split2)
 
     migraphx::program p2;
     {
-        auto* mm2    = p2.get_main_module();
-        auto b       = migraphx::op::broadcast{1, {3, 2, 4}};
-        auto input   = mm2->add_parameter("input", s);
-        auto slice   = mm2->add_instruction(
+        auto* mm2  = p2.get_main_module();
+        auto b     = migraphx::op::broadcast{1, {3, 2, 4}};
+        auto input = mm2->add_parameter("input", s);
+        auto slice = mm2->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto z       = mm2->add_instruction(migraphx::make_op("relu"), slice);
         auto one     = mm2->add_literal(1);
@@ -1465,10 +1465,10 @@ TEST_CASE(simplify_group_conv_horiz)
     auto ws = migraphx::shape{migraphx::shape::int32_type, {32, 1, 7, 7}};
     migraphx::program p1;
     {
-        auto* mm1 = p1.get_main_module();
-        auto x    = mm1->add_parameter("x", s);
-        auto w1   = mm1->add_literal(migraphx::generate_literal(ws, 1));
-        auto w2   = mm1->add_literal(migraphx::generate_literal(ws, 2));
+        auto* mm1  = p1.get_main_module();
+        auto x     = mm1->add_parameter("x", s);
+        auto w1    = mm1->add_literal(migraphx::generate_literal(ws, 1));
+        auto w2    = mm1->add_literal(migraphx::generate_literal(ws, 2));
         auto conv1 = mm1->add_instruction(
             migraphx::make_op(
                 "convolution",
@@ -1552,13 +1552,13 @@ TEST_CASE(simplify_conv_horiz_grouped_extra1)
     auto ws2 = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     migraphx::program p1;
     {
-        auto* mm1    = p1.get_main_module();
-        auto input   = mm1->add_parameter("input", s);
-        auto a       = mm1->add_literal(migraphx::generate_literal(ws1, 0));
-        auto b       = mm1->add_literal(migraphx::generate_literal(ws1, 1));
-        auto c       = mm1->add_literal(migraphx::generate_literal(ws2, 2));
-        auto d       = mm1->add_literal(migraphx::generate_literal(ws2, 3));
-        auto e       = mm1->add_literal(migraphx::generate_literal(s, 4));
+        auto* mm1  = p1.get_main_module();
+        auto input = mm1->add_parameter("input", s);
+        auto a     = mm1->add_literal(migraphx::generate_literal(ws1, 0));
+        auto b     = mm1->add_literal(migraphx::generate_literal(ws1, 1));
+        auto c     = mm1->add_literal(migraphx::generate_literal(ws2, 2));
+        auto d     = mm1->add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = mm1->add_literal(migraphx::generate_literal(s, 4));
         auto convx =
             mm1->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), input, a);
         auto convy =
@@ -1615,14 +1615,14 @@ TEST_CASE(simplify_conv_horiz_grouped_extra2)
     auto ws2 = migraphx::shape{migraphx::shape::int32_type, {8, 6, 64, 64}};
     migraphx::program p1;
     {
-        auto* mm1    = p1.get_main_module();
-        auto input   = mm1->add_parameter("input", s);
-        auto a       = mm1->add_literal(migraphx::generate_literal(ws1, 0));
-        auto b       = mm1->add_literal(migraphx::generate_literal(ws1, 1));
-        auto c       = mm1->add_literal(migraphx::generate_literal(ws2, 2));
-        auto d       = mm1->add_literal(migraphx::generate_literal(ws2, 3));
-        auto e       = mm1->add_literal(migraphx::generate_literal(s, 4));
-        auto f       = mm1->add_literal(migraphx::generate_literal(s, 5));
+        auto* mm1  = p1.get_main_module();
+        auto input = mm1->add_parameter("input", s);
+        auto a     = mm1->add_literal(migraphx::generate_literal(ws1, 0));
+        auto b     = mm1->add_literal(migraphx::generate_literal(ws1, 1));
+        auto c     = mm1->add_literal(migraphx::generate_literal(ws2, 2));
+        auto d     = mm1->add_literal(migraphx::generate_literal(ws2, 3));
+        auto e     = mm1->add_literal(migraphx::generate_literal(s, 4));
+        auto f     = mm1->add_literal(migraphx::generate_literal(s, 5));
         auto convx =
             mm1->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), input, a);
         auto convy =

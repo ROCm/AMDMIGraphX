@@ -369,8 +369,8 @@ TEST_CASE(concat_transpose3)
     auto s   = migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}};
     auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 4}});
     auto y   = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {1, 5, 3, 4}});
-    auto xt     = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), x);
-    auto yt     = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), y);
+    auto xt  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), x);
+    auto yt  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), y);
     auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 3}}), xt, yt);
     auto t = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), concat);
     mm->add_return({t});

@@ -1323,9 +1323,9 @@ struct onnx_parser
         auto l_stride  = mm->add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
         l_stride = mm->add_instruction(make_op("multibroadcast", {{"output_lens", ind_s.lens()}}),
                                        l_stride);
-        auto dim_diff  = mm->add_instruction(make_op("sub"), arg_ind, l_dim_idx);
-        auto delta     = mm->add_instruction(make_op("mul"), dim_diff, l_stride);
-        auto ind       = mm->add_instruction(make_op("add"), l_shape_idx, delta);
+        auto dim_diff = mm->add_instruction(make_op("sub"), arg_ind, l_dim_idx);
+        auto delta    = mm->add_instruction(make_op("mul"), dim_diff, l_stride);
+        auto ind      = mm->add_instruction(make_op("add"), l_shape_idx, delta);
 
         op::gather op{0};
         return mm->add_instruction(op, arg_data, ind);
@@ -1585,7 +1585,7 @@ struct onnx_parser
         std::vector<int64_t> axes(kdims);
         std::iota(axes.begin(), axes.end(), 2);
 
-        auto mean            = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
+        auto mean = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto mean_bcast =
             mm->add_instruction(make_op("multibroadcast", {{"output_lens", dims}}), mean);
         auto l0              = mm->add_instruction(make_op("sqdiff"), x, mean_bcast);
@@ -1596,15 +1596,15 @@ struct onnx_parser
                                                  epsilon_literal);
         auto variance_bcast =
             mm->add_instruction(make_op("multibroadcast", {{"output_lens", dims}}), variance);
-        auto l2              = mm->add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
-        auto l3              = mm->add_instruction(make_op("rsqrt"), l2);
-        auto l4              = mm->add_instruction(make_op("mul"), l1, l3);
+        auto l2 = mm->add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
+        auto l3 = mm->add_instruction(make_op("rsqrt"), l2);
+        auto l4 = mm->add_instruction(make_op("mul"), l1, l3);
         auto scale_bcast =
             mm->add_instruction(make_op("broadcast", {{"axis", 1}, {"dims", dims}}), scale);
         ;
         auto bias_bcast =
             mm->add_instruction(make_op("broadcast", {{"axis", 1}, {"dims", dims}}), bias);
-        auto l5         = mm->add_instruction(make_op("mul"), l4, scale_bcast);
+        auto l5 = mm->add_instruction(make_op("mul"), l4, scale_bcast);
         return mm->add_instruction(make_op("add"), l5, bias_bcast);
     }
 
@@ -2547,12 +2547,12 @@ struct onnx_parser
             make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
         auto on_val = mm->add_instruction(
             make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
-        auto diff          = mm->add_instruction(make_op("sub"), on_val, off_val);
+        auto diff = mm->add_instruction(make_op("sub"), on_val, off_val);
         auto unsq_off_val =
             mm->add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), off_val);
         auto unsq_diff_val =
             mm->add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), diff);
-        auto l_mul         = mm->add_instruction(make_op("mul"), tr_out, unsq_diff_val);
+        auto l_mul = mm->add_instruction(make_op("mul"), tr_out, unsq_diff_val);
         return mm->add_instruction(make_op("add"), l_mul, unsq_off_val);
     }
 

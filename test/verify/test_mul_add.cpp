@@ -14,10 +14,10 @@ struct test_mul_add : verify_program<test_mul_add>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         migraphx::shape bs{migraphx::shape::float_type, {3}};
-        auto x   = mm->add_parameter("x", s);
-        auto a   = mm->add_parameter("a", bs);
-        auto b   = mm->add_parameter("b", bs);
-        auto ab  = mm->add_instruction(
+        auto x  = mm->add_parameter("x", s);
+        auto a  = mm->add_parameter("a", bs);
+        auto b  = mm->add_parameter("b", bs);
+        auto ab = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), a);
         auto bb = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), b);

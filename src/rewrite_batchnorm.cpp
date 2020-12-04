@@ -48,8 +48,8 @@ void rewrite_batchnorm::apply(module& p) const
         auto broadcast   = op::broadcast{1, ins->get_shape().lens()};
         auto a_ins       = p.add_literal({a.get_shape(), a.data()});
         auto a_broadcast = p.insert_instruction(ins, broadcast, a_ins);
-        auto mul = p.insert_instruction(ins, make_op("mul"), ins->inputs().front(), a_broadcast);
-        auto b_ins       = p.add_literal({b.get_shape(), b.data()});
+        auto mul   = p.insert_instruction(ins, make_op("mul"), ins->inputs().front(), a_broadcast);
+        auto b_ins = p.add_literal({b.get_shape(), b.data()});
         auto b_broadcast = p.insert_instruction(ins, broadcast, b_ins);
         auto add         = p.insert_instruction(ins, make_op("add"), mul, b_broadcast);
         p.replace_instruction(ins, add);

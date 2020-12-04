@@ -158,10 +158,10 @@ TEST_CASE(rnn_test_one_direction)
     // 3 argumments
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto seq = mm->add_parameter("seq", seq_shape);
-        auto w   = mm->add_parameter("w", w_shape);
-        auto r   = mm->add_parameter("r", r_shape);
+        auto* mm    = p.get_main_module();
+        auto seq    = mm->add_parameter("seq", seq_shape);
+        auto w      = mm->add_parameter("w", w_shape);
+        auto r      = mm->add_parameter("r", r_shape);
         auto und    = mm->add_instruction(migraphx::make_op("undefined"));
         auto out_hs = mm->add_instruction(
             migraphx::make_op(

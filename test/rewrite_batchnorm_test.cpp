@@ -47,9 +47,9 @@ TEST_CASE(fwd_conv_batchnorm_rewrite_test)
     auto create_program = [&]() {
         migraphx::program p;
 
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_literal(xs, xdata);
-        auto w   = mm->add_literal(ws, wdata);
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_literal(xs, xdata);
+        auto w    = mm->add_literal(ws, wdata);
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
@@ -155,10 +155,10 @@ TEST_CASE(as_literal_1d)
     migraphx::shape vars{migraphx::shape::float_type, {4}};
     auto create_program = [&]() {
         migraphx::program p;
-        auto* mm      = p.get_main_module();
-        auto x        = mm->add_literal(migraphx::generate_literal(xs, 1));
-        auto w        = mm->add_literal(migraphx::generate_literal(ws, 1));
-        auto conv     = mm->add_instruction(
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_literal(migraphx::generate_literal(xs, 1));
+        auto w    = mm->add_literal(migraphx::generate_literal(ws, 1));
+        auto conv = mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
             x,
@@ -271,9 +271,9 @@ TEST_CASE(literal_reshape_per_actv)
 
     auto create_program = [&]() {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_literal(migraphx::generate_literal(xs, 1));
-        auto w   = mm->add_literal(migraphx::generate_literal(ws, 1));
+        auto* mm  = p.get_main_module();
+        auto x    = mm->add_literal(migraphx::generate_literal(xs, 1));
+        auto w    = mm->add_literal(migraphx::generate_literal(ws, 1));
         auto conv = mm->add_instruction(
             migraphx::make_op(
                 "convolution",

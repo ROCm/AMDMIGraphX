@@ -32,7 +32,7 @@ struct find_dot_add
                                             make_op("dot", {{"alpha", dot.alpha}, {"beta", 0}}),
                                             ins->inputs()[0],
                                             ins->inputs()[1]);
-        auto c_ins = ins->inputs()[2];
+        auto c_ins   = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
             auto beta = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.beta}});

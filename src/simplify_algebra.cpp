@@ -238,7 +238,7 @@ struct find_double_add_lit_broadcast
         {
             if(a_ins->inputs().at(0)->get_shape() != b_ins->inputs().at(0)->get_shape())
                 return;
-            auto op = a_ins->get_operator();
+            auto op     = a_ins->get_operator();
             auto presum = p.insert_instruction(
                 ins, make_op("add"), a_ins->inputs().at(0), b_ins->inputs().at(0));
             sumab = p.insert_instruction(ins, op, presum);

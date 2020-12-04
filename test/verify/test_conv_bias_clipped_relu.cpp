@@ -18,9 +18,9 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto l0   = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
+        auto l0        = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
                                     {2.0f, 2.0f, 2.0f, 2.0f}};
-        auto bias = mm->add_literal(l0);
+        auto bias      = mm->add_literal(l0);
         auto conv      = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         auto bcast_add = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}),

@@ -360,15 +360,15 @@ TEST_CASE(gemm_mutli_dim1_2_3)
                              0.49759611,  0.10021662,  0.00592602,  0.90862000};
     migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
 
-    auto l1        = mm->add_literal(migraphx::literal{m1_shape, m1});
-    auto l2        = mm->add_literal(migraphx::literal{m2_shape, m2});
-    auto l3        = mm->add_literal(migraphx::literal{m3_shape, m3});
-    float alpha    = 0.35;
-    float beta     = 0.41;
+    auto l1     = mm->add_literal(migraphx::literal{m1_shape, m1});
+    auto l2     = mm->add_literal(migraphx::literal{m2_shape, m2});
+    auto l3     = mm->add_literal(migraphx::literal{m3_shape, m3});
+    float alpha = 0.35;
+    float beta  = 0.41;
     auto m12_alpha =
         mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
-    auto l_beta    = mm->add_literal(beta);
-    auto b_beta    = mm->add_instruction(
+    auto l_beta = mm->add_literal(beta);
+    auto b_beta = mm->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", m12_alpha->get_shape().lens()}}), l_beta);
     auto m3_beta = mm->add_instruction(migraphx::make_op("mul"), b_beta, l3);
     mm->add_instruction(migraphx::make_op("add"), m3_beta, m12_alpha);
@@ -1578,13 +1578,13 @@ TEST_CASE(quant_dot_3args_batch)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
         auto tl1 =
             mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
-        auto l3  = mm->add_literal(migraphx::literal{m3_shape, data3});
+        auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 2}, {"beta", 3}}), tl1, tl2, l3);
 

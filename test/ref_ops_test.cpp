@@ -1484,8 +1484,8 @@ TEST_CASE(imagescaler_test)
     auto scale_val     = mm->add_literal(2.f);
     auto scaled_tensor = mm->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), scale_val);
-    auto img_scaled    = mm->add_instruction(migraphx::make_op("mul"), img, scaled_tensor);
-    auto bias_vals     = mm->add_literal(
+    auto img_scaled = mm->add_instruction(migraphx::make_op("mul"), img, scaled_tensor);
+    auto bias_vals  = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), bias_vals);
@@ -3205,7 +3205,7 @@ TEST_CASE(equal_brcst_test)
     auto l0 =
         mm->add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, bl1);
@@ -3255,7 +3255,7 @@ TEST_CASE(greater_brcst_test)
     auto l0 =
         mm->add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
@@ -3305,7 +3305,7 @@ TEST_CASE(less_brcst_test)
     auto l0 =
         mm->add_literal(migraphx::literal{s0, {1.1, 1.5, 0.1, -1.1, -1.5, -0.6, 0.0, 2.0, -2.0}});
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
-    auto l1  = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
+    auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
     auto le = mm->add_instruction(migraphx::make_op("less"), l0, bl1);

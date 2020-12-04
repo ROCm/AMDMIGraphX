@@ -1,7 +1,6 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/load.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>

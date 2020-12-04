@@ -2,9 +2,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/dot.hpp>
-#include <migraphx/op/mul.hpp>
 #include <migraphx/ref/target.hpp>
 #include <sstream>
 #include "test.hpp"

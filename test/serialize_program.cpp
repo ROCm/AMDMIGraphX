@@ -1,7 +1,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
-#include <migraphx/op/add.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 

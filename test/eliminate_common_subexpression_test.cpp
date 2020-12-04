@@ -1,7 +1,6 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/op/add.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 

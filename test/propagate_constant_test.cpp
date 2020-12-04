@@ -1,9 +1,6 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/scalar.hpp>
-#include <migraphx/op/mul.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 

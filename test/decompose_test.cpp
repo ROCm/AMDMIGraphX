@@ -1,11 +1,6 @@
 #include <migraphx/decompose.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/op/dot.hpp>
-#include <migraphx/op/mul.hpp>
-#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <test.hpp>

@@ -1,4 +1,3 @@
-#include <migraphx/op/load.hpp>
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/make_op.hpp>

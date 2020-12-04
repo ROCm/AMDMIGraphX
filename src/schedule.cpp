@@ -1,7 +1,6 @@
 #include <migraphx/schedule.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/identity.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>

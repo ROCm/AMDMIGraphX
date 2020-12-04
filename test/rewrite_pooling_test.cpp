@@ -2,10 +2,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/ref/target.hpp>
-#include <migraphx/op/reshape.hpp>
-#include <migraphx/op/pooling.hpp>
-#include <migraphx/op/reduce_mean.hpp>
-#include <migraphx/op/reduce_max.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/ranges.hpp>

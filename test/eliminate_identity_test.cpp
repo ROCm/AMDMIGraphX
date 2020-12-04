@@ -3,7 +3,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/identity.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <test.hpp>

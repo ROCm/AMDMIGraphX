@@ -1,6 +1,4 @@
 #include <migraphx/auto_contiguous.hpp>
-#include <migraphx/op/transpose.hpp>
-#include <migraphx/op/broadcast.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>

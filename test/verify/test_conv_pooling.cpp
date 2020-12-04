@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_conv_pooling : verify_program<test_conv_pooling>
 {
     migraphx::program create_program() const

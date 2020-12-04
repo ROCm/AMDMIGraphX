@@ -6,7 +6,6 @@
 
 #include <migraphx/make_op.hpp>
 
-
 struct test_convert : verify_program<test_convert>
 {
     migraphx::program create_program() const

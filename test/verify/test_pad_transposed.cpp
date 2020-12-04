@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_pad_transposed : verify_program<test_pad_transposed>
 {
     migraphx::program create_program() const

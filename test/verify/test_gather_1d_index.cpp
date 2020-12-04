@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_gather_1d_index : verify_program<test_gather_1d_index>
 {
     migraphx::program create_program() const

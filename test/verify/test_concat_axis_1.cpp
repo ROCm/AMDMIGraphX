@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_concat_axis_1 : verify_program<test_concat_axis_1>
 {
     migraphx::program create_program() const

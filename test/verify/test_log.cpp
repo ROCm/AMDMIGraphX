@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_log : verify_program<test_log>
 {
     migraphx::program create_program() const

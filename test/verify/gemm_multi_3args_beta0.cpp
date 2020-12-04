@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct gemm_multi_3args_beta0 : verify_program<gemm_multi_3args_beta0>
 {
     migraphx::program create_program() const

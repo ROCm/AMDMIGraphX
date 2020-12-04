@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_add_half : verify_program<test_add_half>
 {
     migraphx::program create_program() const

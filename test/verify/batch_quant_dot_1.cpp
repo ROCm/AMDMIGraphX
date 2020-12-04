@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct batch_quant_dot_1 : verify_program<batch_quant_dot_1>
 {
     migraphx::program create_program() const

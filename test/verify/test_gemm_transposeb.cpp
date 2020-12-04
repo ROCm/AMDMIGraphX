@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_gemm_transposeb : verify_program<test_gemm_transposeb>
 {
     migraphx::program create_program() const

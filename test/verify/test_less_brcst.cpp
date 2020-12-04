@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_less_brcst : verify_program<test_less_brcst>
 {
     migraphx::program create_program() const

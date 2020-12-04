@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
 {
     const size_t d1       = 2;

@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_batchnorm_inference : verify_program<test_batchnorm_inference>
 {
     const size_t width    = 3;

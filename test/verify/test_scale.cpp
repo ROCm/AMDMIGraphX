@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_scale : verify_program<test_scale>
 {
     migraphx::program create_program() const

@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_literals : verify_program<test_literals>
 {
     migraphx::program create_program() const

@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct quant_dot_3args_3 : verify_program<quant_dot_3args_3>
 {
     migraphx::program create_program() const

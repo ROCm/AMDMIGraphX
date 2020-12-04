@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct quant_conv_padding_stride : verify_program<quant_conv_padding_stride>
 {
     migraphx::program create_program() const

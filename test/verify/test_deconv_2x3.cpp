@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_deconv_2x3 : verify_program<test_deconv_2x3>
 {
     migraphx::program create_program() const

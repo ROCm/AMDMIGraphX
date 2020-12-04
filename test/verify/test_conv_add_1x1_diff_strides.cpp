@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_strides>
 {
     migraphx::program create_program() const

@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
 struct test_triadd : verify_program<test_triadd>
 {
     migraphx::program create_program() const

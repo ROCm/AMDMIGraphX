@@ -20,11 +20,11 @@ struct test_convert : verify_program<test_convert>
         auto pb = mm->add_parameter("b", sb);
         auto ia = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             pa);
         auto ib = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             pb);
         mm->add_instruction(migraphx::make_op("quant_dot"), ia, ib);
 

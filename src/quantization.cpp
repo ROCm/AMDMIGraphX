@@ -64,7 +64,7 @@ instruction_ref insert_quant_ins(module& modl,
             {
                 float_ins = modl.insert_instruction(
                     insert_loc,
-                    make_op("convert", {{"target_type", to_value(shape ::float_type)}}),
+                    make_op("convert", {{"target_type", to_value(shape::float_type)}}),
                     scaled_ins);
             }
             std::vector<float> vec_scale(scaled_ins->get_shape().elements(), scale);
@@ -80,7 +80,7 @@ instruction_ref insert_quant_ins(module& modl,
             {
                 float_ins = modl.insert_instruction(
                     insert_loc,
-                    make_op("convert", {{"target_type", to_value(shape ::float_type)}}),
+                    make_op("convert", {{"target_type", to_value(shape::float_type)}}),
                     shifted_ins);
             }
             std::vector<float> vec_shift(shifted_ins->get_shape().elements(), shift);
@@ -234,7 +234,7 @@ static void ins_quantize_int8(module& modl,
             auto q_dot = modl.insert_instruction(
                 ins, make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), converted_inputs);
             auto f_dot = modl.insert_instruction(
-                ins, make_op("convert", {{"target_type", to_value(shape ::float_type)}}), q_dot);
+                ins, make_op("convert", {{"target_type", to_value(shape::float_type)}}), q_dot);
             auto c_shape = q_dot->get_shape();
             std::vector<float> vec_alpha(c_shape.elements(), new_alpha);
             auto l_alpha =
@@ -251,7 +251,7 @@ static void ins_quantize_int8(module& modl,
                 {
                     auto fp32_c = modl.insert_instruction(
                         ins,
-                        make_op("convert", {{"target_type", to_value(shape ::float_type)}}),
+                        make_op("convert", {{"target_type", to_value(shape::float_type)}}),
                         inputs.back());
                     beta_c = modl.insert_instruction(ins, make_op("mul"), l_beta, fp32_c);
                 }
@@ -316,7 +316,7 @@ static void ins_quantize_int8(module& modl,
         {
             auto float_conv = modl.insert_instruction(
                 ins,
-                make_op("convert", {{"target_type", to_value(shape ::float_type)}}),
+                make_op("convert", {{"target_type", to_value(shape::float_type)}}),
                 quant_conv);
             auto l_factor = modl.add_literal(literal(float_conv->get_shape(), vec_factor));
             if(orig_type == shape::float_type)

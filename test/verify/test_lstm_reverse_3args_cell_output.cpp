@@ -37,7 +37,7 @@ struct test_lstm_reverse_3args_cell_output : verify_program<test_lstm_reverse_3a
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::reverse)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
             w,

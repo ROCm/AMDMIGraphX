@@ -33,7 +33,7 @@ struct test_batchnorm_2d_per_actv : verify_program<test_batchnorm_2d_per_actv>
                 {{"epsilon", 1.0e-6},
                  {"momentum", 0.9f},
                  {"bn_mode",
-                  migraphx::to_value(migraphx ::op ::batch_norm_inference ::per_activation)}}),
+                  migraphx::to_value(migraphx::op::batch_norm_inference::per_activation)}}),
             x,
             scale,
             bias,

@@ -34,7 +34,7 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func", {}},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
             w,

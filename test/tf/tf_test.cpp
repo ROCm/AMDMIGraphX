@@ -231,7 +231,7 @@ TEST_CASE(cast_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l0);
     auto prog = optimize_tf("cast_test.pb", false);
 

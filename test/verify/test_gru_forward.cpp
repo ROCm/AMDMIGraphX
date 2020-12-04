@@ -43,7 +43,7 @@ struct test_gru_forward : verify_program<test_gru_forward>
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
             w,

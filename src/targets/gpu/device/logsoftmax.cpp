@@ -38,10 +38,10 @@ void logsoftmax(hipStream_t stream, const argument& result, const argument& arg,
                 block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
                     data_idx[axis] = j;
                     auto val       = input[data_idx] - batch_max;
-                    return ::exp(to_hip_type(val));
+                    return::exp(to_hip_type(val));
                 });
 
-            auto log_batch_sum = ::log(to_hip_type(batch_sum)) + batch_max;
+            auto log_batch_sum =::log(to_hip_type(batch_sum)) + batch_max;
 
             idx.local_stride(batch_item_num, [&](auto j) __device__ {
                 data_idx[axis]   = j;

@@ -31,9 +31,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 #if MIGRAPHX_HAS_FILESYSTEM
-namespace fs = ::std::filesystem;
+namespace fs =::std::filesystem;
 #elif MIGRAPHX_HAS_FILESYSTEM_TS
-namespace fs = ::std::experimental::filesystem;
+namespace fs =::std::experimental::filesystem;
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -887,7 +887,7 @@ TEST_CASE(batch_norm_1d_per_actv_test)
             {{"epsilon", 1e-6},
              {"momentum", 0.9},
              {"bn_mode",
-              migraphx::to_value(migraphx ::op ::batch_norm_inference ::per_activation)}}),
+              migraphx::to_value(migraphx::op::batch_norm_inference::per_activation)}}),
         x,
         scale,
         bias,
@@ -2670,7 +2670,7 @@ TEST_CASE(pad_test_lowest_half)
     auto l0 = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4}});
     mm->add_instruction(
         migraphx::make_op(
-            "pad", {{"pads", {1, 1, 1, 1}}, {"value", std ::numeric_limits<float>::lowest()}}),
+            "pad", {{"pads", {1, 1, 1, 1}}, {"value", std::numeric_limits<float>::lowest()}}),
         l0);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -2689,7 +2689,7 @@ TEST_CASE(pad_test_highest_half)
     auto l0 = mm->add_literal(migraphx::literal{s, {1, 2, 3, 4}});
     mm->add_instruction(
         migraphx::make_op("pad",
-                          {{"pads", {1, 1, 1, 1}}, {"value", std ::numeric_limits<float>::max()}}),
+                          {{"pads", {1, 1, 1, 1}}, {"value", std::numeric_limits<float>::max()}}),
         l0);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -3185,7 +3185,7 @@ TEST_CASE(equal_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -3211,7 +3211,7 @@ TEST_CASE(equal_brcst_test)
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({r});
 
@@ -3235,7 +3235,7 @@ TEST_CASE(greater_test)
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -3261,7 +3261,7 @@ TEST_CASE(greater_brcst_test)
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({r});
 
@@ -3285,7 +3285,7 @@ TEST_CASE(less_test)
     auto le = mm->add_instruction(migraphx::make_op("less"), l0, l1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 
@@ -3311,7 +3311,7 @@ TEST_CASE(less_brcst_test)
     auto le = mm->add_instruction(migraphx::make_op("less"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({r});
 

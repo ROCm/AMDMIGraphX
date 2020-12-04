@@ -774,7 +774,7 @@ struct tf_parser
                     l0                           = mm->add_instruction(
                         migraphx::make_op(
                             "pad",
-                            {{"pads", padding}, {"value", std ::numeric_limits<float>::lowest()}}),
+                            {{"pads", padding}, {"value", std::numeric_limits<float>::lowest()}}),
                         l0);
                 }
                 else

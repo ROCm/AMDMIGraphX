@@ -43,7 +43,7 @@ struct test_gru_reverse_last : verify_program<test_gru_reverse_last>
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::reverse)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
             w,

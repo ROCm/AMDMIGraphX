@@ -37,7 +37,7 @@ struct test_lstm_forward_seq1 : verify_program<test_lstm_forward_seq1>
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
             w,

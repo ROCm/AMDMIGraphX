@@ -36,7 +36,7 @@ struct test_gru_bidirct_seq1 : verify_program<test_gru_bidirct_seq1>
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::bidirectional)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,
             w,

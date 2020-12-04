@@ -36,7 +36,7 @@ struct test_rnn_3args : verify_program<test_rnn_3args>
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::reverse)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
             w,

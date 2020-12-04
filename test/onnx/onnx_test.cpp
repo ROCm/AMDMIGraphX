@@ -331,7 +331,7 @@ TEST_CASE(cast_test)
     auto l   = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {10}});
     mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l);
 
     auto prog = optimize_onnx("cast_test.onnx");
@@ -961,7 +961,7 @@ TEST_CASE(equal_test)
     auto eq     = mm->add_instruction(migraphx::make_op("equal"), input1, input2);
     auto ret    = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         eq);
     mm->add_return({ret});
 
@@ -981,7 +981,7 @@ TEST_CASE(equal_bool_test)
     auto input2 = mm->add_parameter("x2", sb);
     auto cin1   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         input1);
     auto ret = mm->add_instruction(migraphx::make_op("equal"), cin1, input2);
     mm->add_return({ret});
@@ -1254,7 +1254,7 @@ TEST_CASE(greater_test)
     auto gr     = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
     auto ret    = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         gr);
     mm->add_return({ret});
 
@@ -1273,7 +1273,7 @@ TEST_CASE(greater_bool_test)
     auto input2 = mm->add_parameter("x2", sb);
     auto cin1   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         input1);
     auto ret = mm->add_instruction(migraphx::make_op("greater"), cin1, input2);
     mm->add_return({ret});
@@ -1480,7 +1480,7 @@ TEST_CASE(less_test)
     auto le     = mm->add_instruction(migraphx::make_op("less"), input1, input2);
     auto ret    = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         le);
     mm->add_return({ret});
 
@@ -1499,7 +1499,7 @@ TEST_CASE(less_bool_test)
     auto input2 = mm->add_parameter("x2", sb);
     auto cin1   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::bool_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
         input1);
     auto ret = mm->add_instruction(migraphx::make_op("less"), cin1, input2);
     mm->add_return({ret});
@@ -2579,11 +2579,11 @@ TEST_CASE(sum_int_test)
     auto input2 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint32_type, {3}});
     auto cin0   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::uint32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::uint32_type)}}),
         input0);
     auto cin1 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::uint32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::uint32_type)}}),
         input1);
     auto l0 = mm->add_instruction(migraphx::make_op("add"), cin0, cin1);
     mm->add_instruction(migraphx::make_op("add"), l0, input2);
@@ -2620,27 +2620,27 @@ TEST_CASE(sum_type_test)
     auto l_raw  = mm->add_literal({migraphx::shape{migraphx::shape::double_type, {2}}, {1.5, 2.0}});
     auto o_bool = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_bool);
     auto o_int8 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_int8);
     auto o_uint8 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_uint8);
     auto o_uint16 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_uint16);
     auto o_uint32 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_uint32);
     auto o_uint64 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
         l_uint64);
     auto s0 = mm->add_instruction(migraphx::make_op("add"), o_bool, o_int8);
     auto s1 = mm->add_instruction(migraphx::make_op("add"), s0, o_uint8);
@@ -2867,7 +2867,7 @@ TEST_CASE(where_test)
 
     auto int_c = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         lc);
     auto lccm = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 2, 2}}}), int_c);

@@ -40,7 +40,7 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::bidirectional)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,
             w,

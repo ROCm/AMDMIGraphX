@@ -43,7 +43,7 @@ struct test_lstm_bidirct_default_actv2 : verify_program<test_lstm_bidirct_defaul
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{
                       migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::bidirectional)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,
             w,

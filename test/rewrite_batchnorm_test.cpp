@@ -290,7 +290,7 @@ TEST_CASE(literal_reshape_per_actv)
                 {{"epsilon", 1.0e-5},
                  {"momentum", 0.88},
                  {"bn_mode",
-                  migraphx::to_value(migraphx ::op ::batch_norm_inference ::per_activation)}}),
+                  migraphx::to_value(migraphx::op::batch_norm_inference::per_activation)}}),
             conv,
             scale,
             bias,

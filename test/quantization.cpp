@@ -77,7 +77,7 @@ TEST_CASE(param_add)
         auto hs  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto res = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
         if(add_return)
         {
@@ -143,28 +143,28 @@ TEST_CASE(param_add_sub)
         auto hp1 = mm->insert_instruction(
             std::next(p1),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             p1);
         auto p2  = mm->add_parameter("y", s);
         auto hp2 = mm->insert_instruction(
             std::next(p2),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             p2);
         auto hsum = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto sum  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hsum);
         auto diff  = mm->add_instruction(migraphx::make_op("sub"), sum, p2);
         auto hdiff = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             diff);
         auto res = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             res);
 
         return p;
@@ -179,17 +179,17 @@ TEST_CASE(param_add_sub)
         auto hp2 = mm->insert_instruction(
             std::next(p2),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             p2);
         auto sum  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
         auto hsum = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             sum);
         auto hdiff = mm->add_instruction(migraphx::make_op("sub"), hsum, hp2);
         auto diff  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hdiff);
         mm->add_instruction(migraphx::make_op("add"), diff, p1);
 
@@ -204,20 +204,20 @@ TEST_CASE(param_add_sub)
         auto hp1 = mm->insert_instruction(
             std::next(p1),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             p1);
         auto p2  = mm->add_parameter("y", s);
         auto hp2 = mm->insert_instruction(
             std::next(p2),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             p2);
         auto hsum  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto hdiff = mm->add_instruction(migraphx::make_op("sub"), hsum, hp2);
         auto hres  = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hres);
 
         return p;
@@ -276,7 +276,7 @@ TEST_CASE(literal_add)
         auto hs = mm->add_instruction(migraphx::make_op("add"), l1, l2);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             hs);
 
         return p;
@@ -397,7 +397,7 @@ TEST_CASE(dot_float)
         auto ca = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         // quantize parameter b to int8 type
@@ -410,14 +410,14 @@ TEST_CASE(dot_float)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         auto qdot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
         auto fdot = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             qdot);
         std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
         auto new_alpha = mm->add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
@@ -468,7 +468,7 @@ TEST_CASE(dot_double_2args)
         std::vector<float> vfa(sa.elements(), 0.1f);
         auto fpa = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
         auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
         auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, fpa);
@@ -476,7 +476,7 @@ TEST_CASE(dot_double_2args)
         auto ca = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         // quantize parameter b to int8 type
@@ -484,7 +484,7 @@ TEST_CASE(dot_double_2args)
         auto fpb        = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pb);
         std::vector<float> vfb(sb.elements(), 0.1f);
         auto fb = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
@@ -494,21 +494,21 @@ TEST_CASE(dot_double_2args)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         auto qdot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
         auto fdot = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             qdot);
         std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
         auto new_alpha = mm->add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
         auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fdot);
         mm->add_instruction(
             migraphx::make_op(
-                "convert", {{"target_type", migraphx::to_value(migraphx ::shape ::double_type)}}),
+                "convert", {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
             alpha_ab);
 
         return p;
@@ -561,7 +561,7 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto ca   = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa   = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         // quantize parameter b to int8 type
@@ -574,21 +574,21 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         // quantize parameter c to int32 type
         auto qc = mm->insert_instruction(
             std::next(pc),
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
             pc);
 
         auto qdot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 2000}, {"beta", 51}}), qa, qb, qc);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             qdot);
 
         return p;
@@ -635,7 +635,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
         auto conv_a = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
         auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, conv_a);
 
@@ -648,7 +648,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         // quantize parameter b to int8 type
@@ -658,7 +658,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto conv_b = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pb);
         auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, conv_b);
         auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
@@ -666,7 +666,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         mm->add_instruction(
@@ -706,7 +706,7 @@ TEST_CASE(dot_int32_one_arg)
         // add the shift
         auto fpa = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
         std::vector<float> vsa(s.elements(), 1.0f);
         auto sfta =
@@ -716,21 +716,21 @@ TEST_CASE(dot_int32_one_arg)
         auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         auto q_dot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qa);
         auto f_dot = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             q_dot);
         std::vector<float> v_alpha(f_dot->get_shape().elements(), 20.0f);
         auto new_alpha = mm->add_literal(migraphx::literal{f_dot->get_shape(), v_alpha});
         auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, f_dot);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
             alpha_ab);
 
         return p;
@@ -780,7 +780,7 @@ TEST_CASE(dot_int32)
         auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
         auto conv_a = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
         auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, conv_a);
 
@@ -793,7 +793,7 @@ TEST_CASE(dot_int32)
         auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
         auto qa  = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             ca);
 
         // quantize parameter b to int8 type
@@ -803,7 +803,7 @@ TEST_CASE(dot_int32)
         auto conv_b = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pb);
         auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, conv_b);
         auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
@@ -811,21 +811,21 @@ TEST_CASE(dot_int32)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         auto qdot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
         auto fr = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             qdot);
         std::vector<float> v_alpha(fr->get_shape().elements(), 20.0f);
         auto new_alpha = mm->add_literal(migraphx::literal(fr->get_shape(), v_alpha));
         auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fr);
         auto fc        = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pc);
         std::vector<float> v_beta(fc->get_shape().elements(), 5.5f);
         auto beta   = mm->add_literal(migraphx::literal(fc->get_shape(), v_beta));
@@ -833,7 +833,7 @@ TEST_CASE(dot_int32)
         auto f_res  = mm->add_instruction(migraphx::make_op("add"), alpha_ab, beta_c);
         auto res    = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int32_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
             f_res);
         if(add_return)
         {
@@ -868,7 +868,7 @@ TEST_CASE(dot_float_convert)
 
         auto fpa = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
         mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 5.5f}}), fpa, pb);
 
@@ -893,14 +893,14 @@ TEST_CASE(dot_float_convert)
         auto qb = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cb);
 
         auto qdot = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), pa, qb);
         auto fr = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             qdot);
         std::vector<float> v_alpha(fr->get_shape().elements(), 10.0f);
         auto new_alpha = mm->add_literal(migraphx::literal(fr->get_shape(), v_alpha));
@@ -947,7 +947,7 @@ TEST_CASE(conv_float)
         auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
         auto qx = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cx);
 
         // quantize parameter b to int8 type
@@ -960,13 +960,13 @@ TEST_CASE(conv_float)
         auto qw = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cw);
 
         auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
         auto f_conv = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             q_conv);
         std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
         auto adj = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
@@ -1008,7 +1008,7 @@ TEST_CASE(conv_int32)
         // quantize parameter a to int8 type, multiply the scale
         auto fpx = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             px);
         std::vector<float> vfx(sx.elements(), 0.1f);
         auto fx = mm->add_literal(migraphx::literal(fpx->get_shape(), vfx));
@@ -1017,7 +1017,7 @@ TEST_CASE(conv_int32)
         auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
         auto qx = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cx);
 
         // quantize parameter b to int8 type
@@ -1025,7 +1025,7 @@ TEST_CASE(conv_int32)
         auto fpw        = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pw);
         std::vector<float> vfw(sw.elements(), 0.1f);
         auto fw = mm->add_literal(migraphx::literal(fpw->get_shape(), vfw));
@@ -1035,7 +1035,7 @@ TEST_CASE(conv_int32)
         auto qw = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cw);
 
         auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
@@ -1078,7 +1078,7 @@ TEST_CASE(conv_half)
         // quantize parameter a to int8 type, multiply the scale
         auto fpx = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             px);
         std::vector<float> vfx(sx.elements(), 0.1f);
         auto fx = mm->add_literal(migraphx::literal(fpx->get_shape(), vfx));
@@ -1087,7 +1087,7 @@ TEST_CASE(conv_half)
         auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
         auto qx = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cx);
 
         // quantize parameter b to int8 type
@@ -1095,7 +1095,7 @@ TEST_CASE(conv_half)
         auto fpw        = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pw);
         std::vector<float> vfw(sw.elements(), 0.1f);
         auto fw = mm->add_literal(migraphx::literal(fpw->get_shape(), vfw));
@@ -1105,20 +1105,20 @@ TEST_CASE(conv_half)
         auto qw = mm->insert_instruction(
             insert_loc,
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::int8_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
             cw);
 
         auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
         auto f_conv = mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             q_conv);
         std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
         auto adj   = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
         auto f_res = mm->add_instruction(migraphx::make_op("mul"), adj, f_conv);
         mm->add_instruction(
             migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx ::shape ::half_type)}}),
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
             f_res);
 
         return p;

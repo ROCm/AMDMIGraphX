@@ -34,7 +34,7 @@ struct test_gru_forward_default_actv : verify_program<test_gru_forward_default_a
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func", {}},
-                 {"direction", migraphx::to_value(migraphx ::op ::rnn_direction ::forward)},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
             w,

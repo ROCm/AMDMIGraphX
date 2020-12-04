@@ -303,7 +303,7 @@ TEST_CASE(nop_convert)
     auto x   = mm->add_parameter("x", s);
     auto t   = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx ::shape ::float_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         x);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();

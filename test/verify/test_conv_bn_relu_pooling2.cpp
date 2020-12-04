@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
 
 struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
 {

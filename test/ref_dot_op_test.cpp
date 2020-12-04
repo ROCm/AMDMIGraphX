@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>

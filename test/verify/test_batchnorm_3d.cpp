@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
 
 struct test_batchnorm_3d : verify_program<test_batchnorm_3d>
 {

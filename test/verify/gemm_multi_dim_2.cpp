@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
 
 struct gemm_multi_dim_2 : verify_program<gemm_multi_dim_2>
 {

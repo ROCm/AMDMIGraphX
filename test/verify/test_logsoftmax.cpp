@@ -4,7 +4,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
 
 template <int Axis, migraphx::shape::type_t T>
 struct test_logsoftmax : verify_program<test_logsoftmax<Axis, T>>

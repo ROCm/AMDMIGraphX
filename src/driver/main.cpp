@@ -42,6 +42,7 @@ struct loader
     bool brief                  = false;
     std::string output_type;
     std::string output;
+    std::vector<std::string> param_dims;
 
     void parse(argument_parser& ap)
     {
@@ -59,6 +60,11 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(param_dims,
+           {"--input-dim"},
+           ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
@@ -81,11 +87,31 @@ struct loader
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
+    static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
+    {
+        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        std::string name = "";
+        for(auto&& x : param_dims_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                map_input_dims[name].push_back(value_parser<std::size_t>::apply(x));
+            }
+        }
+
+        return map_input_dims;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
+            auto map_input_dims = parse_param_dims(param_dims);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -104,11 +130,12 @@ struct loader
                 options.default_dim_value      = batch;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
+                options.map_input_dims         = map_input_dims;
                 p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch});
+                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims});
             }
             else if(file_type == "json")
             {
@@ -201,8 +228,8 @@ struct program_params
     std::vector<std::string> fill1{};
     void parse(argument_parser& ap)
     {
-        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append());
-        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
+        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
+        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
     auto generate(const program& p, const target& t, bool offload)
@@ -472,8 +499,13 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+
+    // no argument, print the help infomration by default
     if(args.empty())
-        return 0;
+    {
+        args.push_back("-h");
+    }
+
     auto&& m = get_commands();
     auto cmd = args.front();
     if(m.count(cmd) > 0)
@@ -484,5 +516,6 @@ int main(int argc, const char* argv[])
     {
         run_command<main_command>(args);
     }
+
     return 0;
 }

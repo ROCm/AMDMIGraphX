@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <unordered_map>
 #include <migraphx/literal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -11,9 +12,12 @@
 #include <migraphx/tf.hpp>
 #include "test.hpp"
 
-migraphx::program parse_tf(const std::string& name, bool is_nhwc)
+migraphx::program
+parse_tf(const std::string& name,
+         bool is_nhwc,
+         const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {})
 {
-    return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1});
+    return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1, dim_params});
 }
 
 migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
@@ -75,11 +79,11 @@ TEST_CASE(argmax_test)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 5, 6, 7}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
     auto ins = mm->add_instruction(migraphx::op::argmax{2}, l0);
     mm->add_instruction(migraphx::op::squeeze{{2}}, ins);
-    auto prog = parse_tf("argmax_test.pb", false);
+    auto prog = parse_tf("argmax_test.pb", false, {{"0", {4, 5, 6, 7}}});
 
     EXPECT(p == prog);
 }
@@ -198,6 +202,23 @@ TEST_CASE(biasadd_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(biasadd_scalar_test)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+    migraphx::shape s0{migraphx::shape::float_type, {1, 1}};
+    uint64_t axis = 1;
+    auto l0       = mm->add_parameter("0", s0);
+    auto l1       = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1.0}});
+    auto l2 = mm->add_instruction(migraphx::op::broadcast{axis, l0->get_shape().lens()}, l1);
+    mm->add_instruction(migraphx::op::add{}, l0, l2);
+    auto prog = optimize_tf("biasadd_scalar_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(cast_test)
 {
     migraphx::program p;
@@ -241,7 +262,7 @@ TEST_CASE(const_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(conv_test)
+migraphx::program create_conv()
 {
     migraphx::program p;
 
@@ -260,7 +281,21 @@ TEST_CASE(conv_test)
     op.dilation     = {1, 1};
     auto l2         = mm->add_instruction(migraphx::op::transpose{{3, 2, 0, 1}}, l1);
     mm->add_instruction(op, l0, l2);
-    auto prog = optimize_tf("conv_test.pb", true);
+    return p;
+}
+
+TEST_CASE(conv_test)
+{
+    migraphx::program p = create_conv();
+    auto prog           = optimize_tf("conv_test.pb", true);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(conv_nchw_test)
+{
+    migraphx::program p = create_conv();
+    auto prog           = optimize_tf("conv_nchw_test.pb", false);
 
     EXPECT(p == prog);
 }

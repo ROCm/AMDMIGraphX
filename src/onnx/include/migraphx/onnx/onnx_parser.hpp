@@ -29,21 +29,23 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
-        module* mm = nullptr;
+        module* mm              = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
-        instruction_ref
-        add_broadcastable_binary_op(const std::string& name, instruction_ref arg0, instruction_ref arg1) const;
-        instruction_ref add_instruction(const operation& op, const std::vector<instruction_ref>& args) const;
-    
-        template<class... Ts>
+        instruction_ref add_broadcastable_binary_op(const std::string& name,
+                                                    instruction_ref arg0,
+                                                    instruction_ref arg1) const;
+        instruction_ref add_instruction(const operation& op,
+                                        const std::vector<instruction_ref>& args) const;
+
+        template <class... Ts>
         instruction_ref add_instruction(const operation& op, Ts... xs) const
         {
             return add_instruction(op, {xs...});
         }
     };
     using node_map = std::unordered_map<std::string, onnx::NodeProto>;
-    using op_func =
-        std::function<std::vector<instruction_ref>(const onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
+    using op_func  = std::function<std::vector<instruction_ref>(
+        const onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
@@ -75,8 +77,8 @@ struct onnx_parser
 
     void add_binary_op_parser(const std::string& onnx_name, const std::string& op_name);
     void add_generic_op_parser(const std::string& onnx_name,
-                        const std::string& op_name,
-                        bool contiguous = false);
+                               const std::string& op_name,
+                               bool contiguous = false);
     void add_variadic_op_parser(const std::string& onnx_name, const std::string& op_name);
 
     void parse_undefined(module* mm, const std::string& name);
@@ -91,7 +93,6 @@ struct onnx_parser
 
 void check_arg_empty(const argument& arg, const std::string& msg);
 shape::type_t get_type(int dtype);
-
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

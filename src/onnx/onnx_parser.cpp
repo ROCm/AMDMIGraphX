@@ -60,7 +60,7 @@ instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) con
 }
 
 static std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1)
+                                                         std::vector<std::size_t> s1)
 {
     // Example:
     // s0 = (3,2,4,5) and s1 = (2,1,1)
@@ -81,25 +81,22 @@ static std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t
 
     std::vector<std::size_t> out_lens(s1);
     auto offset = s1.size() - s0.size();
-    std::transform(s0.begin(),
-                   s0.end(),
-                   s1.begin() + offset,
-                   out_lens.begin() + offset,
-                   [&](auto a, auto b) {
-                       if(a != b and a != 1 and b != 1)
-                       {
-                           MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" +
-                                          to_string_range(s0) + "} and {" +
-                                          to_string_range(s1) + "} mismatch!");
-                       }
-                       return std::max(a, b);
-                   });
+    std::transform(
+        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
+            if(a != b and a != 1 and b != 1)
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
+                               to_string_range(s1) + "} mismatch!");
+            }
+            return std::max(a, b);
+        });
 
     return out_lens;
 }
 
-instruction_ref
-onnx_parser::node_info::add_broadcastable_binary_op(const std::string& name, instruction_ref arg0, instruction_ref arg1) const
+instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::string& name,
+                                                                    instruction_ref arg0,
+                                                                    instruction_ref arg1) const
 {
     if(arg0->get_shape().lens() != arg1->get_shape().lens())
     {
@@ -110,13 +107,11 @@ onnx_parser::node_info::add_broadcastable_binary_op(const std::string& name, ins
 
         auto l0 = arg0;
         if(arg0->get_shape().lens() != out_lens)
-            l0 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
-                                     arg0);
+            l0 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg0);
 
         auto l1 = arg1;
         if(arg1->get_shape().lens() != out_lens)
-            l1 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
-                                     arg1);
+            l1 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg1);
 
         return add_instruction(make_op(name), l0, l1);
     }
@@ -126,7 +121,9 @@ onnx_parser::node_info::add_broadcastable_binary_op(const std::string& name, ins
     }
 }
 
-instruction_ref onnx_parser::node_info::add_instruction(const operation& op, const std::vector<instruction_ref>& args) const
+instruction_ref
+onnx_parser::node_info::add_instruction(const operation& op,
+                                        const std::vector<instruction_ref>& args) const
 {
     return mm->add_instruction(op, args);
 }
@@ -217,57 +214,65 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
 
 void onnx_parser::add_binary_op_parser(const std::string& onnx_name, const std::string& op_name)
 {
-    add_op_parser(onnx_name, [op_name](const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
-        if(args.size() != 2)
-            MIGRAPHX_THROW("binary operators should have 2 operands");
-        if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
-        {
-            uint64_t broadcasted = parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
-            if(broadcasted != 0)
+    add_op_parser(
+        onnx_name,
+        [op_name](
+            const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
+            if(args.size() != 2)
+                MIGRAPHX_THROW("binary operators should have 2 operands");
+            if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
             {
-                uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                auto l        = info.add_instruction(
-                    make_op("broadcast",
-                            {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
-                    args[1]);
-                return info.add_instruction(make_op(op_name), args[0], l);
+                uint64_t broadcasted =
+                    parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+                if(broadcasted != 0)
+                {
+                    uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
+                    auto l        = info.add_instruction(
+                        make_op("broadcast",
+                                {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
+                        args[1]);
+                    return info.add_instruction(make_op(op_name), args[0], l);
+                }
+                return info.add_instruction(make_op(op_name), args);
             }
-            return info.add_instruction(make_op(op_name), args);
-        }
-        else
-        {
-            return info.add_broadcastable_binary_op(op_name, args[0], args[1]);
-        }
-    });
+            else
+            {
+                return info.add_broadcastable_binary_op(op_name, args[0], args[1]);
+            }
+        });
 }
 
 void onnx_parser::add_generic_op_parser(const std::string& onnx_name,
-                    const std::string& op_name,
-                    bool contiguous)
+                                        const std::string& op_name,
+                                        bool contiguous)
 {
-    add_op_parser(
-        onnx_name,
-        [op_name, contiguous](const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
-            auto op = parser.load(op_name, info);
-            if(contiguous)
-            {
-                std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                    return info.make_contiguous(arg);
-                });
-            }
-            return info.add_instruction(op, args);
-        });
+    add_op_parser(onnx_name,
+                  [op_name, contiguous](const onnx_parser& parser,
+                                        const node_info& info,
+                                        std::vector<instruction_ref> args) {
+                      auto op = parser.load(op_name, info);
+                      if(contiguous)
+                      {
+                          std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
+                              return info.make_contiguous(arg);
+                          });
+                      }
+                      return info.add_instruction(op, args);
+                  });
 }
 void onnx_parser::add_variadic_op_parser(const std::string& onnx_name, const std::string& op_name)
 {
-    add_op_parser(onnx_name, [op_name](const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
-        return std::accumulate(std::next(args.begin()),
-                               args.end(),
-                               args.front(),
-                               [&](instruction_ref a, instruction_ref b) {
-                                   return info.add_broadcastable_binary_op(op_name, a, b);
-                               });
-    });
+    add_op_parser(
+        onnx_name,
+        [op_name](
+            const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
+            return std::accumulate(std::next(args.begin()),
+                                   args.end(),
+                                   args.front(),
+                                   [&](instruction_ref a, instruction_ref b) {
+                                       return info.add_broadcastable_binary_op(op_name, a, b);
+                                   });
+        });
 }
 
 void onnx_parser::parse_undefined(module* mm, const std::string& name)
@@ -318,7 +323,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
 void onnx_parser::parse_graph(const onnx::GraphProto& graph)
 {
-    module* mm                    = prog.get_main_module();
+    module* mm = prog.get_main_module();
     for(auto&& f : graph.initializer())
     {
         instructions[f.name()] = mm->add_literal(parse_tensor(f));
@@ -447,18 +452,13 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     {
     case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
     case onnx::TensorProto::INT8: return create_literal(shape::int8_type, dims, t.int32_data());
-    case onnx::TensorProto::UINT8:
-        return create_literal(shape::uint8_type, dims, t.int32_data());
-    case onnx::TensorProto::INT16:
-        return create_literal(shape::int16_type, dims, t.int32_data());
-    case onnx::TensorProto::UINT16:
-        return create_literal(shape::uint16_type, dims, t.int32_data());
-    case onnx::TensorProto::INT32:
-        return create_literal(shape::int32_type, dims, t.int32_data());
+    case onnx::TensorProto::UINT8: return create_literal(shape::uint8_type, dims, t.int32_data());
+    case onnx::TensorProto::INT16: return create_literal(shape::int16_type, dims, t.int32_data());
+    case onnx::TensorProto::UINT16: return create_literal(shape::uint16_type, dims, t.int32_data());
+    case onnx::TensorProto::INT32: return create_literal(shape::int32_type, dims, t.int32_data());
     case onnx::TensorProto::UINT32:
         return create_literal(shape::uint32_type, dims, t.uint64_data());
-    case onnx::TensorProto::INT64:
-        return create_literal(shape::int64_type, dims, t.int64_data());
+    case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, t.int64_data());
     case onnx::TensorProto::UINT64:
         return create_literal(shape::uint64_type, dims, t.uint64_data());
     case onnx::TensorProto::FLOAT16:
@@ -473,8 +473,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     }
     case onnx::TensorProto::DOUBLE:
         return create_literal(shape::double_type, dims, t.double_data());
-    case onnx::TensorProto::FLOAT:
-        return create_literal(shape::float_type, dims, t.float_data());
+    case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -482,7 +481,8 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     }
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
-shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t,
+                              const std::vector<std::size_t>& input_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
     if(!input_dims.empty())
@@ -532,9 +532,7 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
-    default:
-    {
-        MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+    default: { MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
 }

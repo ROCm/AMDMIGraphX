@@ -14,16 +14,14 @@ void register_op_parser(const std::string& name, onnx_parser::op_func f)
 {
     op_parser_map()[name] = f;
 }
-onnx_parser::op_func get_op_parser(const std::string& name)
-{
-    return op_parser_map().at(name);
-}
+onnx_parser::op_func get_op_parser(const std::string& name) { return op_parser_map().at(name); }
 std::vector<std::string> get_op_parsers()
 {
     std::vector<std::string> result;
-    std::transform(op_parser_map().begin(), op_parser_map().end(), std::back_inserter(result), [&](auto&& p) {
-        return p.first;
-    });
+    std::transform(op_parser_map().begin(),
+                   op_parser_map().end(),
+                   std::back_inserter(result),
+                   [&](auto&& p) { return p.first; });
     return result;
 }
 

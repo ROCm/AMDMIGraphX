@@ -177,7 +177,7 @@ onnx_parser::onnx_parser()
     add_variadic_op_parser("Max", "max");
     add_variadic_op_parser("Min", "min");
 
-    for(auto&& name:get_op_parsers())
+    for(auto&& name : get_op_parsers())
         ops.emplace(name, get_op_parser(name));
 
     // Support name format of all lower case or the first letter capital

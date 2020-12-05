@@ -20,19 +20,14 @@ inline std::vector<instruction_ref> implicit_multi_op(std::vector<instruction_re
     return inss;
 }
 
-inline std::vector<instruction_ref> implicit_multi_op(instruction_ref ins)
-{
-    return {ins};
-}
+inline std::vector<instruction_ref> implicit_multi_op(instruction_ref ins) { return {ins}; }
 
 template <class T>
 void register_op_parser()
 {
     T parser;
-    auto op_func = [parser](auto&&... xs) {
-        return implicit_multi_op(parser.parse(xs...));
-    };
-    for(auto&& name:parser.operators())
+    auto op_func = [parser](auto&&... xs) { return implicit_multi_op(parser.parse(xs...)); };
+    for(auto&& name : parser.operators())
         register_op_parser(name, op_func);
 }
 

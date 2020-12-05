@@ -1,4 +1,5 @@
 #include <migraphx/onnx/onnx_parser.hpp>
+#include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
@@ -175,6 +176,9 @@ onnx_parser::onnx_parser()
     add_variadic_op_parser("Sum", "add");
     add_variadic_op_parser("Max", "max");
     add_variadic_op_parser("Min", "min");
+
+    for(auto&& name:get_op_parsers())
+        ops.emplace(name, get_op_parser(name));
 
     // Support name format of all lower case or the first letter capital
     map_actv_funcs.insert(std::make_pair("tanh", make_op("tanh")));

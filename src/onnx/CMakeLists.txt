@@ -18,13 +18,3 @@ target_link_libraries(migraphx_onnx PUBLIC migraphx)
 rocm_install_targets(
   TARGETS migraphx_onnx
 )
-
-if(MIGRAPHX_ENABLE_GPU)	
-add_executable(mnist mnist.cpp)	
-rocm_clang_tidy_check(mnist)	
-target_link_libraries(mnist migraphx_all_targets migraphx_onnx)
-
-add_executable(cifar10 cifar10.cpp)
-rocm_clang_tidy_check(cifar10)
-target_link_libraries(cifar10 migraphx_all_targets migraphx_onnx)
-endif()

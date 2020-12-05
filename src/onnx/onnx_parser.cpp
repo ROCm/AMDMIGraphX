@@ -378,7 +378,8 @@ void onnx_parser::parse_graph(const onnx::GraphProto& graph)
         }
         else
         {
-            result = ops[node.op_type()](*this, {get_attributes(node), output_num, node.op_type(), mm}, args);
+            result = ops[node.op_type()](
+                *this, {get_attributes(node), output_num, node.op_type(), mm}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

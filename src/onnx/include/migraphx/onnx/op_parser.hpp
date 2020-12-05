@@ -14,7 +14,7 @@ namespace onnx {
 struct op_desc
 {
     std::string onnx_name = "";
-    std::string op_name = "";
+    std::string op_name   = "";
 };
 
 void register_op_parser(const std::string& name, onnx_parser::op_func f);
@@ -34,7 +34,9 @@ void register_op_parser()
     T parser;
     auto op_func = [parser](auto&&... xs) { return implicit_multi_op(parser.parse(xs...)); };
     for(auto&& opd : parser.operators())
-        register_op_parser(opd.onnx_name, [opd, parser](auto&&... xs) { return implicit_multi_op(parser.parse(opd, xs...)); });
+        register_op_parser(opd.onnx_name, [opd, parser](auto&&... xs) {
+            return implicit_multi_op(parser.parse(opd, xs...));
+        });
 }
 
 struct register_op_parser_action

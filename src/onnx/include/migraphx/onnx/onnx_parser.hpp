@@ -29,7 +29,7 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
-        std::string name = "";
+        std::string name        = "";
         module* mm              = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_broadcastable_binary_op(const std::string& name,

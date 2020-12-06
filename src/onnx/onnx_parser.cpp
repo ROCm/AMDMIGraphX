@@ -542,14 +542,6 @@ shape::type_t get_type(int dtype)
     }
 }
 
-void check_arg_empty(const argument& arg, const std::string& msg)
-{
-    if(arg.empty())
-    {
-        MIGRAPHX_THROW(msg);
-    }
-}
-
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

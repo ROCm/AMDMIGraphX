@@ -6,11 +6,8 @@
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
-#include <iostream>
-#include <fstream>
 #include <unordered_map>
 #include <functional>
-#include <array>
 #include <utility>
 #include <vector>
 
@@ -92,7 +89,6 @@ struct onnx_parser
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
 };
 
-void check_arg_empty(const argument& arg, const std::string& msg);
 shape::type_t get_type(int dtype);
 
 } // namespace onnx

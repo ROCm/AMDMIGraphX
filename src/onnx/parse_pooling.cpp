@@ -13,12 +13,13 @@ namespace onnx {
 
 struct parse_pooling : op_parser<parse_pooling>
 {
-    std::vector<op_desc> operators() const { return {
-        {"AveragePool", "average"},
-        {"GlobalAveragePool", "average"},
-        {"GlobalMaxPool", "max"},
-        {"MaxPool", "max"}
-    }; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"AveragePool", "average"},
+                {"GlobalAveragePool", "average"},
+                {"GlobalMaxPool", "max"},
+                {"MaxPool", "max"}};
+    }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

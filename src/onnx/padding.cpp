@@ -9,11 +9,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 void cal_auto_padding_size(onnx_parser::node_info info,
-                                      value& v,
-                                      const std::vector<std::size_t>& k_lens,
-                                      const std::vector<std::size_t>& dilation,
-                                      const std::vector<std::size_t>& in_lens,
-                                      std::vector<int64_t>& paddings)
+                           value& v,
+                           const std::vector<std::size_t>& k_lens,
+                           const std::vector<std::size_t>& dilation,
+                           const std::vector<std::size_t>& in_lens,
+                           std::vector<int64_t>& paddings)
 {
     size_t kdims = in_lens.size() - 2;
     assert(k_lens.size() == kdims and dilation.size() == kdims);
@@ -89,9 +89,9 @@ tune_padding_to_symmetric(int64_t& left, int64_t& right, const int stride, int64
 }
 
 void tune_padding_size(const value& v,
-                              std::vector<int64_t>& padding,
-                              int count_include_pad,
-                              std::vector<int64_t>& s_start)
+                       std::vector<int64_t>& padding,
+                       int count_include_pad,
+                       std::vector<int64_t>& s_start)
 {
     // maxpooling or count_include_pad is 1, no change is required.
     if(v.at("mode").to<std::string>() == "max" or count_include_pad == 1)
@@ -133,8 +133,7 @@ void check_asym_padding(const onnx_parser::node_info& info,
         asym_pads.insert(asym_pads.begin() + 2, left_pad_it, right_pad_it);
         // add right pads
         asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
-        ins =
-            info.add_instruction(make_op("pad", {{"pads", asym_pads}, {"value", pad_val}}), ins);
+        ins = info.add_instruction(make_op("pad", {{"pads", asym_pads}, {"value", pad_val}}), ins);
     }
     else
     {

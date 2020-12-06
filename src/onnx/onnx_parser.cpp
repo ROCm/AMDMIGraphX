@@ -60,6 +60,20 @@ instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) con
     return add_instruction(make_op("contiguous"), ins);
 }
 
+instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
+                             instruction_ref curr_ins,
+                             uint64_t axis) const
+{
+    if(args.size() == 3)
+    {
+        auto bias_bcast = mm->add_instruction(
+            make_op("broadcast", {{"axis", axis}, {"dims", curr_ins->get_shape().lens()}}),
+            args[2]);
+        return mm->add_instruction(make_op("add"), curr_ins, bias_bcast);
+    }
+    return curr_ins;
+}
+
 static std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                          std::vector<std::size_t> s1)
 {

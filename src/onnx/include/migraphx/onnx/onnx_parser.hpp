@@ -30,8 +30,8 @@ struct onnx_parser
         module* mm              = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
-                             instruction_ref curr_ins,
-                             uint64_t axis) const;
+                                 instruction_ref curr_ins,
+                                 uint64_t axis) const;
         instruction_ref add_broadcastable_binary_op(const std::string& name,
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;

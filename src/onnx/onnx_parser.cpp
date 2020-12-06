@@ -61,8 +61,8 @@ instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) con
 }
 
 instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
-                             instruction_ref curr_ins,
-                             uint64_t axis) const
+                                                 instruction_ref curr_ins,
+                                                 uint64_t axis) const
 {
     if(args.size() == 3)
     {

@@ -48,13 +48,13 @@ struct parse_clip : op_parser<parse_clip>
         if(min_used)
         {
             min_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}),
-                                          min_arg);
+                                           min_arg);
         }
 
         if(max_used)
         {
             max_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}),
-                                          max_arg);
+                                           max_arg);
         }
 
         if(min_used and max_used)

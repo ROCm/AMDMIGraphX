@@ -21,10 +21,7 @@ std::vector<int64_t> to_int64_vector(const std::vector<T>& input_vector)
 
 struct parse_deconvolution : op_parser<parse_deconvolution>
 {
-    std::vector<op_desc> operators() const
-    {
-        return {{"ConvTranspose"}};
-    }
+    std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

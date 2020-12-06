@@ -16,8 +16,7 @@ struct parse_convolution : op_parser<parse_convolution>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Conv", "convolution"},
-                {"ConvInteger", "quant_convolution"}};
+        return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
     instruction_ref parse(const op_desc& opd,

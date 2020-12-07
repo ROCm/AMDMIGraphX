@@ -9,6 +9,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/generic_eval.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -58,35 +59,6 @@ static void print_instruction(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
-}
-
-template <class F>
-static void print_module(const module& m, F print_func)
-{
-    std::unordered_map<instruction_ref, std::string> names;
-    int count = 0;
-
-    for(auto ins : iterator_for(m))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = "@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
-
-        assert(std::all_of(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           [&](auto arg) { return m.has_instruction(arg); }) &&
-               "PRINT_MODULE: Instruction not found");
-
-        print_func(ins, names);
-    }
 }
 
 module::module() : impl(std::make_unique<module_impl>()) {}

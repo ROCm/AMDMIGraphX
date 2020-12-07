@@ -24,7 +24,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct program_impl
 {
-    // A list is used to keep references to modules of the program
+    // A map is used to keep references to modules of the program
     std::map<std::string, module> modules;
     context ctx;
     std::string target_name;
@@ -65,32 +65,8 @@ static void print_instruction(std::ostream& os,
 template <class F>
 static void print_program(const program& p, F print_func)
 {
-    std::unordered_map<instruction_ref, std::string> names;
-    int count = 0;
-
-    for(auto ins : iterator_for(*p.get_main_module()))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = "@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
-
-        // TODO: Use all_of
-        for(auto&& arg : ins->inputs())
-        {
-            assert(p.has_instruction(arg) && "Instruction not found");
-            (void)arg;
-        }
-
-        print_func(ins, names);
-    }
+    auto* mm = p.get_main_module();
+    print_module(*mm, print_func);
 }
 
 program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {}; }
@@ -129,60 +105,60 @@ void program::assign(const program& p)
 
 shape program::get_parameter_shape(std::string name) const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_parameter_shape(std::move(name));
+    auto* mm = this->get_main_module();
+    return mm->get_parameter_shape(std::move(name));
 }
 
 std::vector<std::string> program::get_parameter_names() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_parameter_names();
+    auto* mm = this->get_main_module();
+    return mm->get_parameter_names();
 }
 
 instruction_ref program::get_parameter(std::string name) const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_parameter(std::move(name));
+    auto* mm = this->get_main_module();
+    return mm->get_parameter(std::move(name));
 }
 
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_parameter_shapes();
+    auto* mm = this->get_main_module();
+    return mm->get_parameter_shapes();
 }
 
 bool program::has_instruction(instruction_ref ins) const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].has_instruction(ins);
+    auto* mm = this->get_main_module();
+    return mm->has_instruction(ins);
 }
 
 std::size_t program::size() const { return impl->modules.size(); }
 
 instruction_ref program::begin() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].begin();
+    auto* mm = this->get_main_module();
+    return mm->begin();
 }
 
 instruction_ref program::end() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].end();
+    auto* mm = this->get_main_module();
+    return mm->end();
 }
 
 std::vector<shape> program::get_output_shapes() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].get_output_shapes();
+    auto* mm = this->get_main_module();
+    return mm->get_output_shapes();
 }
 
 context& program::get_context() const { return impl->ctx; }
 
 instruction_ref program::validate() const
 {
-    assert(contains(impl->modules, "main"));
-    return impl->modules["main"].validate();
+    auto* mm = this->get_main_module();
+    return mm->validate();
 }
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
@@ -217,8 +193,8 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].finalize(impl->ctx);
+    auto* mm = this->get_main_module();
+    mm->finalize(impl->ctx);
 }
 
 template <class F>
@@ -446,15 +422,15 @@ void program::debug_print(instruction_ref ins) const
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].print_graph(os, brief);
+    auto* mm = this->get_main_module();
+    mm->print_graph(os, brief);
 }
 
 void program::print_cpp(std::ostream& os) const
 {
     os << "migraphx::program p;" << std::endl;
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].print_cpp(os);
+    auto* mm = this->get_main_module();
+    mm->print_cpp(os);
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
@@ -465,10 +441,9 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    assert(contains(impl->modules, "main"));
-    auto& modl = impl->modules.at("main");
-    std::cout << modl.name() << ":" << std::endl;
-    modl.annotate(os, std::move(a));
+    auto* mm = this->get_main_module();
+    std::cout << mm->name() << ":" << std::endl;
+    mm->annotate(os, std::move(a));
 }
 
 module* program::get_main_module()
@@ -489,8 +464,7 @@ const module* program::get_main_module() const
 
 program& program::sort()
 {
-    assert(contains(impl->modules, "main"));
-    impl->modules["main"].sort();
+    this->get_main_module()->sort();
     return *this;
 }
 

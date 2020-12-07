@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <unordered_map>
 #include <migraphx/literal.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -11,9 +12,12 @@
 #include <migraphx/tf.hpp>
 #include "test.hpp"
 
-migraphx::program parse_tf(const std::string& name, bool is_nhwc)
+migraphx::program
+parse_tf(const std::string& name,
+         bool is_nhwc,
+         const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {})
 {
-    return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1});
+    return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1, dim_params});
 }
 
 migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
@@ -74,11 +78,11 @@ TEST_CASE(argmax_test)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 5, 6, 7}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
     auto ins = mm->add_instruction(migraphx::op::argmax{2}, l0);
     mm->add_instruction(migraphx::op::squeeze{{2}}, ins);
-    auto prog = parse_tf("argmax_test.pb", false);
+    auto prog = parse_tf("argmax_test.pb", false, {{"0", {4, 5, 6, 7}}});
 
     EXPECT(p == prog);
 }

@@ -12,9 +12,9 @@ struct parse_split : op_parser<parse_split>
     std::vector<op_desc> operators() const { return {{"Split"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       std::vector<instruction_ref> args) const
     {
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))

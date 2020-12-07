@@ -21,7 +21,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-    
 
 template <class F>
 static void print_module(const module& m, F print_func)
@@ -51,7 +50,6 @@ static void print_module(const module& m, F print_func)
         print_func(ins, names);
     }
 }
-
 
 template <class F>
 std::vector<argument> generic_eval(const module& p,

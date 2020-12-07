@@ -74,7 +74,7 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     return curr_ins;
 }
 
-static std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
+std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                          std::vector<std::size_t> s1)
 {
     // Example:
@@ -157,14 +157,17 @@ onnx_parser::onnx_parser()
     add_generic_op_parser("Concat", "concat");
     add_generic_op_parser("Cos", "cos");
     add_generic_op_parser("Cosh", "cosh");
+    add_generic_op_parser("Elu", "elu");
     add_generic_op_parser("Erf", "erf");
     add_generic_op_parser("Exp", "exp");
     add_generic_op_parser("Flatten", "flatten");
     add_generic_op_parser("Floor", "floor");
     add_generic_op_parser("Gather", "gather", true);
     add_generic_op_parser("Identity", "identity");
+    add_generic_op_parser("LeakyRelu", "leaky_relu");
     add_generic_op_parser("Log", "log");
     add_generic_op_parser("LogSoftmax", "logsoftmax");
+    add_generic_op_parser("LRN", "lrn");
     add_generic_op_parser("Neg", "neg");
     add_generic_op_parser("Reciprocal", "recip");
     add_generic_op_parser("Relu", "relu");

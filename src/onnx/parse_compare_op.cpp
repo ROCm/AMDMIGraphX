@@ -9,11 +9,10 @@ namespace onnx {
 
 struct parse_compare_op : op_parser<parse_compare_op>
 {
-    std::vector<op_desc> operators() const { return {
-      {"Equal", "equal"},
-      {"Greater", "greater"},
-      {"Less", "less"}
-    }; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"Equal", "equal"}, {"Greater", "greater"}, {"Less", "less"}};
+    }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,

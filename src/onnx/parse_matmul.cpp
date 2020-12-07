@@ -9,7 +9,10 @@ namespace onnx {
 
 struct parse_matmul : op_parser<parse_matmul>
 {
-    std::vector<op_desc> operators() const { return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
+    }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
@@ -63,7 +66,8 @@ struct parse_matmul : op_parser<parse_matmul>
             }
         }
 
-        auto dot_res = info.add_instruction(make_op(opd.op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        auto dot_res =
+            info.add_instruction(make_op(opd.op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {

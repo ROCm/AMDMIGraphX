@@ -56,8 +56,8 @@ struct parse_gemm : op_parser<parse_gemm>
                 auto l3_lens    = l3->get_shape().lens();
                 if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
-                    l3 = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
-                                             args[2]);
+                    l3 = info.add_instruction(
+                        make_op("multibroadcast", {{"output_lens", out_lens}}), args[2]);
                 }
                 return info.add_instruction(
                     make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);

@@ -37,7 +37,8 @@ struct parse_imagescalar : op_parser<parse_imagescalar>
 
         auto scale_tensor = info.add_instruction(
             migraphx::make_op("scalar", {{"scalar_bcst_dims", input_lens}}), scale_val);
-        auto img_scaled = info.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
+        auto img_scaled =
+            info.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
         auto bias_bcast = info.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", input_lens}}), bias_vals);
         return info.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);

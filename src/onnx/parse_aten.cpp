@@ -7,12 +7,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-  enum class reduce_mode_t
-  {
-      sum  = 0,
-      mean = 1,
-      max  = 2
-  };
+enum class reduce_mode_t
+{
+    sum  = 0,
+    mean = 1,
+    max  = 2
+};
 
 struct parse_aten : op_parser<parse_aten>
 {
@@ -35,7 +35,7 @@ struct parse_aten : op_parser<parse_aten>
     }
 
     instruction_ref parse_embedding_bag(onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                        std::vector<instruction_ref> args) const
     {
         if(args[2]->get_shape().elements() != 1)
             MIGRAPHX_THROW("PARSE_EMBEDDING_BAG: MIGraphX only supports offsets of size 1");
@@ -60,7 +60,6 @@ struct parse_aten : op_parser<parse_aten>
         }
         return l0;
     }
-
 };
 
 } // namespace onnx

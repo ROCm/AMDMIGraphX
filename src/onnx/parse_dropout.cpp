@@ -12,9 +12,9 @@ struct parse_dropout : op_parser<parse_dropout>
     std::vector<op_desc> operators() const { return {{"Dropout"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       std::vector<instruction_ref> args) const
     {
         auto out = info.add_instruction(make_op("identity"), args[0]);
         auto s   = args[0]->get_shape();

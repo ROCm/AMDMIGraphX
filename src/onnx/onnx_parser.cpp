@@ -145,13 +145,6 @@ onnx_parser::node_info::add_instruction(const operation& op,
 
 onnx_parser::onnx_parser()
 {
-    add_binary_op_parser("Add", "add");
-    add_binary_op_parser("Div", "div");
-    add_binary_op_parser("Mul", "mul");
-    add_binary_op_parser("Pow", "pow");
-    add_binary_op_parser("PRelu", "prelu");
-    add_binary_op_parser("Sub", "sub");
-
     add_variadic_op_parser("Sum", "add");
     add_variadic_op_parser("Max", "max");
     add_variadic_op_parser("Min", "min");

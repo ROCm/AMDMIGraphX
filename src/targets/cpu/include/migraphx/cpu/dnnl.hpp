@@ -27,9 +27,10 @@ inline dnnl_context& get_dnnl_context()
     static dnnl_context ctx{}; // NOLINT
     return ctx;
 }
-
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wswitch-enum"
+#endif
 inline dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
 {
     using dt = dnnl::memory::data_type;
@@ -44,7 +45,9 @@ inline dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
     default: MIGRAPHX_THROW("Unsupported data type");
     }
 }
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 inline dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
 {

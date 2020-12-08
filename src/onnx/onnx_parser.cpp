@@ -145,44 +145,6 @@ onnx_parser::node_info::add_instruction(const operation& op,
 
 onnx_parser::onnx_parser()
 {
-    // sort onnx operator alphabetically through name
-    add_generic_op_parser("Abs", "abs");
-    add_generic_op_parser("Acos", "acos");
-    add_generic_op_parser("Acosh", "acosh");
-    add_generic_op_parser("Asin", "asin");
-    add_generic_op_parser("Asinh", "asinh");
-    add_generic_op_parser("Atan", "atan");
-    add_generic_op_parser("Atanh", "atanh");
-    add_generic_op_parser("Ceil", "ceil");
-    add_generic_op_parser("Concat", "concat");
-    add_generic_op_parser("Cos", "cos");
-    add_generic_op_parser("Cosh", "cosh");
-    add_generic_op_parser("Elu", "elu");
-    add_generic_op_parser("Erf", "erf");
-    add_generic_op_parser("Exp", "exp");
-    add_generic_op_parser("Flatten", "flatten");
-    add_generic_op_parser("Floor", "floor");
-    add_generic_op_parser("Gather", "gather", true);
-    add_generic_op_parser("Identity", "identity");
-    add_generic_op_parser("LeakyRelu", "leaky_relu");
-    add_generic_op_parser("Log", "log");
-    add_generic_op_parser("LogSoftmax", "logsoftmax");
-    add_generic_op_parser("LRN", "lrn");
-    add_generic_op_parser("Neg", "neg");
-    add_generic_op_parser("Reciprocal", "recip");
-    add_generic_op_parser("Relu", "relu");
-    add_generic_op_parser("Round", "round");
-    add_generic_op_parser("Sigmoid", "sigmoid");
-    add_generic_op_parser("Sign", "sign");
-    add_generic_op_parser("Sin", "sin");
-    add_generic_op_parser("Sinh", "sinh");
-    add_generic_op_parser("Softmax", "softmax");
-    add_generic_op_parser("Sqrt", "sqrt");
-    add_generic_op_parser("Squeeze", "squeeze", true);
-    add_generic_op_parser("Tan", "tan");
-    add_generic_op_parser("Tanh", "tanh");
-    add_generic_op_parser("Unsqueeze", "unsqueeze", true);
-
     add_binary_op_parser("Add", "add");
     add_binary_op_parser("Div", "div");
     add_binary_op_parser("Mul", "mul");

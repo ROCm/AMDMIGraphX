@@ -18,7 +18,7 @@ CheckOptions:
   - key:             readability-function-size.BranchThreshold
     value:           '15'
   - key:             readability-function-size.LineThreshold
-    value:           '300'
+    value:           '350'
   - key:             readability-function-size.NestingThreshold
     value:           '5'
   - key:             readability-function-size.ParameterThreshold

@@ -2,6 +2,10 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/serialize.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
@@ -23,24 +27,28 @@ struct test_rnn_bidirectional10 : verify_program<test_rnn_bidirectional10>
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
-        auto seq  = mm->add_parameter("seq", in_shape);
-        auto w    = mm->add_parameter("w", w_shape);
-        auto r    = mm->add_parameter("r", r_shape);
-        auto bias = mm->add_parameter("bias", b_shape);
-        auto ih   = mm->add_parameter("ih", ih_shape);
-        auto und  = mm->add_instruction(migraphx::op::undefined{});
-        auto output =
-            mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                  migraphx::op::rnn_direction::bidirectional,
-                                                  clip},
-                                seq,
-                                w,
-                                r,
-                                bias,
-                                und,
-                                ih);
-        mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
+        auto seq    = mm->add_parameter("seq", in_shape);
+        auto w      = mm->add_parameter("w", w_shape);
+        auto r      = mm->add_parameter("r", r_shape);
+        auto bias   = mm->add_parameter("bias", b_shape);
+        auto ih     = mm->add_parameter("ih", ih_shape);
+        auto und    = mm->add_instruction(migraphx::make_op("undefined"));
+        auto output = mm->add_instruction(
+            migraphx::make_op(
+                "rnn",
+                {{"hidden_size", hidden_size},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r,
+            bias,
+            und,
+            ih);
+        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
 
         return p;
     }

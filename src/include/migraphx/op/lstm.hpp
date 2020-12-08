@@ -33,6 +33,7 @@ struct lstm
         return pack(f(self.hidden_size, "hidden_size"),
                     f(self.actv_funcs, "actv_func"),
                     f(self.direction, "direction"),
+                    f(self.clip, "clip"),
                     f(self.input_forget, "input_forget"));
     }
 

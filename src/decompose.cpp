@@ -29,13 +29,15 @@ struct find_dot_add
         if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
-            auto alpha_broadcast =
-                p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}), alpha);
+            auto alpha_broadcast = p.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}),
+                alpha);
             a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
         auto dot_ins = p.insert_instruction(ins, make_op("dot", {{"beta", 0}}), a_ins, b_ins);
 
-        auto c_ins   = ins->inputs()[2];
+        auto c_ins = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
             auto beta = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.beta}});
@@ -60,8 +62,10 @@ struct find_dot_alpha
         if(not float_equal(dot.alpha, 1))
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
-            auto alpha_broadcast =
-                p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}), alpha);
+            auto alpha_broadcast = p.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}),
+                alpha);
             a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
         p.replace_instruction(ins, make_op("dot", {{"beta", 0}}), a_ins, b_ins);

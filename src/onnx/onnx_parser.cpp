@@ -109,7 +109,7 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
     return out_lens;
 }
 
-instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::string& name,
+instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::string& op_name,
                                                                     instruction_ref arg0,
                                                                     instruction_ref arg1) const
 {
@@ -128,11 +128,11 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
         if(arg1->get_shape().lens() != out_lens)
             l1 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg1);
 
-        return add_instruction(make_op(name), l0, l1);
+        return add_instruction(make_op(op_name), l0, l1);
     }
     else
     {
-        return add_instruction(make_op(name), {arg0, arg1});
+        return add_instruction(make_op(op_name), {arg0, arg1});
     }
 }
 

@@ -56,31 +56,9 @@ struct onnx_parser
     bool skip_unknown_operators = false;
 
     std::unordered_map<std::string, op_func> ops;
-    std::unordered_map<std::string, operation> map_actv_funcs;
 
     onnx_parser();
     operation load(const std::string& name, const node_info& info) const;
-
-    template <class F>
-    void add_op_parser(std::string name, F f)
-    {
-        ops.emplace(name, [=](auto&&... xs) {
-            return std::vector<instruction_ref>{f(std::forward<decltype(xs)>(xs)...)};
-        });
-    }
-
-    // Multi output op
-    template <class F>
-    void add_multi_op_parser(std::string name, F f)
-    {
-        ops.emplace(name, f);
-    }
-
-    void add_binary_op_parser(const std::string& onnx_name, const std::string& op_name);
-    void add_generic_op_parser(const std::string& onnx_name,
-                               const std::string& op_name,
-                               bool contiguous = false);
-    void add_variadic_op_parser(const std::string& onnx_name, const std::string& op_name);
 
     void parse_undefined(module* mm, const std::string& name);
 

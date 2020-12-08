@@ -148,13 +148,6 @@ onnx_parser::onnx_parser()
     // Add all registered op parsers
     for(auto&& name : get_op_parsers())
         ops.emplace(name, get_op_parser(name));
-
-    // Support name format of all lower case or the first letter capital
-    map_actv_funcs.insert(std::make_pair("tanh", make_op("tanh")));
-    map_actv_funcs.insert(std::make_pair("relu", make_op("relu")));
-    map_actv_funcs.insert(std::make_pair("sigmoid", make_op("sigmoid")));
-    map_actv_funcs.insert(std::make_pair("leakyrelu", make_op("leaky_relu")));
-    map_actv_funcs.insert(std::make_pair("elu", make_op("elu")));
 }
 
 operation onnx_parser::load(const std::string& name, const node_info& info) const
@@ -183,68 +176,6 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
     }
     op.from_value(v);
     return op;
-}
-
-void onnx_parser::add_binary_op_parser(const std::string& onnx_name, const std::string& op_name)
-{
-    add_op_parser(
-        onnx_name,
-        [op_name](
-            const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
-            if(args.size() != 2)
-                MIGRAPHX_THROW("binary operators should have 2 operands");
-            if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
-            {
-                uint64_t broadcasted =
-                    parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
-                if(broadcasted != 0)
-                {
-                    uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                    auto l        = info.add_instruction(
-                        make_op("broadcast",
-                                {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
-                        args[1]);
-                    return info.add_instruction(make_op(op_name), args[0], l);
-                }
-                return info.add_instruction(make_op(op_name), args);
-            }
-            else
-            {
-                return info.add_broadcastable_binary_op(op_name, args[0], args[1]);
-            }
-        });
-}
-
-void onnx_parser::add_generic_op_parser(const std::string& onnx_name,
-                                        const std::string& op_name,
-                                        bool contiguous)
-{
-    add_op_parser(onnx_name,
-                  [op_name, contiguous](const onnx_parser& parser,
-                                        const node_info& info,
-                                        std::vector<instruction_ref> args) {
-                      auto op = parser.load(op_name, info);
-                      if(contiguous)
-                      {
-                          std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                              return info.make_contiguous(arg);
-                          });
-                      }
-                      return info.add_instruction(op, args);
-                  });
-}
-void onnx_parser::add_variadic_op_parser(const std::string& onnx_name, const std::string& op_name)
-{
-    add_op_parser(
-        onnx_name,
-        [op_name](const onnx_parser&, const node_info& info, std::vector<instruction_ref> args) {
-            return std::accumulate(std::next(args.begin()),
-                                   args.end(),
-                                   args.front(),
-                                   [&](instruction_ref a, instruction_ref b) {
-                                       return info.add_broadcastable_binary_op(op_name, a, b);
-                                   });
-        });
 }
 
 void onnx_parser::parse_undefined(module* mm, const std::string& name)

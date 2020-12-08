@@ -15,16 +15,17 @@ struct parse_rnn : op_parser<parse_rnn>
     std::vector<op_desc> operators() const { return {{"RNN"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       std::vector<instruction_ref> args) const
     {
         migraphx::shape input_shape = args[0]->get_shape();
         std::size_t hidden_size     = args[1]->get_shape().lens()[1];
 
         if(contains(info.attributes, "hidden_size"))
         {
-            std::size_t hidden_size_att = parser.parse_value(info.attributes.at("hidden_size")).at<int>();
+            std::size_t hidden_size_att =
+                parser.parse_value(info.attributes.at("hidden_size")).at<int>();
             if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("RNN: hidden size mismatch in input and attribute");
@@ -102,11 +103,11 @@ struct parse_rnn : op_parser<parse_rnn>
 
         // first output for the concatenation of hidden states
         auto hidden_states = info.add_instruction(make_op("rnn",
-                                                         {{"hidden_size", hidden_size},
-                                                          {"actv_func", to_value(vec_actv_funcs)},
-                                                          {"direction", dirct},
-                                                          {"clip", clip}}),
-                                                 std::move(args));
+                                                          {{"hidden_size", hidden_size},
+                                                           {"actv_func", to_value(vec_actv_funcs)},
+                                                           {"direction", dirct},
+                                                           {"clip", clip}}),
+                                                  std::move(args));
 
         // second output for the last hidden state
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);

@@ -15,16 +15,17 @@ struct parse_gru : op_parser<parse_gru>
     std::vector<op_desc> operators() const { return {{"GRU"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                       const onnx_parser& parser,
+                                       onnx_parser::node_info info,
+                                       std::vector<instruction_ref> args) const
     {
         migraphx::shape input_shape = args[0]->get_shape();
         std::size_t hidden_size     = args[2]->get_shape().lens()[2];
 
         if(contains(info.attributes, "hidden_size"))
         {
-            std::size_t hidden_size_att = parser.parse_value(info.attributes.at("hidden_size")).at<int>();
+            std::size_t hidden_size_att =
+                parser.parse_value(info.attributes.at("hidden_size")).at<int>();
             if(hidden_size != hidden_size_att)
             {
                 MIGRAPHX_THROW("GRU: hidden size mismatch in input and attribute");
@@ -117,7 +118,8 @@ struct parse_gru : op_parser<parse_gru>
         int linear_before_reset = 0;
         if(contains(info.attributes, "linear_before_reset"))
         {
-            linear_before_reset = parser.parse_value(info.attributes.at("linear_before_reset")).at<int>();
+            linear_before_reset =
+                parser.parse_value(info.attributes.at("linear_before_reset")).at<int>();
         }
 
         // append undefined opeator to make 6 arguments
@@ -130,12 +132,12 @@ struct parse_gru : op_parser<parse_gru>
         // first output for concatenation of hidden states
         auto hidden_states =
             info.add_instruction(make_op("gru",
-                                        {{"hidden_size", hidden_size},
-                                         {"actv_func", to_value(vec_actv_funcs)},
-                                         {"direction", dirct},
-                                         {"clip", clip},
-                                         {"linear_before_reset", linear_before_reset}}),
-                                std::move(args));
+                                         {{"hidden_size", hidden_size},
+                                          {"actv_func", to_value(vec_actv_funcs)},
+                                          {"direction", dirct},
+                                          {"clip", clip},
+                                          {"linear_before_reset", linear_before_reset}}),
+                                 std::move(args));
 
         // second output for last gru output
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);

@@ -32,7 +32,7 @@ struct onnx_parser
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,
                                  uint64_t axis) const;
-        instruction_ref add_broadcastable_binary_op(const std::string& name,
+        instruction_ref add_broadcastable_binary_op(const std::string& op_name,
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;
         instruction_ref add_instruction(const operation& op,

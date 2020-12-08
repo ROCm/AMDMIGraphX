@@ -90,6 +90,7 @@ RUN ln -s $PREFIX /opt/rocm/hcc
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
+RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
 
 RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 

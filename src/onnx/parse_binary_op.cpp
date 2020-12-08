@@ -12,11 +12,11 @@ struct parse_binary_op : op_parser<parse_binary_op>
     std::vector<op_desc> operators() const
     {
         return {{"Add", "add"},
-{"Div", "div"},
-{"Mul", "mul"},
-{"Pow", "pow"},
-{"PRelu", "prelu"},
-{"Sub", "sub"}};
+                {"Div", "div"},
+                {"Mul", "mul"},
+                {"Pow", "pow"},
+                {"PRelu", "prelu"},
+                {"Sub", "sub"}};
     }
 
     bool needs_contiguous(const std::string& op_name) const
@@ -29,28 +29,27 @@ struct parse_binary_op : op_parser<parse_binary_op>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-            if(args.size() != 2)
-                MIGRAPHX_THROW("binary operators should have 2 operands");
-            if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
+        if(args.size() != 2)
+            MIGRAPHX_THROW("binary operators should have 2 operands");
+        if(contains(info.attributes, "broadcast") and contains(info.attributes, "axis"))
+        {
+            uint64_t broadcasted =
+                parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
+            if(broadcasted != 0)
             {
-                uint64_t broadcasted =
-                    parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
-                if(broadcasted != 0)
-                {
-                    uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
-                    auto l        = info.add_instruction(
-                        make_op("broadcast",
-                                {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
-                        args[1]);
-                    return info.add_instruction(make_op(opd.op_name), args[0], l);
-                }
-                return info.add_instruction(make_op(opd.op_name), args);
+                uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
+                auto l        = info.add_instruction(
+                    make_op("broadcast", {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
+                    args[1]);
+                return info.add_instruction(make_op(opd.op_name), args[0], l);
             }
-            else
-            {
-                return info.add_broadcastable_binary_op(opd.op_name, args[0], args[1]);
-            }
+            return info.add_instruction(make_op(opd.op_name), args);
         }
+        else
+        {
+            return info.add_broadcastable_binary_op(opd.op_name, args[0], args[1]);
+        }
+    }
 };
 
 } // namespace onnx

@@ -32,7 +32,6 @@ template <class T>
 void register_op_parser()
 {
     T parser;
-    auto op_func = [parser](auto&&... xs) { return implicit_multi_op(parser.parse(xs...)); };
     for(auto&& opd : parser.operators())
         register_op_parser(opd.onnx_name, [opd, parser](auto&&... xs) {
             return implicit_multi_op(parser.parse(opd, xs...));

@@ -10,9 +10,7 @@ struct parse_variadic_op : op_parser<parse_variadic_op>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Sum", "add"},
-{"Max", "max"},
-{"Min", "min"}};
+        return {{"Sum", "add"}, {"Max", "max"}, {"Min", "min"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -20,13 +18,13 @@ struct parse_variadic_op : op_parser<parse_variadic_op>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-            return std::accumulate(std::next(args.begin()),
-                                   args.end(),
-                                   args.front(),
-                                   [&](instruction_ref a, instruction_ref b) {
-                                       return info.add_broadcastable_binary_op(opd.op_name, a, b);
-                                   });
-        }
+        return std::accumulate(std::next(args.begin()),
+                               args.end(),
+                               args.front(),
+                               [&](instruction_ref a, instruction_ref b) {
+                                   return info.add_broadcastable_binary_op(opd.op_name, a, b);
+                               });
+    }
 };
 
 } // namespace onnx

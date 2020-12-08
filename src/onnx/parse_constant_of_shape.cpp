@@ -13,7 +13,7 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
 {
     std::vector<op_desc> operators() const { return {{"ConstantOfShape"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

@@ -11,8 +11,8 @@ struct parse_where : op_parser<parse_where>
 {
     std::vector<op_desc> operators() const { return {{"Where"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
-                          const onnx_parser&  /*parser*/,
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {

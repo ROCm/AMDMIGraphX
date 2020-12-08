@@ -65,7 +65,7 @@ struct parse_reduce_l1 : op_parser<parse_reduce_l1>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL1"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -79,7 +79,7 @@ struct parse_reduce_l2 : op_parser<parse_reduce_l2>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL2"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
@@ -94,7 +94,7 @@ struct parse_reduce_log_sum : op_parser<parse_reduce_log_sum>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSum"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
@@ -108,7 +108,7 @@ struct parse_reduce_log_sum_exp : op_parser<parse_reduce_log_sum_exp>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSumExp"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
@@ -123,7 +123,7 @@ struct parse_reduce_sum_square : op_parser<parse_reduce_sum_square>
 {
     std::vector<op_desc> operators() const { return {{"ReduceSumSquare"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

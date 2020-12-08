@@ -283,17 +283,14 @@ void onnx_parser::add_generic_op_parser(const std::string& onnx_name,
 }
 void onnx_parser::add_variadic_op_parser(const std::string& onnx_name, const std::string& op_name)
 {
-    add_op_parser(
-        onnx_name,
-        [op_name](
-            const node_info& info, std::vector<instruction_ref> args) {
-            return std::accumulate(std::next(args.begin()),
-                                   args.end(),
-                                   args.front(),
-                                   [&](instruction_ref a, instruction_ref b) {
-                                       return info.add_broadcastable_binary_op(op_name, a, b);
-                                   });
-        });
+    add_op_parser(onnx_name, [op_name](const node_info& info, std::vector<instruction_ref> args) {
+        return std::accumulate(std::next(args.begin()),
+                               args.end(),
+                               args.front(),
+                               [&](instruction_ref a, instruction_ref b) {
+                                   return info.add_broadcastable_binary_op(op_name, a, b);
+                               });
+    });
 }
 
 void onnx_parser::parse_undefined(module* mm, const std::string& name)

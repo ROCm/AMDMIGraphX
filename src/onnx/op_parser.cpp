@@ -1,7 +1,6 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <utility>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {

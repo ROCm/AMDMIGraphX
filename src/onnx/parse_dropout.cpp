@@ -11,8 +11,8 @@ struct parse_dropout : op_parser<parse_dropout>
 {
     std::vector<op_desc> operators() const { return {{"Dropout"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
-                                       const onnx_parser&  /*parser*/,
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& /*parser*/,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {

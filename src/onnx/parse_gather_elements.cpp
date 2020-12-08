@@ -11,7 +11,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
 {
     std::vector<op_desc> operators() const { return {{"GatherElements"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

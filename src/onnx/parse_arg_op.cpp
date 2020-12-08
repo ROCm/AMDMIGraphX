@@ -29,8 +29,7 @@ struct parse_arg_op : op_parser<parse_arg_op>
 
         if(keep_dims == 0)
         {
-            auto ins =
-                info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
+            auto ins = info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
             return info.add_instruction(make_op("squeeze", {{"axes", {axis}}}), ins);
         }
         else

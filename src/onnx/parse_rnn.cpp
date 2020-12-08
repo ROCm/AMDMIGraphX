@@ -14,7 +14,7 @@ struct parse_rnn : op_parser<parse_rnn>
 {
     std::vector<op_desc> operators() const { return {{"RNN"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const

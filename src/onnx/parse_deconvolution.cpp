@@ -23,7 +23,7 @@ struct parse_deconvolution : op_parser<parse_deconvolution>
 {
     std::vector<op_desc> operators() const { return {{"ConvTranspose"}}; }
 
-    instruction_ref parse(const op_desc&  /*opd*/,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

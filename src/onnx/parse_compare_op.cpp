@@ -15,7 +15,7 @@ struct parse_compare_op : op_parser<parse_compare_op>
     }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser&  /*parser*/,
+                          const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {

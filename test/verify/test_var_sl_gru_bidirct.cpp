@@ -2,6 +2,10 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/operators.hpp>
 
 struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
@@ -34,18 +38,22 @@ struct test_var_sl_gru_bidirct : verify_program<test_var_sl_gru_bidirct>
         std::vector<int> sl_data{2, 1, 3};
         auto sql = mm->add_literal(migraphx::literal{sl_shape, sl_data});
 
-        auto hs =
-            mm->add_instruction(migraphx::op::gru{hidden_size,
-                                                  {migraphx::op::sigmoid{}, migraphx::op::tanh{}},
-                                                  migraphx::op::rnn_direction::bidirectional,
-                                                  clip},
-                                seq,
-                                w,
-                                r,
-                                bias,
-                                sql,
-                                ih);
-        auto lho = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
+        auto hs = mm->add_instruction(
+            migraphx::make_op(
+                "gru",
+                {{"hidden_size", hidden_size},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r,
+            bias,
+            sql,
+            ih);
+        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
         mm->add_return({hs, lho});
 
         return p;

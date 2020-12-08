@@ -2,7 +2,9 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
 
 struct test_convert : verify_program<test_convert>
 {
@@ -14,9 +16,15 @@ struct test_convert : verify_program<test_convert>
         migraphx::shape sb{migraphx::shape::float_type, {24, 6}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        auto ia = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pa);
-        auto ib = mm->add_instruction(migraphx::op::convert{migraphx::shape::int8_type}, pb);
-        mm->add_instruction(migraphx::op::quant_dot{}, ia, ib);
+        auto ia = mm->add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+            pa);
+        auto ib = mm->add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+            pb);
+        mm->add_instruction(migraphx::make_op("quant_dot"), ia, ib);
 
         return p;
     };

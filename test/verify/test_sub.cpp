@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 
 struct test_sub : verify_program<test_sub>
 {
@@ -14,8 +14,8 @@ struct test_sub : verify_program<test_sub>
         auto x    = mm->add_parameter("x", s);
         auto y    = mm->add_parameter("y", s);
         auto z    = mm->add_parameter("z", s);
-        auto diff = mm->add_instruction(migraphx::op::sub{}, x, y);
-        mm->add_instruction(migraphx::op::sub{}, diff, z);
+        auto diff = mm->add_instruction(migraphx::make_op("sub"), x, y);
+        mm->add_instruction(migraphx::make_op("sub"), diff, z);
         return p;
     }
 };

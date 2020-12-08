@@ -27,6 +27,7 @@ add_library(migraphx
     load_save.cpp
     make_op.cpp
     msgpack.cpp
+    operation.cpp
     program.cpp
     quantization.cpp
     reduce_dims.cpp

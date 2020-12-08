@@ -7,9 +7,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/op/dot.hpp>
-#include <migraphx/op/multibroadcast.hpp>
-#include <migraphx/op/mul.hpp>
-#include <migraphx/op/add.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,19 +30,20 @@ struct find_dot_add
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{a_ins->get_shape().lens()}, alpha);
-            a_ins = p.insert_instruction(ins, op::mul{}, a_ins, alpha_broadcast);
+                p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}), alpha);
+            a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
-        auto dot_ins = p.insert_instruction(ins, op::dot{1, 0}, a_ins, b_ins);
+        auto dot_ins = p.insert_instruction(ins, make_op("dot", {{"beta", 0}}), a_ins, b_ins);
+
         auto c_ins   = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
             auto beta = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.beta}});
-            auto beta_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{ins->get_shape().lens()}, beta);
-            c_ins = p.insert_instruction(ins, op::mul{}, c_ins, beta_broadcast);
+            auto beta_broadcast = p.insert_instruction(
+                ins, make_op("multibroadcast", {{"output_lens", ins->get_shape().lens()}}), beta);
+            c_ins = p.insert_instruction(ins, make_op("mul"), c_ins, beta_broadcast);
         }
-        p.replace_instruction(ins, op::add{}, dot_ins, c_ins);
+        p.replace_instruction(ins, make_op("add"), dot_ins, c_ins);
     }
 };
 
@@ -62,10 +61,10 @@ struct find_dot_alpha
         {
             auto alpha = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{a_ins->get_shape().lens()}, alpha);
-            a_ins = p.insert_instruction(ins, op::mul{}, a_ins, alpha_broadcast);
+                p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", a_ins->get_shape().lens()}}), alpha);
+            a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
-        p.replace_instruction(ins, op::dot{1, 0}, a_ins, b_ins);
+        p.replace_instruction(ins, make_op("dot", {{"beta", 0}}), a_ins, b_ins);
     }
 };
 

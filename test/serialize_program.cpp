@@ -1,8 +1,9 @@
 #include <migraphx/program.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
-#include <migraphx/op/add.hpp>
 #include "test.hpp"
+#include <migraphx/make_op.hpp>
+
 #include <cstdio>
 
 migraphx::program create_program()
@@ -12,7 +13,7 @@ migraphx::program create_program()
 
     auto x   = mm->add_parameter("x", {migraphx::shape::int32_type});
     auto two = mm->add_literal(2);
-    auto add = mm->add_instruction(migraphx::op::add{}, x, two);
+    auto add = mm->add_instruction(migraphx::make_op("add"), x, two);
     mm->add_return({add});
     return p;
 }

@@ -19,11 +19,6 @@ struct parse_binary_op : op_parser<parse_binary_op>
                 {"Sub", "sub"}};
     }
 
-    bool needs_contiguous(const std::string& op_name) const
-    {
-        return contains({"gather", "squeeze", "unsqueeze"}, op_name);
-    }
-
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,

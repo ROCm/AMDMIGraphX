@@ -145,10 +145,7 @@ onnx_parser::node_info::add_instruction(const operation& op,
 
 onnx_parser::onnx_parser()
 {
-    add_variadic_op_parser("Sum", "add");
-    add_variadic_op_parser("Max", "max");
-    add_variadic_op_parser("Min", "min");
-
+    // Add all registered op parsers
     for(auto&& name : get_op_parsers())
         ops.emplace(name, get_op_parser(name));
 

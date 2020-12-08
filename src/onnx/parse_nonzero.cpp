@@ -25,8 +25,8 @@ struct parse_nonzero : op_parser<parse_nonzero>
 {
     std::vector<op_desc> operators() const { return {{"NonZero"}}; }
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
+    instruction_ref parse(const op_desc&  /*opd*/,
+                          const onnx_parser&  /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {

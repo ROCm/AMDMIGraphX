@@ -10,10 +10,10 @@ struct parse_cast : op_parser<parse_cast>
 {
     std::vector<op_desc> operators() const { return {{"Cast"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         if(!contains(info.attributes, "to"))
         {
@@ -22,7 +22,7 @@ struct parse_cast : op_parser<parse_cast>
 
         int to_type        = parser.parse_value(info.attributes.at("to")).at<int>();
         shape::type_t type = get_type(to_type);
-        return info.add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
+        return info.add_instruction(make_op("convert", {{"target_type", type}}), args);
     }
 };
 

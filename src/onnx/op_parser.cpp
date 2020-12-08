@@ -1,4 +1,6 @@
 #include <migraphx/onnx/op_parser.hpp>
+#include <utility>
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,7 +14,7 @@ std::unordered_map<std::string, onnx_parser::op_func>& op_parser_map()
 
 void register_op_parser(const std::string& name, onnx_parser::op_func f)
 {
-    op_parser_map()[name] = f;
+    op_parser_map()[name] = std::move(f);
 }
 onnx_parser::op_func get_op_parser(const std::string& name) { return op_parser_map().at(name); }
 std::vector<std::string> get_op_parsers()

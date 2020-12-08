@@ -11,7 +11,7 @@ struct parse_split : op_parser<parse_split>
 {
     std::vector<op_desc> operators() const { return {{"Split"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const

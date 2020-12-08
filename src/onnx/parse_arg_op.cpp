@@ -13,7 +13,7 @@ struct parse_arg_op : op_parser<parse_arg_op>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         int64_t axis = 0;
         if(contains(info.attributes, "axis"))
@@ -30,12 +30,12 @@ struct parse_arg_op : op_parser<parse_arg_op>
         if(keep_dims == 0)
         {
             auto ins =
-                info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), std::move(args));
+                info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
             return info.add_instruction(make_op("squeeze", {{"axes", {axis}}}), ins);
         }
         else
         {
-            return info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), std::move(args));
+            return info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
         }
     }
 };

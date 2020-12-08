@@ -11,7 +11,7 @@ struct parse_gemm : op_parser<parse_gemm>
 {
     std::vector<op_desc> operators() const { return {{"Gemm"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

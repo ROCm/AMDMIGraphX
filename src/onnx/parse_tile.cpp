@@ -12,9 +12,9 @@ struct parse_tile : op_parser<parse_tile>
 {
     std::vector<op_desc> operators() const { return {{"Tile"}}; }
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
+    instruction_ref parse(const op_desc&  /*opd*/,
+                          const onnx_parser&  /*parser*/,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         migraphx::argument arg_s = args[1]->eval();

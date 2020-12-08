@@ -32,11 +32,11 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     if(keep_dims == 1)
     {
-        return info.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
     }
     else
     {
-        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), std::move(args));
+        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
         return info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
     }
 }
@@ -65,7 +65,7 @@ struct parse_reduce_l1 : op_parser<parse_reduce_l1>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL1"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -79,13 +79,13 @@ struct parse_reduce_l2 : op_parser<parse_reduce_l2>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL2"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto square_ins = info.add_instruction(make_op("mul"), args[0], args[0]);
-        auto sum_ins    = parse_reduce_oper("reduce_sum", parser, std::move(info), {square_ins});
+        auto sum_ins    = parse_reduce_oper("reduce_sum", parser, info, {square_ins});
         return info.add_instruction(make_op("sqrt"), sum_ins);
     }
 };
@@ -94,12 +94,12 @@ struct parse_reduce_log_sum : op_parser<parse_reduce_log_sum>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSum"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto sum_ins = parse_reduce_oper("reduce_sum", parser, std::move(info), std::move(args));
+        auto sum_ins = parse_reduce_oper("reduce_sum", parser, info, std::move(args));
         return info.add_instruction(make_op("log"), sum_ins);
     }
 };
@@ -108,13 +108,13 @@ struct parse_reduce_log_sum_exp : op_parser<parse_reduce_log_sum_exp>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSumExp"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto exp_ins = info.add_instruction(make_op("exp"), args[0]);
-        auto sum_ins = parse_reduce_oper("reduce_sum", parser, std::move(info), {exp_ins});
+        auto sum_ins = parse_reduce_oper("reduce_sum", parser, info, {exp_ins});
         return info.add_instruction(make_op("log"), sum_ins);
     }
 };
@@ -123,7 +123,7 @@ struct parse_reduce_sum_square : op_parser<parse_reduce_sum_square>
 {
     std::vector<op_desc> operators() const { return {{"ReduceSumSquare"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const

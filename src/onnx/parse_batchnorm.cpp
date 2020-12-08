@@ -11,10 +11,10 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
 {
     std::vector<op_desc> operators() const { return {{"BatchNormalization"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         float epsilon                                     = 1e-5f;
         float momentum                                    = 0.9f;
@@ -34,7 +34,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
                           : op::batch_norm_inference::per_activation;
         }
         op::batch_norm_inference op{epsilon, momentum, bn_mode};
-        return info.add_instruction(op, std::move(args));
+        return info.add_instruction(op, args);
     }
 };
 

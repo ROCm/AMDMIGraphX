@@ -14,7 +14,7 @@ struct parse_gru : op_parser<parse_gru>
 {
     std::vector<op_desc> operators() const { return {{"GRU"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
@@ -137,7 +137,7 @@ struct parse_gru : op_parser<parse_gru>
                                           {"direction", dirct},
                                           {"clip", clip},
                                           {"linear_before_reset", linear_before_reset}}),
-                                 std::move(args));
+                                 args);
 
         // second output for last gru output
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);

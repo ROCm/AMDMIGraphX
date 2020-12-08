@@ -14,7 +14,7 @@ struct parse_rnn : op_parser<parse_rnn>
 {
     std::vector<op_desc> operators() const { return {{"RNN"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
@@ -107,7 +107,7 @@ struct parse_rnn : op_parser<parse_rnn>
                                                            {"actv_func", to_value(vec_actv_funcs)},
                                                            {"direction", dirct},
                                                            {"clip", clip}}),
-                                                  std::move(args));
+                                                  args);
 
         // second output for the last hidden state
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);

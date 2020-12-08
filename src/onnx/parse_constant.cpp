@@ -11,10 +11,10 @@ struct parse_constant : op_parser<parse_constant>
 {
     std::vector<op_desc> operators() const { return {{"Constant"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc&  /*opd*/,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>&  /*args*/) const
     {
         literal v = parser.parse_value(info.attributes.at("value"));
         // return empty literal

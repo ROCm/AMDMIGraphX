@@ -15,8 +15,8 @@ struct parse_matmul : op_parser<parse_matmul>
     }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser&  /*parser*/,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto l0      = args[0];

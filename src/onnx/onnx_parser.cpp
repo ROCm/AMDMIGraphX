@@ -286,7 +286,7 @@ void onnx_parser::add_variadic_op_parser(const std::string& onnx_name, const std
     add_op_parser(
         onnx_name,
         [op_name](
-            const onnx_parser& parser, const node_info& info, std::vector<instruction_ref> args) {
+            const node_info& info, std::vector<instruction_ref> args) {
             return std::accumulate(std::next(args.begin()),
                                    args.end(),
                                    args.front(),

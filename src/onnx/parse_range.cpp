@@ -12,8 +12,8 @@ struct parse_range : op_parser<parse_range>
 {
     std::vector<op_desc> operators() const { return {{"Range"}}; }
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
+    instruction_ref parse(const op_desc&  /*opd*/,
+                          const onnx_parser&  /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {

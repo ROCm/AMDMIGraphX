@@ -97,7 +97,7 @@ struct parse_lstm : op_parser<parse_lstm>
 {
     std::vector<op_desc> operators() const { return {{"LSTM"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc&  /*opd*/,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
@@ -193,7 +193,7 @@ struct parse_lstm : op_parser<parse_lstm>
                                                            {"direction", dirct},
                                                            {"clip", clip},
                                                            {"input_forget", input_forget}}),
-                                                  std::move(args));
+                                                  args);
 
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
 

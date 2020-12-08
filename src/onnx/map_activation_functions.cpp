@@ -7,7 +7,7 @@ namespace onnx {
 
 const std::unordered_map<std::string, operation>& map_activation_functions()
 {
-    static std::unordered_map<std::string, operation> m = {{"tanh", make_op("tanh")},
+    static const std::unordered_map<std::string, operation> m = {{"tanh", make_op("tanh")},
                                                            {"relu", make_op("relu")},
                                                            {"sigmoid", make_op("sigmoid")},
                                                            {"leakyrelu", make_op("leaky_relu")},

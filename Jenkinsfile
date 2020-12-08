@@ -32,7 +32,7 @@ def rocmtestnode(Map conf) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            gitStatusWrapper(credentialsId: 'github-app-rocm-mici', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+            gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 pre()
                 stage("image ${variant}") {
                     try {
@@ -43,7 +43,7 @@ def rocmtestnode(Map conf) {
                     }
                 }
                 withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
-                    timeout(time: 1, unit: 'HOURS') {
+                    timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }
                 }

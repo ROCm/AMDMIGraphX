@@ -1,7 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/ref/target.hpp>

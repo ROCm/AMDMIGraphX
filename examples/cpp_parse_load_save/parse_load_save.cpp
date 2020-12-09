@@ -31,13 +31,14 @@ int main(int argc, char** argv)
 
     migraphx::program p;
 
-    if(cmdOptionExists(argv + 2, argv + argc, "--parse") || !cmdOptionExists(argv + 2, argv + argc, "--load"))
+    if(cmdOptionExists(argv + 2, argv + argc, "--parse") ||
+       !cmdOptionExists(argv + 2, argv + argc, "--load"))
     {
         std::cout << "Parsing ONNX File" << std::endl;
         migraphx::onnx_options options;
         p = parse_onnx(input_file, options);
     }
-    else if (load_arg != nullptr)
+    else if(load_arg != nullptr)
     {
         std::cout << "Loading Graph File" << std::endl;
         std::string format = load_arg;
@@ -56,7 +57,7 @@ int main(int argc, char** argv)
         else
             p = migraphx::load(input_file);
     }
-    else 
+    else
     {
         std::cout << "Error: Incorrect Usage" << std::endl;
         std::cout << "Usage: " << argv[0] << " <input_file> "

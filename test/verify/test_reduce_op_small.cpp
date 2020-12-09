@@ -2,7 +2,11 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/reduce_sum.hpp>
+#include <migraphx/op/reduce_mean.hpp>
+#include <migraphx/op/reduce_max.hpp>
+#include <migraphx/op/reduce_min.hpp>
+#include <migraphx/op/reduce_prod.hpp>
 
 template <class Op, int Axis, migraphx::shape::type_t T>
 struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>

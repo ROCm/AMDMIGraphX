@@ -7,7 +7,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generic_eval.hpp>
 #include <iostream>
@@ -15,6 +14,7 @@
 #include <algorithm>
 #include <set>
 #include <utility>
+
 #include <unordered_set>
 #include <map>
 #include <cassert>

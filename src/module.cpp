@@ -10,6 +10,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generic_eval.hpp>
+#include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>

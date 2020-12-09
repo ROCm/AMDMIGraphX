@@ -1,12 +1,13 @@
 #include <migraphx/schedule.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/op/identity.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/dfor.hpp>
 #include <basic_ops.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <test.hpp>
 
 struct unary_op
@@ -297,8 +298,8 @@ TEST_CASE(zero_record)
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
-    auto onei1  = mm->add_instruction(migraphx::op::identity{}, onep1);
-    auto onei2  = mm->add_instruction(migraphx::op::identity{}, onep2);
+    auto onei1  = mm->add_instruction(migraphx::make_op("identity"), onep1);
+    auto onei2  = mm->add_instruction(migraphx::make_op("identity"), onep2);
     auto binary = mm->add_instruction(nary_op{}, onei1, onei2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -319,7 +320,7 @@ TEST_CASE(zero_merge1)
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
-    auto binary = mm->add_instruction(migraphx::op::identity{}, onep1, onep2);
+    auto binary = mm->add_instruction(migraphx::make_op("identity"), onep1, onep2);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -339,9 +340,9 @@ TEST_CASE(zero_merge2)
     auto one    = mm->add_literal(1);
     auto onep1  = mm->add_instruction(unary_op{}, one);
     auto onep2  = mm->add_instruction(unary_op{}, one);
-    auto binary = mm->add_instruction(migraphx::op::identity{},
-                                      mm->add_instruction(migraphx::op::identity{}, onep1),
-                                      mm->add_instruction(migraphx::op::identity{}, onep2));
+    auto binary = mm->add_instruction(migraphx::make_op("identity"),
+                                      mm->add_instruction(migraphx::make_op("identity"), onep1),
+                                      mm->add_instruction(migraphx::make_op("identity"), onep2));
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
@@ -361,7 +362,7 @@ TEST_CASE(zero_merge3)
     auto one   = mm->add_literal(1);
     auto onep1 = mm->add_instruction(unary_op{}, one);
     auto onep2 = mm->add_instruction(unary_op{}, one);
-    auto id    = mm->add_instruction(migraphx::op::identity{}, onep1, onep2);
+    auto id    = mm->add_instruction(migraphx::make_op("identity"), onep1, onep2);
     auto final = mm->add_instruction(unary_op{}, id);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -386,9 +387,9 @@ TEST_CASE(zero_merge4)
     auto one   = mm->add_literal(1);
     auto onep1 = mm->add_instruction(unary_op{}, one);
     auto onep2 = mm->add_instruction(unary_op{}, one);
-    auto id    = mm->add_instruction(migraphx::op::identity{},
-                                  mm->add_instruction(migraphx::op::identity{}, onep1),
-                                  mm->add_instruction(migraphx::op::identity{}, onep2));
+    auto id    = mm->add_instruction(migraphx::make_op("identity"),
+                                  mm->add_instruction(migraphx::make_op("identity"), onep1),
+                                  mm->add_instruction(migraphx::make_op("identity"), onep2));
     auto final = mm->add_instruction(unary_op{}, id);
     t.run_pass(p);
     EXPECT(not t.has_stream(one));
@@ -811,17 +812,17 @@ TEST_CASE(inception1)
     auto i4     = mm->add_literal(2);
     auto i7     = mm->add_instruction(nary_op{"i7"}, i1, i4, i3, i2);
     auto i8     = mm->add_literal(2);
-    auto i9     = mm->add_instruction(migraphx::op::identity{}, i8);
+    auto i9     = mm->add_instruction(migraphx::make_op("identity"), i8);
     auto i10    = mm->add_literal(1);
     auto i11    = mm->add_instruction(nary_op{"i11"}, i7, i9, i10);
     auto i12    = mm->add_literal(2);
-    auto i13    = mm->add_instruction(migraphx::op::identity{}, i12);
+    auto i13    = mm->add_instruction(migraphx::make_op("identity"), i12);
     auto i14    = mm->add_literal(1);
     auto i15    = mm->add_literal(1);
     auto i16    = mm->add_literal(2);
     auto i17    = mm->add_instruction(nary_op{"i17"}, i11, i16, i15, i13, i14);
     auto i18    = mm->add_literal(2);
-    auto i19    = mm->add_instruction(migraphx::op::identity{}, i18);
+    auto i19    = mm->add_instruction(migraphx::make_op("identity"), i18);
     auto i20    = mm->add_literal(1);
     auto i21    = mm->add_literal(1);
     auto i22    = mm->add_literal(2);
@@ -829,13 +830,13 @@ TEST_CASE(inception1)
     auto i24    = mm->add_literal(1);
     auto i25    = mm->add_instruction(nary_op{"i25"}, i23, i24);
     auto i26    = mm->add_literal(2);
-    auto i27    = mm->add_instruction(migraphx::op::identity{}, i26);
+    auto i27    = mm->add_instruction(migraphx::make_op("identity"), i26);
     auto i28    = mm->add_literal(1);
     auto i29    = mm->add_literal(1);
     auto i30    = mm->add_literal(2);
     auto i31    = mm->add_instruction(nary_op{"i31"}, i25, i30, i29, i27, i28);
     auto i32    = mm->add_literal(2);
-    auto i33    = mm->add_instruction(migraphx::op::identity{}, i32);
+    auto i33    = mm->add_instruction(migraphx::make_op("identity"), i32);
     auto i34    = mm->add_literal(1);
     auto i35    = mm->add_literal(1);
     auto i36    = mm->add_literal(2);
@@ -843,53 +844,53 @@ TEST_CASE(inception1)
     auto i38    = mm->add_literal(1);
     auto i39    = mm->add_instruction(nary_op{"i39"}, i37, i38);
     auto i41    = mm->add_literal(2);
-    auto i42    = mm->add_instruction(migraphx::op::identity{}, i41);
+    auto i42    = mm->add_instruction(migraphx::make_op("identity"), i41);
     auto i43    = mm->add_literal(1);
     auto i44    = mm->add_literal(1);
     auto i45    = mm->add_literal(2);
     auto i48    = mm->add_instruction(nary_op{"i48"}, i39, i45, i44, i42, i43);
     auto i49    = mm->add_literal(2);
-    auto i50    = mm->add_instruction(migraphx::op::identity{}, i49);
+    auto i50    = mm->add_instruction(migraphx::make_op("identity"), i49);
     auto i51    = mm->add_literal(1);
     auto i52    = mm->add_literal(1);
     auto i53    = mm->add_literal(2);
     auto i54    = mm->add_instruction(nary_op{"i54"}, i48, i53, i52, i50, i51);
     auto i55    = mm->add_literal(1);
-    auto i56    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i56    = mm->add_instruction(migraphx::make_op("identity"), i55);
     auto i57    = mm->add_literal(2);
-    auto i58    = mm->add_instruction(migraphx::op::identity{}, i57);
+    auto i58    = mm->add_instruction(migraphx::make_op("identity"), i57);
     auto i59    = mm->add_literal(1);
     auto i60    = mm->add_literal(2);
     auto i61    = mm->add_instruction(nary_op{"i61"}, i54, i60, i59, i58, i56);
     auto i62    = mm->add_literal(2);
-    auto i63    = mm->add_instruction(migraphx::op::identity{}, i62);
+    auto i63    = mm->add_instruction(migraphx::make_op("identity"), i62);
     auto i64    = mm->add_literal(1);
     auto i65    = mm->add_literal(1);
     auto i66    = mm->add_literal(2);
     auto i69    = mm->add_instruction(nary_op{"i69"}, i39, i66, i65, i63, i64);
-    auto i70    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i70    = mm->add_instruction(migraphx::make_op("identity"), i55);
     auto i71    = mm->add_literal(2);
-    auto i72    = mm->add_instruction(migraphx::op::identity{}, i71);
+    auto i72    = mm->add_instruction(migraphx::make_op("identity"), i71);
     auto i73    = mm->add_literal(1);
     auto i74    = mm->add_literal(2);
     auto i75    = mm->add_instruction(nary_op{"i75"}, i69, i74, i73, i72, i70);
     auto i77    = mm->add_literal(1);
     auto i80    = mm->add_instruction(nary_op{"i80"}, i39, i77);
-    auto i81    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i81    = mm->add_instruction(migraphx::make_op("identity"), i55);
     auto i82    = mm->add_literal(2);
-    auto i83    = mm->add_instruction(migraphx::op::identity{}, i82);
+    auto i83    = mm->add_instruction(migraphx::make_op("identity"), i82);
     auto i84    = mm->add_literal(1);
     auto i85    = mm->add_literal(2);
     auto i86    = mm->add_instruction(nary_op{"i86"}, i80, i85, i84, i83, i81);
-    auto i88    = mm->add_instruction(migraphx::op::identity{}, i55);
+    auto i88    = mm->add_instruction(migraphx::make_op("identity"), i55);
     auto i89    = mm->add_literal(2);
-    auto i90    = mm->add_instruction(migraphx::op::identity{}, i89);
+    auto i90    = mm->add_instruction(migraphx::make_op("identity"), i89);
     auto i91    = mm->add_literal(1);
     auto i92    = mm->add_literal(2);
     auto i94    = mm->add_instruction(nary_op{"i94"}, i39, i92, i91, i90, i88);
-    auto i96    = mm->add_instruction(migraphx::op::identity{}, i55, i94, i75, i61, i86);
+    auto i96    = mm->add_instruction(migraphx::make_op("identity"), i55, i94, i75, i61, i86);
     auto i97    = mm->add_literal(2);
-    auto i98    = mm->add_instruction(migraphx::op::identity{}, i97);
+    auto i98    = mm->add_instruction(migraphx::make_op("identity"), i97);
     auto i99    = mm->add_literal(3);
     auto i100   = mm->add_literal(1);
     auto i101   = mm->add_literal(2);

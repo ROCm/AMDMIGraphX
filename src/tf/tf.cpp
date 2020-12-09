@@ -12,7 +12,21 @@
 
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/argmax.hpp>
+#include <migraphx/op/argmin.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/common.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/gather.hpp>
+#include <migraphx/op/pad.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/slice.hpp>
+#include <migraphx/op/softmax.hpp>
+#include <migraphx/op/squeeze.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/unknown.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>

@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 
 struct gemm_multi_dim_2_3 : verify_program<gemm_multi_dim_2_3>
 {
@@ -15,7 +15,7 @@ struct gemm_multi_dim_2_3 : verify_program<gemm_multi_dim_2_3>
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
 
-        mm->add_instruction(migraphx::op::dot{}, l1, l2);
+        mm->add_instruction(migraphx::make_op("dot"), l1, l2);
 
         return p;
     }

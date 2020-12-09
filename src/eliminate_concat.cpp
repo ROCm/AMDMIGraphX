@@ -6,6 +6,8 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/dfor.hpp>
 
 namespace migraphx {
@@ -77,7 +79,7 @@ void eliminate_concat::apply(module& p) const
             }
             std::vector<instruction_ref> args = {super};
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
-            p.replace_instruction(ins, migraphx::op::identity{}, args);
+            p.replace_instruction(ins, migraphx::make_op("identity"), args);
         }
     }
 }

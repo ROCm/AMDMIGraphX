@@ -1,11 +1,8 @@
 #include <migraphx/decompose.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/identity.hpp>
-#include <migraphx/op/dot.hpp>
-#include <migraphx/op/mul.hpp>
-#include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
@@ -21,8 +18,8 @@ TEST_CASE(dot_add)
         auto x    = mm1->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y    = mm1->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto z    = mm1->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-        auto dot  = mm1->add_instruction(migraphx::op::dot{}, x, y, z);
-        mm1->add_instruction(migraphx::op::identity{}, dot);
+        auto dot  = mm1->add_instruction(migraphx::make_op("dot"), x, y, z);
+        mm1->add_instruction(migraphx::make_op("identity"), dot);
     }
     run_pass(p1);
     migraphx::program p2;
@@ -31,9 +28,10 @@ TEST_CASE(dot_add)
         auto x    = mm2->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y    = mm2->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto z    = mm2->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-        auto dot  = mm2->add_instruction(migraphx::op::dot{1, 0}, x, y);
-        auto add  = mm2->add_instruction(migraphx::op::add{}, dot, z);
-        mm2->add_instruction(migraphx::op::identity{}, add);
+        auto dot =
+            mm2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), x, y);
+        auto add = mm2->add_instruction(migraphx::make_op("add"), dot, z);
+        mm2->add_instruction(migraphx::make_op("identity"), add);
     }
     EXPECT(p1 == p2);
 }
@@ -46,8 +44,9 @@ TEST_CASE(dot_add_beta_float)
         auto x    = mm1->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y    = mm1->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto z    = mm1->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-        auto dot  = mm1->add_instruction(migraphx::op::dot{1.0, 0.5}, x, y, z);
-        mm1->add_instruction(migraphx::op::identity{}, dot);
+        auto dot  = mm1->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0}, {"beta", 0.5}}), x, y, z);
+        mm1->add_instruction(migraphx::make_op("identity"), dot);
     }
     run_pass(p1);
     migraphx::program p2;
@@ -56,13 +55,15 @@ TEST_CASE(dot_add_beta_float)
         auto x    = mm2->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto y    = mm2->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 2}});
         auto z    = mm2->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {2, 2}});
-        auto dot  = mm2->add_instruction(migraphx::op::dot{1, 0}, x, y);
+        auto dot =
+            mm2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), x, y);
         auto beta = mm2->add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {0.5}});
-        auto beta_broadcast = mm2->add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul            = mm2->add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add            = mm2->add_instruction(migraphx::op::add{}, dot, mul);
-        mm2->add_instruction(migraphx::op::identity{}, add);
+        auto beta_broadcast = mm2->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+        auto mul = mm2->add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
+        auto add = mm2->add_instruction(migraphx::make_op("add"), dot, mul);
+        mm2->add_instruction(migraphx::make_op("identity"), add);
     }
     EXPECT(p1 == p2);
 }
@@ -75,8 +76,9 @@ TEST_CASE(dot_add_beta_half)
         auto x    = mm1->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto y    = mm1->add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto z    = mm1->add_parameter("z", migraphx::shape{migraphx::shape::half_type, {2, 2}});
-        auto dot  = mm1->add_instruction(migraphx::op::dot{1.0, 0.5}, x, y, z);
-        mm1->add_instruction(migraphx::op::identity{}, dot);
+        auto dot  = mm1->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0}, {"beta", 0.5}}), x, y, z);
+        mm1->add_instruction(migraphx::make_op("identity"), dot);
     }
     run_pass(p1);
     migraphx::program p2;
@@ -85,13 +87,15 @@ TEST_CASE(dot_add_beta_half)
         auto x    = mm2->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto y    = mm2->add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto z    = mm2->add_parameter("z", migraphx::shape{migraphx::shape::half_type, {2, 2}});
-        auto dot  = mm2->add_instruction(migraphx::op::dot{1, 0}, x, y);
+        auto dot =
+            mm2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), x, y);
         auto beta =
             mm2->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5}});
-        auto beta_broadcast = mm2->add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul            = mm2->add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add            = mm2->add_instruction(migraphx::op::add{}, dot, mul);
-        mm2->add_instruction(migraphx::op::identity{}, add);
+        auto beta_broadcast = mm2->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+        auto mul = mm2->add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
+        auto add = mm2->add_instruction(migraphx::make_op("add"), dot, mul);
+        mm2->add_instruction(migraphx::make_op("identity"), add);
     }
     EXPECT(p1 == p2);
 }
@@ -104,8 +108,9 @@ TEST_CASE(dot_add_beta_double)
         auto x    = mm1->add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto y    = mm1->add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto z    = mm1->add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 2}});
-        auto dot  = mm1->add_instruction(migraphx::op::dot{1.0, 0.5}, x, y, z);
-        mm1->add_instruction(migraphx::op::identity{}, dot);
+        auto dot  = mm1->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0}, {"beta", 0.5}}), x, y, z);
+        mm1->add_instruction(migraphx::make_op("identity"), dot);
     }
     run_pass(p1);
     migraphx::program p2;
@@ -114,13 +119,15 @@ TEST_CASE(dot_add_beta_double)
         auto x    = mm2->add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto y    = mm2->add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto z    = mm2->add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 2}});
-        auto dot  = mm2->add_instruction(migraphx::op::dot{1, 0}, x, y);
+        auto dot =
+            mm2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), x, y);
         auto beta = mm2->add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::double_type}, {0.5}});
-        auto beta_broadcast = mm2->add_instruction(migraphx::op::multibroadcast{{2, 2}}, beta);
-        auto mul            = mm2->add_instruction(migraphx::op::mul{}, z, beta_broadcast);
-        auto add            = mm2->add_instruction(migraphx::op::add{}, dot, mul);
-        mm2->add_instruction(migraphx::op::identity{}, add);
+        auto beta_broadcast = mm2->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+        auto mul = mm2->add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
+        auto add = mm2->add_instruction(migraphx::make_op("add"), dot, mul);
+        mm2->add_instruction(migraphx::make_op("identity"), add);
     }
     EXPECT(p1 == p2);
 }
@@ -133,8 +140,9 @@ TEST_CASE(dot_add_beta_int)
         auto x    = mm1->add_parameter("x", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
         auto y    = mm1->add_parameter("y", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
         auto z    = mm1->add_parameter("z", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
-        auto dot  = mm1->add_instruction(migraphx::op::dot{1.0, 0.5}, x, y, z);
-        mm1->add_instruction(migraphx::op::identity{}, dot);
+        auto dot  = mm1->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0}, {"beta", 0.5}}), x, y, z);
+        mm1->add_instruction(migraphx::make_op("identity"), dot);
     }
     migraphx::program p2 = p1;
     run_pass(p1);

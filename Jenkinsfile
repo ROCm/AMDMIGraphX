@@ -145,7 +145,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
         def debug_flags = "-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=Off -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }
 }, codecov: rocmnode('rocmtest') { cmake_build ->
@@ -153,7 +153,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=Off -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }
     stage('Codecov') {

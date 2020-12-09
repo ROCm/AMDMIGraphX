@@ -6,4 +6,4 @@ You can build the provided dockerfile with the following command:
 
 To run the docker image:
 
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx
+    docker run --device='/dev/kfd' --device='/dev/dri' --group-add video -it migraphx

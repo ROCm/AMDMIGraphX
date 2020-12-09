@@ -118,7 +118,7 @@ bool is_standard_offset(const X& x, const Xs&... xs)
 template <class... Ts>
 auto pointwise(Ts... xs)
 {
-    return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) {
+    return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) mutable {
         if(is_standard_offset(xs.get_shape()...))
         {
             ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {

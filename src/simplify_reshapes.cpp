@@ -11,6 +11,8 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
+#include <migraphx/make_op.hpp>
+
 #include <map>
 
 namespace migraphx {
@@ -149,7 +151,7 @@ struct find_transpose
         }
         else
         {
-            p.replace_instruction(ins, op::transpose{{dims}}, t->inputs().front());
+            p.replace_instruction(ins, make_op("transpose", {{"dims", dims}}), t->inputs().front());
         }
     }
 };
@@ -257,10 +259,10 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return p.insert_instruction(ins, op::transpose{permutation}, i);
+                return p.insert_instruction(ins, make_op("transpose", {{"dims", permutation}}), i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
-        auto t      = p.insert_instruction(ins, op::transpose{ipermutation}, concat);
+        auto t = p.insert_instruction(ins, make_op("transpose", {{"dims", ipermutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
         p.replace_instruction(ins, t);
     }

@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 
 struct test_deconv_3d : verify_program<test_deconv_3d>
 {
@@ -15,7 +15,11 @@ struct test_deconv_3d : verify_program<test_deconv_3d>
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3, 3}});
         mm->add_instruction(
-            migraphx::op::deconvolution{{0, 0, 0}, {1, 1, 1}, {1, 1, 1}}, input, weights);
+            migraphx::make_op(
+                "deconvolution",
+                {{"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+            input,
+            weights);
         return p;
     }
 };

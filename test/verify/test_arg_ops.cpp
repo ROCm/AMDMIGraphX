@@ -2,7 +2,8 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/argmax.hpp>
+#include <migraphx/op/argmin.hpp>
 
 template <class T, int Axis>
 struct test_arg_ops : verify_program<test_arg_ops<T, Axis>>

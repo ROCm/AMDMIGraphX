@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/pad.hpp>
 
 struct test_pad_highest : verify_program<test_pad_highest>
 {

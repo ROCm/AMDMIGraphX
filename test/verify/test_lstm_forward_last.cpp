@@ -2,7 +2,11 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/common.hpp>
 
 struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
 {
@@ -38,11 +42,15 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
         auto pph  = mm->add_parameter("pph", pph_shape);
 
         auto output = mm->add_instruction(
-            migraphx::op::lstm{
-                hidden_size,
-                {migraphx::op::sigmoid{}, migraphx::op::tanh{}, migraphx::op::tanh{}},
-                migraphx::op::rnn_direction::forward,
-                clip},
+            migraphx::make_op(
+                "lstm",
+                {{"hidden_size", hidden_size},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                 {"clip", clip}}),
             seq,
             w,
             r,
@@ -51,7 +59,7 @@ struct test_lstm_forward_last : verify_program<test_lstm_forward_last>
             ih,
             ic,
             pph);
-        mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output, len);
+        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output, len);
 
         return p;
     }

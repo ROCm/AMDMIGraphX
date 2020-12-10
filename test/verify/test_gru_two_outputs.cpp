@@ -2,7 +2,11 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/common.hpp>
 
 struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
 {
@@ -26,11 +30,16 @@ struct test_gru_two_outputs : verify_program<test_gru_two_outputs>
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         auto hs  = mm->add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::forward, clip},
+            migraphx::make_op(
+                "gru",
+                {{"hidden_size", hidden_size},
+                 {"actv_func", {}},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                 {"clip", clip}}),
             seq,
             w,
             r);
-        auto last_hs = mm->add_instruction(migraphx::op::rnn_last_hs_output{}, hs);
+        auto last_hs = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
         mm->add_return({hs, last_hs});
 
         return p;

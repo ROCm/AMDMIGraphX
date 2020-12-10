@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 // struct test_conv_bn_add : verify_program<test_conv_bn_add>
 // {

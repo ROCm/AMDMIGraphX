@@ -2,7 +2,11 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/common.hpp>
 
 struct test_gru_bidirct_default_actv : verify_program<test_gru_bidirct_default_actv>
 {
@@ -26,7 +30,12 @@ struct test_gru_bidirct_default_actv : verify_program<test_gru_bidirct_default_a
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
         mm->add_instruction(
-            migraphx::op::gru{hidden_size, {}, migraphx::op::rnn_direction::bidirectional, clip},
+            migraphx::make_op(
+                "gru",
+                {{"hidden_size", hidden_size},
+                 {"actv_func", {}},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip}}),
             seq,
             w,
             r);

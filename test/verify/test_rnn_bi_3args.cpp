@@ -2,7 +2,11 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/op/common.hpp>
 
 struct test_rnn_bi_3args : verify_program<test_rnn_bi_3args>
 {
@@ -23,18 +27,22 @@ struct test_rnn_bi_3args : verify_program<test_rnn_bi_3args>
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
         migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
 
-        auto seq = mm->add_parameter("seq", in_shape);
-        auto w   = mm->add_parameter("w", w_shape);
-        auto r   = mm->add_parameter("r", r_shape);
-        auto output =
-            mm->add_instruction(migraphx::op::rnn{hidden_size,
-                                                  {migraphx::op::tanh{}, migraphx::op::tanh{}},
-                                                  migraphx::op::rnn_direction::bidirectional,
-                                                  clip},
-                                seq,
-                                w,
-                                r);
-        mm->add_instruction(migraphx::op::rnn_last_hs_output{}, output);
+        auto seq    = mm->add_parameter("seq", in_shape);
+        auto w      = mm->add_parameter("w", w_shape);
+        auto r      = mm->add_parameter("r", r_shape);
+        auto output = mm->add_instruction(
+            migraphx::make_op(
+                "rnn",
+                {{"hidden_size", hidden_size},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r);
+        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
 
         return p;
     }

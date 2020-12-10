@@ -65,7 +65,7 @@ static void print_instruction(std::ostream& os,
 template <class F>
 static void print_program(const program& p, F print_func)
 {
-    auto* mm = p.get_main_module();
+    const auto* mm = p.get_main_module();
     print_module(*mm, print_func);
 }
 
@@ -105,31 +105,31 @@ void program::assign(const program& p)
 
 shape program::get_parameter_shape(std::string name) const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->get_parameter_shape(std::move(name));
 }
 
 std::vector<std::string> program::get_parameter_names() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->get_parameter_names();
 }
 
 instruction_ref program::get_parameter(std::string name) const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->get_parameter(std::move(name));
 }
 
 std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->get_parameter_shapes();
 }
 
 bool program::has_instruction(instruction_ref ins) const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->has_instruction(ins);
 }
 
@@ -137,19 +137,19 @@ std::size_t program::size() const { return impl->modules.size(); }
 
 instruction_ref program::begin() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->begin();
 }
 
 instruction_ref program::end() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->end();
 }
 
 std::vector<shape> program::get_output_shapes() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->get_output_shapes();
 }
 
@@ -157,7 +157,7 @@ context& program::get_context() const { return impl->ctx; }
 
 instruction_ref program::validate() const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     return mm->validate();
 }
 
@@ -422,14 +422,14 @@ void program::debug_print(instruction_ref ins) const
 
 void program::print_graph(std::ostream& os, bool brief) const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     mm->print_graph(os, brief);
 }
 
 void program::print_cpp(std::ostream& os) const
 {
     os << "migraphx::program p;" << std::endl;
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     mm->print_cpp(os);
 }
 
@@ -441,7 +441,7 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    auto* mm = this->get_main_module();
+    const auto* mm = this->get_main_module();
     std::cout << mm->name() << ":" << std::endl;
     mm->annotate(os, std::move(a));
 }

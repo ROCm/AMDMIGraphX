@@ -6,7 +6,7 @@
 
 #include <migraphx/serialize.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_gru_bidirct_3args_und : verify_program<test_gru_bidirct_3args_und>
 {

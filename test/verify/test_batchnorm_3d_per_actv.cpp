@@ -6,7 +6,7 @@
 
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
 
 struct test_batchnorm_3d_per_actv : verify_program<test_batchnorm_3d_per_actv>
 {

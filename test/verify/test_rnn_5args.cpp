@@ -6,7 +6,7 @@
 
 #include <migraphx/serialize.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_rnn_5args : verify_program<test_rnn_5args>
 {

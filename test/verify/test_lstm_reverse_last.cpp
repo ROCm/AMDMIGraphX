@@ -6,7 +6,7 @@
 
 #include <migraphx/serialize.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_lstm_reverse_last : verify_program<test_lstm_reverse_last>
 {

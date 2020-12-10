@@ -23,7 +23,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
-static void print_module(const module& m, F print_func)
+void print_module(const module& m, F print_func)
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;

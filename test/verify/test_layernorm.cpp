@@ -4,7 +4,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/reduce_mean.hpp>
 
 migraphx::instruction_ref
 add_layernorm(migraphx::module& m, migraphx::instruction_ref x, std::vector<size_t> dims)

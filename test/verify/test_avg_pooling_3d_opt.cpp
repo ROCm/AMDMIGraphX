@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/pooling.hpp>
 
 struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
 {

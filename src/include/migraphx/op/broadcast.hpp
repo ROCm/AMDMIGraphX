@@ -46,25 +46,21 @@ struct broadcast
             MIGRAPHX_THROW("BROADCAST : axis is out of range");
         }
 
-        if(std::all_of(
-               broadcast_lens.cbegin(), broadcast_lens.cend(), [&](auto x) { return x == 1; }))
+        if(broadcast_lens.size() - axis < input.lens().size())
         {
-            return {t, broadcast_lens, std::move(bcast_strides)};
+            MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than input ndims");
         }
-        else
-        {
-            if(broadcast_lens.size() - axis < input.lens().size())
-            {
-                MIGRAPHX_THROW("BROADCAST: when broadcasting success sizes must match");
-            }
 
-            if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
-            {
-                MIGRAPHX_THROW("BROADCAST: when broadcasting success sizes must match");
-            }
-            std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
-            return {t, broadcast_lens, std::move(bcast_strides)};
+        if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
+        {
+            MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
         }
+        std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
+
+        shape output{t, broadcast_lens, std::move(bcast_strides)};
+        if(output.elements() < input.elements())
+            MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to input size");
+        return output;
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

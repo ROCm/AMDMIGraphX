@@ -6,7 +6,7 @@
 
 #include <migraphx/serialize.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_gru_forward : verify_program<test_gru_forward>
 {

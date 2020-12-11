@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/convolution.hpp>
 
 struct test_group_conv : verify_program<test_group_conv>
 {

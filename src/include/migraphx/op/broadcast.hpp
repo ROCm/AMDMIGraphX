@@ -53,7 +53,7 @@ struct broadcast
 
         if(!std::equal(input.lens().begin(), input.lens().end(), broadcast_lens.begin() + axis))
         {
-            MIGRAPHX_THROW("BROADCAST: when broadcasting succeeding sizes must match");
+            MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
         }
         std::copy(input.strides().begin(), input.strides().end(), bcast_strides.begin() + axis);
 

@@ -822,6 +822,25 @@ inline const ValueType& any_cast(const operation& x)
 
 inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
 
+inline shape compute_shape(const operation& op, const std::vector<shape>& inputs)
+{
+    return op.compute_shape(inputs);
+}
+
+template <class T>
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.compute_shape(inputs))
+{
+    return op.compute_shape(inputs);
+}
+
+template <class T>
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.normalize_compute_shape(inputs))
+{
+    return detail::normalize_compute_shape_op(op, inputs);
+}
+
 inline bool is_context_free(const operation& op) { return op.is_context_free(); }
 
 template <class T>

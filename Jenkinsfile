@@ -138,7 +138,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
     stage('GCC 5 Release') {
         cmake_build("g++-5", "-DCMAKE_BUILD_TYPE=release")
     }
-}, gcc7: rocmnode('rocmtest') { cmake_build ->
+}, gcc7: rocmhipclangnode('rocmtest') { cmake_build ->
     stage('GCC 7 Debug') {
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
@@ -153,7 +153,7 @@ rocmtest format: rocmnode('rocmtest') { cmake_build ->
         def linker_flags = '-fuse-ld=gold'
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=Off -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }
     stage('Codecov') {

@@ -172,6 +172,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& batch_not_transposed() const
+    {
+        if(!this->all_of([&](const shape& s) { return batch_not_transposed_strides(s.strides()); }))
+            MIGRAPHX_THROW(prefix() + "Batch size is transposed");
+        return *this;
+    }
+
     template <class F>
     bool same(F f) const
     {
@@ -207,6 +214,28 @@ struct check_shapes
     check_shapes slice(long start) const { return {get(start), end, name}; }
 
     check_shapes slice(long start, long last) const { return {get(start), get(last), name}; }
+
+    private:
+    static bool batch_not_transposed_strides(const std::vector<std::size_t>& strides)
+    {
+        if(strides.size() <= 2)
+            return true;
+        auto dim_0       = strides.size() - 2;
+        auto matrix_size = std::max(strides[dim_0], strides[dim_0 + 1]);
+        std::vector<std::size_t> batch(strides.begin(), strides.begin() + dim_0);
+        if(std::all_of(batch.begin(), batch.end(), [&](auto i) { return (i < matrix_size); }))
+        {
+            return false;
+        }
+
+        if(std::adjacent_find(batch.begin(), batch.end(), [&](auto i, auto j) {
+               return (i < j or i < matrix_size or j < matrix_size);
+           }) != batch.end())
+        {
+            return false;
+        }
+        return true;
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

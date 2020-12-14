@@ -68,8 +68,8 @@ struct literal : raw_data<literal>
     /// Convert the data to an argument
     argument get_argument() const
     {
-        std::vector<char> b(buffer.get(), buffer.get() + m_shape.bytes());
-        return {m_shape, [b]() mutable { return b.data(); }};
+        auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
+        return {m_shape, [b]() { return b.get(); }};
     }
 
     private:

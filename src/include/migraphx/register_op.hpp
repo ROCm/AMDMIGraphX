@@ -12,6 +12,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void register_op(const operation& op);
 operation load_op(const std::string& name);
+bool has_op(const std::string& name);
 std::vector<std::string> get_operators();
 
 template <class T>

@@ -8,6 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+using module = program;
 
 /**
  * Replace instructions which take all literals with a literal of the computation.
@@ -15,7 +16,7 @@ struct program;
 struct propagate_constant
 {
     std::string name() const { return "propagate_constant"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

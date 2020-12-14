@@ -11,7 +11,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void eliminate_workspace::apply(program& p) const
+void eliminate_workspace::apply(module& p) const
 {
     std::size_t n = 0;
     std::vector<instruction_ref> allocs;

@@ -6,7 +6,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/json.hpp>
@@ -118,8 +118,8 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 
 struct quantize_int8_options
 {
-    std::vector<program::parameter_map> calibration = {};
-    std::vector<std::string> op_names               = {};
+    std::vector<parameter_map> calibration = {};
+    std::vector<std::string> op_names      = {};
 };
 
 void add_op_name(quantize_int8_options& options, const char* name)
@@ -127,7 +127,7 @@ void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.push_back(name);
 }
 
-void add_calibration_data(quantize_int8_options& options, program::parameter_map& data)
+void add_calibration_data(quantize_int8_options& options, parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -160,14 +160,13 @@ bool equal(const T& x, const T& y)
     return x == y;
 }
 
-std::vector<argument> run(program& p, const program::parameter_map& params)
-{
-    return p.eval(params);
-}
+std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
 
 std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
-void print(const program& p) { std::cout << p << std::endl; }
+void print_program(const program& p) { std::cout << p << std::endl; }
+
+void print_module(const module& m) { std::cout << m << std::endl; }
 
 } // namespace migraphx
 

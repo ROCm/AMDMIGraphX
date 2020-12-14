@@ -5,12 +5,14 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/reduce_mean.hpp>
 #include <migraphx/op/reduce_max.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_pooling::apply(program& prog) const
+void rewrite_pooling::apply(module& prog) const
 {
     for(auto ins : iterator_for(prog))
     {
@@ -31,25 +33,26 @@ void rewrite_pooling::apply(program& prog) const
             continue;
         std::int64_t n = s.lens()[0];
         std::int64_t c = s.lens()[1];
-        auto reshape =
-            prog.insert_instruction(ins, op::reshape{{n * c, -1}}, ins->inputs().front());
+        auto reshape   = prog.insert_instruction(
+            ins, make_op("reshape", {{"dims", {n * c, -1}}}), ins->inputs().front());
         instruction_ref pooling{};
 
         // average pooling
         if(op.mode == "average")
         {
-            pooling = prog.insert_instruction(ins, op::reduce_mean{{1}}, reshape);
+            pooling =
+                prog.insert_instruction(ins, make_op("reduce_mean", {{"axes", {1}}}), reshape);
         }
         // max pooling
         else
         {
-            pooling = prog.insert_instruction(ins, op::reduce_max{{1}}, reshape);
+            pooling = prog.insert_instruction(ins, make_op("reduce_max", {{"axes", {1}}}), reshape);
         }
 
         std::vector<int64_t> rsp_lens(lens.size(), 1);
         rsp_lens[0] = n;
         rsp_lens[1] = c;
-        prog.replace_instruction(ins, op::reshape{rsp_lens}, pooling);
+        prog.replace_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), pooling);
     }
 }
 

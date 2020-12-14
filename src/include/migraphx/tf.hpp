@@ -12,10 +12,12 @@ struct tf_options
 {
     bool is_nhwc            = false;
     unsigned int batch_size = 1;
+    /// Explicitly specify the dims of an input
+    std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
 };
 
 /// Create a program from a tf pb file (default is nhwc format)
-program parse_tf(const std::string& name, tf_options = tf_options{});
+program parse_tf(const std::string& name, const tf_options& options = tf_options{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -23,7 +23,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 0.8.1)
+rocm_setup_version(VERSION 0.9)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -42,6 +42,9 @@ if(HAS_HIP)
 else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
+
+# Disable cpu backend by default
+set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
 add_compile_options(-std=c++14)
@@ -72,6 +75,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-signed-char-misuse
+        -bugprone-macro-parentheses
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp

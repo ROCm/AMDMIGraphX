@@ -9,6 +9,8 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/op/mul.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/op/add.hpp>
 
 namespace migraphx {
@@ -18,7 +20,7 @@ struct find_dot_add
 {
     auto matcher() const { return match::name("dot")(match::nargs(3)); }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
         auto dot = any_cast<op::dot>(ins->get_operator());
@@ -26,23 +28,25 @@ struct find_dot_add
            not contains({shape::float_type, shape::half_type, shape::double_type},
                         ins->get_shape().type()))
             return;
-        auto dot_ins =
-            p.insert_instruction(ins, op::dot{dot.alpha, 0}, ins->inputs()[0], ins->inputs()[1]);
-        auto c_ins = ins->inputs()[2];
+        auto dot_ins = p.insert_instruction(ins,
+                                            make_op("dot", {{"alpha", dot.alpha}, {"beta", 0}}),
+                                            ins->inputs()[0],
+                                            ins->inputs()[1]);
+        auto c_ins   = ins->inputs()[2];
         if(not float_equal(dot.beta, 1))
         {
             auto beta = p.add_literal(literal{shape{ins->get_shape().type()}, {dot.beta}});
-            auto beta_broadcast =
-                p.insert_instruction(ins, op::multibroadcast{ins->get_shape().lens()}, beta);
-            c_ins = p.insert_instruction(ins, op::mul{}, c_ins, beta_broadcast);
+            auto beta_broadcast = p.insert_instruction(
+                ins, make_op("multibroadcast", {{"output_lens", ins->get_shape().lens()}}), beta);
+            c_ins = p.insert_instruction(ins, make_op("mul"), c_ins, beta_broadcast);
         }
-        p.replace_instruction(ins, op::add{}, dot_ins, c_ins);
+        p.replace_instruction(ins, make_op("add"), dot_ins, c_ins);
     }
 };
 
 } // namespace
 
-void decompose::apply(program& p) const { match::find_matches(p, find_dot_add{}); }
+void decompose::apply(module& p) const { match::find_matches(p, find_dot_add{}); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

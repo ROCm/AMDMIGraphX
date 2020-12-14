@@ -238,6 +238,13 @@ struct hip_layernorm : unary_device<hip_layernorm, &device::layernorm>
 };
 MIGRAPHX_REGISTER_OP(hip_layernorm)
 
+struct hip_triadd_layernorm : ternary_device<hip_triadd_layernorm, &device::triadd_layernorm>
+{
+    // Empty finalize to skip dimension reduction
+    void finalize(context&, const shape&, const std::vector<shape>&) {}
+};
+MIGRAPHX_REGISTER_OP(hip_triadd_layernorm)
+
 struct hip_gelu : unary_device<hip_gelu, &device::gelu>
 {
 };
@@ -322,7 +329,7 @@ struct find_layernorm
 
     auto matcher() const { return layernorm_onnx(); }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -341,6 +348,22 @@ struct find_layernorm
     }
 };
 
+struct find_triadd_layernorm
+{
+    auto matcher() const
+    {
+        return match::name("gpu::layernorm")(match::arg(0)(match::name("gpu::triadd")(
+            match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
+    }
+
+    void apply(program& p, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto triadd = ins->inputs().front();
+        p.replace_instruction(ins, hip_triadd_layernorm{}, triadd->inputs());
+    }
+};
+
 struct find_gelu
 {
 
@@ -350,20 +373,25 @@ struct find_gelu
             match::used_once(),
             match::arg(0)(match::used_once(),
                           match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2)).bind("x"),
-                              match::has_value(M_SQRT1_2)))));
+                              match::none_of(match::has_value(M_SQRT1_2, 1e-3)).bind("x"),
+                              match::has_value(M_SQRT1_2, 1e-3)))));
     }
+
+    static auto add_erf()
+    {
+        return match::name("gpu::add")(
+            match::used_once(),
+            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
+    }
+
+    static auto one_half() { return match::args(match::has_value(0.5f)); }
 
     auto matcher() const
     {
-        return match::name("gpu::mul")(match::either_arg(0, 1)(
-            match::name("gpu::mul")(match::any_arg(0, 1)(match::args(match::has_value(0.5f)))),
-            match::name("gpu::add")(
-                match::used_once(),
-                match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))))));
+        return match::unordered_tree("gpu::mul", one_half(), add_erf(), match::any());
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -380,7 +408,7 @@ struct find_add_gelu
         return match::name("gpu::gelu")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -408,7 +436,7 @@ struct find_gelu_new
         return match::name("gpu::tanh")(
             match::used_once(),
             match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                match::args(match::has_value(sqrt(M_2_PI))),
+                match::args(match::has_value(sqrt(M_2_PI), 1e-3)),
                 match::name("gpu::add")(
                     match::any_arg(0, 1)(match::name("gpu::mul")(match::either_arg(0, 1)(
                         match::args(match::has_value(0.044715f)), pow_fn()))))))));
@@ -424,7 +452,7 @@ struct find_gelu_new
                     match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
@@ -444,7 +472,7 @@ struct find_add_gelu_new
         return match::name("gpu::gelu_new")(match::arg(0)(match::name("gpu::add").bind("add")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -468,7 +496,7 @@ struct find_add_clip
                               .bind("add")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto add_ins  = r.instructions["add"];
         auto ins      = r.result;
@@ -503,7 +531,7 @@ struct find_add_unary
                 .bind("add")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto add_ins = r.instructions["add"];
         auto ins     = r.result;
@@ -531,7 +559,7 @@ struct find_triadd
                 .bind("input")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto add_ins   = r.instructions["add"];
         auto input_ins = r.instructions["input"];
@@ -558,7 +586,7 @@ struct find_mul_add
             match::name("gpu::mul")(match::used_once()).bind("mul"), match::any().bind("b")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto mul_ins = r.instructions["mul"];
         auto b_ins   = r.instructions["b"];
@@ -583,7 +611,7 @@ struct find_mul_add_relu
             match::arg(0)(match::name("gpu::mul_add")(match::used_once()).bind("mul_add")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto mul_add_ins = r.instructions["mul_add"];
         auto ins         = r.result;
@@ -699,7 +727,7 @@ auto conv_bias(Ms... ms)
 }
 
 template <class Op>
-void apply_conv_bias(context& ctx, program& p, match::matcher_result r)
+void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
 {
     auto conv_ins    = r.instructions["conv"];
     auto bias_ins    = r.instructions["bias"];
@@ -726,7 +754,7 @@ struct find_conv_bias
             match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         apply_conv_bias<miopen_conv_bias>(*ctx, p, std::move(r));
     }
@@ -737,7 +765,7 @@ struct find_conv_bias_relu
     context* ctx = nullptr;
     auto matcher() const { return match::name("gpu::relu")(match::arg(0)(conv_bias())); }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
     }
@@ -753,7 +781,7 @@ struct find_gemm_add
                                     match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
     }
 
-    void apply(program& p, match::matcher_result r) const
+    void apply(module& p, match::matcher_result r) const
     {
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
@@ -795,7 +823,7 @@ struct find_commutative_broadcast
         return match::name("gpu::add", "gpu::mul")(match::arg(1)(match::broadcast_shape()));
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto args = ins->inputs();
@@ -805,7 +833,7 @@ struct find_commutative_broadcast
     }
 };
 
-void fuse_ops::apply(program& p) const
+void fuse_ops::apply(module& p) const
 {
     match::find_matches(p, find_gelu{}, find_gelu_new{fast_math});
     run_passes(p, {dead_code_elimination{}});
@@ -822,7 +850,8 @@ void fuse_ops::apply(program& p) const
                         find_add_unary{"gpu::sigmoid", hip_add_sigmoid{}, hip_triadd_sigmoid{}},
                         find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
                         find_add_clip{});
-    match::find_matches(p, find_gemm_add{}, find_commutative_broadcast{});
+    run_passes(p, {dead_code_elimination{}});
+    match::find_matches(p, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
 }
 
 } // namespace gpu

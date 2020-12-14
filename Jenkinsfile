@@ -32,7 +32,7 @@ def rocmtestnode(Map conf) {
             stage("checkout ${variant}") {
                 checkout scm
             }
-            gitStatusWrapper(credentialsId: 'github-app-rocm-mici', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+            gitStatusWrapper(credentialsId: '7126e5fe-eb51-4576-b52b-9aaf1de8f0fd', gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
                 pre()
                 stage("image ${variant}") {
                     try {
@@ -43,7 +43,7 @@ def rocmtestnode(Map conf) {
                     }
                 }
                 withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE ${docker_args}") {
-                    timeout(time: 1, unit: 'HOURS') {
+                    timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }
                 }
@@ -64,13 +64,12 @@ def rocmtest(m) {
 }
 
 def rocmnodename(name) {
-    def node_name = 'rocmtest || rocm'
-    if(name == 'fiji') {
-        node_name = 'rocmtest && fiji';
-    } else if(name == 'vega') {
-        node_name = 'rocmtest && vega';
-    } else {
-        node_name = name
+    def rocmtest_name = "(rocmtest || migraphx)"
+    def node_name = "${rocmtest_name}"
+    if(name == "fiji") {
+        node_name = "${rocmtest_name} && fiji";
+    } else if(name == "vega") {
+        node_name = "${rocmtest_name} && vega";
     }
     return node_name
 }
@@ -88,17 +87,7 @@ def rocmhipclangnode(name, body) {
 }
 
 // Static checks
-rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
-    stage('Clang Tidy') {
-        sh '''
-            rm -rf build
-            mkdir build
-            cd build
-            CXX=hcc cmake .. 
-            make -j$(nproc) -k analyze
-        '''
-    }
-}, format: rocmnode('rocmtest') { cmake_build ->
+rocmtest format: rocmnode('rocmtest') { cmake_build ->
     stage('Format') {
         sh '''
             find . -iname \'*.h\' \
@@ -155,8 +144,16 @@ rocmtest tidy: rocmnode('rocmtest') { cmake_build ->
         def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
         // TODO: Add bounds-strict
         def sanitizers = "undefined,address"
-        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+        def debug_flags = "-g -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+
+    }
+}, codecov: rocmnode('rocmtest') { cmake_build ->
+    stage('GCC 7 Codecov') {
+        def linker_flags = '-fuse-ld=gold'
+        def cmake_linker_flags = "-DCMAKE_EXE_LINKER_FLAGS='${linker_flags}' -DCMAKE_SHARED_LINKER_FLAGS='${linker_flags}'"
+        def debug_flags = "-g -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer"
+        cmake_build("g++-7", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_PYTHON=Off ${cmake_linker_flags} -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
 
     }
     stage('Codecov') {

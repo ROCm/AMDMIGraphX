@@ -2,8 +2,13 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <sstream>
 #include <string>
+#include <migraphx/make_op.hpp>
+
+#include <migraphx/serialize.hpp>
+
 #include "test.hpp"
 
 TEST_CASE(load_op)
@@ -24,18 +29,41 @@ TEST_CASE(make_op)
     }
 }
 
+TEST_CASE(save_op)
+{
+    for(const auto& name : migraphx::get_operators())
+    {
+        auto op1 = migraphx::load_op(name);
+        auto v   = migraphx::to_value(op1);
+        auto op2 = migraphx::from_value<migraphx::operation>(v);
+        CHECK(op1 == op2);
+    }
+}
+
 TEST_CASE(make_op_from_value1)
 {
     migraphx::operation x = migraphx::make_op(
         "convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {2, 2}}});
-    migraphx::operation y = migraphx::op::convolution{{1, 1}, {2, 2}, {2, 2}};
+    migraphx::operation y = migraphx::make_op(
+        "convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {2, 2}}});
     EXPECT(x == y);
 }
 
 TEST_CASE(make_op_from_value2)
 {
     migraphx::operation x = migraphx::make_op("convolution", {{"padding", {1, 1}}});
-    migraphx::operation y = migraphx::op::convolution{{1, 1}};
+    migraphx::operation y = migraphx::make_op("convolution", {{"padding", {1, 1}}});
+    EXPECT(x == y);
+}
+
+TEST_CASE(make_rnn_op_from_value)
+{
+    migraphx::op::rnn_direction dirct = migraphx::op::rnn_direction::reverse;
+    migraphx::operation x             = migraphx::make_op(
+        "rnn_var_sl_shift_output", {{"output_name", "hidden_states"}, {"direction", dirct}});
+    migraphx::operation y = migraphx::make_op(
+        "rnn_var_sl_shift_output",
+        {{"output_name", "hidden_states"}, {"direction", migraphx::to_value(dirct)}});
     EXPECT(x == y);
 }
 

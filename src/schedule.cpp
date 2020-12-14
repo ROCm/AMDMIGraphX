@@ -1,7 +1,6 @@
 #include <migraphx/schedule.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/identity.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
@@ -12,6 +11,8 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <migraphx/make_op.hpp>
+
 #include <set>
 #include <deque>
 #include <chrono>
@@ -103,7 +104,7 @@ struct stream_info
         }
     };
 
-    std::size_t assign_streams(program& p, std::size_t n)
+    std::size_t assign_streams(module& p, std::size_t n)
     {
         assert(n > 0);
         partition critical;
@@ -182,7 +183,7 @@ struct stream_info
         }
     };
 
-    void sort(program& p, std::size_t) const
+    void sort(module& p, std::size_t)
     {
         std::set<weight_ins, compare_weight_ins> children;
         std::unordered_map<instruction_ref, std::size_t> visited;
@@ -335,7 +336,7 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>>
-    find_concurrent_instructions(program& p) const
+    find_concurrent_instructions(module& p) const
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
@@ -378,7 +379,7 @@ struct stream_info
     }
 
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
-    get_conflicts(program& p)
+    get_conflicts(module& p)
     {
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
@@ -464,7 +465,7 @@ struct stream_info
     }
 };
 
-void schedule::apply(program& p) const
+void schedule::apply(module& p) const
 {
     if(not enable)
         return;
@@ -556,7 +557,7 @@ void schedule::apply(program& p) const
         std::vector<instruction_ref> args;
         args.push_back(ip.first);
         args.insert(args.end(), ip.second.begin(), ip.second.end());
-        p.insert_instruction(std::next(ip.first), op::identity{}, args);
+        p.insert_instruction(std::next(ip.first), make_op("identity"), args);
     }
 }
 

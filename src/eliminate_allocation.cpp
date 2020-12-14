@@ -1,16 +1,19 @@
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/op/load.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/serialize.hpp>
+
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/pass_config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_allocation::apply(program& p) const
+void eliminate_allocation::apply(module& p) const
 {
     assert(alignment > 0);
 
@@ -33,7 +36,8 @@ void eliminate_allocation::apply(program& p) const
             auto ins    = pp.first;
             auto s      = ins->get_shape();
             auto offset = pp.second;
-            p.replace_instruction(ins, op::load{s, offset}, mem);
+            p.replace_instruction(
+                ins, make_op("load", {{"shape", to_value(s)}, {"offset", offset}}), mem);
         }
     }
 }

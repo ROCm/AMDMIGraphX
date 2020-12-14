@@ -76,6 +76,7 @@ RUN cget -p $PREFIX ignore \
     ROCmSoftwarePlatform/rocBLAS
 RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
 RUN cget -p $PREFIX install -f dev-requirements.txt
+RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

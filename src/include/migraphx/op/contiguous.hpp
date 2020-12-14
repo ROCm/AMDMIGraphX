@@ -44,6 +44,11 @@ struct contiguous
         });
         return result;
     }
+
+    auto apply() const
+    {
+        return [](auto x) { return x; };
+    }
 };
 
 } // namespace op

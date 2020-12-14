@@ -135,7 +135,7 @@ struct hip_copy
     std::string name() const { return "hip::copy"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).standard();
+        check_shapes{inputs, *this}.has(2);
         return inputs.at(1);
     }
     argument compute(context& ctx, const shape&, std::vector<argument> args) const

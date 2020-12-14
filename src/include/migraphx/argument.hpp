@@ -4,6 +4,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/raw_data.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/make_shared_array.hpp>
 #include <functional>
 #include <utility>
 
@@ -23,8 +24,8 @@ struct argument : raw_data<argument>
 
     argument(const shape& s) : m_shape(s)
     {
-        auto buffer = std::make_shared<std::vector<char>>(s.bytes());
-        data        = [=]() mutable { return buffer->data(); };
+        auto buffer = make_shared_array<char>(s.bytes());
+        data        = [=]() mutable { return buffer.get(); };
     }
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>

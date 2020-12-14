@@ -1,4 +1,5 @@
 #include <migraphx/register_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <unordered_map>
 
 namespace migraphx {
@@ -12,10 +13,7 @@ std::unordered_map<std::string, operation>& op_map()
 void register_op(const operation& op) { op_map()[op.name()] = op; }
 operation load_op(const std::string& name)
 {
-    auto it = op_map().find(name);
-    if(it == op_map().end())
-        MIGRAPHX_THROW("Operator not found: " + name);
-    return it->second;
+    return at(op_map(), name, "Operator not found: " + name);
 }
 
 std::vector<std::string> get_operators()

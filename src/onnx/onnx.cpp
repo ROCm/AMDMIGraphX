@@ -142,6 +142,7 @@ struct onnx_parser
         add_mem_op("Conv", "convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvInteger", "quant_convolution", &onnx_parser::parse_conv);
         add_mem_op("ConvTranspose", &onnx_parser::parse_conv_transpose);
+        add_mem_op("DequantizeLinear", &onnx_parser::parse_dequantizelinear);
         add_mem_op("Dropout", &onnx_parser::parse_dropout);
         add_mem_op("Elu", &onnx_parser::parse_elu);
         add_mem_op("Equal", "equal", &onnx_parser::parse_compare_op);
@@ -2844,13 +2845,61 @@ struct onnx_parser
     }
 
     instruction_ref
-    parse_quantizelinear(const std::string&, const node_info&, std::vector<instruction_ref> args)
+    parse_quantizelinear(const std::string&, const node_info& info, std::vector<instruction_ref> args)
     {
-        auto quant_type = args[2]->get_shape().type();
-        auto mul        = add_broadcastable_binary_op(args[0], args[1], "mul");
+        auto quant_type = shape::uint8_type;
+        int nargs = args.size();
+
+        if(nargs == 3)
+            quant_type = args[2]->get_shape().type();
+        int axis = 1;
+        if(contains(info.attributes, "axis"))
+            axis = info.attributes.at("axis").i();
+
+        auto input_lens = args[0]->get_shape().lens();
+
+        auto scale = args[1];
+        if(axis != 1)
+            scale = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
+        auto mul        = add_broadcastable_binary_op(args[0], scale, "mul");
         auto quantized =
             prog.add_instruction(make_op("convert", {{"target_type", quant_type}}), mul);
-        return add_broadcastable_binary_op(quantized, args[2], "add");
+        if(nargs == 3)
+        {
+            auto zero_point = args[2];
+            if(axis != 1)
+                zero_point = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
+            quantized = add_broadcastable_binary_op(quantized, zero_point, "add");
+        }
+            
+        return quantized;
+    }
+
+    instruction_ref
+    parse_dequantizelinear(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    {        
+        int axis = 1;
+        if(contains(info.attributes, "axis"))
+            axis = info.attributes.at("axis").i();
+
+        auto input_lens = args[0]->get_shape().lens();
+
+        auto sub_zero_point = args[0];
+
+        if(args.size() == 3)
+        {
+            auto zero_point = args[2];
+            if(axis != 1)
+                zero_point = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
+            sub_zero_point = add_broadcastable_binary_op(sub_zero_point, zero_point, "sub");
+        }
+
+        auto dequant_input = prog.add_instruction(make_op("convert", {{"target_type", shape::float_type}}), sub_zero_point);
+
+        auto scale = args[1];
+        if(axis != 1)
+            scale = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
+        return add_broadcastable_binary_op(dequant_input, scale, "mul");
     }
 
     void parse_from(std::istream& is, std::string name = "")

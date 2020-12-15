@@ -1017,6 +1017,22 @@ def deconv_stride_test():
 
 
 @onnx_test
+def dequantizelinear_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
+    arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['0', '1', '2'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1, arg2], [arg_out])
+
+
+@onnx_test
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

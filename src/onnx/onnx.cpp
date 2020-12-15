@@ -2844,11 +2844,12 @@ struct onnx_parser
         return mm->add_instruction(make_op("gather", {{"axis", 0}}), rsp_data, ins_ind);
     }
 
-    instruction_ref
-    parse_quantizelinear(const std::string&, const node_info& info, std::vector<instruction_ref> args)
+    instruction_ref parse_quantizelinear(const std::string&,
+                                         const node_info& info,
+                                         std::vector<instruction_ref> args)
     {
         auto quant_type = shape::uint8_type;
-        int nargs = args.size();
+        int nargs       = args.size();
 
         if(nargs == 3)
             quant_type = args[2]->get_shape().type();
@@ -2860,24 +2861,27 @@ struct onnx_parser
 
         auto scale = args[1];
         if(axis != 1)
-            scale = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
-        auto mul        = add_broadcastable_binary_op(args[0], scale, "mul");
+            scale = prog.add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
+        auto mul = add_broadcastable_binary_op(args[0], scale, "mul");
         auto quantized =
             prog.add_instruction(make_op("convert", {{"target_type", quant_type}}), mul);
         if(nargs == 3)
         {
             auto zero_point = args[2];
             if(axis != 1)
-                zero_point = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
+                zero_point = prog.add_instruction(
+                    make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             quantized = add_broadcastable_binary_op(quantized, zero_point, "add");
         }
-            
+
         return quantized;
     }
 
-    instruction_ref
-    parse_dequantizelinear(const std::string&, const node_info& info, std::vector<instruction_ref> args)
-    {        
+    instruction_ref parse_dequantizelinear(const std::string&,
+                                           const node_info& info,
+                                           std::vector<instruction_ref> args)
+    {
         int axis = 1;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
@@ -2890,15 +2894,18 @@ struct onnx_parser
         {
             auto zero_point = args[2];
             if(axis != 1)
-                zero_point = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
+                zero_point = prog.add_instruction(
+                    make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             sub_zero_point = add_broadcastable_binary_op(sub_zero_point, zero_point, "sub");
         }
 
-        auto dequant_input = prog.add_instruction(make_op("convert", {{"target_type", shape::float_type}}), sub_zero_point);
+        auto dequant_input = prog.add_instruction(
+            make_op("convert", {{"target_type", shape::float_type}}), sub_zero_point);
 
         auto scale = args[1];
         if(axis != 1)
-            scale = prog.add_instruction(make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
+            scale = prog.add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
         return add_broadcastable_binary_op(dequant_input, scale, "mul");
     }
 

@@ -16,10 +16,7 @@ operation load_op(const std::string& name)
     return at(op_map(), name, "Operator not found: " + name);
 }
 
-bool has_op(const std::string& name)
-{
-    return op_map().count(name) == 1;
-}
+bool has_op(const std::string& name) { return op_map().count(name) == 1; }
 
 std::vector<std::string> get_operators()
 {

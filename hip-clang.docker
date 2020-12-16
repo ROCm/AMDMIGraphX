@@ -61,6 +61,7 @@ RUN cget -p $PREFIX ignore \
     ROCmSoftwarePlatform/MIOpen \
     ROCmSoftwarePlatform/MIOpenGEMM \
     ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
+RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++ --cc /opt/rocm/llvm/bin/clang
 RUN cget -p $PREFIX install -f dev-requirements.txt
+RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
 

@@ -1,3 +1,4 @@
+#include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -19,7 +20,7 @@
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/gpu/adjust_allocation.hpp>
+#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
@@ -71,7 +72,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
-        adjust_allocation{},
+        adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},

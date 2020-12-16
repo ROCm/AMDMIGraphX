@@ -1,17 +1,18 @@
-#include <migraphx/gpu/adjust_allocation.hpp>
-#include <migraphx/gpu/target.hpp>
-#include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/target.hpp>
+#include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/add.hpp>
-#include <migraphx/op/transpose.hpp>
 #include <migraphx/op/contiguous.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/op/tanh.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -61,7 +62,8 @@ TEST_CASE(tanh_shape)
     EXPECT(p1 != p2);
 
     migraphx::run_passes(*p2.get_main_module(),
-                         {migraphx::gpu::adjust_allocation{}, migraphx::dead_code_elimination{}});
+                         {migraphx::adjust_allocation{migraphx::gpu::gpu_allocation_model{}},
+                          migraphx::dead_code_elimination{}});
     EXPECT(p1 == p2);
 }
 

@@ -903,12 +903,16 @@ TEST_CASE(dequantizelinear_test)
     auto l0  = mm->add_parameter("0", {migraphx::shape::int8_type, {5}});
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {1}});
-    auto l1_mbcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
-    auto l2_mbcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
+    auto l1_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
+    auto l2_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
 
-    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
-    auto dequant = mm->add_instruction(migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}), sub);
+    auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
+    auto dequant = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+        sub);
 
     mm->add_instruction(migraphx::make_op("mul"), dequant, l1_mbcast);
 
@@ -920,17 +924,21 @@ TEST_CASE(dequantizelinear_axis_test)
 {
     migraphx::program p;
     std::vector<size_t> input_lens{1, 1, 5, 1};
-    int axis = 2;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
-    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
-    auto l1_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l1);
-    auto l2_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
+    int axis      = 2;
+    auto* mm      = p.get_main_module();
+    auto l0       = mm->add_parameter("0", {migraphx::shape::int8_type, input_lens});
+    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+    auto l1_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l1);
+    auto l2_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
 
-    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
-    auto dequant = mm->add_instruction(migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}), sub);
+    auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
+    auto dequant = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+        sub);
 
     mm->add_instruction(migraphx::make_op("mul"), dequant, l1_bcast);
 
@@ -1969,12 +1977,16 @@ TEST_CASE(quantizelinear_test)
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {5}});
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {1}});
-    auto l1_mbcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
-    auto l2_mbcast = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
+    auto l1_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
+    auto l2_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
 
-    auto mul = mm->add_instruction(migraphx::make_op("mul"), l0, l1_mbcast);
-    auto quant = mm->add_instruction(migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}), mul);
+    auto mul   = mm->add_instruction(migraphx::make_op("mul"), l0, l1_mbcast);
+    auto quant = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+        mul);
 
     mm->add_instruction(migraphx::make_op("add"), quant, l2_mbcast);
 
@@ -1986,17 +1998,21 @@ TEST_CASE(quantizelinear_axis_test)
 {
     migraphx::program p;
     std::vector<size_t> input_lens{1, 1, 5, 1};
-    int axis = 2;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
-    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
-    auto l1_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l1);
-    auto l2_bcast = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
+    int axis      = 2;
+    auto* mm      = p.get_main_module();
+    auto l0       = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
+    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+    auto l1_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l1);
+    auto l2_bcast = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
 
-    auto mul = mm->add_instruction(migraphx::make_op("mul"), l0, l1_bcast);
-    auto quant = mm->add_instruction(migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}), mul);
+    auto mul   = mm->add_instruction(migraphx::make_op("mul"), l0, l1_bcast);
+    auto quant = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+        mul);
 
     mm->add_instruction(migraphx::make_op("add"), quant, l2_bcast);
 

@@ -1037,14 +1037,13 @@ def dequantizelinear_axis_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 1, 5, 1])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
     arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [1, 1, 5, 1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [1, 1, 5, 1])
 
-    node = onnx.helper.make_node(
-        'DequantizeLinear',
-        inputs=['0', '1', '2'],
-        outputs=['out'],
-        axis=2
-    )
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['out'],
+                                 axis=2)
 
     return ([node], [arg0, arg1, arg2], [arg_out])
 
@@ -2184,14 +2183,13 @@ def quantizelinear_axis_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 5, 1])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
     arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8, [1, 1, 5, 1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8,
+                                            [1, 1, 5, 1])
 
-    node = onnx.helper.make_node(
-        'QuantizeLinear',
-        inputs=['0', '1', '2'],
-        outputs=['out'],
-        axis=2
-    )
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['out'],
+                                 axis=2)
 
     return ([node], [arg0, arg1, arg2], [arg_out])
 

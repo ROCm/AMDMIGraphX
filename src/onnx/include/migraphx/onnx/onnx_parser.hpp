@@ -50,7 +50,6 @@ struct onnx_parser
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
-    bool is_pytorch               = false;
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     bool skip_unknown_operators = false;

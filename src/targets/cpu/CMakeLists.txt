@@ -27,7 +27,7 @@ target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)
 target_include_directories(migraphx_cpu PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraphx_cpu PRIVATE -DBLAZE_USE_CPP_THREADS)
 target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
-target_compile_definitions(migraphx_cpu PRIVATE -DUSE_DNNL)
+target_compile_definitions(migraphx_cpu PUBLIC -DUSE_DNNL)
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
 # Add library path to rpath to workaround issues with our broken packages

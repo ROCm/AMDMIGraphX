@@ -1,6 +1,7 @@
 
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/adjust_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/decompose.hpp>
 #include <migraphx/eliminate_allocation.hpp>
@@ -17,8 +18,10 @@
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/cpu/allocation_model.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/pass.hpp>
@@ -44,8 +47,6 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
-            rewrite_pooling{},
-            dead_code_elimination{},
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},
@@ -56,6 +57,11 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             propagate_constant{},
             dead_code_elimination{},
             lowering{},
+            eliminate_contiguous{},
+            dead_code_elimination{},
+            adjust_allocation{cpu_allocation_model{}},
+            dead_code_elimination{},
+            memory_coloring{"cpu::allocate"},
             dead_code_elimination{}};
 }
 

@@ -35,7 +35,7 @@ To build dependencies along with MIGraphX
 rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 ```
 
-* In ROCm3.7 and above:
+* In ROCm3.7 and later releases:
 
 ```
 rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++

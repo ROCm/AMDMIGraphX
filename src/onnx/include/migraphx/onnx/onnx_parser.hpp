@@ -43,6 +43,12 @@ struct onnx_parser
         {
             return add_instruction(op, {xs...});
         }
+        instruction_ref add_literal(literal l) const;
+        template <class... Ts>
+        instruction_ref add_literal(Ts&&... xs) const
+        {
+            return add_literal(literal{std::forward<Ts>(xs)...});
+        }
     };
     using node_map = std::unordered_map<std::string, onnx::NodeProto>;
     using op_func  = std::function<std::vector<instruction_ref>(

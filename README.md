@@ -32,7 +32,7 @@ requirement files ```dev-requirements.txt``` and ```requirements.txt```.
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
 * [ONNX 1.7.0](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
-  tests (for now, we need to use onnx version 1.7.0 and should be installed as ```pip3 install onnx==1.7.0```)
+  tests 
 
 Note: we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our implementation. 
 ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon.

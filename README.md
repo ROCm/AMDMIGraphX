@@ -14,7 +14,7 @@ AMD's graph optimization engine.
 
 
 ## Installing the dependencies
-There are two alternatives to install the dependencies required by MIGraphX:
+There are two alternative ways to install the dependencies required by MIGraphX:
 
 * Dependencies can be installed one by one using a [script](https://github.com/mvermeulen/rocm-migraphx/blob/master/scripts/build_prereqs.sh).
 (Note: 1. You may need the sudo to install the above dependencies. 2. rocBLAS and MIOpen can be installed with the

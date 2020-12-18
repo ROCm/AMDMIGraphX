@@ -10,7 +10,8 @@ AMD's graph optimization engine.
 * [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
-* [ONNX](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend test
+* [ONNX](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
+  test (for now, we need to use onnx version 1.7.0 and should be installed as ```pip3 install onnx==1.7.0```)
 
 
 ## Installing the dependencies

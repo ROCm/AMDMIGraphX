@@ -4,14 +4,14 @@
 #include <string>
 #include <numeric>
 #include <algorithm>
-#include <chrono> 
+#include <chrono>
 #include <migraphx/migraphx.hpp>
 
-void read_nth_digit (const int, std::vector<float>&);
+void read_nth_digit(const int, std::vector<float>&);
 
-int main(int argc, char **argv) 
+int main(int argc, char** argv)
 {
-    if (argc == 1) 
+    if(argc == 1)
     {
         std::cout << "Usage: " << argv[0] << " [options]" << std::endl
                   << "options:" << std::endl
@@ -21,52 +21,54 @@ int main(int argc, char **argv)
                   << "\t -i, --int8     Int8 Quantization" << std::endl
                   << "\t       --cal    Int8 Calibration ON" << std::endl
                   << "\t -p, --print    Print Graph at Each Stage" << std::endl
-                  << std::endl << std::endl;
+                  << std::endl
+                  << std::endl;
     }
 
-    char** begin = argv + 1;
-    char** end = argv + argc;
-    const bool CPU = (std::find(begin, end, std::string("-c")) != end)
-	              || std::find(begin, end, std::string("--cpu")) != end;
-	const bool GPU = std::find(begin, end, std::string("-g")) != end
-	              || std::find(begin, end, std::string("--gpu")) != end;
-	const bool FP16 = std::find(begin, end, std::string("-f")) != end
-	              || std::find(begin, end, std::string("--fp16")) != end;
-	const bool INT8 = std::find(begin, end, std::string("-i")) != end
-	              || std::find(begin, end, std::string("--int8")) != end;
+    char** begin   = argv + 1;
+    char** end     = argv + argc;
+    const bool CPU = (std::find(begin, end, std::string("-c")) != end) ||
+                     std::find(begin, end, std::string("--cpu")) != end;
+    const bool GPU = std::find(begin, end, std::string("-g")) != end ||
+                     std::find(begin, end, std::string("--gpu")) != end;
+    const bool FP16 = std::find(begin, end, std::string("-f")) != end ||
+                      std::find(begin, end, std::string("--fp16")) != end;
+    const bool INT8 = std::find(begin, end, std::string("-i")) != end ||
+                      std::find(begin, end, std::string("--int8")) != end;
     const bool CALIB = std::find(begin, end, std::string("--cal")) != end;
-    const bool PRINT = std::find(begin, end, std::string("-p")) != end
-	                || std::find(begin, end, std::string("--print")) != end;
+    const bool PRINT = std::find(begin, end, std::string("-p")) != end ||
+                       std::find(begin, end, std::string("--print")) != end;
 
     migraphx::program prog;
     migraphx::onnx_options onnx_opts;
     prog = parse_onnx("../mnist-8.onnx", onnx_opts);
 
     std::cout << "Parsing ONNX model..." << std::endl;
-    if (PRINT) prog.print();
+    if(PRINT)
+        prog.print();
     std::cout << std::endl;
-    
 
     std::string target_str;
-    if (CPU)
+    if(CPU)
         target_str = "cpu";
-    else if (GPU)
+    else if(GPU)
         target_str = "gpu";
-    else 
+    else
         target_str = "ref";
     migraphx::target targ = migraphx::target(target_str.c_str());
 
-    if (FP16)
+    if(FP16)
     {
         migraphx::quantize_fp16(prog);
 
         std::cout << "Quantizing program for FP16..." << std::endl;
-        if (PRINT) prog.print();
+        if(PRINT)
+            prog.print();
         std::cout << std::endl;
     }
-    else if (INT8)
+    else if(INT8)
     {
-        if (CALIB)
+        if(CALIB)
         {
             std::cout << "Calibration data: " << std::endl;
             std::vector<float> calib_dig;
@@ -83,29 +85,31 @@ int main(int argc, char **argv)
             quant_opts.add_calibration_data(quant_params);
             migraphx::quantize_int8(prog, targ, quant_opts);
         }
-        else 
+        else
         {
             migraphx::quantize_int8(prog, targ, migraphx::quantize_int8_options());
         }
 
         std::cout << "Quantizing program for INT8..." << std::endl;
-        if (PRINT) prog.print();
+        if(PRINT)
+            prog.print();
         std::cout << std::endl;
     }
-    
-    if (GPU)
+
+    if(GPU)
     {
         migraphx_compile_options comp_opts;
-        comp_opts.offload_copy = true; 
+        comp_opts.offload_copy = true;
         prog.compile(targ, comp_opts);
     }
-    else 
+    else
     {
         prog.compile(targ);
     }
-    
+
     std::cout << "Compiling program for " << target_str << "..." << std::endl;
-    if (PRINT) prog.print();
+    if(PRINT)
+        prog.print();
     std::cout << std::endl;
 
     std::vector<float> digit;
@@ -122,29 +126,32 @@ int main(int argc, char **argv)
     }
 
     std::cout << "Model evaluating input..." << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start   = std::chrono::high_resolution_clock::now();
     auto outputs = prog.eval(prog_params);
-    auto stop = std::chrono::high_resolution_clock::now();
+    auto stop    = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     std::cout << "Inference complete" << std::endl;
     std::cout << "Inference time: " << elapsed.count() * 1e-3 << "ms" << std::endl;
 
-    auto shape = outputs[0].get_shape();
+    auto shape   = outputs[0].get_shape();
     auto lengths = shape.lengths();
-    auto num_results = std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
-    float *results = reinterpret_cast<float*>(outputs[0].data());
-    float* max = std::max_element(results, results + num_results);
-    int answer = max - results;
+    auto num_results =
+        std::accumulate(lengths.begin(), lengths.end(), 1, std::multiplies<size_t>());
+    float* results = reinterpret_cast<float*>(outputs[0].data());
+    float* max     = std::max_element(results, results + num_results);
+    int answer     = max - results;
 
     std::cout << std::endl
               << "Randomly chosen digit: " << rand_digit << std::endl
-              << "Result from inference: " << answer  << std::endl << std::endl
-              << (answer == rand_digit ? "CORRECT" : "INCORRECT") << std::endl << std::endl;
+              << "Result from inference: " << answer << std::endl
+              << std::endl
+              << (answer == rand_digit ? "CORRECT" : "INCORRECT") << std::endl
+              << std::endl;
 
     return 0;
 }
 
-void read_nth_digit (const int n, std::vector<float>& digit)
+void read_nth_digit(const int n, std::vector<float>& digit)
 {
     const std::string SYMBOLS = "@0#%=+*-.  ";
     std::ifstream file("../digits.txt");
@@ -152,23 +159,23 @@ void read_nth_digit (const int n, std::vector<float>& digit)
     const int HEIGHT = 28;
     const int WIDTH  = 28;
 
-    if (!file.is_open())
+    if(!file.is_open())
     {
         return;
     }
 
-    for (int d = 0; d < DIGITS; ++d)
+    for(int d = 0; d < DIGITS; ++d)
     {
-        for (int i = 0; i < HEIGHT * WIDTH; ++i)
+        for(int i = 0; i < HEIGHT * WIDTH; ++i)
         {
             unsigned char temp = 0;
-            file.read((char*)&temp,sizeof(temp));
-            if (d == n) 
+            file.read((char*)&temp, sizeof(temp));
+            if(d == n)
             {
                 float data = temp / 255.0;
                 digit.push_back(data);
                 std::cout << SYMBOLS[(int)(data * 10) % 11];
-                if ((i + 1) % WIDTH == 0)
+                if((i + 1) % WIDTH == 0)
                     std::cout << std::endl;
             }
         }

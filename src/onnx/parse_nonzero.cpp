@@ -27,7 +27,7 @@ struct parse_nonzero : op_parser<parse_nonzero>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         migraphx::argument data_arg = args.back()->eval();

@@ -41,11 +41,9 @@ rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
 ```
 
-This builds dependencies in the subdirectory named "depend" and then builds MIGraphX using these dependencies.
+This builds dependencies in the subdirectory named "depend" (full path is represented as "$(amdmigraphx_dir)/depend".
 
 ## Building MIGraphX from source
-
-## Configuring with cmake
 
 First create a build directory:
 

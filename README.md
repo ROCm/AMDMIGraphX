@@ -34,7 +34,7 @@ requirement files ```dev-requirements.txt``` and ```requirements.txt```.
 * [ONNX 1.7.0](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
   tests 
 
-Note: we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our implementation. 
+Note: we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our current implementation. 
 ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon.
 
 
@@ -43,7 +43,8 @@ ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to suppor
 There are two alternative ways to install the above dependencies:
 
 * Dependencies can be installed by running a shell script [build_prereqs.sh](./tools/build_prereqs.sh).
-(Note: You need the sudo to install the above dependencies. 2) all dependencies are installed in default locations in
+
+(Note: 1. You need the sudo to install the above dependencies. 2. All dependencies are installed in default locations in
 the system and are accessible by all users.)
 
 * Dependencies can also be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).

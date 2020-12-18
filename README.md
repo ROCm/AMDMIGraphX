@@ -41,7 +41,11 @@ rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
 ```
 
-This builds dependencies in the subdirectory named "depend" (full path is represented as "$(amdmigraphx_dir)/depend".
+This builds dependencies in the subdirectory named "depend" (full path is represented as "$(amdmigraphx_dir)/depend."
+
+Note that if rocBLAS and MIOpen are installed with the command ```sudo apt install -y rocblas miopen-hip```, we can
+comment out the two lines "ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06" and
+"ROCmSoftwarePlatform/MIOpen@2.4.0" of the file requirements.txt (adding a '#' character at the start of each line)
 
 ## Building MIGraphX from source
 

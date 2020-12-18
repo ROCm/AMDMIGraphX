@@ -5,14 +5,23 @@ AMD's graph optimization engine.
 ## Prerequisites
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
+* [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for running on the GPU
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP) for running on the GPU
 * [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
+* [ONNX](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend test
+
 
 ## Installing the dependencies
+There are two alternatives to install the dependencies required by MIGraphX:
 
-Dependencies can be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+* Dependencies can be installed one by one using a [script](https://github.com/mvermeulen/rocm-migraphx/blob/master/scripts/build_prereqs.sh).
+(Note: 1. You may need the sudo to install the above dependencies. 2. rocBLAS and MIOpen can be installed with the
+command ```sudo apt install -y rocblas miopen-hip```)
+
+* Dependencies can also be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+They are listed in files requirements.txt and dev-requirements.txt in the project diretory.
 
 To install rbuild:
 ```
@@ -20,10 +29,19 @@ pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
 
 To build dependencies along with MIGraphX
+* In ROCm3.3:
+
 ```
-rbuild build -d depend --cxx=/opt/rocm/bin/hcc
+rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 ```
-This builds dependencies in the subdirectory named depend and then builds MIGraphX using these dependencies.
+
+* In ROCm3.7 and above:
+
+```
+rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
+```
+
+This builds dependencies in the subdirectory named "depend" and then builds MIGraphX using these dependencies.
 
 ## Building MIGraphX from source
 
@@ -37,20 +55,42 @@ mkdir build;
 cd build;
 ```
 
-Next configure cmake. The hcc compiler is required to build the MIOpen backend:
+Next configure cmake. The hcc or clang compiler is required to build the MIOpen/HIP backend kernels:
 
+If the [script](https://github.com/mvermeulen/rocm-migraphx/blob/master/scripts/build_prereqs.sh) is called to install
+the script, MIGraphX can be build as:
+* In ROCm3.3:
 
 ```
 CXX=/opt/rocm/bin/hcc cmake ..
 ```
-
-If the dependencies from `install_deps.cmake` was installed to another directory, the `CMAKE_PREFIX_PATH` needs to be set to what `--prefix` was set to from `install_deps.cmake`:
-
+* In ROCm3.7 or later releases:
 
 ```
-CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=/some/dir ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
 
+If the dependencies were installed in the folder "depend" using rbuild, the `CMAKE_PREFIX_PATH` needs to be set to 
+the same dependency directory (full path are needed here.) as:
+* ROCM3.3:
+
+```
+CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
+```
+* ROCM3.7 or later releases:
+
+```
+CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
+```
+
+Then MIGraphX can be build as:
+```
+make -j$(nproc)
+```
+and correctness can be verified as:
+```
+make -j$(nproc) check
+```
 
 #### Changing the cmake configuration
 

@@ -80,7 +80,7 @@ instruction_ref reflect_pad(const onnx_parser::node_info& info,
         {
             *starts_it = *dims_it - idx - 1;
             *ends_it   = *starts_it + 1;
-            slices.push_back(info.mm->add_instruction(
+            slices.push_back(info.add_instruction(
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input));
         }
         input = info.mm->add_instruction(make_op("concat", {{"axis", axis}}), slices);

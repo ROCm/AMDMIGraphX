@@ -1,8 +1,29 @@
 # AMD MIGraphX
 
-AMD's graph optimization engine.
+AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
+installing binaries directly or building from source code.
 
-## Prerequisites
+Note that all the following instruction are based on that ROCm has been installed correctly. ROCm installation
+instruction are explained in the [ROCm installation
+guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
+
+##Installing from binaries
+With ROCm installed correctly, MIGraphX binaries can be installed with the following command:
+```
+sudo apt update && sudo apt install -y migraphx
+```
+then head files and libs are located at ```/opt/rocm/include``` and ```/opt/rocm/lib```, respectively, which can be
+included and linked by adding the corresponding folders to the Makefile.
+
+##Building from source
+
+Building MIGraphX from sources needs dependencies, which must be installed before building the source code. In the
+following, we first list the dependencies, and then explain two ways of installing them.
+
+### List of dependencies
+The following is a list of dependencies required to build MIGraphX from source code. This list is also available in the
+requirement files ```dev-requirements.txt``` and ```requirements.txt```.
+
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for running on the GPU
@@ -10,16 +31,20 @@ AMD's graph optimization engine.
 * [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
-* [ONNX](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
-  test (for now, we need to use onnx version 1.7.0 and should be installed as ```pip3 install onnx==1.7.0```)
+* [ONNX 1.7.0](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
+  tests (for now, we need to use onnx version 1.7.0 and should be installed as ```pip3 install onnx==1.7.0```)
+
+Note: we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our implementation. 
+ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon.
 
 
-## Installing the dependencies
-There are two alternative ways to install the dependencies required by MIGraphX:
 
-* Dependencies can be installed one by one using a [script](https://github.com/mvermeulen/rocm-migraphx/blob/master/scripts/build_prereqs.sh).
-(Note: 1. You may need the sudo to install the above dependencies. 2. rocBLAS and MIOpen can be installed with the
-command ```sudo apt install -y rocblas miopen-hip```)
+### Installing the dependencies
+There are two alternative ways to install the above dependencies:
+
+* Dependencies can be installed by running a shell script [build_prereqs.sh](./tools/build_prereqs.sh).
+(Note: You need the sudo to install the above dependencies. 2) all dependencies are installed in default locations in
+the system and are accessible by all users.)
 
 * Dependencies can also be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 They are listed in files requirements.txt and dev-requirements.txt in the project diretory.

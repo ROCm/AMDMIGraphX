@@ -7,7 +7,7 @@ Note that all the following instruction are based on that ROCm has been installe
 instruction are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
-##Installing from binaries
+## Installing from binaries
 With ROCm installed correctly, MIGraphX binaries can be installed with the following command:
 ```
 sudo apt update && sudo apt install -y migraphx
@@ -15,7 +15,7 @@ sudo apt update && sudo apt install -y migraphx
 then head files and libs are located at ```/opt/rocm/include``` and ```/opt/rocm/lib```, respectively, which can be
 included and linked by adding the corresponding folders to the Makefile.
 
-##Building from source
+## Building from source
 
 Building MIGraphX from sources needs dependencies, which must be installed before building the source code. In the
 following, we first list the dependencies, and then explain two ways of installing them.

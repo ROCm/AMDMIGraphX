@@ -49,8 +49,7 @@ struct parse_range : op_parser<parse_range>
                 return result;
             });
 
-            l0 = info.add_literal(
-                {shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
+            l0 = info.add_literal({shape{args[0]->get_shape().type(), {num_elements}}, range_vals});
         });
         return l0;
     }

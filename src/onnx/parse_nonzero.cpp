@@ -54,7 +54,7 @@ struct parse_nonzero : op_parser<parse_nonzero>
             }
         }
 
-        return info.mm->add_literal(literal(out_s, out_data));
+        return info.add_literal(literal(out_s, out_data));
     }
 };
 

@@ -20,7 +20,7 @@ struct parse_constant : op_parser<parse_constant>
         // return empty literal
         if(v.get_shape().elements() == 0)
         {
-            return info.mm->add_literal(literal{});
+            return info.add_literal(literal{});
         }
 
         auto dim_size = info.attributes.at("value").t().dims_size();
@@ -28,10 +28,10 @@ struct parse_constant : op_parser<parse_constant>
         if(dim_size == 0)
         {
             migraphx::shape scalar_shape{v.get_shape().type()};
-            return info.mm->add_literal(migraphx::literal{scalar_shape, v.data()});
+            return info.add_literal(migraphx::literal{scalar_shape, v.data()});
         }
 
-        return info.mm->add_literal(v);
+        return info.add_literal(v);
     }
 };
 

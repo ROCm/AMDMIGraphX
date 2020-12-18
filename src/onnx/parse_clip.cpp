@@ -39,8 +39,8 @@ struct parse_clip : op_parser<parse_clip>
 
             float min_val = parser.parse_value(info.attributes.at("min")).at<float>();
             float max_val = parser.parse_value(info.attributes.at("max")).at<float>();
-            min_arg       = info.mm->add_literal(min_val);
-            max_arg       = info.mm->add_literal(max_val);
+            min_arg       = info.add_literal(min_val);
+            max_arg       = info.add_literal(max_val);
             min_used      = true;
             max_used      = true;
         }

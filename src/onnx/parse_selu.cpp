@@ -30,8 +30,8 @@ struct parse_selu : op_parser<parse_selu>
             gamma = info.attributes.at("gamma").f();
         }
 
-        auto l_alpha = info.mm->add_literal({{type, {1}}, {alpha}});
-        auto l_gamma = info.mm->add_literal({{type, {1}}, {gamma / 2.0f}});
+        auto l_alpha = info.add_literal({{type, {1}}, {alpha}});
+        auto l_gamma = info.add_literal({{type, {1}}, {gamma / 2.0f}});
         if(lens != std::vector<std::size_t>{1})
         {
             l_alpha =

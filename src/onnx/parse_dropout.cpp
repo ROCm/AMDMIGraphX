@@ -20,7 +20,7 @@ struct parse_dropout : op_parser<parse_dropout>
         auto s   = args[0]->get_shape();
         std::vector<int8_t> vec(s.elements(), 1);
         shape mask_s{shape::bool_type, s.lens()};
-        auto mask = info.mm->add_literal(literal(mask_s, vec));
+        auto mask = info.add_literal(literal(mask_s, vec));
 
         return {out, mask};
     }

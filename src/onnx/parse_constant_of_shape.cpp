@@ -65,7 +65,7 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
                 l_out = literal(s, out_vec);
             });
 
-            return info.mm->add_literal(l_out);
+            return info.add_literal(l_out);
         }
     }
 };

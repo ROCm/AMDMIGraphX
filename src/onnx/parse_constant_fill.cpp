@@ -66,7 +66,7 @@ struct parse_constant_fill : op_parser<parse_constant_fill>
             in.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
             migraphx::shape s(type, dims);
             std::vector<float> values(s.elements(), value);
-            return info.mm->add_literal(migraphx::literal(s, values));
+            return info.add_literal(migraphx::literal(s, values));
         }
         else if(input_as_shape == 0)
         {
@@ -80,7 +80,7 @@ struct parse_constant_fill : op_parser<parse_constant_fill>
             ls.visit([&](auto s) { dims.assign(s.begin(), s.end()); });
             migraphx::shape s{type, dims};
             std::vector<float> values(s.elements(), value);
-            return info.mm->add_literal(migraphx::literal(s, values));
+            return info.add_literal(migraphx::literal(s, values));
         }
         else
         {

@@ -32,8 +32,8 @@ struct parse_imagescalar : op_parser<parse_imagescalar>
         auto const& input_lens = input_shape.lens();
         auto input_type        = input_shape.type();
 
-        auto scale_val = info.mm->add_literal(literal{shape{input_type}, {scale}});
-        auto bias_vals = info.mm->add_literal(literal{shape{input_type, {bias.size()}}, bias});
+        auto scale_val = info.add_literal(literal{shape{input_type}, {scale}});
+        auto bias_vals = info.add_literal(literal{shape{input_type, {bias.size()}}, bias});
 
         auto scale_tensor = info.add_instruction(
             migraphx::make_op("scalar", {{"scalar_bcst_dims", input_lens}}), scale_val);

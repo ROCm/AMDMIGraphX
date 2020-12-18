@@ -143,10 +143,7 @@ onnx_parser::node_info::add_instruction(const operation& op,
     return mm->add_instruction(op, args);
 }
 
-instruction_ref onnx_parser::node_info::add_literal(literal l) const
-{
-    return mm->add_literal(l);
-}
+instruction_ref onnx_parser::node_info::add_literal(literal l) const { return mm->add_literal(l); }
 
 onnx_parser::onnx_parser()
 {

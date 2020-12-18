@@ -26,7 +26,7 @@ struct parse_shape : op_parser<parse_shape>
         std::transform(arg_shape.begin(), arg_shape.end(), vec_shape.begin(), [](auto i) {
             return int64_t(i);
         });
-        return info.mm->add_literal(migraphx::literal{s, vec_shape});
+        return info.add_literal(migraphx::literal{s, vec_shape});
     }
 };
 

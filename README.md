@@ -23,7 +23,7 @@ command ```sudo apt install -y rocblas miopen-hip```)
 * Dependencies can also be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 They are listed in files requirements.txt and dev-requirements.txt in the project diretory.
 
-To install rbuild:
+To install rbuild (sudo may be needed.):
 ```
 pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```

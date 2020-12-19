@@ -18,7 +18,7 @@ namespace op {
 struct elu
 {
     std::string name() const { return "elu"; }
-    float alpha;
+    float alpha = 1;
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);

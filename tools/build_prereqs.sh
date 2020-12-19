@@ -29,7 +29,7 @@ make install
 
 # protobuf
 cd $deps
-apt install -y dh-autoreconf libtools
+apt install -y dh-autoreconf
 git clone https://github.com/protocolbuffers/protobuf
 cd protobuf
 git checkout v3.11.0

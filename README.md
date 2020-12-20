@@ -91,8 +91,8 @@ mkdir build;
 cd build;
 ```
 
-Next, configure the cmake. If the script [buiild_prereqs.sh](./tools/build_prereqs.sh) is used to install the dependencies, all
-dependencies are installed at default locations. Then MIGraphX can be build as:
+Next, configure the cmake. If the script [buiild_prereqs.sh](./tools/build_prereqs.sh) is used to install the
+dependencies, then all dependencies are installed at default locations, and MIGraphX can be build as:
 * In ROCm3.3:
 
 ```

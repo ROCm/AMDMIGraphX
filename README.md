@@ -133,35 +133,13 @@ and correctness can be verified as:
 make -j$(nproc) check
 ```
 
-#### Changing the cmake configuration
+MIGraphX libs can be installed as:
 
-The configuration can be changed after running cmake by using `ccmake`:
+```
+make install
+```
 
-` ccmake .. ` **OR** `cmake-gui`: ` cmake-gui ..`
-
-## Building the library
-
-The library can be built, from the `build` directory using the 'Release' configuration:
-
-` cmake --build . --config Release ` **OR** ` make `
-
-And can be installed by using the 'install' target:
-
-` cmake --build . --config Release --target install ` **OR** ` make install `
-
-This will install the library to the `CMAKE_INSTALL_PREFIX` path that was set.
-
-To build a debug version of the library, the cmake variable `CMAKE_BUILD_TYPE` can be set to `Debug`.
-
-` cmake -DCMAKE_BUILD_TYPE=Debug . `
-
-## Running the tests
-
-The tests can be run by using the 'check' target:
-
-` cmake --build . --config Release --target check ` **OR** ` make check `
-
-## Building the documentation
+### Building the documentation
 
 HTML and PDF documentation can be built using:
 

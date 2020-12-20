@@ -34,10 +34,9 @@ requirement files ```dev-requirements.txt``` and ```requirements.txt```.
 * [ONNX 1.7.0](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
   tests 
 
-Note: we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our current implementation. 
-ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon.
-
-
+Note: 1) we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our current implementation. 
+ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon. 2)
+MIOpen and rocBLAS can be installed as ```sudo apt update && sudo apt install -y miopen-hip rocblas```.
 
 ### Installing the dependencies
 There are two alternative ways to install the above dependencies:
@@ -51,10 +50,11 @@ the system and are accessible by all users.)
 
 To install rbuild (sudo may be needed.):
 ```
-pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
+and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`
 
-Dependencies are listed in files requirements.txt and dev-requirements.txt in the project diretory. To build the
+Dependencies are listed in files `requirements.txt` and `dev-requirements.txt` in the project diretory. To build the
 dependencies,
 * In ROCm3.3:
 
@@ -68,11 +68,11 @@ rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
 ```
 
-This builds dependencies in the folder "depend" (full path is represented as "$(amdmigraphx_dir)/depend."
+This builds dependencies in the folder "depend".
 
-Note that if rocBLAS and MIOpen are installed with the command ```sudo apt install -y rocblas miopen-hip```, we can
-comment out the two lines "ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06" and
-"ROCmSoftwarePlatform/MIOpen@2.4.0" in the file requirements.txt (adding a '#' character at the start of each line).
+Note that if rocBLAS and MIOpen are installed with the command ```sudo apt install -y rocblas miopen-hip``` as mentioned
+above, we can comment out the two lines "ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06" and
+"ROCmSoftwarePlatform/MIOpen@2.4.0" in the file `requirements.txt` (adding a '#' character at the start of each line).
 Also note that for ROCm3.7 and later release, Ubuntu 18.04 and later release is needed. Upgrapde to Ubuntu 18.04 should be
 done as:
 
@@ -112,13 +112,13 @@ command is:
 * ROCM3.3:
 
 ```
-CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
+CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=../depend ..
 
 ```
 * ROCM3.7 or later releases:
 
 ```
-CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=../depend ..
 ```
 
 Then we can build MIGraphX source code as:

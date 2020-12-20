@@ -42,20 +42,20 @@ ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to suppor
 ### Installing the dependencies
 There are two alternative ways to install the above dependencies:
 
-* Dependencies can be installed by running a shell script [build_prereqs.sh](./tools/build_prereqs.sh).
+#### Run a shell script [build_prereqs.sh](./tools/build_prereqs.sh).
 
 (Note: 1. You need the sudo to install the above dependencies. 2. All dependencies are installed in default locations in
 the system and are accessible by all users.)
 
-* Dependencies can also be installed using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
-They are listed in files requirements.txt and dev-requirements.txt in the project diretory.
+#### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
 To install rbuild (sudo may be needed.):
 ```
 pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
 
-To build dependencies along with MIGraphX
+Dependencies are listed in files requirements.txt and dev-requirements.txt in the project diretory. To build the
+dependencies,
 * In ROCm3.3:
 
 ```
@@ -68,13 +68,20 @@ rbuild develop -d depend -B build --cxx=/opt/rocm/bin/hcc
 rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
 ```
 
-This builds dependencies in the subdirectory named "depend" (full path is represented as "$(amdmigraphx_dir)/depend."
+This builds dependencies in the folder "depend" (full path is represented as "$(amdmigraphx_dir)/depend."
 
 Note that if rocBLAS and MIOpen are installed with the command ```sudo apt install -y rocblas miopen-hip```, we can
 comment out the two lines "ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06" and
-"ROCmSoftwarePlatform/MIOpen@2.4.0" of the file requirements.txt (adding a '#' character at the start of each line)
+"ROCmSoftwarePlatform/MIOpen@2.4.0" in the file requirements.txt (adding a '#' character at the start of each line).
+Also note that for ROCm3.7 and later release, Ubuntu 18.04 and later release is needed. Upgrapde to Ubuntu 18.04 should be
+done as:
 
-## Building MIGraphX from source
+```
+sudo apt update
+sudo apt install linux-headers-4.18.0-25-generic linux-image-4.18.0-25-generic  linux-modules-4.18.0-25-generic linux-modules-extra-4.18.0-25-generic -y
+```
+
+### Building MIGraphX source
 
 First create a build directory:
 
@@ -86,25 +93,29 @@ cd build;
 
 Next configure cmake. The hcc or clang compiler is required to build the MIOpen/HIP backend kernels:
 
-If the [script](https://github.com/mvermeulen/rocm-migraphx/blob/master/scripts/build_prereqs.sh) is called to install
-the script, MIGraphX can be build as:
+If the script [buiild_prereqs.sh](./tools/build_prereqs.sh) is used to install the dependencies, all
+dependencies are installed at default locations. Then MIGraphX can be build as:
 * In ROCm3.3:
 
 ```
 CXX=/opt/rocm/bin/hcc cmake ..
 ```
+
 * In ROCm3.7 or later releases:
 
 ```
 CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
 
-If the dependencies were installed in the folder "depend" using rbuild, the `CMAKE_PREFIX_PATH` needs to be set to 
-the same dependency directory (full path are needed here.) as:
+If the above rbuild command was used to build and install the dependencies, then all dependencies are in the folder
+"depend", and the `CMAKE_PREFIX_PATH` needs to be set to the same folder "depend" (full path are needed here.), and the
+command is:
+
 * ROCM3.3:
 
 ```
 CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
+
 ```
 * ROCM3.7 or later releases:
 
@@ -112,11 +123,14 @@ CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
 CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=$(amdmigraphx_dir)/depend ..
 ```
 
-Then MIGraphX can be build as:
+Then we can build MIGraphX source code as:
+
 ```
 make -j$(nproc)
 ```
+
 and correctness can be verified as:
+
 ```
 make -j$(nproc) check
 ```

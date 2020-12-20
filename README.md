@@ -91,9 +91,7 @@ mkdir build;
 cd build;
 ```
 
-Next configure cmake. The hcc or clang compiler is required to build the MIOpen/HIP backend kernels:
-
-If the script [buiild_prereqs.sh](./tools/build_prereqs.sh) is used to install the dependencies, all
+Next, configure the cmake. If the script [buiild_prereqs.sh](./tools/build_prereqs.sh) is used to install the dependencies, all
 dependencies are installed at default locations. Then MIGraphX can be build as:
 * In ROCm3.3:
 

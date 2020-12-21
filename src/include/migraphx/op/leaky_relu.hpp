@@ -17,7 +17,7 @@ namespace op {
 
 struct leaky_relu
 {
-    float alpha;
+    float alpha = 0.01;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

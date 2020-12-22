@@ -14,7 +14,7 @@ namespace cpu {
 struct lowering
 {
     std::string name() const { return "cpu::lowering"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace cpu

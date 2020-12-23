@@ -615,6 +615,11 @@ void module::print_cpp(std::ostream& os) const
     });
 }
 
+void module::dry_run(context& ctx, std::unordered_map<std::string, argument> params) const
+{
+    generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
+}
+
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
     print_module(*this, [&](auto ins, const auto& names) {

@@ -193,8 +193,10 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
-    auto* mm = this->get_main_module();
-    mm->finalize(impl->ctx);
+    for (auto& mp : this->impl->modules)
+    {
+        mp.second.finalize(this->impl->ctx);
+    }
 }
 
 template <class F>
@@ -284,9 +286,9 @@ void program::from_value(const value& v)
         auto val        = vv.without_key();
         module modl;
         modl.from_value(val);
-        modl.finalize(this->impl->ctx);
         impl->modules[key] = modl;
     }
+    this->finalize();
 }
 
 double common_average(const std::vector<double>& v)
@@ -439,11 +441,13 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
     generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
 }
 
-void program::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
+void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const
 {
-    const auto* mm = this->get_main_module();
-    std::cout << mm->name() << ":" << std::endl;
-    mm->annotate(os, std::move(a));
+    for(auto& modl : this->impl->modules)
+    {
+        std::cout << modl.first << ":" << std::endl;
+        modl.second.annotate(os, a);
+    }
 }
 
 module* program::get_main_module()
@@ -463,8 +467,12 @@ const module* program::get_main_module() const
 }
 
 program& program::sort()
-{
-    this->get_main_module()->sort();
+{   
+    for (auto& modl : this->impl->modules)
+    {
+        modl.second.sort();
+    }
+
     return *this;
 }
 

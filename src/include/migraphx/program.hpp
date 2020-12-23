@@ -81,7 +81,7 @@ struct program
 
     void dry_run(parameter_map params) const;
 
-    void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
+    void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
     program& sort();
 

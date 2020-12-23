@@ -193,7 +193,7 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
-    for (auto& mp : this->impl->modules)
+    for(auto& mp : this->impl->modules)
     {
         mp.second.finalize(this->impl->ctx);
     }
@@ -467,8 +467,8 @@ const module* program::get_main_module() const
 }
 
 program& program::sort()
-{   
-    for (auto& modl : this->impl->modules)
+{
+    for(auto& modl : this->impl->modules)
     {
         modl.second.sort();
     }

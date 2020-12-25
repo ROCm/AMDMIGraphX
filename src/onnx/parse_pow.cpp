@@ -10,16 +10,16 @@ namespace onnx {
 auto compute_type(shape::type_t tb, shape::type_t te)
 {
     const static std::unordered_map<shape::type_t, int> op_order = {{shape::int8_type, 1},
-                                                              {shape::uint8_type, 2},
-                                                              {shape::int16_type, 3},
-                                                              {shape::uint16_type, 4},
-                                                              {shape::int32_type, 5},
-                                                              {shape::uint32_type, 6},
-                                                              {shape::int64_type, 7},
-                                                              {shape::uint64_type, 8},
-                                                              {shape::half_type, 9},
-                                                              {shape::float_type, 10},
-                                                              {shape::double_type, 11}};
+                                                                    {shape::uint8_type, 2},
+                                                                    {shape::int16_type, 3},
+                                                                    {shape::uint16_type, 4},
+                                                                    {shape::int32_type, 5},
+                                                                    {shape::uint32_type, 6},
+                                                                    {shape::int64_type, 7},
+                                                                    {shape::uint64_type, 8},
+                                                                    {shape::half_type, 9},
+                                                                    {shape::float_type, 10},
+                                                                    {shape::double_type, 11}};
 
     if(!contains(op_order, tb) or !contains(op_order, te))
     {

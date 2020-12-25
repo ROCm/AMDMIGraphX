@@ -14,7 +14,6 @@ struct parse_binary_op : op_parser<parse_binary_op>
         return {{"Add", "add"},
                 {"Div", "div"},
                 {"Mul", "mul"},
-                {"Pow", "pow"},
                 {"PRelu", "prelu"},
                 {"Sub", "sub"}};
     }

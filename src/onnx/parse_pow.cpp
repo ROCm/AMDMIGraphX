@@ -9,7 +9,7 @@ namespace onnx {
 
 auto compute_type(shape::type_t tb, shape::type_t te)
 {
-    static std::unordered_map<shape::type_t, int> op_order = {{shape::int8_type, 1},
+    const static std::unordered_map<shape::type_t, int> op_order = {{shape::int8_type, 1},
                                                               {shape::uint8_type, 2},
                                                               {shape::int16_type, 3},
                                                               {shape::uint16_type, 4},
@@ -26,7 +26,7 @@ auto compute_type(shape::type_t tb, shape::type_t te)
         MIGRAPHX_THROW("PARSE_POW: Input data type not supported!");
     }
 
-    if(op_order[tb] >= op_order[te])
+    if(op_order.at(tb) >= op_order.at(te))
     {
         return tb;
     }
@@ -42,7 +42,7 @@ struct parse_pow : op_parser<parse_pow>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto tb = args[0]->get_shape().type();

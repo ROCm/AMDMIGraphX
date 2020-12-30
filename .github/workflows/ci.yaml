@@ -50,6 +50,7 @@ jobs:
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
+          -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
@@ -92,7 +93,10 @@ jobs:
       run: |
         mkdir build
         cd build
-        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache ..
+        CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
+          -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
+          -DROCM_ENABLE_GH_ANNOTATIONS=On \
+          ..
         make -j2 cppcheck
 
   format:
@@ -227,7 +231,5 @@ jobs:
         lcov --list $(pwd)/coverage.info
         curl -s https://codecov.io/bash | bash
         echo "Uploaded"
-        
-
 
 

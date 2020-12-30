@@ -14,7 +14,7 @@ void gpu_literal_test()
     mm->add_literal(lit);
     p.compile(migraphx::gpu::target{});
     auto scratch = p.get_parameter("scratch");
-    if(scratch == p.end())
+    if(scratch == mm->end())
     {
         auto result = p.eval({}).back();
         EXPECT(lit == migraphx::gpu::from_gpu(result));

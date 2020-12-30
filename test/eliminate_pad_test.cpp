@@ -75,7 +75,7 @@ TEST_CASE(rewrite_pad)
     EXPECT(op2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
 
     EXPECT(std::none_of(
-        p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
+        mm->begin(), mm->end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
 TEST_CASE(rewrite_pad_im2col_asymmetric)
@@ -104,7 +104,7 @@ TEST_CASE(rewrite_pad_im2col_asymmetric)
 
     run_pass(p);
     EXPECT(std::any_of(
-        p.begin(), p.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
+        mm->begin(), mm->end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

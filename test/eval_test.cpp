@@ -71,7 +71,7 @@ struct reverse_pass
 {
     std::string name() const { return "reverse_pass"; }
 
-    void apply(migraphx::module& p) const { std::reverse(p.begin(), p.end()); }
+    void apply(migraphx::module& m) const { std::reverse(m.begin(), m.end()); }
 };
 
 struct reverse_target
@@ -225,7 +225,7 @@ TEST_CASE(get_param1)
     mm->add_instruction(sum_op{}, x, y);
     EXPECT(bool{p.get_parameter("x") == x});
     EXPECT(bool{p.get_parameter("y") == y});
-    EXPECT(bool{p.get_parameter("nonexistent") == p.end()});
+    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
 }
 
 TEST_CASE(get_param2)
@@ -235,7 +235,7 @@ TEST_CASE(get_param2)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
-    EXPECT(bool{p.get_parameter("nonexistent") == p.end()});
+    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
 }
 
 TEST_CASE(get_param_shapes)
@@ -260,7 +260,7 @@ TEST_CASE(replace_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(sum_op{}, one, two);
     mm->replace_instruction(sum, minus_op{}, two, one);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -276,7 +276,7 @@ TEST_CASE(replace_ins_test)
     auto sum   = mm->add_instruction(sum_op{}, one, two);
     auto minus = mm->add_instruction(minus_op{}, two, one);
     mm->replace_instruction(sum, minus);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -293,7 +293,7 @@ TEST_CASE(replace_ins_test2)
     auto minus = mm->add_instruction(minus_op{}, two, one);
     mm->add_instruction(pass_op{}, minus);
     mm->replace_instruction(two, sum);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
@@ -308,7 +308,7 @@ TEST_CASE(replace_op_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(sum_op{}, two, one);
     sum->replace(minus_op{});
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -336,7 +336,7 @@ TEST_CASE(insert_replace_test)
 
     auto sum0 = mm->insert_instruction(sum1, sum_op{}, two, two);
     mm->replace_instruction(sum1, minus_op{}, sum0, two);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
@@ -352,7 +352,7 @@ TEST_CASE(remove_test1)
     auto sum     = mm->add_instruction(sum_op{}, one, two);
     auto removed = mm->add_instruction(minus_op{}, sum, one);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -368,7 +368,7 @@ TEST_CASE(remove_test2)
     auto removed = mm->add_instruction(minus_op{}, two, one);
     mm->add_instruction(sum_op{}, one, two);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{p.validate() == mm->end()});
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -512,7 +512,7 @@ TEST_CASE(debug_print_test)
     auto program_out = migraphx::trim(capture_output([&] { mm->debug_print(); }));
     auto ins_out     = migraphx::trim(capture_output([&] { mm->debug_print(one); }));
     auto inss_out    = migraphx::trim(capture_output([&] { mm->debug_print(onev); }));
-    auto end_out     = migraphx::trim(capture_output([&] { mm->debug_print(p.end()); }));
+    auto end_out     = migraphx::trim(capture_output([&] { mm->debug_print(mm->end()); }));
     auto p2_ins_out  = migraphx::trim(capture_output([&] { mm->debug_print(one2); }));
 
     EXPECT(program_out == ins_out);

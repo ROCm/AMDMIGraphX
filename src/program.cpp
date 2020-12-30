@@ -135,18 +135,6 @@ bool program::has_instruction(instruction_ref ins) const
 
 std::size_t program::size() const { return impl->modules.size(); }
 
-instruction_ref program::begin() const
-{
-    const auto* mm = this->get_main_module();
-    return mm->begin();
-}
-
-instruction_ref program::end() const
-{
-    const auto* mm = this->get_main_module();
-    return mm->end();
-}
-
 std::vector<shape> program::get_output_shapes() const
 {
     const auto* mm = this->get_main_module();
@@ -402,7 +390,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
-    if(ins == this->end())
+    if(ins == this->impl->modules["main"].end())
     {
         std::cout << "End instruction" << std::endl;
         return;

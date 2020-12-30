@@ -110,8 +110,8 @@ void verify_reduced(program p,
                     double tolerance)
 {
     auto* mm  = p.get_main_module();
-    auto last = std::prev(p.end(), n + 1);
-    mm->remove_instructions(last, p.end());
+    auto last = std::prev(mm->end(), n + 1);
+    mm->remove_instructions(last, mm->end());
     std::cout << "Verify: " << std::endl;
     std::cout << p << std::endl;
     verify_program(std::to_string(n), p, t, options, inputs, tolerance);
@@ -123,7 +123,8 @@ void verify_reduced_program(const program& p,
                             const parameter_map& inputs,
                             double tolerance)
 {
-    auto n = std::distance(p.begin(), p.end());
+    auto* mm  = p.get_main_module();
+    auto n = std::distance(mm->begin(), mm->end());
     for(std::size_t i = 0; i < n; i++)
     {
         verify_reduced(p, i, t, options, inputs, tolerance);

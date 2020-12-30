@@ -423,7 +423,8 @@ TEST_CASE(nested_concat)
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
-    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) ==
+           1);
 }
 
 TEST_CASE(nested_concat_partial)
@@ -446,7 +447,8 @@ TEST_CASE(nested_concat_partial)
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
     EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
-    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) ==
+           1);
 }
 
 TEST_CASE(multibroadcast_simplify)

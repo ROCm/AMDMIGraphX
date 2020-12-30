@@ -123,8 +123,8 @@ void verify_reduced_program(const program& p,
                             const parameter_map& inputs,
                             double tolerance)
 {
-    auto* mm  = p.get_main_module();
-    auto n = std::distance(mm->begin(), mm->end());
+    auto* mm = p.get_main_module();
+    auto n   = std::distance(mm->begin(), mm->end());
     for(std::size_t i = 0; i < n; i++)
     {
         verify_reduced(p, i, t, options, inputs, tolerance);

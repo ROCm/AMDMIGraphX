@@ -42,7 +42,7 @@ migraphx::instruction_ref add_alloc(migraphx::program& p, const migraphx::shape&
 
 bool no_allocate(const migraphx::program& p)
 {
-    auto* mm = p.get_main_module();
+    const auto* mm = p.get_main_module();
     return std::none_of(
         mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }

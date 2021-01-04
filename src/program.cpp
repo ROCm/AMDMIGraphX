@@ -174,7 +174,6 @@ void program::finalize()
     }
 }
 
-
 template <class F>
 std::vector<argument> generic_eval(const module& p,
                                    context& ctx,
@@ -241,7 +240,6 @@ std::vector<argument> generic_eval(const module& p,
 
     return {results.at(std::prev(p.end()))};
 }
-
 
 template <class F>
 std::vector<argument> generic_eval(const program& p,

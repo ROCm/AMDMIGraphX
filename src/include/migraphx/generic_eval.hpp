@@ -23,35 +23,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
-void print_module(const module& m, F print_func)
-{
-    std::unordered_map<instruction_ref, std::string> names;
-    int count = 0;
-
-    for(auto ins : iterator_for(m))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = "@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
-
-        assert(std::all_of(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           [&](auto arg) { return m.has_instruction(arg); }) &&
-               "PRINT_MODULE: Instruction not found");
-
-        print_func(ins, names);
-    }
-}
-
-template <class F>
 std::vector<argument> generic_eval(const module& p,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,

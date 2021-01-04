@@ -62,13 +62,6 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-template <class F>
-static void print_program(const program& p, F print_func)
-{
-    const auto* mm = p.get_main_module();
-    print_module(*mm, print_func);
-}
-
 program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {}; }
 
 program::program(program&&) noexcept = default;
@@ -125,12 +118,6 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     const auto* mm = this->get_main_module();
     return mm->get_parameter_shapes();
-}
-
-bool program::has_instruction(instruction_ref ins) const
-{
-    const auto* mm = this->get_main_module();
-    return mm->has_instruction(ins);
 }
 
 std::size_t program::size() const { return impl->modules.size(); }
@@ -257,7 +244,9 @@ void program::from_value(const value& v)
 {
     auto version = v.at("version").to<int>();
     if(version != program_file_version)
-        std::cout << "Warning: Program version mismatch" << std::endl;
+    {
+        MIGRAPHX_THROW("Warning: Program version mismatch");
+    }
 
     this->impl->target_name = v.at("target").to<std::string>();
     if(not this->impl->target_name.empty())
@@ -347,7 +336,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    print_program(*this, [&](auto ins, const auto& names) {
+    this->debug_print([&](auto ins, auto names) {
         print_instruction(std::cout, ins, names);
 
         // skip return instruction
@@ -390,24 +379,37 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
-    if(ins == this->impl->modules["main"].end())
+    if (std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
+        return (it.second.end() == ins);
+    }))
     {
         std::cout << "End instruction" << std::endl;
         return;
     }
-    if(not has_instruction(ins))
+    else if (not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
+        return it.second.has_instruction(ins);
+    }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;
     }
+
     std::stringstream ss;
-    print_program(*this, [&](auto x, const auto& names) {
+    this->debug_print([&](auto x, const auto& names) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
             std::cout << std::endl;
         }
     });
+}
+
+void program::debug_print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const
+{
+    for (const auto& mdl : this->impl->modules)
+    {
+        mdl.second.debug_print(print_func);
+    }
 }
 
 void program::print_graph(std::ostream& os, bool brief) const
@@ -440,17 +442,11 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 
 module* program::get_main_module()
 {
-    if(!contains(impl->modules, "main"))
-    {
-        impl->modules["main"] = {};
-    }
-
     return &impl->modules["main"];
 }
 
 const module* program::get_main_module() const
 {
-    assert(contains(impl->modules, "main"));
     return &impl->modules["main"];
 }
 

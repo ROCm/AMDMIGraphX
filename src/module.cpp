@@ -392,14 +392,11 @@ void module::finalize(context& ctx)
     }
 }
 
-const int module_file_version = 1;
-
 value module::to_value() const
 {
     value result;
-    result["version"] = module_file_version;
     value nodes;
-    print_module(*this, [&](auto ins, const auto& names) {
+    this->debug_print([&](auto ins, const auto& names) {
         value node;
         node["output"] = names.at(ins);
         node["name"]   = ins->name();
@@ -421,10 +418,6 @@ value module::to_value() const
 
 void module::from_value(const value& v)
 {
-    auto version = v.at("version").to<int>();
-    if(version != module_file_version)
-        std::cout << "Warning: Module version mismatch" << std::endl;
-
     std::unordered_map<std::string, instruction_ref> instructions;
     for(const value& node : v.at("nodes"))
     {
@@ -471,7 +464,7 @@ void module::debug_print(instruction_ref ins) const
         return;
     }
     std::stringstream ss;
-    print_module(*this, [&](auto x, const auto& names) {
+    this->debug_print([&](auto x, const auto& names) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
@@ -482,8 +475,36 @@ void module::debug_print(instruction_ref ins) const
 void module::debug_print(const std::vector<instruction_ref>& inss) const
 {
     for(auto ins : inss)
-        debug_print(ins);
+        this->debug_print(ins);
     std::cout << std::endl;
+}
+
+void module::debug_print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    int count = 0;
+
+    for(auto ins : iterator_for(*this))
+    {
+        std::string var_name;
+        if(ins->name() == "@param")
+        {
+            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        }
+        else
+        {
+            var_name = "@" + std::to_string(count);
+            count++;
+        }
+        names.emplace(ins, var_name);
+
+        assert(std::all_of(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           [&](auto arg) { return this->has_instruction(arg); }) &&
+               "DEBUG_PRINT: Instruction not found");
+
+        print_func(ins, names);
+    }
 }
 
 static std::string enclose_name(const std::string& name)
@@ -495,7 +516,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 {
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    print_module(*this, [&](auto ins, const auto& names) {
+    this->debug_print([&](auto ins, const auto& names) {
         std::string label;
         if(brief)
             label = ins->name();
@@ -571,7 +592,7 @@ void module::print_cpp(std::ostream& os) const
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    print_module(*this, [&](auto ins, const auto& names) {
+    this->debug_print([&](auto ins, const auto& names) {
         auto op = cpp_op_var(names.at(ins), ins);
         if(ins->name().front() != '@')
         {
@@ -622,7 +643,7 @@ void module::dry_run(context& ctx, std::unordered_map<std::string, argument> par
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    print_module(*this, [&](auto ins, const auto& names) {
+    this->debug_print([&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         a(ins);
         os << std::endl;
@@ -644,7 +665,7 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    print_module(m, [&](auto ins, const auto& names) {
+    m.debug_print([&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         os << std::endl;
     });

@@ -123,8 +123,6 @@ struct module
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
 
-    void dry_run(context& ctx, std::unordered_map<std::string, argument> params) const;
-
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     module& sort();

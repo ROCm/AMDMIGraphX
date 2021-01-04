@@ -12,9 +12,9 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
     std::vector<op_desc> operators() const { return {{"DequantizeLinear"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                                       const onnx_parser& /*parser*/,
-                                       const onnx_parser::node_info& info,
-                                       std::vector<instruction_ref> args) const
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
     {
         int axis = 1;
         if(contains(info.attributes, "axis"))

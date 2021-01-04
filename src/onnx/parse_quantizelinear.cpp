@@ -12,9 +12,9 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
     std::vector<op_desc> operators() const { return {{"QuantizeLinear"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                                       const onnx_parser& /*parser*/,
-                                       const onnx_parser::node_info& info,
-                                       std::vector<instruction_ref> args) const
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
     {
         auto quant_type = shape::uint8_type;
         int nargs       = args.size();

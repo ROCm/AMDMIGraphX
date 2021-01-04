@@ -379,16 +379,16 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
-    if (std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
-        return (it.second.end() == ins);
-    }))
+    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
+           return (it.second.end() == ins);
+       }))
     {
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if (not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
-        return it.second.has_instruction(ins);
-    }))
+    else if(not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
+                return it.second.has_instruction(ins);
+            }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;
@@ -404,9 +404,12 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::debug_print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const
+void program::debug_print(
+    const std::function<void(instruction_ref,
+                             const std::unordered_map<instruction_ref, std::string>&)>& print_func)
+    const
 {
-    for (const auto& mdl : this->impl->modules)
+    for(const auto& mdl : this->impl->modules)
     {
         mdl.second.debug_print(print_func);
     }
@@ -440,15 +443,9 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
     }
 }
 
-module* program::get_main_module()
-{
-    return &impl->modules["main"];
-}
+module* program::get_main_module() { return &impl->modules["main"]; }
 
-const module* program::get_main_module() const
-{
-    return &impl->modules["main"];
-}
+const module* program::get_main_module() const { return &impl->modules["main"]; }
 
 program& program::sort()
 {

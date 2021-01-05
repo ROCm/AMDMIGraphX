@@ -28,7 +28,7 @@ TEST_CASE(program_equality)
 {
     migraphx::program x = create_program();
     migraphx::program y;
-    
+
     y = x;
 
     EXPECT(x.size() == 1);
@@ -63,8 +63,8 @@ TEST_CASE(program_default_copy_construct)
 TEST_CASE(program_print)
 {
     migraphx::program p = create_program();
-    auto* mm = p.get_main_module();
-    auto in1 = mm->end();
+    auto* mm            = p.get_main_module();
+    auto in1            = mm->end();
 
     // print end instruction
     p.debug_print(in1);
@@ -84,14 +84,10 @@ TEST_CASE(program_annotate)
     migraphx::program p2 = create_program();
 
     std::stringstream ss1;
-    p1.annotate(ss1, [](auto ins) {
-        std::cout << ins->name() << "_1" << std::endl;
-    });
+    p1.annotate(ss1, [](auto ins) { std::cout << ins->name() << "_1" << std::endl; });
 
     std::stringstream ss2;
-    p2.annotate(ss2, [](auto ins) {
-        std::cout << ins->name() << "_1" << std::endl;
-    });
+    p2.annotate(ss2, [](auto ins) { std::cout << ins->name() << "_1" << std::endl; });
 
     EXPECT(ss1.str() == ss2.str());
 }

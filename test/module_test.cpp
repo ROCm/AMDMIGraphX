@@ -77,14 +77,10 @@ TEST_CASE(module_annotate)
     EXPECT(*mm1 == *mm2);
 
     std::stringstream ss1;
-    mm1->annotate(ss1, [](auto ins) {
-        std::cout << ins->name() << "_1" << std::endl;
-    });
+    mm1->annotate(ss1, [](auto ins) { std::cout << ins->name() << "_1" << std::endl; });
 
     std::stringstream ss2;
-    mm2->annotate(ss2, [](auto ins) {
-        std::cout << ins->name() << "_1" << std::endl;
-    });
+    mm2->annotate(ss2, [](auto ins) { std::cout << ins->name() << "_1" << std::endl; });
 
     EXPECT(ss1.str() == ss2.str());
 }

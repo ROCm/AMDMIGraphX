@@ -478,9 +478,9 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
-void module::print(const std::function<void(instruction_ref,
-                             const std::unordered_map<instruction_ref, std::string>&)>& print_func)
-    const
+void module::print(const std::function<
+                   void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
+                       print_func) const
 {
     std::unordered_map<instruction_ref, std::string> names;
     int count = 0;

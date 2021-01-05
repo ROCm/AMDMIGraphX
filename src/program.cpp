@@ -89,7 +89,7 @@ void program::assign(const program& p)
     }
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
-    impl->modules = p.impl->modules;
+    impl->modules     = p.impl->modules;
 }
 
 shape program::get_parameter_shape(std::string name) const

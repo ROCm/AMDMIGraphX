@@ -68,9 +68,9 @@ TEST_CASE(program_print)
     p.debug_print(in1);
 
     // print instruction not in the program
-    auto p2 = p;
+    auto p2   = p;
     auto* mm2 = p2.get_main_module();
-    auto in2 = mm2->begin();
+    auto in2  = mm2->begin();
     p.debug_print(in2);
 
     // print last instruction

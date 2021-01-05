@@ -27,9 +27,7 @@ migraphx::program create_program()
 TEST_CASE(program_equality)
 {
     migraphx::program x = create_program();
-    migraphx::program y;
-
-    y = x;
+    migraphx::program y = create_program();
 
     EXPECT(x.size() == 1);
     EXPECT(x == y);

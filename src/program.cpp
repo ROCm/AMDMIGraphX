@@ -403,7 +403,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    this->debug_print([&](auto ins, auto names) {
+    this->print([&](auto ins, auto names) {
         print_instruction(std::cout, ins, names);
 
         // skip return instruction
@@ -462,7 +462,7 @@ void program::debug_print(instruction_ref ins) const
     }
 
     std::stringstream ss;
-    this->debug_print([&](auto x, const auto& names) {
+    this->print([&](auto x, const auto& names) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
@@ -471,14 +471,13 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::debug_print(
-    const std::function<void(instruction_ref,
+void program::print(const std::function<void(instruction_ref,
                              const std::unordered_map<instruction_ref, std::string>&)>& print_func)
     const
 {
     for(const auto& mdl : this->impl->modules)
     {
-        mdl.second.debug_print(print_func);
+        mdl.second.print(print_func);
     }
 }
 

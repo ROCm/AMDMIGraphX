@@ -67,8 +67,10 @@ TEST_CASE(program_print)
     // print end instruction
     p.debug_print(in1);
 
-    // print null instruction
-    migraphx::instruction_ref in2{};
+    // print instruction not in the program
+    auto p2 = p;
+    auto* mm2 = p2.get_main_module();
+    auto in2 = mm2->begin();
     p.debug_print(in2);
 
     // print last instruction

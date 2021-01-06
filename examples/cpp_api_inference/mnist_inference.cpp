@@ -113,8 +113,8 @@ int main(int argc, char** argv)
     std::cout << std::endl;
 
     std::vector<float> digit;
-    srand(time(NULL));
-    int rand_digit = rand() % 10;
+    std::srand((unsigned)std::time(NULL));
+    int rand_digit = std::rand() % 10;
     std::cout << "Model input: " << std::endl;
     read_nth_digit(rand_digit, digit);
 

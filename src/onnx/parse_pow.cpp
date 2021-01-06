@@ -59,7 +59,6 @@ struct parse_pow : op_parser<parse_pow>
             args[1] = info.add_instruction(make_op("convert", {{"target_type", tc}}), args[1]);
         }
 
-        // return info.add_broadcastable_binary_op("pow", args[0], args[1]);
         auto ret = info.add_broadcastable_binary_op("pow", args[0], args[1]);
         if(tc != tb)
         {

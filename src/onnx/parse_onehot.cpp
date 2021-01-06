@@ -35,7 +35,7 @@ struct parse_onehot : op_parser<parse_onehot>
 
         auto type = args[2]->get_shape().type();
         shape s{type, {depth, depth}};
-        auto l_val      = info.mm->add_literal({s, depth_input});
+        auto l_val      = info.add_literal({s, depth_input});
         auto gather_out = info.add_instruction(make_op("gather", {{"axis", 0}}), {l_val, args[0]});
 
         // Finally, we need a transpose to move the inner most dim to the axis dim

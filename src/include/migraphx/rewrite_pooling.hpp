@@ -7,8 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-using module = program;
+struct module;
 
 /**
  * Rewrite pooling to reduce_mean

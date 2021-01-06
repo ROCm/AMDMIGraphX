@@ -13,7 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
-using module = program;
+struct module;
 
 #ifdef DOXYGEN
 

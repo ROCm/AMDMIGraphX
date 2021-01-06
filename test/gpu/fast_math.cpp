@@ -48,7 +48,7 @@ TEST_CASE(enable_fast_gelu)
 {
     migraphx::program p = create_gelu();
     p.compile(migraphx::gpu::target{});
-    CHECK(any_of(p, [&](auto&& i) { return i.name() == "gpu::gelu"; }));
+    CHECK(any_of(*p.get_main_module(), [&](auto&& i) { return i.name() == "gpu::gelu"; }));
 }
 
 TEST_CASE(disable_fast_gelu)
@@ -57,7 +57,7 @@ TEST_CASE(disable_fast_gelu)
     migraphx::compile_options options;
     options.fast_math = false;
     p.compile(migraphx::gpu::target{}, options);
-    CHECK(any_of(p, [&](auto&& i) { return i.name() == "gpu::gelu_new"; }));
+    CHECK(any_of(*p.get_main_module(), [&](auto&& i) { return i.name() == "gpu::gelu_new"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

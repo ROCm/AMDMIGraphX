@@ -4,6 +4,7 @@
 #include <list>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -17,15 +18,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using module = program;
-
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
 struct program_impl;
-
-const operation& get_operation(instruction_ref ins);
-using parameter_map = std::unordered_map<std::string, argument>;
 
 /**
  * @brief Stores the instruction stream
@@ -45,52 +41,6 @@ struct program
 
     ~program() noexcept;
 
-    template <class... Ts>
-    instruction_ref add_instruction(operation op, Ts... args)
-    {
-        return add_instruction(op, {args...});
-    }
-    instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
-
-    template <class... Ts>
-    instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
-    {
-        return insert_instruction(ins, op, {args...});
-    }
-    instruction_ref
-    insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
-
-    template <class... Ts>
-    instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
-    {
-        return replace_instruction(ins, op, {args...});
-    }
-    instruction_ref replace_instruction(instruction_ref ins,
-                                        const operation& op,
-                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
-
-    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
-
-    instruction_ref remove_instruction(instruction_ref ins);
-    instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
-
-    instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
-    instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
-
-    template <class... Ts>
-    instruction_ref add_literal(Ts&&... xs)
-    {
-        return add_literal(literal{std::forward<Ts>(xs)...});
-    }
-
-    instruction_ref add_literal(literal l);
-
-    instruction_ref add_outline(const shape& s);
-
-    instruction_ref add_parameter(std::string name, shape s);
-
-    instruction_ref add_return(std::vector<instruction_ref> args);
-
     std::vector<std::string> get_parameter_names() const;
 
     shape get_parameter_shape(std::string name) const;
@@ -101,11 +51,7 @@ struct program
 
     std::vector<argument> eval(parameter_map params) const;
 
-    bool has_instruction(instruction_ref ins) const;
-
     std::size_t size() const;
-    instruction_ref begin() const;
-    instruction_ref end() const;
 
     std::vector<shape> get_output_shapes() const;
 
@@ -126,13 +72,16 @@ struct program
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
-    void debug_print(const std::vector<instruction_ref>& inss) const;
+    void print(const std::function<void(instruction_ref,
+                                        const std::unordered_map<instruction_ref, std::string>&)>&
+                   print_func) const;
+
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
 
     void dry_run(parameter_map params) const;
 
-    void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
+    void annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const;
 
     program& sort();
 
@@ -140,8 +89,8 @@ struct program
     friend bool operator==(const program& x, const program& y);
     friend bool operator!=(const program& x, const program& y) { return !(x == y); }
 
-    module* get_main_module() { return this; }
-    const module* get_main_module() const { return this; }
+    module* get_main_module();
+    const module* get_main_module() const;
 
     private:
     void assign(const program& p);

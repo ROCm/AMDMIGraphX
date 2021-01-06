@@ -7,15 +7,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-using module = program;
+struct module;
 
 namespace cpu {
 
 struct lowering
 {
     std::string name() const { return "cpu::lowering"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace cpu

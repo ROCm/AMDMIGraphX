@@ -2113,6 +2113,7 @@ def pow_test():
 
     return ([node], [arg0, arg1], [arg_out])
 
+
 @onnx_test
 def pow_fp32_i64_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])

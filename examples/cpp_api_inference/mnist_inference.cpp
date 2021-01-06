@@ -5,6 +5,7 @@
 #include <numeric>
 #include <algorithm>
 #include <chrono>
+#include <random>
 #include <migraphx/migraphx.hpp>
 
 void read_nth_digit(const int, std::vector<float>&);
@@ -113,8 +114,9 @@ int main(int argc, char** argv)
     std::cout << std::endl;
 
     std::vector<float> digit;
-    std::srand((unsigned)std::time(NULL));
-    int rand_digit = std::rand() % 10;
+    std::random_device rd;
+    std::uniform_int_distribution<int> dist(0, 9);
+    const int rand_digit = dist(rd);
     std::cout << "Model input: " << std::endl;
     read_nth_digit(rand_digit, digit);
 

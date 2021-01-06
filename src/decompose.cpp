@@ -53,7 +53,7 @@ struct find_dot_alpha
 {
     auto matcher() const { return match::name("dot")(match::nargs(2)); }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto dot   = any_cast<op::dot>(ins->get_operator());

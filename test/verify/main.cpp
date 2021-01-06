@@ -15,9 +15,9 @@ inline void check_gpu_streams(const migraphx::program& p)
     {
         std::cout << "FAILED: " << std::endl;
         std::cout << "Race condition detected for: ";
-        p.debug_print(race.ins);
+        mm->debug_print(race.ins);
         std::cout << "Should happen after: ";
-        p.debug_print(race.before);
+        mm->debug_print(race.before);
     }
 #else
     (void)p;

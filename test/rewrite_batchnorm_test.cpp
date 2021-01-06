@@ -108,8 +108,8 @@ TEST_CASE(non_literal)
 
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 }
 
 TEST_CASE(as_literal)
@@ -137,8 +137,8 @@ TEST_CASE(as_literal)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 
     p1.compile(migraphx::ref::target{});
     p2.compile(migraphx::ref::target{});
@@ -176,8 +176,8 @@ TEST_CASE(as_literal_1d)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 
     p1.compile(migraphx::ref::target{});
     p2.compile(migraphx::ref::target{});
@@ -216,8 +216,8 @@ TEST_CASE(as_literal_3d)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 
     p1.compile(migraphx::ref::target{});
     p2.compile(migraphx::ref::target{});
@@ -252,8 +252,8 @@ TEST_CASE(literal_reshape)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 
     p1.compile(migraphx::ref::target{});
     p2.compile(migraphx::ref::target{});
@@ -303,8 +303,8 @@ TEST_CASE(literal_reshape_per_actv)
     migraphx::program p2 = create_program();
     migraphx::rewrite_batchnorm opt;
     opt.apply(*p2.get_main_module());
-    EXPECT(any_of(p1, &is_batch_norm));
-    EXPECT(none_of(p2, &is_batch_norm));
+    EXPECT(any_of(*p1.get_main_module(), &is_batch_norm));
+    EXPECT(none_of(*p2.get_main_module(), &is_batch_norm));
 
     p1.compile(migraphx::ref::target{});
     p2.compile(migraphx::ref::target{});

@@ -7,8 +7,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-using module = program;
+struct module;
 
 /**
  * Replace instructions which take all literals with a literal of the computation.

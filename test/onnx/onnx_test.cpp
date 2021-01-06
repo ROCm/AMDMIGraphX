@@ -1031,17 +1031,18 @@ TEST_CASE(expand_test)
 migraphx::program create_external_data_prog()
 {
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::shape s(migraphx::shape::float_type, {1, 1, 224, 224});
     migraphx::shape s2(migraphx::shape::float_type, {10, 1, 11, 11});
     std::vector<float> weight_data(1210, 1);
     std::vector<float> bias_data(10, 1);
-    auto bias    = p.add_literal(migraphx::literal({migraphx::shape::float_type, {10}}, bias_data));
-    auto weights = p.add_literal(migraphx::literal(s2, weight_data));
-    auto param   = p.add_parameter("input", s);
-    auto conv    = p.add_instruction(migraphx::make_op("convolution"), param, weights);
-    auto bias_bcast = p.add_instruction(
+    auto bias = mm->add_literal(migraphx::literal({migraphx::shape::float_type, {10}}, bias_data));
+    auto weights    = mm->add_literal(migraphx::literal(s2, weight_data));
+    auto param      = mm->add_parameter("input", s);
+    auto conv       = mm->add_instruction(migraphx::make_op("convolution"), param, weights);
+    auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 10, 214, 214}}}), bias);
-    p.add_instruction(migraphx::make_op("add"), conv, bias_bcast);
+    mm->add_instruction(migraphx::make_op("add"), conv, bias_bcast);
     return p;
 }
 

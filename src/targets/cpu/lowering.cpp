@@ -526,14 +526,14 @@ struct cpu_literal
 
 struct cpu_apply
 {
-    module* prog;
+    module* modl;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     instruction_ref last{};
 
     void create_output_names()
     {
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        this->last = instruction::get_output_alias(std::prev(modl->end()));
         if(this->last->name() == "@return")
         {
             const auto& prog_outputs = last->inputs();
@@ -558,7 +558,7 @@ struct cpu_apply
             auto&& op = ins->get_operator();
             if(allocate)
                 replace(ins, make_op(cpu_name, op.to_value()));
-            return prog->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+            return modl->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
         });
     }
 
@@ -610,7 +610,7 @@ struct cpu_apply
     void apply()
     {
         init();
-        for(auto it : iterator_for(*prog))
+        for(auto it : iterator_for(*modl))
         {
             if(it->name() == "@literal")
             {
@@ -629,7 +629,7 @@ struct cpu_apply
 
     instruction_ref apply_literal(instruction_ref ins) const
     {
-        return prog->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
+        return modl->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
@@ -651,7 +651,7 @@ struct cpu_apply
     {
         auto inputs = ins->inputs();
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
-        return prog->replace_instruction(ins, op, inputs);
+        return modl->replace_instruction(ins, op, inputs);
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s)
@@ -659,18 +659,18 @@ struct cpu_apply
         auto ins_alias = instruction::get_output_alias(ins);
         if(last->name() == "@return" and prog_output_names.count(ins_alias) > 0)
         {
-            return prog->add_parameter(prog_output_names[ins_alias], s);
+            return modl->add_parameter(prog_output_names[ins_alias], s);
         }
         else if(ins == last)
         {
-            return prog->add_parameter("output", s);
+            return modl->add_parameter("output", s);
         }
 
-        return prog->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
+        return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
     }
 };
 
-void lowering::apply(module& p) const { cpu_apply{&p}.apply(); }
+void lowering::apply(module& m) const { cpu_apply{&m}.apply(); }
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

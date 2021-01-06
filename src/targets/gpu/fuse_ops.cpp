@@ -356,7 +356,7 @@ struct find_triadd_layernorm
             match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto triadd = ins->inputs().front();

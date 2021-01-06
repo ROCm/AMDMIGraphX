@@ -70,7 +70,7 @@ instruction_ref reflect_pad(const onnx_parser::node_info& info,
         {
             *starts_it = idx;
             *ends_it   = *starts_it + 1;
-            slices.push_back(info.mm->add_instruction(
+            slices.push_back(info.add_instruction(
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input));
         }
         // when padding on the left side, the outermost pad should be at the beginning
@@ -83,7 +83,7 @@ instruction_ref reflect_pad(const onnx_parser::node_info& info,
             slices.push_back(info.add_instruction(
                 make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}), input));
         }
-        input = info.mm->add_instruction(make_op("concat", {{"axis", axis}}), slices);
+        input = info.add_instruction(make_op("concat", {{"axis", axis}}), slices);
     }
     return input;
 }

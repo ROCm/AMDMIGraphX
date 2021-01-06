@@ -222,8 +222,8 @@ TEST_CASE(simplify_mul_conv1)
     mm->add_instruction(pass_op{}, mul);
     EXPECT(conv->outputs().front()->name() == "mul");
     run_pass(p);
-    auto new_conv =
-        std::find_if(p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    auto new_conv = std::find_if(
+        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "convolution"; });
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
@@ -399,8 +399,9 @@ TEST_CASE(simplify_add_conv1)
     auto s = p.get_output_shapes().back();
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
@@ -422,8 +423,9 @@ TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 2);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides1)
@@ -444,8 +446,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides1)
     auto s = p.get_output_shapes().back();
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides2)
@@ -466,8 +469,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
     auto s = p.get_output_shapes().back();
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
@@ -488,8 +492,9 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
     auto s = p.get_output_shapes().back();
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
@@ -511,8 +516,9 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 2);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
@@ -534,8 +540,9 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
     run_pass(p);
     EXPECT(s == p.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(
-               p.begin(), p.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto&& ins) {
+               return ins.name() == "convolution";
+           }) == 2);
 }
 
 TEST_CASE(simplify_concat_add_relu)

@@ -144,7 +144,8 @@ struct schedule_model_test
 
 bool check_conflicts(migraphx::program& p, migraphx::instruction_ref x, migraphx::instruction_ref y)
 {
-    for(auto ins : migraphx::iterator_for(p))
+    auto* mm = p.get_main_module();
+    for(auto ins : migraphx::iterator_for(*mm))
     {
         if(ins->name() != "identity")
             continue;

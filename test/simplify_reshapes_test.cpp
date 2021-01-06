@@ -32,7 +32,7 @@ TEST_CASE(double_contig)
     run_pass(p);
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 4);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 4);
     auto result = p.eval({}).back();
     EXPECT(result != get_2x2());
 }
@@ -51,7 +51,7 @@ TEST_CASE(double_transpose)
     run_pass(p);
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result == get_2x2());
 }
@@ -72,7 +72,7 @@ TEST_CASE(double_transpose_contig)
     run_pass(p);
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result == get_2x2());
 }
@@ -90,7 +90,7 @@ TEST_CASE(single_transpose)
     run_pass(p);
     EXPECT(not p.get_output_shapes().back().standard());
     EXPECT(p.get_output_shapes().back().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 3);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 3);
     auto result = p.eval({}).back();
     EXPECT(result != get_2x2());
 }
@@ -109,7 +109,7 @@ TEST_CASE(double_transpose_sin_pass)
     EXPECT(p.get_output_shapes().back().standard());
     EXPECT(not p.get_output_shapes().back().transposed());
     // TODO: Fix this
-    // EXPECT(std::distance(p.begin(), p.end()) == 1);
+    // EXPECT(std::distance(mm->begin(), mm->end()) == 1);
     auto result = p.eval({}).back();
     EXPECT(result == get_2x2());
 }
@@ -126,7 +126,7 @@ TEST_CASE(single_transpose_sin_pass)
     run_pass(p);
     EXPECT(not p.get_output_shapes().back().standard());
     EXPECT(p.get_output_shapes().back().transposed());
-    EXPECT(std::distance(p.begin(), p.end()) == 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result != get_2x2());
 }
@@ -144,10 +144,10 @@ TEST_CASE(reshape_transpose)
     auto r2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 112, 56, 56}}}), ct);
     mm->add_return({r2});
     EXPECT(p.get_output_shapes().back() == s);
-    auto n = std::distance(p.begin(), p.end());
+    auto n = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == s);
-    EXPECT(std::distance(p.begin(), p.end()) == n);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n);
 }
 
 TEST_CASE(transpose_contiguous)
@@ -161,10 +161,10 @@ TEST_CASE(transpose_contiguous)
     auto c1  = mm->add_instruction(migraphx::make_op("contiguous"), t);
     mm->add_return({c1});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n);
 }
 
 TEST_CASE(transpose_double_contiguous)
@@ -179,10 +179,10 @@ TEST_CASE(transpose_double_contiguous)
     auto c2  = mm->add_instruction(migraphx::make_op("contiguous"), c1);
     mm->add_return({c2});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
     EXPECT(mm->has_instruction(t));
 }
 
@@ -197,10 +197,10 @@ TEST_CASE(transpose_partial1)
     auto t2  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 2, 0}}}), t1);
     mm->add_return({t2});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
 }
 
 TEST_CASE(transpose_partial2)
@@ -215,10 +215,10 @@ TEST_CASE(transpose_partial2)
     auto t3  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0, 2}}}), t2);
     mm->add_return({t3});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
 }
 
 TEST_CASE(transpose_partial3)
@@ -234,10 +234,10 @@ TEST_CASE(transpose_partial3)
     auto t4  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0, 2}}}), t3);
     mm->add_return({t4});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 3);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 3);
 }
 
 TEST_CASE(nop_transpose1)
@@ -250,10 +250,10 @@ TEST_CASE(nop_transpose1)
     auto t   = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 2}}}), x);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
 }
 
 TEST_CASE(nop_transpose2)
@@ -269,10 +269,10 @@ TEST_CASE(nop_transpose2)
     auto t4  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 2}}}), t3);
     mm->add_instruction(pass_op{}, t4);
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 4);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 4);
 }
 
 TEST_CASE(nop_transpose3)
@@ -288,10 +288,10 @@ TEST_CASE(nop_transpose3)
     auto t2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t1);
     mm->add_return({t2});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
 }
 
 TEST_CASE(nop_convert)
@@ -307,10 +307,10 @@ TEST_CASE(nop_convert)
         x);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back() == out_shape);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
 }
 
 TEST_CASE(concat_transpose1)
@@ -327,13 +327,13 @@ TEST_CASE(concat_transpose1)
     auto t = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), concat);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
-    EXPECT(std::distance(p.begin(), p.end()) == n - 3);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 3);
     auto new_concat =
-        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != p.end()});
+        std::find_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != mm->end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 3);
 }
 
@@ -351,13 +351,13 @@ TEST_CASE(concat_transpose2)
     auto t = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), concat);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
-    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
     auto new_concat =
-        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != p.end()});
+        std::find_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != mm->end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
 
@@ -375,13 +375,13 @@ TEST_CASE(concat_transpose3)
     auto t = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), concat);
     mm->add_return({t});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
-    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
     auto new_concat =
-        std::find_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; });
-    EXPECT(bool{new_concat != p.end()});
+        std::find_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; });
+    EXPECT(bool{new_concat != mm->end()});
     EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
 }
 
@@ -419,11 +419,12 @@ TEST_CASE(nested_concat)
         mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), concat1, concat2);
     mm->add_return({concat3});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
-    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
-    EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) ==
+           1);
 }
 
 TEST_CASE(nested_concat_partial)
@@ -442,11 +443,12 @@ TEST_CASE(nested_concat_partial)
         mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), concat1, concat2, l);
     mm->add_return({concat3});
     auto out_shape = p.get_output_shapes().back();
-    auto n         = std::distance(p.begin(), p.end());
+    auto n         = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(p.get_output_shapes().back().lens() == out_shape.lens());
-    EXPECT(std::distance(p.begin(), p.end()) == n - 2);
-    EXPECT(std::count_if(p.begin(), p.end(), [](auto ins) { return ins.name() == "concat"; }) == 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 2);
+    EXPECT(std::count_if(mm->begin(), mm->end(), [](auto ins) { return ins.name() == "concat"; }) ==
+           1);
 }
 
 TEST_CASE(multibroadcast_simplify)
@@ -459,9 +461,9 @@ TEST_CASE(multibroadcast_simplify)
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s_lens}}), x);
     mm->add_instruction(migraphx::make_op("mul"), y, y);
-    auto n = std::distance(p.begin(), p.end());
+    auto n = std::distance(mm->begin(), mm->end());
     run_pass(p);
-    EXPECT(std::distance(p.begin(), p.end()) == n - 1);
+    EXPECT(std::distance(mm->begin(), mm->end()) == n - 1);
 }
 
 TEST_CASE(double_slice1)

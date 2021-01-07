@@ -69,8 +69,7 @@ inline iota_iterator<F, Iterator> operator+(iota_iterator<F, Iterator> x,
 }
 
 template <class F, class Iterator>
-inline std::ptrdiff_t operator-(iota_iterator<F, Iterator> x,
-                                            iota_iterator<F, Iterator> y)
+inline std::ptrdiff_t operator-(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
 {
     return x.index - y.index;
 }

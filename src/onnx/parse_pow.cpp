@@ -7,7 +7,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-auto compute_type(shape::type_t tb, shape::type_t te)
+auto compute_type(shape::type_t t1, shape::type_t t2)
 {
     const static std::unordered_map<shape::type_t, int> op_order = {{shape::int8_type, 1},
                                                                     {shape::uint8_type, 2},
@@ -21,19 +21,12 @@ auto compute_type(shape::type_t tb, shape::type_t te)
                                                                     {shape::float_type, 10},
                                                                     {shape::double_type, 11}};
 
-    if(!contains(op_order, tb) or !contains(op_order, te))
+    if(!contains(op_order, t1) or !contains(op_order, t2))
     {
         MIGRAPHX_THROW("PARSE_POW: Input data type not supported!");
     }
 
-    if(op_order.at(tb) >= op_order.at(te))
-    {
-        return tb;
-    }
-    else
-    {
-        return te;
-    }
+    return ((op_order.at(t1) >= op_order.at(t2)) ? t1 : t2);
 }
 
 struct parse_pow : op_parser<parse_pow>
@@ -45,24 +38,24 @@ struct parse_pow : op_parser<parse_pow>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto tb = args[0]->get_shape().type();
-        auto te = args[1]->get_shape().type();
+        auto type_base = args[0]->get_shape().type();
+        auto type_exponent = args[1]->get_shape().type();
 
-        auto tc = compute_type(tb, te);
-        if(tc != tb)
+        auto type_compute = compute_type(type_base, type_exponent);
+        if(type_compute != type_base)
         {
-            args[0] = info.add_instruction(make_op("convert", {{"target_type", tc}}), args[0]);
+            args[0] = info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[0]);
         }
 
-        if(tc != te)
+        if(type_compute != type_exponent)
         {
-            args[1] = info.add_instruction(make_op("convert", {{"target_type", tc}}), args[1]);
+            args[1] = info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[1]);
         }
 
         auto ret = info.add_broadcastable_binary_op("pow", args[0], args[1]);
-        if(tc != tb)
+        if(type_compute != type_base)
         {
-            ret = info.add_instruction(make_op("convert", {{"target_type", tb}}), ret);
+            ret = info.add_instruction(make_op("convert", {{"target_type", type_base}}), ret);
         }
 
         return ret;

@@ -38,18 +38,20 @@ struct parse_pow : op_parser<parse_pow>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto type_base = args[0]->get_shape().type();
+        auto type_base     = args[0]->get_shape().type();
         auto type_exponent = args[1]->get_shape().type();
 
         auto type_compute = compute_type(type_base, type_exponent);
         if(type_compute != type_base)
         {
-            args[0] = info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[0]);
+            args[0] =
+                info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[0]);
         }
 
         if(type_compute != type_exponent)
         {
-            args[1] = info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[1]);
+            args[1] =
+                info.add_instruction(make_op("convert", {{"target_type", type_compute}}), args[1]);
         }
 
         auto ret = info.add_broadcastable_binary_op("pow", args[0], args[1]);

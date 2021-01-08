@@ -52,9 +52,10 @@ TEST_CASE(add_test)
 TEST_CASE(addv2_test)
 {
     migraphx::program p;
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    auto l1 = p.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    p.add_instruction(migraphx::make_op("add"), l0, l1);
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
+    mm->add_instruction(migraphx::make_op("add"), l0, l1);
     auto prog = optimize_tf("addv2_test.pb", false);
 
     EXPECT(p == prog);
@@ -175,18 +176,19 @@ TEST_CASE(batchnormv3_test)
     float momentum = 0.9f;
 
     migraphx::program p;
+    auto* mm = p.get_main_module();
     migraphx::op::batch_norm_inference op{
         epsilon, momentum, migraphx::op::batch_norm_inference::spatial};
     migraphx::shape s0{migraphx::shape::float_type, {32}};
-    auto l0 = p.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 32, 16, 16}});
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 32, 16, 16}});
     std::vector<float> const_vals(32);
     std::fill(const_vals.begin(), const_vals.end(), 1.0f);
 
-    auto l2 = p.add_parameter("2", s0);
-    auto l3 = p.add_parameter("3", s0);
-    auto l4 = p.add_parameter("4", s0);
-    auto l1 = p.add_literal(migraphx::literal{s0, const_vals});
-    p.add_instruction(op, l0, l1, l2, l3, l4);
+    auto l2 = mm->add_parameter("2", s0);
+    auto l3 = mm->add_parameter("3", s0);
+    auto l4 = mm->add_parameter("4", s0);
+    auto l1 = mm->add_literal(migraphx::literal{s0, const_vals});
+    mm->add_instruction(op, l0, l1, l2, l3, l4);
     auto prog = optimize_tf("batchnormv3_test.pb", true);
 
     EXPECT(p == prog);

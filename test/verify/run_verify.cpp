@@ -12,6 +12,7 @@
 #include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST_COMPILE)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
@@ -167,7 +168,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                 passed &= migraphx::verify_args(tname, gold[i], result[i]);
             }
 
-            if(not passed)
+            if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
             {
                 std::cout << p << std::endl;
                 std::cout << "ref:\n" << p << std::endl;

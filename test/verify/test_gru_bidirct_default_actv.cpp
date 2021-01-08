@@ -6,7 +6,7 @@
 
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_gru_bidirct_default_actv : verify_program<test_gru_bidirct_default_actv>
 {

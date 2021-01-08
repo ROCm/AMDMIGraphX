@@ -392,7 +392,7 @@ TEST_CASE(broadcast)
 {
     {
         std::vector<std::size_t> lens{1, 1};
-        migraphx::shape input{migraphx::shape::float_type, {4, 1, 3}};
+        migraphx::shape input{migraphx::shape::float_type, {1}, {0}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1}, {0, 0}},
                      migraphx::make_op("broadcast", {{"axis", 0}, {"dims", lens}}),
                      input);
@@ -400,10 +400,14 @@ TEST_CASE(broadcast)
 
     {
         std::vector<std::size_t> lens{1, 1};
-        migraphx::shape input{migraphx::shape::float_type, {1}, {0}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1}, {0, 0}},
-                     migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}),
-                     input);
+        migraphx::shape input{migraphx::shape::float_type, {2}};
+        throws_shape(migraphx::op::broadcast{1, lens}, input);
+    }
+
+    {
+        std::vector<std::size_t> lens{2, 2};
+        migraphx::shape input{migraphx::shape::float_type, {1, 2}};
+        throws_shape(migraphx::op::broadcast{1, lens}, input);
     }
 
     {

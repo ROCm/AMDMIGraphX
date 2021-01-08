@@ -6,7 +6,7 @@
 
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/operators.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_lstm_bidirct_hs : verify_program<test_lstm_bidirct_hs>
 {

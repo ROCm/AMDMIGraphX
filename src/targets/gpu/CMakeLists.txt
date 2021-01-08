@@ -97,6 +97,7 @@ target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CUR
 
 add_library(migraphx_gpu
     analyze_streams.cpp
+    allocation_model.cpp
     argmax.cpp
     argmin.cpp
     eliminate_workspace.cpp
@@ -123,7 +124,6 @@ add_library(migraphx_gpu
     convert.cpp
     lrn.cpp
     schedule_model.cpp
-    adjust_allocation.cpp
     pack_int8_args.cpp
     clip.cpp
     int8_gemm_pack.cpp
@@ -255,6 +255,17 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
 )
+
+# Check miopen find mode api
+include(CheckLibraryExists)
+get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+if(HAS_FIND_MODE_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
+    message(STATUS "MIOpen has find mode api")
+else()
+    message(STATUS "MIOpen does not have find mode api")
+endif()
 
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)

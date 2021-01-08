@@ -102,6 +102,7 @@ struct shape
     std::size_t index(std::size_t i) const;
 
     std::vector<std::size_t> multi(std::size_t i) const;
+    void multi_copy(std::size_t i, std::size_t* start, const std::size_t* end) const;
 
     /// Returns true if the shape is packed with no padding
     bool packed() const;

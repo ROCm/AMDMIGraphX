@@ -21,7 +21,7 @@ pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 To build dependencies along with MIGraphX
 ```
-rbuild build -d depend --cxx=/opt/rocm/bin/hcc
+rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++
 ```
 This builds dependencies in the subdirectory named depend and then builds MIGraphX using these dependencies.
 
@@ -41,14 +41,14 @@ Next configure cmake. The hcc compiler is required to build the MIOpen backend:
 
 
 ```
-CXX=/opt/rocm/bin/hcc cmake ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
 
 If the dependencies from `install_deps.cmake` was installed to another directory, the `CMAKE_PREFIX_PATH` needs to be set to what `--prefix` was set to from `install_deps.cmake`:
 
 
 ```
-CXX=/opt/rocm/bin/hcc cmake -DCMAKE_PREFIX_PATH=/some/dir ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=/some/dir ..
 ```
 
 

@@ -356,7 +356,7 @@ struct find_triadd_layernorm
             match::used_once(), match::all_of[match::inputs()](match::standard_shape()))));
     }
 
-    void apply(program& p, const match::matcher_result& r) const
+    void apply(module& p, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto triadd = ins->inputs().front();
@@ -458,10 +458,10 @@ struct find_gelu_new
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        if(not fast_math)
-            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
-        else
+        if(fast_math)
             p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
+        else
+            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
     }
 };
 

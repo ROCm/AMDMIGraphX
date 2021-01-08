@@ -2,7 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/op/quant_convolution.hpp>
 
 struct quant_conv_default_mode : verify_program<quant_conv_default_mode>
 {

@@ -208,17 +208,6 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-struct module_wrap
-{
-    migraphx::program* prog;
-    operator const migraphx::program&() const { return *prog; }
-    operator migraphx::program&() { return *prog; }
-};
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
@@ -258,12 +247,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module_wrap>(m, "module")
-        .def("print", [](const migraphx::module_wrap& mm) { std::cout << *mm.prog << std::endl; })
-        .def("__eq__", std::equal_to<migraphx::program>{})
-        .def("__ne__", std::not_equal_to<migraphx::program>{})
-        .def("__repr__",
-             [](const migraphx::module_wrap& mm) { return migraphx::to_string(*mm.prog); });
+    py::class_<migraphx::module>(m, "module")
+        .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
+        .def("__eq__", std::equal_to<migraphx::module>{})
+        .def("__ne__", std::not_equal_to<migraphx::module>{})
+        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
 
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
@@ -284,7 +272,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("get_main_module",
              [](migraphx::program& p) {
                  auto* mm = p.get_main_module();
-                 return migraphx::module_wrap{mm};
+                 return *mm;
              })
         .def("run",
              [](migraphx::program& p, py::dict params) {

@@ -24,7 +24,7 @@ TEST_CASE(simple_test)
     auto two_identity = mm->add_instruction(migraphx::make_op("identity"), two);
     mm->add_instruction(sum_op{}, one_identity, two_identity);
     run_pass(p);
-    EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
     auto result = p.eval({}).back();
@@ -42,7 +42,7 @@ TEST_CASE(simple_test_end)
     auto ans = mm->add_instruction(sum_op{}, one, two);
     mm->add_instruction(migraphx::make_op("identity"), ans);
     run_pass(p);
-    EXPECT(std::none_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
     auto result = p.eval({}).back();
@@ -62,7 +62,7 @@ TEST_CASE(simple_test_end_dependency)
     mm->add_instruction(sum_op{}, ans, three);
     mm->add_instruction(migraphx::make_op("identity"), ans);
     run_pass(p);
-    EXPECT(std::any_of(p.begin(), p.end(), [](const migraphx::instruction& ins) {
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const migraphx::instruction& ins) {
         return ins.name() == "identity";
     }));
     auto result = p.eval({}).back();

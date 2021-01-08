@@ -458,10 +458,10 @@ struct find_gelu_new
         auto x_ins = r.instructions["x"];
         auto args  = ins->inputs();
 
-        if(not fast_math)
-            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
-        else
+        if(fast_math)
             p.replace_instruction(ins, hip_gelu{}, x_ins, args.back());
+        else
+            p.replace_instruction(ins, hip_gelu_new{}, x_ins, args.back());
     }
 };
 

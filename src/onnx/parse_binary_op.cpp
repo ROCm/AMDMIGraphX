@@ -11,12 +11,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Add", "add"},
-                {"Div", "div"},
-                {"Mul", "mul"},
-                {"Pow", "pow"},
-                {"PRelu", "prelu"},
-                {"Sub", "sub"}};
+        return {{"Add", "add"}, {"Div", "div"}, {"Mul", "mul"}, {"PRelu", "prelu"}, {"Sub", "sub"}};
     }
 
     instruction_ref parse(const op_desc& opd,

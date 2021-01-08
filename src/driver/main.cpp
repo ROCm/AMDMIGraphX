@@ -21,6 +21,7 @@
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/register_target.hpp>
 
 #include <fstream>
 
@@ -41,6 +42,7 @@ struct loader
     bool brief                  = false;
     std::string output_type;
     std::string output;
+    std::vector<std::string> param_dims;
 
     void parse(argument_parser& ap)
     {
@@ -58,6 +60,11 @@ struct loader
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+        ap(param_dims,
+           {"--input-dim"},
+           ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
@@ -80,11 +87,31 @@ struct loader
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
 
+    static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
+    {
+        std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
+        std::string name = "";
+        for(auto&& x : param_dims_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                map_input_dims[name].push_back(value_parser<std::size_t>::apply(x));
+            }
+        }
+
+        return map_input_dims;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
+            auto map_input_dims = parse_param_dims(param_dims);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -103,11 +130,12 @@ struct loader
                 options.default_dim_value      = batch;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
+                options.map_input_dims         = map_input_dims;
                 p                              = parse_onnx(file, options);
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch});
+                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims});
             }
             else if(file_type == "json")
             {
@@ -133,11 +161,13 @@ struct loader
         }
         if(trim > 0)
         {
-            auto last = std::prev(p.end(), trim);
-            p.remove_instructions(last, p.end());
+            auto* mm  = p.get_main_module();
+            auto last = std::prev(mm->end(), trim);
+            mm->remove_instructions(last, mm->end());
         }
         if(optimize)
-            migraphx::run_passes(p,
+        {
+            migraphx::run_passes(*p.get_main_module(),
                                  {
                                      migraphx::rewrite_batchnorm{},
                                      migraphx::eliminate_identity{},
@@ -151,6 +181,7 @@ struct loader
                                      migraphx::eliminate_pad{},
                                      migraphx::dead_code_elimination{},
                                  });
+        }
         return p;
     }
 
@@ -197,20 +228,41 @@ struct program_params
     std::vector<std::string> fill1{};
     void parse(argument_parser& ap)
     {
-        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append());
-        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append());
+        ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
+        ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
-    auto generate(const program& p, bool use_gpu)
+    auto generate(const program& p, const target& t, bool offload)
     {
-        program::parameter_map m;
+        parameter_map m;
         for(auto&& s : fill0)
             m[s] = fill_argument(p.get_parameter_shape(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, use_gpu);
+        fill_param_map(m, p, t, offload);
         return m;
     }
+};
+
+struct compiler_target
+{
+#ifdef HAVE_GPU
+    std::string target_name = "gpu";
+#else
+    std::string target_name = "cpu";
+#endif
+
+    void parse(argument_parser& ap)
+    {
+        ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
+        ap(target_name, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value("cpu"));
+        ap(target_name,
+           {"--ref"},
+           ap.help("Compile on the reference implementation"),
+           ap.set_value("ref"));
+    }
+
+    target get_target() const { return make_target(target_name); }
 };
 
 struct compiler
@@ -219,7 +271,7 @@ struct compiler
     static const int q_int8 = 2;
     loader l;
     program_params parameters;
-    bool gpu          = true;
+    compiler_target ct;
     bool offload_copy = false;
     bool fast_math    = true;
     int quantize      = 0;
@@ -230,8 +282,7 @@ struct compiler
     {
         l.parse(ap);
         parameters.parse(ap);
-        ap(gpu, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value(true));
-        ap(gpu, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value(false));
+        ct.parse(ap);
         ap(offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -244,10 +295,7 @@ struct compiler
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
 
-    auto params(const program& p, bool use_gpu = true)
-    {
-        return parameters.generate(p, use_gpu && gpu && !offload_copy);
-    }
+    auto params(const program& p) { return parameters.generate(p, ct.get_target(), offload_copy); }
 
     program compile()
     {
@@ -255,14 +303,14 @@ struct compiler
         // Dont compile if its already been compiled
         if(p.is_compiled())
             return p;
-        auto t = get_target(gpu);
+        auto t = ct.get_target();
         if(quantize == q_fp16)
         {
             quantize_fp16(p);
         }
         else if(quantize == q_int8)
         {
-            quantize_int8(p, t, {params(p, false)});
+            quantize_int8(p, t, {params(p)});
         }
         compile_options options;
         options.offload_copy = offload_copy;
@@ -302,6 +350,7 @@ struct verify : command<verify>
 {
     loader l;
     program_params parameters;
+    compiler_target ct;
     double tolerance     = 80;
     bool per_instruction = false;
     bool reduce          = false;
@@ -311,6 +360,7 @@ struct verify : command<verify>
     {
         l.parse(ap);
         parameters.parse(ap);
+        ct.parse(ap);
         ap(offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
@@ -336,19 +386,20 @@ struct verify : command<verify>
         compile_options options;
         options.offload_copy = offload_copy;
         options.fast_math    = fast_math;
-        auto m               = parameters.generate(p, false);
+        auto t               = ct.get_target();
+        auto m               = parameters.generate(p, t, true);
 
         if(per_instruction)
         {
-            verify_instructions(p, options, tolerance);
+            verify_instructions(p, t, options, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, options, m, tolerance);
+            verify_reduced_program(p, t, options, m, tolerance);
         }
         else
         {
-            verify_program(l.file, p, options, m, tolerance);
+            verify_program(l.file, p, t, options, m, tolerance);
         }
     }
 };
@@ -448,8 +499,13 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
+
+    // no argument, print the help infomration by default
     if(args.empty())
-        return 0;
+    {
+        args.push_back("-h");
+    }
+
     auto&& m = get_commands();
     auto cmd = args.front();
     if(m.count(cmd) > 0)
@@ -460,5 +516,6 @@ int main(int argc, const char* argv[])
     {
         run_command<main_command>(args);
     }
+
     return 0;
 }

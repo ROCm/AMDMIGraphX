@@ -9,7 +9,7 @@ namespace gpu {
 shape hip_softmax::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).standard();
-    return op.compute_shape({inputs.at(0)});
+    return op.normalize_compute_shape({inputs.at(0)});
 }
 
 argument hip_softmax::compute(context& ctx, const shape&, const std::vector<argument>& args) const

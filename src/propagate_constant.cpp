@@ -20,7 +20,7 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-void propagate_constant::apply(program& p) const
+void propagate_constant::apply(module& p) const
 {
     for(auto i : iterator_for(p))
     {

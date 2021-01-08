@@ -11,6 +11,8 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
+#include <migraphx/make_op.hpp>
+
 #include <map>
 
 namespace migraphx {
@@ -66,7 +68,7 @@ struct find_reshaper
             match::any_of[match::outputs()](match::name(reshaper_names())));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         std::vector<instruction_ref> reshapes{ins};
@@ -105,6 +107,7 @@ struct find_nop_reshapes
         reshapes.insert("as_shape");
         reshapes.insert("broadcast");
         reshapes.insert("concat");
+        reshapes.insert("convert");
         reshapes.insert("multibroadcast");
         reshapes.insert("pad");
         reshapes.insert("slice");
@@ -112,7 +115,7 @@ struct find_nop_reshapes
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         p.replace_instruction(ins, ins->inputs().front());
@@ -127,7 +130,7 @@ struct find_transpose
             match::skip_output(match::name("contiguous"))(match::name("transpose"))));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
         auto x   = ins;
@@ -148,7 +151,7 @@ struct find_transpose
         }
         else
         {
-            p.replace_instruction(ins, op::transpose{{dims}}, t->inputs().front());
+            p.replace_instruction(ins, make_op("transpose", {{"dims", dims}}), t->inputs().front());
         }
     }
 };
@@ -200,7 +203,7 @@ struct find_nested_slice
         return result;
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins   = mr.result;
         auto slice = ins->inputs().front();
@@ -229,7 +232,7 @@ struct find_concat_transpose
         return match::name("concat")(match::all_of[match::inputs()](match::transpose_shape()));
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
@@ -256,10 +259,10 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return p.insert_instruction(ins, op::transpose{permutation}, i);
+                return p.insert_instruction(ins, make_op("transpose", {{"dims", permutation}}), i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
-        auto t      = p.insert_instruction(ins, op::transpose{ipermutation}, concat);
+        auto t = p.insert_instruction(ins, make_op("transpose", {{"dims", ipermutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
         p.replace_instruction(ins, t);
     }
@@ -278,7 +281,7 @@ struct find_nested_concat
         return op.axis;
     }
 
-    void apply(program& p, const match::matcher_result& mr) const
+    void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins  = mr.result;
         auto axis = get_axis(ins);
@@ -297,7 +300,7 @@ struct find_nested_concat
     }
 };
 
-void simplify_reshapes::apply(program& p) const
+void simplify_reshapes::apply(module& p) const
 {
     for(int i = 0; i < 2; i++)
     {

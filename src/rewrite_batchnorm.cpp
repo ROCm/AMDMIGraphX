@@ -7,12 +7,14 @@
 #include <migraphx/op/mul.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
+
 #include <migraphx/dfor.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_batchnorm::apply(program& p) const
+void rewrite_batchnorm::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
@@ -46,10 +48,10 @@ void rewrite_batchnorm::apply(program& p) const
         auto broadcast   = op::broadcast{1, ins->get_shape().lens()};
         auto a_ins       = p.add_literal({a.get_shape(), a.data()});
         auto a_broadcast = p.insert_instruction(ins, broadcast, a_ins);
-        auto mul         = p.insert_instruction(ins, op::mul{}, ins->inputs().front(), a_broadcast);
-        auto b_ins       = p.add_literal({b.get_shape(), b.data()});
+        auto mul   = p.insert_instruction(ins, make_op("mul"), ins->inputs().front(), a_broadcast);
+        auto b_ins = p.add_literal({b.get_shape(), b.data()});
         auto b_broadcast = p.insert_instruction(ins, broadcast, b_ins);
-        auto add         = p.insert_instruction(ins, op::add{}, mul, b_broadcast);
+        auto add         = p.insert_instruction(ins, make_op("add"), mul, b_broadcast);
         p.replace_instruction(ins, add);
     }
 }

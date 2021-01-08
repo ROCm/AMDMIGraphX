@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 
 /**
  * Decompose operators.
@@ -16,7 +16,7 @@ struct program;
 struct remap
 {
     std::string name() const { return "remap"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

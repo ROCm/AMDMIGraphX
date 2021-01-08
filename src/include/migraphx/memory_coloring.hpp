@@ -7,7 +7,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct program;
+struct module;
 
 /**
  * Remove memory allocations. It uses graph coloring to find memory allocations that can be reused.
@@ -17,7 +17,7 @@ struct memory_coloring
     std::string allocation_op{};
     bool verify = false;
     std::string name() const { return "memory coloring"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

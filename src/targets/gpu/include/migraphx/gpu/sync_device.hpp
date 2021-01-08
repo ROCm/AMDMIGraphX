@@ -8,14 +8,14 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-struct program;
+struct module;
 
 namespace gpu {
 
 struct sync_device
 {
     std::string name() const { return "sync_device"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

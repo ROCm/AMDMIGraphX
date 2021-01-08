@@ -9,7 +9,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 
 /**
  * Schedule instructions for concurrent execution
@@ -19,7 +19,7 @@ struct schedule
     schedule_model model{};
     bool enable = true;
     std::string name() const { return "schedule"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

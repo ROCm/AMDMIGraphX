@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 
 /**
  * Remove contiguous instructions by checking if the operator can use non-standard shapes.
@@ -16,7 +16,7 @@ struct program;
 struct eliminate_contiguous
 {
     std::string name() const { return "eliminate_contiguous"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

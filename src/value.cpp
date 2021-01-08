@@ -98,7 +98,7 @@ void set_vector(std::shared_ptr<value_base_impl>& x,
 
 value::value(const std::initializer_list<value>& i) : x(nullptr)
 {
-    if(i.size() == 2 and i.begin()->is_string())
+    if(i.size() == 2 and i.begin()->is_string() and i.begin()->get_key().empty())
     {
         key    = i.begin()->get_string();
         auto r = (i.begin() + 1)->x;
@@ -164,6 +164,13 @@ MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
 value& value::operator=(std::nullptr_t)
 {
     x = nullptr;
+    return *this;
+}
+
+value& value::operator=(const std::initializer_list<value>& i)
+{
+    value rhs = i;
+    std::swap(rhs.x, x);
     return *this;
 }
 
@@ -303,7 +310,7 @@ value& value::at(const std::string& pkey)
     if(r == nullptr)
         MIGRAPHX_THROW("Not an object");
     if(r == end())
-        MIGRAPHX_THROW("Key not found");
+        MIGRAPHX_THROW("Key not found: " + pkey);
     return *r;
 }
 const value& value::at(const std::string& pkey) const

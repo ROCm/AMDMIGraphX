@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 
 /**
  * Rewrite batchnorm to a multiply and add.
@@ -16,7 +16,7 @@ struct program;
 struct rewrite_batchnorm
 {
     std::string name() const { return "rewrite_batchnorm"; }
-    void apply(program& p) const;
+    void apply(module& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

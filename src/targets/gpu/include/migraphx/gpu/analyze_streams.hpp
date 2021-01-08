@@ -6,9 +6,12 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
 namespace gpu {
 
-std::vector<stream_race> analyze_streams(const program& p);
+std::vector<stream_race> analyze_streams(const module& p);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

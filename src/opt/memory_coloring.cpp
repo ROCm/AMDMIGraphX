@@ -4,7 +4,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void memory_coloring::apply(program& p) const
+void memory_coloring::apply(module& p) const
 {
     if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
     {

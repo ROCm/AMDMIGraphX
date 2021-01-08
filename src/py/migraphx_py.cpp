@@ -5,7 +5,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/cpu/target.hpp>
+#include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -21,6 +21,20 @@
 
 using half   = half_float::half;
 namespace py = pybind11;
+
+#ifdef __clang__
+#define MIGRAPHX_PUSH_UNUSED_WARNING \
+    _Pragma("clang diagnostic push") \
+        _Pragma("clang diagnostic ignored \"-Wused-but-marked-unused\"")
+#define MIGRAPHX_POP_WARNING _Pragma("clang diagnostic pop")
+#else
+#define MIGRAPHX_PUSH_UNUSED_WARNING
+#define MIGRAPHX_POP_WARNING
+#endif
+#define MIGRAPHX_PYBIND11_MODULE(...) \
+    MIGRAPHX_PUSH_UNUSED_WARNING      \
+    PYBIND11_MODULE(__VA_ARGS__)      \
+    MIGRAPHX_POP_WARNING
 
 namespace migraphx {
 
@@ -194,7 +208,7 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-PYBIND11_MODULE(migraphx, m)
+MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
         .def(py::init<>())
@@ -233,6 +247,12 @@ PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
+    py::class_<migraphx::module>(m, "module")
+        .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
+        .def("__eq__", std::equal_to<migraphx::module>{})
+        .def("__ne__", std::not_equal_to<migraphx::module>{})
+        .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
+
     py::class_<migraphx::program>(m, "program")
         .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
@@ -249,9 +269,14 @@ PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
+        .def("get_main_module",
+             [](migraphx::program& p) {
+                 auto* mm = p.get_main_module();
+                 return *mm;
+             })
         .def("run",
              [](migraphx::program& p, py::dict params) {
-                 migraphx::program::parameter_map pm;
+                 migraphx::parameter_map pm;
                  for(auto x : params)
                  {
                      std::string key      = x.first.cast<std::string>();
@@ -262,6 +287,7 @@ PYBIND11_MODULE(migraphx, m)
                  return p.eval(pm);
              })
         .def("sort", &migraphx::program::sort)
+        .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
@@ -358,7 +384,7 @@ PYBIND11_MODULE(migraphx, m)
           &migraphx::quantize_int8,
           py::arg("prog"),
           py::arg("t"),
-          py::arg("calibration") = std::vector<migraphx::program::parameter_map>{},
+          py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU

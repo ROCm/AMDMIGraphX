@@ -75,26 +75,27 @@ struct test_stream_model
 struct program_model
 {
     migraphx::program p;
+    migraphx::module* mm = p.get_main_module();
     std::unordered_map<migraphx::instruction_ref, std::size_t> ins2stream{};
     std::size_t max_stream = 0;
 
     template <class... Ts>
     migraphx::instruction_ref add_literal(Ts... xs)
     {
-        return p.add_literal(xs...);
+        return mm->add_literal(xs...);
     }
 
     template <class... Ts>
     migraphx::instruction_ref add_instruction(Ts... xs)
     {
-        return p.add_instruction(xs...);
+        return mm->add_instruction(xs...);
     }
 
     template <class... Ts>
     migraphx::instruction_ref add_instruction_stream(std::size_t n, Ts... xs)
     {
         max_stream      = std::max(max_stream, n);
-        auto ins        = p.add_instruction(xs...);
+        auto ins        = mm->add_instruction(xs...);
         ins2stream[ins] = n;
         return ins;
     }
@@ -102,14 +103,14 @@ struct program_model
     template <class... Ts>
     migraphx::instruction_ref add_return(Ts... xs)
     {
-        return p.add_return({xs...});
+        return mm->add_return({xs...});
     }
 
     template <class... Ts>
     migraphx::instruction_ref add_return_stream(std::size_t n, Ts... xs)
     {
         max_stream      = std::max(max_stream, n);
-        auto ins        = p.add_return({xs...});
+        auto ins        = mm->add_return({xs...});
         ins2stream[ins] = n;
         return ins;
     }
@@ -118,7 +119,7 @@ struct program_model
 
     std::vector<migraphx::stream_race> analyze() const
     {
-        return migraphx::analyze_streams(p, get_stream_model());
+        return migraphx::analyze_streams(*p.get_main_module(), get_stream_model());
     }
 
     void debug_print() const { p.debug_print(); }
@@ -128,8 +129,8 @@ struct program_model
         for(auto&& race : races)
         {
             std::cout << "Race:\n";
-            p.debug_print(race.ins);
-            p.debug_print(race.before);
+            mm->debug_print(race.ins);
+            mm->debug_print(race.before);
         }
     }
 };

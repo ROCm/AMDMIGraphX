@@ -30,35 +30,38 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
             axis = info.attributes.at("axis").i();
 
         auto input_lens = args[0]->get_shape().lens();
-        int n_dim = static_cast<int>(input_lens.size());
+        int n_dim       = static_cast<int>(input_lens.size());
 
         auto sub_zero_point = args[0];
 
         if(args.size() == 3)
         {
             auto zero_point = args[2];
-            if(not (zero_point->get_shape().elements() == 1))
+            if(not(zero_point->get_shape().elements() == 1))
             {
-                axis = tune_axis(n_dim, axis);
+                axis       = tune_axis(n_dim, axis);
                 zero_point = info.add_instruction(
                     make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             }
-                
-            auto zero_point_int8 = info.add_instruction(make_op("convert", {{"target_type", shape::int8_type}}), zero_point);
-            auto sub_zero_point_int8 = info.add_instruction(make_op("convert", {{"target_type", shape::int8_type}}), sub_zero_point);
-            sub_zero_point = info.add_broadcastable_binary_op("sub", sub_zero_point_int8, zero_point_int8);
+
+            auto zero_point_int8 = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int8_type}}), zero_point);
+            auto sub_zero_point_int8 = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int8_type}}), sub_zero_point);
+            sub_zero_point =
+                info.add_broadcastable_binary_op("sub", sub_zero_point_int8, zero_point_int8);
         }
 
         auto dequant_input = info.add_instruction(
             make_op("convert", {{"target_type", shape::float_type}}), sub_zero_point);
 
         auto scale = args[1];
-        if(not (scale->get_shape().elements() == 1))
+        if(not(scale->get_shape().elements() == 1))
         {
-            axis = tune_axis(n_dim, axis);
+            axis  = tune_axis(n_dim, axis);
             scale = info.add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
-        }   
+        }
         return info.add_broadcastable_binary_op("mul", dequant_input, scale);
     }
 };

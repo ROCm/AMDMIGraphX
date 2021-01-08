@@ -48,42 +48,39 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
 
-        
-
-
         auto input_lens = args[0]->get_shape().lens();
-        int n_dim = static_cast<int>(input_lens.size());
-
+        int n_dim       = static_cast<int>(input_lens.size());
 
         auto scale = args[1];
-        if(not (scale->get_shape().elements() == 1))
+        if(not(scale->get_shape().elements() == 1))
         {
-            axis = tune_axis(n_dim, axis);
+            axis  = tune_axis(n_dim, axis);
             scale = info.add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
         }
-            
-        auto div = info.add_broadcastable_binary_op("div", args[0], scale);
-        auto div_round = info.add_instruction(make_op("round"), div);
+
+        auto div            = info.add_broadcastable_binary_op("div", args[0], scale);
+        auto div_round      = info.add_instruction(make_op("round"), div);
         auto add_zero_point = div_round;
-        
+
         if(nargs == 3)
         {
             auto zero_point = args[2];
-            if(not (zero_point->get_shape().elements() == 1))
+            if(not(zero_point->get_shape().elements() == 1))
             {
-                axis = tune_axis(n_dim, axis);
+                axis       = tune_axis(n_dim, axis);
                 zero_point = info.add_instruction(
                     make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             }
-                
-            zero_point = info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
-            add_zero_point = info.add_instruction(make_op("convert", {{"target_type", shape::int32_type}}), add_zero_point);
+
+            zero_point = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
+            add_zero_point = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int32_type}}), add_zero_point);
             add_zero_point = info.add_broadcastable_binary_op("add", add_zero_point, zero_point);
         }
         auto saturated = info.add_instruction(make_op("clip"), add_zero_point, min_arg, max_arg);
-        return
-            info.add_instruction(make_op("convert", {{"target_type", quant_type}}), saturated);
+        return info.add_instruction(make_op("convert", {{"target_type", quant_type}}), saturated);
     }
 };
 

@@ -4,6 +4,10 @@
 
 #ifdef HAVE_GPU
 #include <migraphx/gpu/analyze_streams.hpp>
+#include <migraphx/gpu/target.hpp>
+#endif
+#ifdef HAVE_CPU
+#include <migraphx/cpu/target.hpp>
 #endif
 
 inline void check_gpu_streams(const migraphx::program& p)

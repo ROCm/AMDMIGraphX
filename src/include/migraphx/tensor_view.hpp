@@ -28,7 +28,7 @@ struct tensor_view_iterator_read
     auto& operator()(std::size_t n) const
     {
         assert(view != nullptr);
-        return (*view)(n);
+        return (*view)[n];
     }
 };
 

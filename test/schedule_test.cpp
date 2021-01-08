@@ -805,7 +805,7 @@ TEST_CASE(dominate_conflicts)
     scheduler t{};
     migraphx::program p;
 
-    auto* mm    = p.get_main_module();
+    auto* mm     = p.get_main_module();
     auto one     = mm->add_literal(1);
     auto onep1   = mm->add_instruction(unary_op{}, one);
     auto onep2   = mm->add_instruction(unary_op{}, one);

@@ -9,7 +9,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
+struct module;
 
 struct dominator_info
 {
@@ -18,8 +18,8 @@ struct dominator_info
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };
 
-dominator_info compute_dominator(program& p);
-// dominator_info compute_dominator_naive(const program& p);
+dominator_info compute_dominator(module& m);
+// dominator_info compute_dominator_naive(const module& m);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

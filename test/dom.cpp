@@ -5,15 +5,15 @@
 
 TEST_CASE(dom1)
 {
-    migraphx::program p;
-    auto ins1 = p.add_parameter("entry", {migraphx::shape::float_type});
-    auto ins2 = p.add_instruction(pass_op{}, ins1);
-    auto ins3 = p.add_instruction(pass_op{}, ins2);
-    auto ins4 = p.add_instruction(pass_op{}, ins2);
-    auto ins5 = p.add_instruction(pass_op{}, ins3, ins4);
-    auto ins6 = p.add_instruction(pass_op{}, ins2);
+    migraphx::module mm;
+    auto ins1 = mm.add_parameter("entry", {migraphx::shape::float_type});
+    auto ins2 = mm.add_instruction(pass_op{}, ins1);
+    auto ins3 = mm.add_instruction(pass_op{}, ins2);
+    auto ins4 = mm.add_instruction(pass_op{}, ins2);
+    auto ins5 = mm.add_instruction(pass_op{}, ins3, ins4);
+    auto ins6 = mm.add_instruction(pass_op{}, ins2);
 
-    auto dom = migraphx::compute_dominator(p);
+    auto dom = migraphx::compute_dominator(mm);
     EXPECT(dom.strictly_dominate(ins1, ins2));
     EXPECT(dom.strictly_dominate(ins2, ins3));
     EXPECT(dom.strictly_dominate(ins2, ins4));

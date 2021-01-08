@@ -804,13 +804,15 @@ TEST_CASE(dominate_conflicts)
 {
     scheduler t{};
     migraphx::program p;
-    auto one     = p.add_literal(1);
-    auto onep1   = p.add_instruction(unary_op{}, one);
-    auto onep2   = p.add_instruction(unary_op{}, one);
-    auto binary1 = p.add_instruction(nary_op{}, onep1, onep2);
-    auto onep3   = p.add_instruction(unary_op{}, binary1);
-    auto onep4   = p.add_instruction(unary_op{}, binary1);
-    auto binary2 = p.add_instruction(nary_op{}, onep3, onep4);
+
+    auto* mm    = p.get_main_module();
+    auto one     = mm->add_literal(1);
+    auto onep1   = mm->add_instruction(unary_op{}, one);
+    auto onep2   = mm->add_instruction(unary_op{}, one);
+    auto binary1 = mm->add_instruction(nary_op{}, onep1, onep2);
+    auto onep3   = mm->add_instruction(unary_op{}, binary1);
+    auto onep4   = mm->add_instruction(unary_op{}, binary1);
+    auto binary2 = mm->add_instruction(nary_op{}, onep3, onep4);
     t.run_pass(p);
 
     EXPECT(t.get_stream(onep1) != t.get_stream(onep2));

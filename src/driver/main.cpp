@@ -161,9 +161,9 @@ struct loader
         }
         if(trim > 0)
         {
-            auto last = std::prev(p.end(), trim);
             auto* mm  = p.get_main_module();
-            mm->remove_instructions(last, p.end());
+            auto last = std::prev(mm->end(), trim);
+            mm->remove_instructions(last, mm->end());
         }
         if(optimize)
         {

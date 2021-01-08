@@ -51,7 +51,7 @@ TEST_CASE(tanh_shape)
 
     EXPECT(p1 == p2);
 
-    for(auto ins : iterator_for(p1))
+    for(auto ins : iterator_for(*p1.get_main_module()))
     {
         if(ins->name() == "hip::allocate")
         {

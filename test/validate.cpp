@@ -11,7 +11,7 @@ TEST_CASE(simple_test)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(sum_op{}, one, two);
-    EXPECT(bool{p.validate() == p.end()});
+    EXPECT(bool{mm->validate() == mm->end()});
     auto result = p.eval({});
     EXPECT(result.back() == migraphx::literal{3});
     EXPECT(result.back() != migraphx::literal{4});
@@ -24,7 +24,7 @@ TEST_CASE(out_of_order)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     auto ins = mm->add_instruction(sum_op{}, one, two);
-    mm->move_instruction(two, p.end());
+    mm->move_instruction(two, mm->end());
     EXPECT(bool{p.validate() == ins});
 }
 
@@ -52,7 +52,7 @@ TEST_CASE(invalid_args)
     auto two = mm->add_literal(2);
     auto ins = mm->add_instruction(sum_op{}, one, two);
     access_ins_arguments(*ins).clear();
-    EXPECT(bool{p.validate() == p.begin()});
+    EXPECT(bool{mm->validate() == mm->begin()});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

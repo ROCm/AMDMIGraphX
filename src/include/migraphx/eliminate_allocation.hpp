@@ -8,8 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct program;
-using module = program;
+struct module;
 
 /**
  * Remove memory allocations. This will create a parameter which is the max of all memory used in

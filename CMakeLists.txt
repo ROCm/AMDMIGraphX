@@ -165,6 +165,7 @@ rocm_enable_cppcheck(
         unusedStructMember
         functionStatic
         functionConst:*program.*
+        functionConst:*module.*
         shadowFunction
         shadowVar
         shadowVariable

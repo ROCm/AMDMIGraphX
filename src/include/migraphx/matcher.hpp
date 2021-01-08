@@ -44,7 +44,7 @@ struct predicate_matcher
 {
     P p;
 
-    instruction_ref match(matcher_context& ctx, instruction_ref ins) const
+    instruction_ref match(const matcher_context& ctx, instruction_ref ins) const
     {
         assert(ins != ctx.not_found());
         if(p(ins))

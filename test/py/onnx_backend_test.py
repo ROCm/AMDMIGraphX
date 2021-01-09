@@ -246,7 +246,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_not_2d_cpu')
         backend_test.exclude(r'test_not_3d_cpu')
         backend_test.exclude(r'test_not_4d_cpu')
-        backend_test.exclude(r'test_pow_types_*')
         backend_test.exclude(r'test_size_cpu')
         backend_test.exclude(r'test_size_example_cpu')
         backend_test.exclude(r'test_softmax_cross_entropy_*')

@@ -56,6 +56,7 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         using f_type = decltype(f);
         dim3 nblocks(global / local);
         dim3 nthreads(local);
+        // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
     };
 }

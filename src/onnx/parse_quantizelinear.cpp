@@ -26,7 +26,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
 
         if(nargs == 3)
             quant_type = args[2]->get_shape().type();
-        
+
         if(quant_type == shape::int8_type)
         {
             max_quant = 127;
@@ -35,7 +35,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
 
         auto max_arg = info.add_literal(max_quant);
         auto min_arg = info.add_literal(min_quant);
-        
+
         int axis = 1;
 
         if(contains(info.attributes, "axis"))

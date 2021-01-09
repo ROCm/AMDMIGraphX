@@ -1031,6 +1031,7 @@ def dequantizelinear_test():
 
     return ([node], [arg0, arg1, arg2], [arg_out])
 
+
 def make_dequantizelinear_axis_graph(axis):
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 1, 5, 1])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
@@ -1044,6 +1045,7 @@ def make_dequantizelinear_axis_graph(axis):
                                  axis=axis)
 
     return ([node], [arg0, arg1, arg2], [arg_out])
+
 
 @onnx_test
 def dequantizelinear_axis_test():
@@ -2198,6 +2200,7 @@ def make_quantizelinear_axis_graph(axis):
                                  axis=axis)
 
     return ([node], [arg0, arg1, arg2], [arg_out])
+
 
 @onnx_test
 def quantizelinear_axis_test():

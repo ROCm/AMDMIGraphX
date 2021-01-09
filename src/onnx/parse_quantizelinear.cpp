@@ -2,6 +2,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -11,17 +12,8 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
 {
     std::vector<op_desc> operators() const { return {{"QuantizeLinear"}}; }
 
-    int tune_axis(const int n_dim, const int axis) const
-    {
-        if(axis >= n_dim || axis < 0)
-        {
-            MIGRAPHX_THROW("QUANTIZELINEAR: axis is out of range.");
-        }
-        return (axis < 0) ? axis + n_dim : axis;
-    }
-
     // y = saturate(round(x / y_scale) + zero_point)
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
@@ -32,17 +24,18 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         int max_quant = 255;
         int min_quant = 0;
 
+        if(nargs == 3)
+            quant_type = args[2]->get_shape().type();
+        
         if(quant_type == shape::int8_type)
         {
-            max_quant = -128;
-            min_quant = 127;
+            max_quant = 127;
+            min_quant = -128;
         }
 
         auto max_arg = info.add_literal(max_quant);
         auto min_arg = info.add_literal(min_quant);
-
-        if(nargs == 3)
-            quant_type = args[2]->get_shape().type();
+        
         int axis = 1;
 
         if(contains(info.attributes, "axis"))
@@ -54,7 +47,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         auto scale = args[1];
         if(not(scale->get_shape().elements() == 1))
         {
-            axis  = tune_axis(n_dim, axis);
+            axis  = tune_axis(n_dim, axis, opd.op_name);
             scale = info.add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
         }
@@ -68,7 +61,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
             auto zero_point = args[2];
             if(not(zero_point->get_shape().elements() == 1))
             {
-                axis       = tune_axis(n_dim, axis);
+                axis       = tune_axis(n_dim, axis, opd.op_name);
                 zero_point = info.add_instruction(
                     make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             }

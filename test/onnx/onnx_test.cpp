@@ -907,13 +907,13 @@ TEST_CASE(dequantizelinear_test)
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
     l2 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l2);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
     l0 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l0);
 
     auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
@@ -943,11 +943,11 @@ migraphx::program make_dequantizelinear_axis_prog()
         migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
     l2_bcast = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l2_bcast);
     l0 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l0);
     auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
     auto dequant = mm->add_instruction(

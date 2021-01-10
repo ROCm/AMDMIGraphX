@@ -36,12 +36,12 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
                     make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
             }
 
-            auto zero_point_int8 = info.add_instruction(
-                make_op("convert", {{"target_type", shape::int8_type}}), zero_point);
-            auto sub_zero_point_int8 = info.add_instruction(
-                make_op("convert", {{"target_type", shape::int8_type}}), sub_zero_point);
+            auto zero_point_int32 = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
+            auto sub_zero_point_int32 = info.add_instruction(
+                make_op("convert", {{"target_type", shape::int32_type}}), sub_zero_point);
             sub_zero_point =
-                info.add_broadcastable_binary_op("sub", sub_zero_point_int8, zero_point_int8);
+                info.add_broadcastable_binary_op("sub", sub_zero_point_int32, zero_point_int32);
         }
 
         auto dequant_input = info.add_instruction(

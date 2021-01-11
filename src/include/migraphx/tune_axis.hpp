@@ -10,7 +10,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline int tune_axis(const int n_dim, const int axis, const std::string& op_name="OPERATOR")
+inline int tune_axis(const int n_dim, const int axis, const std::string& op_name = "OPERATOR")
 {
     if(axis >= n_dim || abs(axis) > n_dim)
     {

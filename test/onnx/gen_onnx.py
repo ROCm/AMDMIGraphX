@@ -2115,6 +2115,38 @@ def pow_test():
 
 
 @onnx_test
+def pow_fp32_i64_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Pow',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def pow_i64_fp32_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT64,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Pow',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
 def prelu_brcst_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])

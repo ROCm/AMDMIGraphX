@@ -40,7 +40,7 @@ struct parse_onehot : op_parser<parse_onehot>
         auto gather_out = info.add_instruction(make_op("gather", {{"axis", 0}}), {l_val, args[0]});
 
         // Finally, we need a transpose to move the inner most dim to the axis dim
-        int n_rank = gather_out->get_shape().lens().size();
+        int n_rank         = gather_out->get_shape().lens().size();
         int64_t tuned_axis = tune_axis(n_rank, axis, opd.op_name);
         std::vector<int64_t> perm(n_rank - 1);
         std::iota(perm.begin(), perm.end(), 0);

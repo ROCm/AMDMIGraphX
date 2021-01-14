@@ -18,6 +18,7 @@ add_library(migraphx_device
     device/add_relu.cpp
     device/add_sigmoid.cpp
     device/add_tanh.cpp
+    device/andd.cpp
     device/argmax.cpp
     device/argmin.cpp
     device/asin.cpp
@@ -145,6 +146,7 @@ register_migraphx_gpu_ops(hip_
     acosh
     acos
     add
+    andd
     argmax
     argmin
     asinh

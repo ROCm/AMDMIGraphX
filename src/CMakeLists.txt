@@ -62,6 +62,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    andd
     argmax
     argmin
     asinh

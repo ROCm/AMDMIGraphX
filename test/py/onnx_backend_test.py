@@ -54,6 +54,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_acos.*')
         backend_test.include(r'.*test_acosh.*')
         backend_test.include(r'.*test_add.*')
+        backend_test.include(r'.*test_and.*')
         backend_test.include(r'.*test_argmax.*')
         backend_test.include(r'.*test_argmin.*')
         backend_test.include(r'.*test_asin.*')

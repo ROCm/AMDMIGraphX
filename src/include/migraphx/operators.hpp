@@ -5,6 +5,7 @@
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/acosh.hpp>
 #include <migraphx/op/add.hpp>
+#include <migraphx/op/andd.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/asin.hpp>

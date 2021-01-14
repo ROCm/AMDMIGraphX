@@ -17,6 +17,7 @@
 #include <migraphx/op/quant_dot.hpp>
 
 #include <migraphx/gpu/abs.hpp>
+#include <migraphx/gpu/andd.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
@@ -96,6 +97,7 @@ struct miopen_apply
         add_generic_op("acos");
         add_generic_op("acosh");
         add_generic_op("add");
+        add_generic_op("andd");
         add_generic_op("asin");
         add_generic_op("asinh");
         add_generic_op("atan");

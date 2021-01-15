@@ -107,9 +107,7 @@ def and_bcast_test():
     y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 5])
     z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
 
-    node = onnx.helper.make_node('And',
-                                 inputs=['0', '1'],
-                                 outputs=['2'])
+    node = onnx.helper.make_node('And', inputs=['0', '1'], outputs=['2'])
 
     return ([node], [x, y], [z])
 

@@ -38,7 +38,7 @@ migraphx::quantize_fp16(prog);
 ```
 
 ##### Integer 8-bit Precision
-Int8 quantization requires calibration to accurately map ranges of floating point values onto integer values. This calibration can either be performed explicitly before inference or implicitly during inference. 
+Int8 quantization requires calibration to accurately map ranges of floating point values onto integer values. 
 
 To calibrate prior to inference, one or more inputs can be supplied as follows:
 ```
@@ -55,11 +55,6 @@ for(auto&& name : param_shapes.names())
 
 quant_opts.add_calibration_data(quant_params);
 migraphx::quantize_int8(prog, targ, quant_opts);
-```
-
-To calibrate during inference, we simply make the following call:
-```
-migraphx::quantize_int8(prog, targ, migraphx::quantize_int8_options());
 ```
 
 ## Compilation 

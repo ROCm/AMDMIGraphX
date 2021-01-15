@@ -5,7 +5,8 @@ The MIGraphX driver is a tool that allows you to utilize many of the core functi
 
 ## How to Use this Example
 
-The MIGraphX driver is built alongside MIGraphX and can be found in `/opt/rocm/bin/migraphx-driver`
+The MIGraphX driver is installed with MIGraphX and can be found in `/opt/rocm/bin/migraphx-driver`, or in `AMDMIGraphX/build/bin/migraphx-driver` after building the source code. 
+
 See below for a comprehensive list of commands and option arguments, as well as some usage examples.
 
 ### Commands

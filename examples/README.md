@@ -4,7 +4,7 @@
 This directory contains examples of common use cases for MIGraphX.
 
 ## Examples:
-- [C++ Parse, Load, and Save Graph Programs](./parse_load_save)
+- [C++ Parse, Load, and Save Graph Programs](./cpp_parse_load_save)
 - [C++ MNIST Inference](./cpp_api_inference)
 - [Exporting Frozen Graphs in TF1](./export_frozen_graph_tf1)
 - [Exporting Frozen Graphs in TF2](./export_frozen_graph_tf2)

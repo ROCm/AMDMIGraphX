@@ -14,6 +14,22 @@ options.set_default_dim_value(batch);
 p = parse_onnx(input_file, options);
 ```
 
+## Saving
+An instantiated migraphx::program object can then be serialized to MessagePack (.msgpack) format and saved so that it can be loaded for future uses. 
+
+A program can be saved with either of the following:
+```
+migraphx::program p = ... <migraphx::program>;
+migraphx::save(p, output_file); 
+```
+
+```
+migraphx::program p = ... <migraphx::program>;
+migraphx_file_options options;
+options.format = "msgpack";
+migraphx::save(p, output_file, options);
+```
+
 ## Loading
 Similarly, graphs that have been previously parsed, and possibly compiled, and then saved in either MessagePack or JSON format can be loaded at later time. 
 
@@ -37,25 +53,11 @@ options.format = "json";
 p = migraphx::load(input_file, options);
 ```
 
-## Saving
-An instantiated migraphx::program object can then be saved for later use in either MessagePack format.
-
-A program can be saved with either of the following:
-```
-migraphx::program p = ... <parsed or loaded program>;
-migraphx::save(p, output_file); 
-```
-
-```
-migraphx::program p = ... <parsed or loaded program>;
-migraphx_file_options options;
-options.format = "msgpack";
-migraphx::save(p, output_file, options);
-```
-
 
 ## Running the Example
-The provided example `parse_load_save.cpp` has these features implemented to allow for comparing outputs. 
+The provided example [`parse_load_save.cpp`](./parse_load_save.cpp) has these features implemented to allow for comparing outputs. 
+
+Running this example requires that MIGraphX has already been compiled and build on your system. If you have not yet done so, please refer to the instructions found [here](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/README.md).
 
 To compile and run the example from this directory:
 ```

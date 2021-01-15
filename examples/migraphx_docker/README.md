@@ -1,9 +1,3 @@
-# Building the MIGraphX Dockerfile
+# MIGraphX Dockerfile
 
-You can build the provided dockerfile with the following command:
-
-    docker build -f Dockerfile.hip-clang -t migraphx .
-
-To run the docker image:
-
-    docker run --device='/dev/kfd' --device='/dev/dri' --group-add video -it migraphx
+Instructions for building and running the MIGraphX docker container can be found [here](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/README.md#using-docker) in this project's top level README.

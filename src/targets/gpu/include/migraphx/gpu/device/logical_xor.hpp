@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_ANDD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_ANDD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGICAL_XOR_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_LOGICAL_XOR_HPP
 
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void andd(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
+void logical_xor(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2);
 
 } // namespace device
 } // namespace gpu

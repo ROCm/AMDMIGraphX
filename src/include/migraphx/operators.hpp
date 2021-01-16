@@ -5,7 +5,6 @@
 #include <migraphx/op/acos.hpp>
 #include <migraphx/op/acosh.hpp>
 #include <migraphx/op/add.hpp>
-#include <migraphx/op/andd.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 #include <migraphx/op/asin.hpp>
@@ -44,6 +43,9 @@
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
+#include <migraphx/op/logical_and.hpp>
+#include <migraphx/op/logical_or.hpp>
+#include <migraphx/op/logical_xor.hpp>
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/lstm.hpp>

@@ -13,7 +13,7 @@ struct test_and : verify_program<test_and>
         migraphx::shape s{migraphx::shape::bool_type, {3}};
         auto x = mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
-        mm->add_instruction(migraphx::make_op("andd"), x, y);
+        mm->add_instruction(migraphx::make_op("logical_and"), x, y);
         return p;
     }
 };

@@ -132,6 +132,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_operator_symbolic_override.*')
         backend_test.include(r'.*test_operator_symbolic_override_nested.*')
         backend_test.include(r'.*test_operator_view.*')
+        backend_test.include(r'.*test_or.*')
         backend_test.include(r'.*test_pow.*')
         backend_test.include(r'.*test_PoissonNLLLLoss_no_reduce*')
         backend_test.include(r'.*test_quantizelinear')
@@ -164,6 +165,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_unsqueeze.*')
         backend_test.include(r'.*test_where*')
         backend_test.include(r'.*test_where.*')
+        backend_test.include(r'.*test_xor.*')
         backend_test.include(r'.*test_ZeroPad2d*')
 
         # # Onnx native model tests

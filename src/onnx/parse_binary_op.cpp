@@ -12,8 +12,10 @@ struct parse_binary_op : op_parser<parse_binary_op>
     std::vector<op_desc> operators() const
     {
         return {{"Add", "add"},
-                {"And", "andd"},
                 {"Div", "div"},
+                {"And", "logical_and"},
+                {"Or", "logical_or"},
+                {"Xor", "logical_xor"},
                 {"Mul", "mul"},
                 {"PRelu", "prelu"},
                 {"Sub", "sub"}};

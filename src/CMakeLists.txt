@@ -62,7 +62,6 @@ register_migraphx_ops(
     acosh
     acos
     add
-    andd
     argmax
     argmin
     asinh
@@ -99,6 +98,9 @@ register_migraphx_ops(
     less
     load
     log
+    logical_and
+    logical_or
+    logical_xor
     logsoftmax
     lrn
     lstm

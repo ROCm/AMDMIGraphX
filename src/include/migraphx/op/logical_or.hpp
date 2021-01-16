@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_ANDD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_ANDD_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_LOGICAL_OR_HPP
+#define MIGRAPHX_GUARD_OPERATORS_LOGICAL_OR_HPP
 
 #include <migraphx/op/binary.hpp>
 #include <migraphx/operation.hpp>
@@ -10,11 +10,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct andd : binary<andd>
+struct logical_or : binary<logical_or>
 {
     auto apply() const
     {
-        return [](auto x, auto y) { return x and y; };
+        return [](auto x, auto y) { return static_cast<bool>(x) or static_cast<bool>(y); };
     }
 };
 

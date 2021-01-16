@@ -17,7 +17,6 @@
 #include <migraphx/op/quant_dot.hpp>
 
 #include <migraphx/gpu/abs.hpp>
-#include <migraphx/gpu/andd.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
@@ -30,6 +29,9 @@
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/less.hpp>
+#include <migraphx/gpu/logical_and.hpp>
+#include <migraphx/gpu/logical_or.hpp>
+#include <migraphx/gpu/logical_xor.hpp>
 #include <migraphx/gpu/lrn.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
@@ -97,7 +99,6 @@ struct miopen_apply
         add_generic_op("acos");
         add_generic_op("acosh");
         add_generic_op("add");
-        add_generic_op("andd");
         add_generic_op("asin");
         add_generic_op("asinh");
         add_generic_op("atan");
@@ -114,6 +115,9 @@ struct miopen_apply
         add_generic_op("greater");
         add_generic_op("less");
         add_generic_op("log");
+        add_generic_op("logical_and");
+        add_generic_op("logical_or");
+        add_generic_op("logical_xor");
         add_generic_op("max");
         add_generic_op("min");
         add_generic_op("mul");

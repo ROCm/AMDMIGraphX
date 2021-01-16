@@ -1306,7 +1306,7 @@ TEST_CASE(and_test)
     migraphx::shape s{migraphx::shape::bool_type, {4}};
     auto l1 = mm->add_literal(migraphx::literal{s, {1, 0, 1, 0}});
     auto l2 = mm->add_literal(migraphx::literal{s, {1, 1, 0, 0}});
-    mm->add_instruction(migraphx::make_op("andd"), l1, l2);
+    mm->add_instruction(migraphx::make_op("logical_and"), l1, l2);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<char> results_vector;

@@ -118,7 +118,8 @@ struct value
     m(uint64, std::uint64_t) \
     m(float, double) \
     m(string, std::string) \
-    m(bool, bool)
+    m(bool, bool) \
+    m(binary, value::binary)
     // clang-format on
     enum type_t
     {
@@ -139,6 +140,18 @@ struct value
     using const_pointer   = const value_type*;
     using array           = std::vector<value>;
     using object          = std::unordered_map<std::string, value>;
+    struct binary : std::vector<std::uint8_t>
+    {
+        using base = std::vector<std::uint8_t>;
+        binary() : base()
+        {}
+        template<class Container>
+        explicit binary(const Container& c) : base(c.begin(), c.end())
+        {}
+        template<class T>
+        binary(T* data, std::size_t s) : base(data, data+s)
+        {}
+    };
 
     value() = default;
 

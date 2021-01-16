@@ -45,7 +45,10 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = o.as<std::string>();
                 break;
             }
-            case msgpack::type::BIN: { MIGRAPHX_THROW("msgpack BIN type not supported.");
+            case msgpack::type::BIN: 
+            {
+                v = migraphx::value::binary{o.via.bin.ptr, o.via.bin.size};
+                break;
             }
             case msgpack::type::ARRAY:
             {
@@ -75,6 +78,20 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
         }
     };
 
+    template <>
+    struct pack<migraphx::value::binary>
+    {
+        template <class Stream>
+        packer<Stream>& operator()(msgpack::packer<Stream>& o, const migraphx::value::binary& x) const
+        {
+            const auto * data = reinterpret_cast<const char*>(x.data());
+            auto size = x.size();
+            o.pack_bin(size);
+            o.pack_bin_body(data, size);
+            return o;
+        }
+    };
+    
     template <>
     struct pack<migraphx::value>
     {

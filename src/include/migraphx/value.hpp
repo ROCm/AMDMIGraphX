@@ -143,7 +143,7 @@ struct value
     struct binary : std::vector<std::uint8_t>
     {
         using base = std::vector<std::uint8_t>;
-        binary() : base() {}
+        binary() {}
         template <class Container>
         explicit binary(const Container& c) : base(c.begin(), c.end())
         {

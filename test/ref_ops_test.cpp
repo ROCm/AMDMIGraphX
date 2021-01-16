@@ -1299,22 +1299,6 @@ TEST_CASE(add_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(and_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::bool_type, {4}};
-    auto l1 = mm->add_literal(migraphx::literal{s, {1, 0, 1, 0}});
-    auto l2 = mm->add_literal(migraphx::literal{s, {1, 1, 0, 0}});
-    mm->add_instruction(migraphx::make_op("logical_and"), l1, l2);
-    p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
-    std::vector<char> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<char> gold = {1, 0, 0, 0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
-}
-
 TEST_CASE(broadcast_test)
 {
     migraphx::program p;
@@ -1836,6 +1820,54 @@ TEST_CASE(logsoftmax_test_axis_3)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(logical_and_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {4}};
+    auto l1 = mm->add_literal(migraphx::literal{s, {1, 0, 1, 0}});
+    auto l2 = mm->add_literal(migraphx::literal{s, {1, 1, 0, 0}});
+    mm->add_instruction(migraphx::make_op("logical_and"), l1, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<char> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<char> gold = {1, 0, 0, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(logical_or_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {4}};
+    auto l1 = mm->add_literal(migraphx::literal{s, {1, 0, 1, 0}});
+    auto l2 = mm->add_literal(migraphx::literal{s, {1, 1, 0, 0}});
+    mm->add_instruction(migraphx::make_op("logical_or"), l1, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<char> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<char> gold = {1, 1, 1, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(logical_xor_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {4}};
+    auto l1 = mm->add_literal(migraphx::literal{s, {1, 0, 1, 0}});
+    auto l2 = mm->add_literal(migraphx::literal{s, {1, 1, 0, 0}});
+    mm->add_instruction(migraphx::make_op("logical_xor"), l1, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<char> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<char> gold = {0, 1, 1, 0};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 TEST_CASE(argmax_test_0)

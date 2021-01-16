@@ -102,17 +102,6 @@ def add_scalar_test():
 
 
 @onnx_test
-def and_bcast_test():
-    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
-    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 5])
-    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
-
-    node = onnx.helper.make_node('And', inputs=['0', '1'], outputs=['2'])
-
-    return ([node], [x, y], [z])
-
-
-@onnx_test
 def argmax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
@@ -1784,6 +1773,39 @@ def log_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def logical_and_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('And', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test
+def logical_or_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [2, 3, 4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Or', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test
+def logical_xor_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 1])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Xor', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
 
 
 @onnx_test

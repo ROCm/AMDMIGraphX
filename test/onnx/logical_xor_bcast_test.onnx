@@ -1,7 +1,7 @@
-and_bcast_test:o
+logical_xor_bcast_test:w
 
 0
-12"Andand_bcast_testZ
+12"Xorlogical_xor_bcast_testZ
 0
 	
 
@@ -11,7 +11,7 @@
 1
 	
 
-b
+b
 2
 	
 

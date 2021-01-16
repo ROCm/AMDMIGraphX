@@ -41,7 +41,7 @@ void value_to_json(const T& x, json& j)
 
 void value_to_json(const value::binary& x, json& j)
 {
-    j = json::object();
+    j          = json::object();
     j["bytes"] = std::vector<int>(x.begin(), x.end());
 }
 
@@ -103,7 +103,7 @@ migraphx::value value_from_json(const json& j)
         break;
 
     case json::value_t::object:
-        if (j.contains("bytes") and j.size() == 1)
+        if(j.contains("bytes") and j.size() == 1)
         {
             val = migraphx::value::binary{j["bytes"].get<std::vector<std::uint8_t>>()};
         }
@@ -119,8 +119,7 @@ migraphx::value value_from_json(const json& j)
         }
         break;
 
-    case json::value_t::binary: 
-        MIGRAPHX_THROW("Convert JSON to Value: binary type not supported!");
+    case json::value_t::binary: MIGRAPHX_THROW("Convert JSON to Value: binary type not supported!");
     case json::value_t::discarded:
         MIGRAPHX_THROW("Convert JSON to Value: discarded type not supported!");
     }

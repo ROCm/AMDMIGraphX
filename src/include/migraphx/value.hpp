@@ -143,14 +143,15 @@ struct value
     struct binary : std::vector<std::uint8_t>
     {
         using base = std::vector<std::uint8_t>;
-        binary() : base()
-        {}
-        template<class Container>
+        binary() : base() {}
+        template <class Container>
         explicit binary(const Container& c) : base(c.begin(), c.end())
-        {}
-        template<class T>
-        binary(T* data, std::size_t s) : base(data, data+s)
-        {}
+        {
+        }
+        template <class T>
+        binary(T* data, std::size_t s) : base(data, data + s)
+        {
+        }
     };
 
     value() = default;

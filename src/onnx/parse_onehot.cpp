@@ -3,6 +3,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,7 +13,7 @@ struct parse_onehot : op_parser<parse_onehot>
 {
     std::vector<op_desc> operators() const { return {{"OneHot"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -39,12 +40,8 @@ struct parse_onehot : op_parser<parse_onehot>
         auto gather_out = info.add_instruction(make_op("gather", {{"axis", 0}}), {l_val, args[0]});
 
         // Finally, we need a transpose to move the inner most dim to the axis dim
-        int n_rank = gather_out->get_shape().lens().size();
-        if(axis < -n_rank or axis >= n_rank)
-        {
-            MIGRAPHX_THROW("PARSE_ONEHOT: axis out of range");
-        }
-        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+        int n_rank         = gather_out->get_shape().lens().size();
+        int64_t tuned_axis = tune_axis(n_rank, axis, opd.op_name);
         std::vector<int64_t> perm(n_rank - 1);
         std::iota(perm.begin(), perm.end(), 0);
         perm.insert(perm.begin() + tuned_axis, n_rank - 1);

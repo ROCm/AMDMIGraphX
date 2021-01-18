@@ -79,22 +79,16 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             // call extract kernel
             td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL), " -i " + obj_path.string());
         }
-        if(is_hip_clang_compiler())
-        {
-            // call clang-offload-bundler
-            td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_OFFLOADBUNDLER_BIN),
-                       "--type=o --targets=hip-amdgcn-amd-amdhsa-" + arch +
-                           " --inputs=" + obj_path.string() + " --outputs=" + obj_path.string() +
-                           ".hsaco --unbundle");
-        }
     }
+
+    const std::string ext = is_hcc_compiler() ? ".hsaco" : ".o";
 
     for(const auto& entry : fs::directory_iterator{td.path})
     {
         const auto& obj_path = entry.path();
         if(not fs::is_regular_file(obj_path))
             continue;
-        if(obj_path.extension() != ".hsaco")
+        if(obj_path.extension() != ext)
             continue;
         hsacos.push_back(read_buffer(obj_path.string()));
     }

@@ -12,6 +12,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 #include <map>
 
@@ -251,7 +252,7 @@ struct find_concat_transpose
 
         // axis could be a negative value
         int64_t n_dim = static_cast<int64_t>(s.lens().size());
-        op.axis       = (op.axis < 0) ? (op.axis + n_dim) : op.axis;
+        op.axis       = tune_axis(n_dim, op.axis, op.name());
 
         auto ipermutation = invert_permutation(permutation);
         op.axis           = ipermutation[op.axis];

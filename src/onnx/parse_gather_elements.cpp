@@ -2,6 +2,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -11,7 +12,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
 {
     std::vector<op_desc> operators() const { return {{"GatherElements"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -35,7 +36,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         }
 
         int n_rank     = static_cast<int>(data_s.lens().size());
-        int tuned_axis = (axis < 0) ? (axis + n_rank) : axis;
+        int tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         auto axis_stride      = data_s.strides()[tuned_axis];
         int64_t data_elem_num = static_cast<int64_t>(data_s.elements());

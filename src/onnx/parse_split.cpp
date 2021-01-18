@@ -2,6 +2,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -11,7 +12,7 @@ struct parse_split : op_parser<parse_split>
 {
     std::vector<op_desc> operators() const { return {{"Split"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+    std::vector<instruction_ref> parse(const op_desc& opd,
                                        const onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
@@ -22,13 +23,9 @@ struct parse_split : op_parser<parse_split>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        auto lens      = args[0]->get_shape().lens();
-        int64_t n_rank = static_cast<int64_t>(lens.size());
-        if((axis < -n_rank) || (axis >= n_rank))
-        {
-            MIGRAPHX_THROW("PARSE_SPLIT: axis attribute out of rank!");
-        }
-        int64_t tuned_axis = (axis < 0) ? axis + n_rank : axis;
+        auto lens          = args[0]->get_shape().lens();
+        int64_t n_rank     = static_cast<int64_t>(lens.size());
+        int64_t tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         std::vector<int64_t> vec_splits;
         if(contains(info.attributes, "split"))

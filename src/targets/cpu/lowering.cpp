@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -407,9 +408,9 @@ struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens    = output_shape.lens();
-        int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
-        std::size_t n_dims = batch_lens[tuned_axis];
+        auto batch_lens        = output_shape.lens();
+        int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
+        std::size_t n_dims     = batch_lens[tuned_axis];
         batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 

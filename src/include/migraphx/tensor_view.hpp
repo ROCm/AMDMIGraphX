@@ -4,6 +4,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/iota_iterator.hpp>
 #include <migraphx/config.hpp>
 
 #include <iostream>
@@ -21,9 +22,22 @@ inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
 inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
 template <class T>
+struct tensor_view_iterator_read
+{
+    T* view;
+    auto& operator()(std::size_t n) const
+    {
+        assert(view != nullptr);
+        return (*view)[n];
+    }
+};
+
+template <class T>
 struct tensor_view
 {
-    using value_type = T;
+    using value_type     = T;
+    using iterator       = iota_iterator<tensor_view_iterator_read<tensor_view<T>>>;
+    using const_iterator = iota_iterator<tensor_view_iterator_read<const tensor_view<T>>>;
     tensor_view() : m_data(nullptr) {}
     tensor_view(shape s, T* d) : m_data(d), m_shape(std::move(s)) {}
 
@@ -105,36 +119,15 @@ struct tensor_view
         return m_data[m_shape.index(this->size() - 1)];
     }
 
-    // TODO: Add iterators so it can handle nonstandard tensors
-    T* begin()
-    {
-        assert(this->m_shape.standard() or this->empty());
-        return m_data;
-    }
+    // cppcheck-suppress functionConst
+    iterator begin() { return {0, {this}}; }
 
-    T* end()
-    {
-        assert(this->m_shape.standard() or this->empty());
-        if(this->empty())
-            return m_data;
-        else
-            return m_data + this->size();
-    }
+    // cppcheck-suppress functionConst
+    iterator end() { return {this->size(), {this}}; }
 
-    const T* begin() const
-    {
-        assert(this->m_shape.standard() or this->empty());
-        return m_data;
-    }
+    const_iterator begin() const { return {0, {this}}; }
 
-    const T* end() const
-    {
-        assert(this->m_shape.standard() or this->empty());
-        if(this->empty())
-            return m_data;
-        else
-            return m_data + this->size();
-    }
+    const_iterator end() const { return {this->size(), {this}}; }
 
     template <class U = T>
     std::vector<U> to_vector() const

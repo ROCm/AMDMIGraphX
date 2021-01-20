@@ -57,8 +57,6 @@ p = migraphx::load(input_file, options);
 ## Running the Example
 The provided example [`parse_load_save.cpp`](./parse_load_save.cpp) has these features implemented to allow for comparing outputs. 
 
-Running this example requires that MIGraphX has already been compiled and build on your system. If you have not yet done so, please refer to the instructions found [here](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/README.md).
-
 To compile and run the example from this directory:
 ```
 $ mkdir build
@@ -76,4 +74,3 @@ options:
 ```
 
 The program will then attempt to parse or load the graph file, print out its internal graph structure if successful, and optionally save the program to a given file name.
-

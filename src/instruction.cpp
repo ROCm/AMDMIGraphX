@@ -34,7 +34,7 @@ void instruction::replace(const shape& r)
 void instruction::replace(operation o)
 {
     normalized = false;
-    op = std::move(o);
+    op         = std::move(o);
     recompute_shape();
 }
 
@@ -160,7 +160,7 @@ void instruction::replace(instruction_ref ins,
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
     normalized = false;
-    op = std::move(o);
+    op         = std::move(o);
     replace(r);
     replace(std::move(args));
 }
@@ -262,17 +262,14 @@ instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
     return get_output_alias(ins->inputs().at(i));
 }
 
-void instruction::set_normalized()
-{
-    normalized = true;
-}
+void instruction::set_normalized() { normalized = true; }
 
 operation instruction::normalized_operator() const
 {
     operation op = this->get_operator();
-    if (need_normalization(op) and not normalized)
+    if(need_normalization(op) and not normalized)
     {
-        auto lens                    = this->inputs().front()->get_shape().lens();
+        auto lens = this->inputs().front()->get_shape().lens();
         if(!normalize_attributes(op, lens))
             return this->get_operator();
     }

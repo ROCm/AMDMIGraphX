@@ -80,6 +80,10 @@ struct instruction
 
     static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
+    void set_normalized();
+
+    operation normalized_operator() const;
+
     void debug_print() const;
 
     private:
@@ -99,6 +103,7 @@ struct instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     literal lit;
+    bool normalized = false;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

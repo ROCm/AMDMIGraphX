@@ -12,6 +12,7 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,7 +40,7 @@ struct concat
                                              const std::vector<argument>& args) const
     {
         auto n_dims            = args[0].get_shape().lens().size();
-        std::size_t axis_index = (axis < 0) ? axis + n_dims : axis;
+        std::size_t axis_index = tune_axis(n_dims, axis, name());
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(n_dims, 0);
         offset[axis_index] = 0;

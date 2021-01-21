@@ -80,7 +80,10 @@ struct instruction
 
     static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
 
-    void set_normalized();
+    void set_normalized(bool value = true);
+    bool is_normalized() const;
+
+    bool need_normalization() const;
 
     operation normalized_operator() const;
 

@@ -262,18 +262,22 @@ instruction_ref instruction::get_output_alias(instruction_ref ins, bool shallow)
     return get_output_alias(ins->inputs().at(i));
 }
 
-void instruction::set_normalized() { normalized = true; }
+void instruction::set_normalized(bool value) { normalized = value; }
+
+bool instruction::is_normalized() const { return normalized; }
+
+bool instruction::need_normalization() const { return this->get_operator().need_normalization() and not normalized; }
 
 operation instruction::normalized_operator() const
 {
-    operation op = this->get_operator();
-    if(need_normalization(op) and not normalized)
+    operation o = this->get_operator();
+    if(this->need_normalization())
     {
         auto lens = this->inputs().front()->get_shape().lens();
-        if(!normalize_attributes(op, lens))
+        if(!normalize_attributes(o, lens))
             return this->get_operator();
     }
-    return op;
+    return o;
 }
 
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)

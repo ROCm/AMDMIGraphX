@@ -40,14 +40,13 @@ struct concat
                                              const std::vector<argument>& args) const
     {
         auto n_dims            = args[0].get_shape().lens().size();
-        std::size_t axis_index = tune_axis(n_dims, axis, name());
         std::vector<std::size_t> offsets;
         std::vector<std::size_t> offset(n_dims, 0);
-        offset[axis_index] = 0;
+        offset[axis] = 0;
         for(const auto& arg : args)
         {
             offsets.push_back(output_shape.index(offset));
-            offset[axis_index] += arg.get_shape().lens()[axis_index];
+            offset[axis] += arg.get_shape().lens()[axis];
         }
         return offsets;
     }

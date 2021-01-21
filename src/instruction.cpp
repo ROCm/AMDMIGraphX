@@ -266,7 +266,10 @@ void instruction::set_normalized(bool value) { normalized = value; }
 
 bool instruction::is_normalized() const { return normalized; }
 
-bool instruction::need_normalization() const { return this->get_operator().need_normalization() and not normalized; }
+bool instruction::need_normalization() const
+{
+    return this->get_operator().need_normalization() and not normalized;
+}
 
 operation instruction::normalized_operator() const
 {

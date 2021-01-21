@@ -36,7 +36,7 @@ struct argmax
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        auto lens     = inputs[0].lens();
+        auto lens = inputs[0].lens();
 
         lens[axis] = 1;
 
@@ -44,16 +44,14 @@ struct argmax
     }
 
     template <class T>
-    int64_t calc_argmax(T& input,
-                        std::vector<std::size_t>& indices,
-                        size_t item_num) const
+    int64_t calc_argmax(T& input, std::vector<std::size_t>& indices, size_t item_num) const
     {
         auto max_val      = input(indices.begin(), indices.end());
         int64_t max_index = 0;
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[axis] = i;
-            auto cur_val        = input(indices.begin(), indices.end());
+            auto cur_val  = input(indices.begin(), indices.end());
             if(max_val < cur_val)
             {
                 max_val   = cur_val;

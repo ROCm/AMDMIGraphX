@@ -36,24 +36,22 @@ struct argmin
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        auto lens     = inputs[0].lens();
+        auto lens = inputs[0].lens();
 
-        lens[axis]   = 1;
+        lens[axis] = 1;
 
         return {shape::int64_type, lens};
     }
 
     template <class T>
-    int64_t calc_argmin(T& input,
-                        std::vector<std::size_t>& indices,
-                        size_t item_num) const
+    int64_t calc_argmin(T& input, std::vector<std::size_t>& indices, size_t item_num) const
     {
         auto min_val      = input(indices.begin(), indices.end());
         int64_t min_index = 0;
         for(std::size_t i = 1; i < item_num; ++i)
         {
             indices[axis] = i;
-            auto cur_val        = input(indices.begin(), indices.end());
+            auto cur_val  = input(indices.begin(), indices.end());
             if(min_val > cur_val)
             {
                 min_val   = cur_val;

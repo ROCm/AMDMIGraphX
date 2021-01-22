@@ -144,7 +144,8 @@ struct value
     {
         using base = std::vector<std::uint8_t>;
         binary() {}
-        template <class Container, MIGRAPHX_REQUIRES(sizeof(*std::declval<Container>().begin()) == 1)>
+        template <class Container,
+                  MIGRAPHX_REQUIRES(sizeof(*std::declval<Container>().begin()) == 1)>
         explicit binary(const Container& c) : base(c.begin(), c.end())
         {
         }

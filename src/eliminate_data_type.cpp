@@ -10,21 +10,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 void eliminate_data_type::apply(module& m) const
 {
     auto last = std::prev(m.end());
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
-        if (ins == last)
+        if(ins == last)
             break;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
-            if (types.count(i->get_shape().type()) == 0)
+            if(types.count(i->get_shape().type()) == 0)
                 return i;
             return m.insert_instruction(ins, make_op("convert", {{"target_type", target_type}}), i);
         });
-        if (inputs == ins->inputs())
+        if(inputs == ins->inputs())
             continue;
         auto old_type = ins->get_shape().type();
-        auto out = m.insert_instruction(ins, ins->get_operator(), inputs);
-        auto convert = m.insert_instruction(ins, make_op("convert", {{"target_type", old_type}}), out);
+        auto out      = m.insert_instruction(ins, ins->get_operator(), inputs);
+        auto convert =
+            m.insert_instruction(ins, make_op("convert", {{"target_type", old_type}}), out);
         m.replace_instruction(ins, convert);
     }
 }

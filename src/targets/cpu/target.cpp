@@ -37,13 +37,14 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-      std::unordered_set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
-      unsupported_types.erase(shape::type_t::double_type);
-      unsupported_types.erase(shape::type_t::float_type);
-      unsupported_types.erase(shape::type_t::int8_type);
-      unsupported_types.erase(shape::type_t::uint8_type);
-      unsupported_types.erase(shape::type_t::int32_type);
-      unsupported_types.erase(shape::type_t::uint32_type);
+    std::unordered_set<shape::type_t> unsupported_types(shape::types().begin(),
+                                                        shape::types().end());
+    unsupported_types.erase(shape::type_t::double_type);
+    unsupported_types.erase(shape::type_t::float_type);
+    unsupported_types.erase(shape::type_t::int8_type);
+    unsupported_types.erase(shape::type_t::uint8_type);
+    unsupported_types.erase(shape::type_t::int32_type);
+    unsupported_types.erase(shape::type_t::uint32_type);
     return {normalize_ops{},
             decompose{},
             dead_code_elimination{},

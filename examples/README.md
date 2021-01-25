@@ -1,13 +1,13 @@
 # AMD MIGraphX Examples
 
-This directory contains examples of using MIGraphX.
+## Description
+This directory contains examples of common use cases for MIGraphX.
 
-## Building the Dockerfile
-
-You can build the provided dockerfile with the following command:
-
-    docker build -f Dockerfile.hip-clang -t migraphx .
-
-To run the docker image:
-
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx
+## Examples:
+- [C++ Parse, Load, and Save Graph Programs](./cpp_parse_load_save)
+- [C++ MNIST Inference](./cpp_api_inference)
+- [Exporting Frozen Graphs in TF1](./export_frozen_graph_tf1)
+- [Exporting Frozen Graphs in TF2](./export_frozen_graph_tf2)
+- [MIGraphX Docker Container](./migraphx_docker)
+- [MIGraphX Driver](./migraphx_driver)
+- [Python Resnet50 Inference](./python_api_inference)

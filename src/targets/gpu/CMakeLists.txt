@@ -42,6 +42,9 @@ add_library(migraphx_device
     device/layernorm.cpp
     device/less.cpp
     device/log.cpp
+    device/logical_and.cpp
+    device/logical_or.cpp
+    device/logical_xor.cpp
     device/logsoftmax.cpp
     device/max.cpp
     device/min.cpp
@@ -167,6 +170,9 @@ register_migraphx_gpu_ops(hip_
     less
     log
     logsoftmax
+    logical_and
+    logical_or
+    logical_xor
     max
     min
     mul

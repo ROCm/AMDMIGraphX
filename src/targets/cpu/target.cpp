@@ -8,6 +8,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/memory_coloring.hpp>
@@ -36,8 +37,17 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
+      std::unordered_set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
+      unsupported_types.erase(shape::type_t::double_type);
+      unsupported_types.erase(shape::type_t::float_type);
+      unsupported_types.erase(shape::type_t::int8_type);
+      unsupported_types.erase(shape::type_t::uint8_type);
+      unsupported_types.erase(shape::type_t::int32_type);
+      unsupported_types.erase(shape::type_t::uint32_type);
     return {normalize_ops{},
             decompose{},
+            dead_code_elimination{},
+            eliminate_data_type{unsupported_types, shape::type_t::float_type},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},

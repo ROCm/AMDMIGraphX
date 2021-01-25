@@ -59,6 +59,8 @@ struct shape
     {
     };
 
+    static const std::vector<type_t>& types();
+
     shape();
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);

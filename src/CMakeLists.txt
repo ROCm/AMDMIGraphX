@@ -15,6 +15,7 @@ add_library(migraphx
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp
+    eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     file_buffer.cpp

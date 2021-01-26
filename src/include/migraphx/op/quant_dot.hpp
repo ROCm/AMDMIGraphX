@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -25,6 +26,8 @@ struct quant_dot
     {
         return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
+
+    value attributes() const { return {{"general_data_type", "dot"}}; }
 
     std::string name() const { return "quant_dot"; }
     shape compute_shape(std::vector<shape> inputs) const

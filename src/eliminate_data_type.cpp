@@ -12,8 +12,8 @@ void eliminate_data_type::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(ins == last)
-            break;
+        if (ins->name()[0] == '@')
+            continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
             if(types.count(i->get_shape().type()) == 0)
@@ -22,8 +22,14 @@ void eliminate_data_type::apply(module& m) const
         });
         if(inputs == ins->inputs())
             continue;
+        auto op = ins->get_operator();
+        auto attributes = op.attributes();
+        if (attributes.contains("general_data_type"))
+        {
+            op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+        }
         auto old_type = ins->get_shape().type();
-        auto out      = m.insert_instruction(ins, ins->get_operator(), inputs);
+        auto out      = m.insert_instruction(ins, op, inputs);
         auto convert =
             m.insert_instruction(ins, make_op("convert", {{"target_type", old_type}}), out);
         m.replace_instruction(ins, convert);

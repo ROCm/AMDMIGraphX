@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_relu6 : op_parser<parse_relu6>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Relu6"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Relu6"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

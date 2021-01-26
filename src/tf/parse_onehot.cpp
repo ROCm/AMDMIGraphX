@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_onehot : op_parser<parse_onehot>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"OneHot"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"OneHot"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

@@ -9,11 +9,7 @@ namespace tf {
 
 struct parse_constant_op : op_parser<parse_constant_op>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Const"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Const"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,

@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_squeeze : op_parser<parse_squeeze>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Squeeze"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Squeeze"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
@@ -35,7 +31,8 @@ struct parse_squeeze : op_parser<parse_squeeze>
                 }
             }
         }
-        return info.add_instruction(make_op("squeeze", {{"axes", op_axes}}), info.make_contiguous(args[0])); 
+        return info.add_instruction(make_op("squeeze", {{"axes", op_axes}}),
+                                    info.make_contiguous(args[0]));
     }
 };
 

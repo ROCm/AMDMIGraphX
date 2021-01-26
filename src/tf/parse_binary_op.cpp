@@ -30,6 +30,6 @@ struct parse_binary_op : op_parser<parse_binary_op>
     }
 };
 
-} // namespace onnx
+} // namespace tf
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

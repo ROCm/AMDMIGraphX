@@ -10,10 +10,7 @@ namespace tf {
 
 struct parse_slice : op_parser<parse_slice>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Slice"}};
-    }
+    std::vector<op_desc> operators() const { return {{"Slice"}}; }
 
     // Use a literal instruction to replace the shape since output of
     // shape operator are literals in migraphx
@@ -40,7 +37,7 @@ struct parse_slice : op_parser<parse_slice>
                 ends[i] = starts_int64[i] + size[i];
         }
         auto op = make_op("slice", {{"starts", starts_int64}, {"ends", ends}, {"axes", op_axes}});
-        return info.add_instruction(op, info.make_contiguous(args[0])); 
+        return info.add_instruction(op, info.make_contiguous(args[0]));
     }
 };
 

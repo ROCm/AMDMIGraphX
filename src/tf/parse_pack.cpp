@@ -11,11 +11,7 @@ namespace tf {
 
 struct parse_pack : op_parser<parse_pack>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Pack"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Pack"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,
@@ -41,7 +37,8 @@ struct parse_pack : op_parser<parse_pack>
             [&](instruction_ref arg) {
                 return info.add_instruction(make_op("unsqueeze", {{"axes", {axis}}}), arg);
             });
-        return parser.to_nhwc(info.add_instruction(make_op("concat", {{"axis", axis}}), unsqueezed_args));
+        return parser.to_nhwc(
+            info.add_instruction(make_op("concat", {{"axis", axis}}), unsqueezed_args));
     }
 };
 

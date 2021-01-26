@@ -9,11 +9,7 @@ namespace tf {
 
 struct parse_batchnorm : op_parser<parse_batchnorm>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"FusedBatchNorm"}, {"FusedBatchNormV3"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"FusedBatchNorm"}, {"FusedBatchNormV3"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,
@@ -22,8 +18,8 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
     {
         args = parser.to_nchw(args);
 
-        float epsilon                                     = 1e-5f;
-        float momentum                                    = 0.9f;
+        float epsilon  = 1e-5f;
+        float momentum = 0.9f;
         if(contains(info.attributes, "epsilon"))
         {
             epsilon = info.attributes.at("epsilon").f();

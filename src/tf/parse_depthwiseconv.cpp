@@ -11,10 +11,7 @@ namespace tf {
 
 struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
 {
-    std::vector<op_desc> operators() const
-    {
-        return {{"DepthwiseConv2dNative"}};
-    }
+    std::vector<op_desc> operators() const { return {{"DepthwiseConv2dNative"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,
@@ -99,7 +96,7 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
         auto new_weights = info.add_instruction(make_op("reshape", {{"dims", new_weights_shape}}),
-                                               info.make_contiguous(weights));
+                                                info.make_contiguous(weights));
 
         return parser.to_nhwc(info.add_instruction(op, {l0, new_weights}));
     }

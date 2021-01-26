@@ -10,16 +10,12 @@ namespace tf {
 
 struct parse_split : op_parser<parse_split>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Split"}, {"SplitV"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Split"}, {"SplitV"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                                       const tf_parser& /*parser*/,
+                                       tf_parser::node_info info,
+                                       std::vector<instruction_ref> args) const
     {
         bool vector_as_input = args.size() == 3;
         int num_outputs      = 1;
@@ -90,10 +86,10 @@ struct parse_split : op_parser<parse_split>
 
             starts[axis] = slice_pos[i];
             ends[axis]   = slice_pos[i + 1];
-            auto op = make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}});
+            auto op      = make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}});
             result.push_back(info.add_instruction(op, input_arg));
         }
-        return result; 
+        return result;
     }
 };
 

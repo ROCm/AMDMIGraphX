@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_strideslice : op_parser<parse_strideslice>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"StridedSlice"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"StridedSlice"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
@@ -73,7 +69,7 @@ struct parse_strideslice : op_parser<parse_strideslice>
                 squeeze_axes.push_back(i);
         }
 
-        return info.add_instruction(make_op("squeeze", {{"axes", squeeze_axes}}), l1); 
+        return info.add_instruction(make_op("squeeze", {{"axes", squeeze_axes}}), l1);
     }
 };
 

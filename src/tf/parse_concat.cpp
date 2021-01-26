@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_concat : op_parser<parse_concat>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"ConcatV2"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"ConcatV2"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
@@ -24,7 +20,7 @@ struct parse_concat : op_parser<parse_concat>
         // get index for axis within args
         size_t axis_idx = info.attributes.at("N").i();
         int64_t axis    = args[axis_idx]->eval().at<int64_t>();
-        auto op = make_op("concat", {{"axis", axis}});
+        auto op         = make_op("concat", {{"axis", axis}});
         // return only first N arguments (assuming last index is the axis value)
         return info.add_instruction(
             op, std::vector<instruction_ref>(args.begin(), args.begin() + args.size() - 1));

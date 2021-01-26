@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_mean : op_parser<parse_mean>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Mean"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Mean"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
@@ -27,7 +23,7 @@ struct parse_mean : op_parser<parse_mean>
         auto ins = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), args[0]);
         if(not keep_dims)
             ins = info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
-        return ins; 
+        return ins;
     }
 };
 

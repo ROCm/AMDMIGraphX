@@ -25,24 +25,22 @@ struct tf_parser
     struct node_info
     {
         attribute_map attributes{};
-        std::string name        = "";
-        module* mm              = nullptr;
-        
+        std::string name = "";
+        module* mm       = nullptr;
+
         instruction_ref make_contiguous(instruction_ref ins) const;
-        
+
         instruction_ref add_broadcastable_binary_op(const std::string& op_name,
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;
         instruction_ref add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const;
 
-        
-
         template <class T>
         void add_generic_op(std::string name, T x);
 
         template <class T>
-        void add_binary_op(std::string name, T x);        
+        void add_binary_op(std::string name, T x);
 
         template <class... Ts>
         instruction_ref add_instruction(const operation& op, Ts... xs) const
@@ -78,10 +76,8 @@ struct tf_parser
     instruction_ref to_nhwc(instruction_ref ins) const;
     instruction_ref to_nchw(instruction_ref ins) const;
     instruction_ref to_kcxy(instruction_ref ins) const;
-    std::vector<instruction_ref>
-    to_nchw(const std::vector<instruction_ref>& args) const;
-    std::vector<instruction_ref>
-    to_nhwc(const std::vector<instruction_ref>& args) const;
+    std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args) const;
+    std::vector<instruction_ref> to_nhwc(const std::vector<instruction_ref>& args) const;
     std::vector<size_t>
     parse_axes(const attribute_map& attributes, const std::string& s, const size_t num_dims) const;
     template <class T>
@@ -115,9 +111,6 @@ std::vector<int64_t> get_axes(size_t num_axes);
 std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask);
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
-
-
-
 
 } // namespace tf
 } // namespace MIGRAPHX_INLINE_NS

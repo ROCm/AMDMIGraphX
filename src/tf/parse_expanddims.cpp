@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_expanddims : op_parser<parse_expanddims>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"ExpandDims"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"ExpandDims"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

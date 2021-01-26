@@ -12,9 +12,8 @@ struct parse_matmul : op_parser<parse_matmul>
 {
     std::vector<op_desc> operators() const
     {
-        return  {{"BatchMatMul"}, {"BatchMatMulV2"}, {"MatMul"}};
+        return {{"BatchMatMul"}, {"BatchMatMulV2"}, {"MatMul"}};
     }
-
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,

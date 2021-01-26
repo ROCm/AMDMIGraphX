@@ -14,7 +14,7 @@ namespace tf {
 struct op_desc
 {
     std::string tf_name = "";
-    std::string op_name   = "";
+    std::string op_name = "";
 };
 
 void register_op_parser(const std::string& name, tf_parser::op_func f);

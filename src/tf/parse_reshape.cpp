@@ -10,11 +10,7 @@ namespace tf {
 
 struct parse_reshape : op_parser<parse_reshape>
 {
-    std::vector<op_desc> operators() const
-    {
-        return  {{"Reshape"}};
-    }
-
+    std::vector<op_desc> operators() const { return {{"Reshape"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
@@ -26,7 +22,8 @@ struct parse_reshape : op_parser<parse_reshape>
         auto s = args[1]->eval();
         std::vector<int64_t> dims;
         s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}), info.make_contiguous(args[0])); 
+        return info.add_instruction(make_op("reshape", {{"dims", dims}}),
+                                    info.make_contiguous(args[0]));
     }
 };
 

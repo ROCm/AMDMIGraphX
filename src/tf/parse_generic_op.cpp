@@ -11,7 +11,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 {
     std::vector<op_desc> operators() const
     {
-        return  {{"All", "identity"},
+        return {{"All", "identity"},
                 {"Identity", "identity"},
                 {"LessEqual", "identity"},
                 {"Relu", "relu"},
@@ -19,7 +19,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Tanh", "tanh"},
                 {"StopGradient", "identity"}};
     }
-
 
     instruction_ref parse(const op_desc& opd,
                           const tf_parser& /*parser*/,

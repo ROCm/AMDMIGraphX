@@ -11,10 +11,7 @@ namespace tf {
 
 struct parse_conv : op_parser<parse_conv>
 {
-    std::vector<op_desc> operators() const
-    {
-        return {{"Conv2D"}};
-    }
+    std::vector<op_desc> operators() const { return {{"Conv2D"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,
@@ -84,7 +81,8 @@ struct parse_conv : op_parser<parse_conv>
             else if(pad_mode.find("EXPLICIT") != std::string::npos)
             {
                 std::vector<size_t> padding;
-                copy(info.attributes.at("explicit_paddings").list().i(), std::back_inserter(padding));
+                copy(info.attributes.at("explicit_paddings").list().i(),
+                     std::back_inserter(padding));
                 if(padding.size() != 4)
                 {
                     MIGRAPHX_THROW("padding should have 4 values");

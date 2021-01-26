@@ -15,7 +15,7 @@ struct parse_arg_op : op_parser<parse_arg_op>
                           const tf_parser& /*parser*/,
                           tf_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
-    {        
+    {
         int64_t axis = 0;
         axis         = args[1]->eval().at<int64_t>();
         auto ins     = info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args.front());

@@ -125,7 +125,9 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
     return out_lens;
 }
 
-instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::string& op_name, instruction_ref arg0, instruction_ref arg1) const
+instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::string& op_name,
+                                                                  instruction_ref arg0,
+                                                                  instruction_ref arg1) const
 {
     if(arg0->get_shape().lens() != arg1->get_shape().lens())
     {
@@ -150,8 +152,9 @@ instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::str
     }
 }
 
-std::vector<size_t>
-tf_parser::parse_axes(const attribute_map& attributes, const std::string& s, const size_t num_dims) const
+std::vector<size_t> tf_parser::parse_axes(const attribute_map& attributes,
+                                          const std::string& s,
+                                          const size_t num_dims) const
 {
     auto attrs = attributes.at(s).list().i();
     std::vector<size_t> axes;
@@ -171,15 +174,13 @@ std::vector<T> tf_parser::parse_axes(std::vector<T> axes, const size_t num_dims)
     if(is_nhwc)
     {
         std::vector<T> new_axes;
-        std::transform(axes.begin(),
-                        axes.end(),
-                        std::back_inserter(new_axes),
-                        [&](size_t axis) { return parse_axis(axis, num_dims); });
+        std::transform(axes.begin(), axes.end(), std::back_inserter(new_axes), [&](size_t axis) {
+            return parse_axis(axis, num_dims);
+        });
         return new_axes;
     }
     return axes;
 }
-
 
 int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const
 {
@@ -200,7 +201,7 @@ int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const
 
 instruction_ref
 tf_parser::node_info::add_instruction(const operation& op,
-                                        const std::vector<instruction_ref>& args) const
+                                      const std::vector<instruction_ref>& args) const
 {
     return mm->add_instruction(op, args);
 }
@@ -242,7 +243,7 @@ tf_parser::tf_parser()
 static std::string get_name(const tensorflow::NodeDef& node) { return node.name(); }
 
 static tf_parser::node_map get_nodes(const tensorflow::GraphDef& graph,
-                            std::vector<tensorflow::NodeDef>& input_nodes)
+                                     std::vector<tensorflow::NodeDef>& input_nodes)
 {
     tf_parser::node_map result;
     for(auto&& node : graph.node())
@@ -275,9 +276,9 @@ static std::vector<size_t> parse_dims(const tensorflow::TensorShapeProto& s)
     std::vector<size_t> dims;
     auto input_dims = s.dim();
     std::transform(input_dims.begin(),
-                    input_dims.end(),
-                    std::back_inserter(dims),
-                    [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
+                   input_dims.end(),
+                   std::back_inserter(dims),
+                   [](const tensorflow::TensorShapeProto_Dim& dim) { return dim.size(); });
     return dims;
 }
 
@@ -485,20 +486,15 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         const std::string& s = t.tensor_content();
         switch(t.dtype())
         {
-        case tensorflow::DataType::DT_FLOAT:
-            return literal{{shape::float_type, dims}, s.data()};
+        case tensorflow::DataType::DT_FLOAT: return literal{{shape::float_type, dims}, s.data()};
         case tensorflow::DataType::DT_BOOL:
         case tensorflow::DataType::DT_INT8: return literal{{shape::int8_type, dims}, s.data()};
         case tensorflow::DataType::DT_UINT16:
-        case tensorflow::DataType::DT_INT16:
-            return literal{{shape::int16_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT32:
-            return literal{{shape::int32_type, dims}, s.data()};
-        case tensorflow::DataType::DT_INT64:
-            return literal{{shape::int64_type, dims}, s.data()};
+        case tensorflow::DataType::DT_INT16: return literal{{shape::int16_type, dims}, s.data()};
+        case tensorflow::DataType::DT_INT32: return literal{{shape::int32_type, dims}, s.data()};
+        case tensorflow::DataType::DT_INT64: return literal{{shape::int64_type, dims}, s.data()};
         case tensorflow::DataType::DT_HALF: return literal{{shape::half_type, dims}, s.data()};
-        case tensorflow::DataType::DT_DOUBLE:
-            return literal{{shape::double_type, dims}, s.data()};
+        case tensorflow::DataType::DT_DOUBLE: return literal{{shape::double_type, dims}, s.data()};
         case tensorflow::DataType::DT_INVALID:
         case tensorflow::DataType::DT_UINT8:
         case tensorflow::DataType::DT_STRING:
@@ -546,8 +542,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
     switch(t.dtype())
     {
     case tensorflow::DataType::DT_FLOAT:
-        return create_literal(
-            shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
+        return create_literal(shape::float_type, dims, get_data_vals(t.float_val(), shape_size));
     case tensorflow::DataType::DT_INT8:
         return create_literal(shape::int8_type, dims, get_data_vals(t.int_val(), shape_size));
     case tensorflow::DataType::DT_UINT16:
@@ -557,8 +552,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
     case tensorflow::DataType::DT_INT32:
         return create_literal(shape::int32_type, dims, get_data_vals(t.int_val(), shape_size));
     case tensorflow::DataType::DT_INT64:
-        return create_literal(
-            shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
+        return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
     case tensorflow::DataType::DT_BOOL:
         return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
     case tensorflow::DataType::DT_HALF:
@@ -567,9 +561,9 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
         std::vector<half> data_half;
         std::transform(data_uint16.begin(),
-                        data_uint16.end(),
-                        std::back_inserter(data_half),
-                        [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
+                       data_uint16.end(),
+                       std::back_inserter(data_half),
+                       [](uint16_t raw_val) { return *reinterpret_cast<half*>(&raw_val); });
         return create_literal(shape::half_type, dims, data_half);
     }
     case tensorflow::DataType::DT_DOUBLE:
@@ -613,8 +607,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
     case tensorflow::DataType::DT_UINT32_REF:
     case tensorflow::DataType::DT_UINT64_REF:
     case tensorflow::DataType::DataType_INT_MAX_SENTINEL_DO_NOT_USE_:
-    case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_:
-        throw std::runtime_error("");
+    case tensorflow::DataType::DataType_INT_MIN_SENTINEL_DO_NOT_USE_: throw std::runtime_error("");
     }
     MIGRAPHX_THROW("Invalid tensor type");
 }

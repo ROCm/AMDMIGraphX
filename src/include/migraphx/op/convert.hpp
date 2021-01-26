@@ -34,7 +34,14 @@ struct convert : unary<convert>
 
     auto apply() const
     {
-        return [](auto x) { return x; };
+        auto type = target_type;
+        return [type](auto x) {
+            auto y = x;
+            shape::visit(type, [&](auto as) {
+                y = std::min(std::max(as(x), as.min()), as.max());
+            });
+            return y;
+        };
     }
 
     convert(shape::type_t t) : target_type{t} {}

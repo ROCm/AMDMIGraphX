@@ -42,9 +42,9 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
     unsupported_types.erase(shape::type_t::double_type);
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
-            decompose{},
-            dead_code_elimination{},
             eliminate_data_type{unsupported_types, shape::type_t::float_type},
+            dead_code_elimination{},
+            decompose{},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},

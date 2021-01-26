@@ -25,7 +25,7 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1UL << (sizeof(T) * 5);
+    const auto max      = 1UL << (sizeof(T) * 5);
     const auto half_max = max / 2;
     return half_max - (z % max);
 }

@@ -130,15 +130,9 @@ struct shape
     {
         using type = std::conditional_t<std::is_same<T, bool>{}, int8_t, T>;
 
-        type max() const
-        {
-            return std::numeric_limits<type>::max();
-        }
+        type max() const { return std::numeric_limits<type>::max(); }
 
-        type min() const
-        {
-            return std::numeric_limits<type>::lowest();
-        }
+        type min() const { return std::numeric_limits<type>::lowest(); }
 
         template <class U>
         type operator()(U u) const

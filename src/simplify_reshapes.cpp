@@ -159,18 +159,15 @@ struct find_transpose
 
 struct find_nested_convert
 {
-    auto matcher() const
-    {
-        return match::name("convert")(match::arg(0)(match::name("convert")));
-    }
+    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto x = ins->inputs().front();
+        auto ins   = mr.result;
+        auto x     = ins->inputs().front();
         auto input = x->inputs().front();
 
-        if (ins->get_shape() != input->get_shape())
+        if(ins->get_shape() != input->get_shape())
             return;
 
         m.replace_instruction(ins, input);

@@ -12,7 +12,7 @@ void eliminate_data_type::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if (ins->name()[0] == '@')
+        if(ins->name()[0] == '@')
             continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
@@ -22,9 +22,9 @@ void eliminate_data_type::apply(module& m) const
         });
         if(inputs == ins->inputs())
             continue;
-        auto op = ins->get_operator();
+        auto op         = ins->get_operator();
         auto attributes = op.attributes();
-        if (attributes.contains("general_data_type"))
+        if(attributes.contains("general_data_type"))
         {
             op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
         }

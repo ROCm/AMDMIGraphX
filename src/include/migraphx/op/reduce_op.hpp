@@ -113,18 +113,17 @@ struct reduce_op : op_name<Derived>
                 std::vector<std::size_t>& out_idx,
                 tensor_view<T>& output) const
     {
-        using accumulator = std::conditional_t<std::is_floating_point<T>{}, 
-                                                double, 
-                                                std::conditional_t<std::is_signed<T>{}, std::int64_t, std::uint64_t>>;
-        auto& self = static_cast<const Derived&>(*this);
-        auto data_idx = out_idx;
-        accumulator val         = self.init();
+        using accumulator = std::conditional_t<
+            std::is_floating_point<T>{},
+            double,
+            std::conditional_t<std::is_signed<T>{}, std::int64_t, std::uint64_t>>;
+        auto& self      = static_cast<const Derived&>(*this);
+        auto data_idx   = out_idx;
+        accumulator val = self.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
             accumulator x = input(data_idx.begin(), data_idx.end());
-            val = self.op()(
-                accumulator{self.input()(x)},
-                val);
+            val           = self.op()(accumulator{self.input()(x)}, val);
         });
 
         output(out_idx.begin(), out_idx.end()) =

@@ -79,10 +79,10 @@ struct tf_parser
     std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args) const;
     std::vector<instruction_ref> to_nhwc(const std::vector<instruction_ref>& args) const;
     std::vector<size_t>
-    parse_axes(const attribute_map& attributes, const std::string& s, const size_t num_dims) const;
+    parse_axes(const attribute_map& attributes, const std::string& s, size_t num_dims) const;
     template <class T>
-    std::vector<T> parse_axes(std::vector<T> axes, const size_t num_dims) const;
-    int64_t parse_axis(const int64_t dim, const size_t num_dims) const;
+    std::vector<T> parse_axes(std::vector<T> axes, size_t num_dims) const;
+    int64_t parse_axis(int64_t dim, size_t num_dims) const;
     // tf stores certain attributes such as strides, dilations, as a 4D input.
     // The first and last dims are equal to 1, and the relevant data is in dims 2 and 3.
     // This helper function reorders the data to store for the respective operator member variables.
@@ -108,7 +108,7 @@ struct tf_parser
 };
 
 std::vector<int64_t> get_axes(size_t num_axes);
-std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask);
+std::vector<int64_t> get_axes_from_mask(size_t num_axes, uint32_t mask);
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
 

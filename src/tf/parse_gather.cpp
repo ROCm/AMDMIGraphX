@@ -14,7 +14,7 @@ struct parse_gather : op_parser<parse_gather>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         int axis = args[2]->eval().at<int32_t>();

@@ -14,7 +14,7 @@ struct parse_constant_op : op_parser<parse_constant_op>
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& parser,
                           tf_parser::node_info info,
-                          std::vector<instruction_ref> /*args*/) const
+                          const std::vector<instruction_ref>& /*args*/) const
     {
         literal v = parser.parse_tensor(info.attributes.at("value").tensor());
         return parser.to_nhwc(info.add_literal(v));

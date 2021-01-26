@@ -21,7 +21,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
 
     instruction_ref parse(const op_desc& opd,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         if(args.size() != 2)

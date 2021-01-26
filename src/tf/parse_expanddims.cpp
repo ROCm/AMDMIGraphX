@@ -14,7 +14,7 @@ struct parse_expanddims : op_parser<parse_expanddims>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         std::vector<size_t> input_dims = args[0]->get_shape().lens();

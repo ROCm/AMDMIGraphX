@@ -25,7 +25,7 @@ struct parse_batchnorm : op_parser<parse_batchnorm>
             epsilon = info.attributes.at("epsilon").f();
         }
         auto op = make_op("batch_norm_inference", {{"epsilon", epsilon}, {"momentum", momentum}});
-        return parser.to_nhwc(info.add_instruction(op, std::move(args)));
+        return parser.to_nhwc(info.add_instruction(op, args));
     }
 };
 

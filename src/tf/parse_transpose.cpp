@@ -14,7 +14,7 @@ struct parse_transpose : op_parser<parse_transpose>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto perm = args[1]->eval().get<int32_t>().to_vector();

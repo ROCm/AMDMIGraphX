@@ -14,7 +14,7 @@ struct parse_relu6 : op_parser<parse_relu6>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto input_lens = args[0]->get_shape().lens();

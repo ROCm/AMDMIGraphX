@@ -16,7 +16,7 @@ struct parse_shape : op_parser<parse_shape>
     // shape operator are literals in migraphx
     instruction_ref parse(const op_desc& /*opd*/,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         std::vector<std::size_t> arg_shape = args[0]->get_shape().lens();

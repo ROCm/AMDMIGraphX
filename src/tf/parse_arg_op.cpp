@@ -13,7 +13,7 @@ struct parse_arg_op : op_parser<parse_arg_op>
 
     instruction_ref parse(const op_desc& opd,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
         int64_t axis = 0;

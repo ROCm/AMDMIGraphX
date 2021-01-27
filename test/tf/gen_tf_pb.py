@@ -339,6 +339,17 @@ def pack_test_nhwc(g1):
 
 
 @tf_test
+def pad_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(2, 4),
+                                            name='0')
+        paddings = tf.constant([[1, 1], [2, 2]])
+        
+        tf.pad(g1_input, paddings, name='pad1')
+
+
+@tf_test
 def pooling_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
@@ -579,10 +590,11 @@ if __name__ == '__main__':
     mean_test()
     mean_test_nhwc()
     mul_test()
-    onehot_test()
     noop_test()
+    onehot_test()
     pack_test()
     pack_test_nhwc()
+    pad_test()
     pooling_test()
     pow_test()
     relu_test()

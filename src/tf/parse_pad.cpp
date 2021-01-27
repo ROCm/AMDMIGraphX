@@ -18,8 +18,6 @@ struct parse_pad : op_parser<parse_pad>
                           const tf_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        args = parser.to_nchw(args);
-
         size_t ndims = args.front()->get_shape().lens().size();
 
         // in tf, the paddings are arranged as a 2d shape (ndims, 2),
@@ -39,8 +37,7 @@ struct parse_pad : op_parser<parse_pad>
             pads[i]         = pad_per_dim[i].first;
             pads[i + ndims] = pad_per_dim[i].second;
         }
-        auto op = make_op("pad", {"pads", pads});
-        return info.add_instruction(op, args.front());
+        return info.add_instruction(make_op("pad", {{"pads", pads}}), args.front());
     }
 };
 

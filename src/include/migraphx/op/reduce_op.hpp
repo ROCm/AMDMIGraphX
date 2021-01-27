@@ -113,10 +113,7 @@ struct reduce_op : op_name<Derived>
                 std::vector<std::size_t>& out_idx,
                 tensor_view<T>& output) const
     {
-        using accumulator = std::conditional_t<
-            is_floating_point<T>{},
-            double,
-            std::conditional_t<std::is_signed<T>{}, std::int64_t, std::uint64_t>>;
+        using accumulator = accumulator_type<T>;
         auto& self      = static_cast<const Derived&>(*this);
         auto data_idx   = out_idx;
         accumulator val = self.init();

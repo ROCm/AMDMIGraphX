@@ -341,11 +341,9 @@ def pack_test_nhwc(g1):
 @tf_test
 def pad_test(g1):
     with g1.as_default():
-        g1_input = tf.compat.v1.placeholder(tf.float32,
-                                            shape=(2, 4),
-                                            name='0')
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 4), name='0')
         paddings = tf.constant([[1, 1], [2, 2]])
-        
+
         tf.pad(g1_input, paddings, name='pad1')
 
 

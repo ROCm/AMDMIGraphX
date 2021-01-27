@@ -808,7 +808,8 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[tuned_axis] = j;
-                    batch_max[i]    = std::max<value_type>(batch_max[i], input(idx.begin(), idx.end()));
+                    batch_max[i] =
+                        std::max<value_type>(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)

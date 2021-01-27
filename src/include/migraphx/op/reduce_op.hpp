@@ -114,9 +114,9 @@ struct reduce_op : op_name<Derived>
                 tensor_view<T>& output) const
     {
         using accumulator = accumulator_type<T>;
-        auto& self      = static_cast<const Derived&>(*this);
-        auto data_idx   = out_idx;
-        accumulator val = self.init();
+        auto& self        = static_cast<const Derived&>(*this);
+        auto data_idx     = out_idx;
+        accumulator val   = self.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
             accumulator x = input(data_idx.begin(), data_idx.end());

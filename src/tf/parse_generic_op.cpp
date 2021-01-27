@@ -22,7 +22,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 
     instruction_ref parse(const op_desc& opd,
                           const tf_parser& /*parser*/,
-                          tf_parser::node_info info,
+                          const tf_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
         return info.add_instruction(make_op(opd.op_name), args);

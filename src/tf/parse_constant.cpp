@@ -9,6 +9,7 @@ namespace tf {
 
 struct parse_constant_op : op_parser<parse_constant_op>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const { return {{"Const"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -17,7 +18,7 @@ struct parse_constant_op : op_parser<parse_constant_op>
                           const std::vector<instruction_ref>& /*args*/) const
     {
         literal v = parser.parse_tensor(info.attributes.at("value").tensor());
-        return parser.to_nhwc(info.add_literal(v));
+        return info.add_literal(v);
     }
 };
 

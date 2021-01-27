@@ -34,7 +34,7 @@ void register_op_parser()
     T parser;
     for(auto&& opd : parser.operators())
         register_op_parser(opd.tf_name, [opd, parser](auto&&... xs) {
-            return implicit_multi_op(parser.parse(opd, xs...));
+            return parser.base_parse(opd, xs...);
         });
 }
 
@@ -47,8 +47,31 @@ struct register_op_parser_action
     }
 };
 
-template <class T>
-using op_parser = auto_register<register_op_parser_action, T>;
+template<class Derived>
+struct op_parser : auto_register<register_op_parser_action, Derived>
+{
+    bool transpose() const { return false; }
+    std::vector<instruction_ref> base_parse(const op_desc& opd,
+                          const tf_parser& parser,
+                          tf_parser::node_info info,
+                          const std::vector<instruction_ref>& args) const
+    {
+        std::vector<instruction_ref> result;
+        auto& self = static_cast<const Derived&>(*this);
+        if (self.transpose())
+        {
+            result = implicit_multi_op(self.parse(opd, parser, info, parser.to_nchw(args)));
+            std::transform(result.begin(), result.end(), result.begin(), [&](auto ins) {
+                return parser.to_nhwc(ins);
+            });
+        }
+        else
+        {
+            result = implicit_multi_op(self.parse(opd, parser, info, args));
+        }
+        return result;
+    }
+};
 
 } // namespace tf
 } // namespace MIGRAPHX_INLINE_NS

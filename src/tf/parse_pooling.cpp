@@ -11,6 +11,7 @@ namespace tf {
 
 struct parse_pooling : op_parser<parse_pooling>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const { return {{"AvgPool"}, {"MaxPool"}}; }
 
     instruction_ref parse(const op_desc& opd,
@@ -18,7 +19,6 @@ struct parse_pooling : op_parser<parse_pooling>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        args = parser.to_nchw(args);
         op::pooling op{starts_with(opd.tf_name, "Max") ? "max" : "average"};
 
         if(contains(info.attributes, "strides"))
@@ -73,7 +73,7 @@ struct parse_pooling : op_parser<parse_pooling>
                 }
             }
         }
-        return parser.to_nhwc(info.add_instruction(op, l0));
+        return info.add_instruction(op, l0);
     }
 };
 

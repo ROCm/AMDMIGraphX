@@ -104,7 +104,7 @@ struct tf_parser
     void parse_graph(const tensorflow::GraphDef& graph);
     void parse_node(const std::string& name);
     literal parse_tensor(const tensorflow::TensorProto& t) const;
-    shape::type_t parse_type(const tensorflow::DataType t) const;
+    shape::type_t parse_type(tensorflow::DataType t) const;
 };
 
 std::vector<int64_t> get_axes(size_t num_axes);

@@ -10,6 +10,7 @@ namespace tf {
 
 struct parse_pad : op_parser<parse_pad>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const { return {{"Pad"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -39,7 +40,7 @@ struct parse_pad : op_parser<parse_pad>
             pads[i + ndims] = pad_per_dim[i].second;
         }
         auto op = make_op("pad", {"pads", pads});
-        return parser.to_nhwc(info.add_instruction(op, args.front()));
+        return info.add_instruction(op, args.front());
     }
 };
 

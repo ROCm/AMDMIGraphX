@@ -18,7 +18,6 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        args = parser.to_nchw(args);
         op::convolution op;
         size_t num_channels = args[0]->get_shape().lens()[1];
         op.group            = num_channels;
@@ -98,7 +97,7 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
         auto new_weights = info.add_instruction(make_op("reshape", {{"dims", new_weights_shape}}),
                                                 info.make_contiguous(weights));
 
-        return parser.to_nhwc(info.add_instruction(op, {l0, new_weights}));
+        return info.add_instruction(op, {l0, new_weights});
     }
 };
 

@@ -11,6 +11,7 @@ namespace tf {
 
 struct parse_conv : op_parser<parse_conv>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const { return {{"Conv2D"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -18,8 +19,6 @@ struct parse_conv : op_parser<parse_conv>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        args = parser.to_nchw(args);
-
         op::convolution op;
         if(contains(info.attributes, "strides"))
         {

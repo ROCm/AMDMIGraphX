@@ -33,9 +33,8 @@ void register_op_parser()
 {
     T parser;
     for(auto&& opd : parser.operators())
-        register_op_parser(opd.tf_name, [opd, parser](auto&&... xs) {
-            return parser.base_parse(opd, xs...);
-        });
+        register_op_parser(opd.tf_name,
+                           [opd, parser](auto&&... xs) { return parser.base_parse(opd, xs...); });
 }
 
 struct register_op_parser_action
@@ -47,18 +46,18 @@ struct register_op_parser_action
     }
 };
 
-template<class Derived>
+template <class Derived>
 struct op_parser : auto_register<register_op_parser_action, Derived>
 {
     bool transpose() const { return false; }
     std::vector<instruction_ref> base_parse(const op_desc& opd,
-                          const tf_parser& parser,
-                          tf_parser::node_info info,
-                          const std::vector<instruction_ref>& args) const
+                                            const tf_parser& parser,
+                                            tf_parser::node_info info,
+                                            const std::vector<instruction_ref>& args) const
     {
         std::vector<instruction_ref> result;
         auto& self = static_cast<const Derived&>(*this);
-        if (self.transpose())
+        if(self.transpose())
         {
             result = implicit_multi_op(self.parse(opd, parser, info, parser.to_nchw(args)));
             std::transform(result.begin(), result.end(), result.begin(), [&](auto ins) {

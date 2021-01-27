@@ -114,7 +114,7 @@ struct reduce_op : op_name<Derived>
                 tensor_view<T>& output) const
     {
         using accumulator = std::conditional_t<
-            std::is_floating_point<T>{},
+            is_floating_point<T>{},
             double,
             std::conditional_t<std::is_signed<T>{}, std::int64_t, std::uint64_t>>;
         auto& self      = static_cast<const Derived&>(*this);

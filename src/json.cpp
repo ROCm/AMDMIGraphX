@@ -39,6 +39,12 @@ void value_to_json(const T& x, json& j)
     j = x;
 }
 
+void value_to_json(const value::binary& x, json& j)
+{
+    j          = json::object();
+    j["bytes"] = std::vector<int>(x.begin(), x.end());
+}
+
 void value_to_json(const std::vector<value>& x, json& j)
 {
     for(const auto& v : x)
@@ -97,12 +103,19 @@ migraphx::value value_from_json(const json& j)
         break;
 
     case json::value_t::object:
-        val = migraphx::value::object{};
-        for(const auto& item : j.items())
+        if(j.contains("bytes") and j.size() == 1)
         {
-            const auto& key = item.key();
-            const json& jv  = item.value();
-            val[key]        = jv.get<value>();
+            val = migraphx::value::binary{j["bytes"].get<std::vector<std::uint8_t>>()};
+        }
+        else
+        {
+            val = migraphx::value::object{};
+            for(const auto& item : j.items())
+            {
+                const auto& key = item.key();
+                const json& jv  = item.value();
+                val[key]        = jv.get<value>();
+            }
         }
         break;
 

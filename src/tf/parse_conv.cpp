@@ -94,7 +94,7 @@ struct parse_conv : op_parser<parse_conv>
                 op.padding[1] = padding[1];
             }
         }
-        return parser.to_nhwc(info.add_instruction(op, {l0, weights}));
+        return info.add_instruction(op, {l0, weights});
     }
 };
 

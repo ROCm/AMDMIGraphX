@@ -18,7 +18,7 @@ struct parse_cast : op_parser<parse_cast>
                           const std::vector<instruction_ref>& args) const
     {
         shape::type_t type = parser.parse_type(info.attributes.at("DstT").type());
-        return info.add_instruction(make_op("convert", {{"target_type", type}}), std::move(args));
+        return info.add_instruction(make_op("convert", {{"target_type", type}}), args);
     }
 };
 

@@ -18,6 +18,7 @@ else()
 endif()
 
 project(migraphx)
+find_package(ROCM REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
@@ -34,7 +35,6 @@ if(HAVE_EXPR)
     add_definitions(-DHAS_HALF_V1)
 endif()
 
-find_package(ROCM REQUIRED)
 find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)

@@ -52,7 +52,8 @@ struct literal : raw_data<literal>
         fill(start, end);
     }
 
-    literal(const shape& s, const char* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
+    template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
+    literal(const shape& s, T* x) : buffer(make_shared_array<char>(s.bytes())), m_shape(s)
     {
         std::copy(x, x + s.bytes(), buffer.get());
     }

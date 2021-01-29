@@ -28,12 +28,9 @@ endif()
 include(CheckTypeSize)
 set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
 set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" EXPR LANGUAGE CXX)
+check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
 set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
-if(HAVE_EXPR)
-    add_definitions(-DHAS_HALF_V1)
-endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 

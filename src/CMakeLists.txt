@@ -194,6 +194,10 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
 endif()
 
+if(HAVE_HALF_EXPR)
+    target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
+endif()
+
 rocm_export_targets(
   TARGETS migraphx::migraphx migraphx_all_targets
   NAMESPACE migraphx::

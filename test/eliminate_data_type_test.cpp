@@ -9,8 +9,11 @@
 
 void run_pass(migraphx::module& m, std::unordered_set<migraphx::shape::type_t> types)
 {
-    migraphx::run_passes(m,
-                         {migraphx::eliminate_data_type{std::move(types), migraphx::shape::float_type}, migraphx::eliminate_identity{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m,
+        {migraphx::eliminate_data_type{std::move(types), migraphx::shape::float_type},
+         migraphx::eliminate_identity{},
+         migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple)
@@ -26,13 +29,15 @@ TEST_CASE(simple)
 
     migraphx::module mm2;
     {
-        auto x = mm2.add_parameter("x", s);
-        auto y = mm2.add_parameter("y", s);
-        auto floatx = mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto floaty = mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
+        auto x      = mm2.add_parameter("x", s);
+        auto y      = mm2.add_parameter("y", s);
+        auto floatx = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto floaty = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
         auto add = mm2.add_instruction(migraphx::make_op("add"), floatx, floaty);
-        mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), add);
-
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), add);
     }
     EXPECT(mm1 == mm2);
 }
@@ -50,13 +55,15 @@ TEST_CASE(quant)
 
     migraphx::module mm2;
     {
-        auto x = mm2.add_parameter("x", s);
-        auto y = mm2.add_parameter("y", s);
-        auto floatx = mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto floaty = mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
+        auto x      = mm2.add_parameter("x", s);
+        auto y      = mm2.add_parameter("y", s);
+        auto floatx = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
+        auto floaty = mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), y);
         auto add = mm2.add_instruction(migraphx::make_op("dot"), floatx, floaty);
-        mm2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), add);
-
+        mm2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), add);
     }
     EXPECT(mm1 == mm2);
 }

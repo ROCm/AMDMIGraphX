@@ -40,8 +40,7 @@ struct normalize_test_op
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m,
-                         {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::module create_gather(int64_t axis)
@@ -106,8 +105,8 @@ TEST_CASE(reduce_mean_test_1)
 }
 
 migraphx::module create_slice(const std::vector<int64_t>& axes,
-                               const std::vector<int64_t>& starts,
-                               const std::vector<int64_t>& ends)
+                              const std::vector<int64_t>& starts,
+                              const std::vector<int64_t>& ends)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};

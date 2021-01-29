@@ -9,7 +9,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_data_type::apply(module& m) const
 {
-    auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
         if(ins->name()[0] == '@')

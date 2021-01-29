@@ -25,6 +25,7 @@ struct module_impl
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
     std::vector<std::string> input_names;
+    std::string name;
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -61,7 +62,9 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-module::module() : impl(std::make_unique<module_impl>()) {}
+module::module(const std::string name) : impl(std::make_unique<module_impl>()) {
+    impl->name = name;
+}
 
 module::module(module&&) noexcept = default;
 module::~module() noexcept        = default;
@@ -76,6 +79,11 @@ module& module::operator=(module m)
     return *this;
 }
 
+std::string module::name() const
+{
+    return impl->name;
+}
+
 void module::assign(const module& m)
 {
     // clean the current module
@@ -88,6 +96,7 @@ void module::assign(const module& m)
         impl->instructions.clear();
     }
     impl->input_names = m.impl->input_names;
+    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))

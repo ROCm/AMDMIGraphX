@@ -62,7 +62,7 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {}; }
+program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {"main"}; }
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -324,7 +324,7 @@ void program::from_value(const value& v)
     {
         const auto& key = vv.get_key();
         auto val        = vv.without_key();
-        module modl;
+        module modl{key};
         modl.from_value(val);
         impl->modules[key] = modl;
     }
@@ -505,9 +505,9 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
     }
 }
 
-module* program::get_main_module() { return &impl->modules["main"]; }
+module* program::get_main_module() { return &impl->modules.at("main"); }
 
-const module* program::get_main_module() const { return &impl->modules["main"]; }
+const module* program::get_main_module() const { return &impl->modules.at("main"); }
 
 program& program::sort()
 {

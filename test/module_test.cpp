@@ -85,4 +85,22 @@ TEST_CASE(module_annotate)
     EXPECT(ss1.str() == ss2.str());
 }
 
+TEST_CASE(module_name)
+{
+    migraphx::module m1("name");
+    EXPECT(m1.name() == "name");
+
+    auto m2 = m1;
+    EXPECT(m2.name() == "name");
+    migraphx::module m3;
+    m3 = m1;
+    EXPECT(m3.name() == "name");
+}
+TEST_CASE(module_name_main)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    EXPECT(mm->name() == "main");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

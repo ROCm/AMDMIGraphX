@@ -28,7 +28,7 @@ using parameter_map = std::unordered_map<std::string, argument>;
  */
 struct module
 {
-    module();
+    module(const std::string name="");
 
     // move constructor
     module(module&&) noexcept;
@@ -41,7 +41,7 @@ struct module
 
     ~module() noexcept;
 
-    std::string name() const { return module_name; }
+    std::string name() const;
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
@@ -133,7 +133,6 @@ struct module
     private:
     void assign(const module& m);
     std::unique_ptr<module_impl> impl;
-    std::string module_name;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

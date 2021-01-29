@@ -172,10 +172,7 @@ struct scheduler
         return result;
     }
 
-    void run_pass(migraphx::module& m)
-    {
-        migraphx::run_passes(m, {migraphx::schedule{model}});
-    }
+    void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::schedule{model}}); }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
 
@@ -335,8 +332,8 @@ TEST_CASE(zero_merge2)
     auto onem1  = m.add_instruction(unary_op{}, one);
     auto onem2  = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(migraphx::make_op("identity"),
-                                      m.add_instruction(migraphx::make_op("identity"), onem1),
-                                      m.add_instruction(migraphx::make_op("identity"), onem2));
+                                    m.add_instruction(migraphx::make_op("identity"), onem1),
+                                    m.add_instruction(migraphx::make_op("identity"), onem2));
     t.run_pass(m);
     EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
@@ -380,8 +377,8 @@ TEST_CASE(zero_merge4)
     auto onem1 = m.add_instruction(unary_op{}, one);
     auto onem2 = m.add_instruction(unary_op{}, one);
     auto id    = m.add_instruction(migraphx::make_op("identity"),
-                                  m.add_instruction(migraphx::make_op("identity"), onem1),
-                                  m.add_instruction(migraphx::make_op("identity"), onem2));
+                                m.add_instruction(migraphx::make_op("identity"), onem1),
+                                m.add_instruction(migraphx::make_op("identity"), onem2));
     auto final = m.add_instruction(unary_op{}, id);
     t.run_pass(m);
     EXPECT(not t.has_stream(one));
@@ -783,7 +780,6 @@ TEST_CASE(inception1)
 {
     scheduler t{};
     migraphx::module m;
-
 
     auto i1     = m.add_literal(0);
     auto i2     = m.add_literal(1);

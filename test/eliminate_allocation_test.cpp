@@ -9,8 +9,7 @@
 void run_pass(migraphx::module& m, std::size_t align = 32)
 {
     migraphx::run_passes(
-        m,
-        {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+        m, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
 }
 
 struct allocate
@@ -41,8 +40,8 @@ TEST_CASE(basic)
 {
     migraphx::module m;
 
-    auto a1  = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
     auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
     auto m2 = m.add_instruction(pass_op{}, a2, m1);
@@ -59,8 +58,8 @@ TEST_CASE(aligned)
 {
     migraphx::module m;
 
-    auto a1  = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
     auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto m2 = m.add_instruction(pass_op{}, a2, m1);
@@ -77,8 +76,8 @@ TEST_CASE(unaligned)
 {
     migraphx::module m;
 
-    auto a1  = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
     auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto m2 = m.add_instruction(pass_op{}, a2, m1);
@@ -95,8 +94,8 @@ TEST_CASE(float_aligned)
 {
     migraphx::module m;
 
-    auto a1  = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
     auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
     auto m2 = m.add_instruction(pass_op{}, a2, m1);

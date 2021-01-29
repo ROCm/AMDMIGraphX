@@ -12,8 +12,7 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m,
-                         {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simplify_add1)
@@ -147,7 +146,7 @@ TEST_CASE(simplify_add_broadcast2)
         auto y    = m.add_parameter("y", outer);
         auto one  = m.add_literal({inner, {1, 1}});
         auto oneb = m.add_instruction(b, one);
-        auto two = m.add_literal({outer, {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}});
+        auto two  = m.add_literal({outer, {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}});
         auto sum1 = m.add_instruction(migraphx::make_op("add"), x, y);
         auto sum2 = m.add_instruction(migraphx::make_op("add"), oneb, two);
         auto sum3 = m.add_instruction(migraphx::make_op("add"), sum2, sum1);
@@ -195,9 +194,9 @@ void simplify_add4()
 TEST_CASE(simplify_mul_conv1)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
+    auto x = m.add_parameter("x", {migraphx::shape::int32_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {256, 128, 3, 3}}));
     auto conv = m.add_instruction(
         migraphx::make_op("convolution",
                           {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -210,8 +209,8 @@ TEST_CASE(simplify_mul_conv1)
     m.add_instruction(pass_op{}, mul);
     EXPECT(conv->outputs().front()->name() == "mul");
     run_pass(m);
-    auto new_conv = std::find_if(
-        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
+    auto new_conv =
+        std::find_if(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; });
     EXPECT(new_conv->outputs().front()->name() != "mul");
 }
 
@@ -219,8 +218,8 @@ TEST_CASE(simplify_mul_slice_conv1)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m1.add_literal(
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto conv   = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         auto slice1 = m1.add_instruction(
@@ -238,8 +237,8 @@ TEST_CASE(simplify_mul_slice_conv1)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m2.add_literal(
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto wslice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {384}}}), w);
@@ -249,8 +248,7 @@ TEST_CASE(simplify_mul_slice_conv1)
         auto mul     = m2.add_instruction(migraphx::make_op("mul"), b, wslice1);
         auto wslice2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {384}}, {"ends", {768}}}), w);
-        auto concat =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), mul, wslice2);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), mul, wslice2);
         auto conv   = m2.add_instruction(migraphx::make_op("convolution"), x, concat);
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {384}}}), conv);
@@ -266,8 +264,8 @@ TEST_CASE(simplify_mul_slice_conv_overlapping_slice)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m1.add_literal(
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto conv   = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         auto slice1 = m1.add_instruction(
@@ -290,8 +288,8 @@ TEST_CASE(simplify_mul_slice_conv_not_all_slice)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m1.add_literal(
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto conv   = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         auto slice1 = m1.add_instruction(
@@ -315,11 +313,11 @@ TEST_CASE(simplify_mul_add)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto one  = m1.add_literal(1);
-        auto two  = m1.add_literal(2);
-        auto sum  = m1.add_instruction(migraphx::make_op("add"), one, x);
-        auto mul  = m1.add_instruction(migraphx::make_op("mul"), sum, two);
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto one = m1.add_literal(1);
+        auto two = m1.add_literal(2);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), one, x);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), sum, two);
         m1.add_instruction(pass_op{}, mul);
     }
     run_pass(m1);
@@ -342,11 +340,11 @@ TEST_CASE(simplify_inner_broadcast)
     auto b = migraphx::op::broadcast{1, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto y    = m1.add_parameter("y", {migraphx::shape::int32_type, {1}});
-        auto xb   = m1.add_instruction(b, x);
-        auto yb   = m1.add_instruction(b, y);
-        auto sum  = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
         m1.add_instruction(pass_op{}, sum);
     }
     run_pass(m1);
@@ -365,12 +363,12 @@ TEST_CASE(simplify_inner_broadcast)
 TEST_CASE(simplify_add_conv1)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 3, 3}}));
     auto conv1 = m.add_instruction(migraphx::make_op("convolution"), x, w);
     auto conv2 = m.add_instruction(migraphx::make_op("convolution"), y, v);
     auto sum   = m.add_instruction(migraphx::make_op("add"), conv1, conv2);
@@ -378,20 +376,19 @@ TEST_CASE(simplify_add_conv1)
     auto s = m.get_output_shapes().back();
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 1);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 7, 7}}));
     auto conv1 = m.add_instruction(migraphx::make_op("convolution"), x, w);
     auto conv2 = m.add_instruction(
         migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {3, 3}}}), y, v);
@@ -401,20 +398,19 @@ TEST_CASE(simplify_add_conv_no_fusion_7x7_diff_strides)
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 2);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides1)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto conv1 = m.add_instruction(migraphx::make_op("convolution"), x, w);
     auto conv2 = m.add_instruction(
         migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {2, 2}}}), y, v);
@@ -423,20 +419,19 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides1)
     auto s = m.get_output_shapes().back();
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 1);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides2)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto conv1 = m.add_instruction(
         migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {2, 2}}}), x, w);
     auto conv2 = m.add_instruction(migraphx::make_op("convolution"), y, v);
@@ -445,15 +440,14 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
     auto s = m.get_output_shapes().back();
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 1);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 54, 83, 83}});
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 54, 83, 83}});
     auto w =
         m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {54, 54, 1, 1}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 54, 165, 165}});
@@ -467,20 +461,19 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides_odd)
     auto s = m.get_output_shapes().back();
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 1);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 1);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 14}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 28, 14}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto conv1 = m.add_instruction(
         migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {2, 1}}}), x, w);
     auto conv2 = m.add_instruction(migraphx::make_op("convolution"), y, v);
@@ -490,20 +483,19 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides1)
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 2);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
 TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
 {
     migraphx::module m;
-    auto x   = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
-    auto w   = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto w =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 14}});
-    auto v = m.add_literal(
-        migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+    auto v =
+        m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
     auto conv1 = m.add_instruction(migraphx::make_op("convolution"), x, w);
     auto conv2 = m.add_instruction(
         migraphx::make_op("convolution", {{"padding", {0, 0}}, {"stride", {2, 1}}}), y, v);
@@ -513,9 +505,8 @@ TEST_CASE(simplify_add_conv_no_fusion_asymetrical_strides2)
     run_pass(m);
     EXPECT(s == m.get_output_shapes().back());
     // No fusion
-    EXPECT(std::count_if(m.begin(), m.end(), [](auto&& ins) {
-               return ins.name() == "convolution";
-           }) == 2);
+    EXPECT(std::count_if(
+               m.begin(), m.end(), [](auto&& ins) { return ins.name() == "convolution"; }) == 2);
 }
 
 TEST_CASE(simplify_concat_add_relu)
@@ -523,16 +514,15 @@ TEST_CASE(simplify_concat_add_relu)
     auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
     migraphx::module m1;
     {
-        auto x     = m1.add_parameter("x", s);
-        auto y     = m1.add_parameter("y", s);
-        auto one   = m1.add_literal({s, {1}});
-        auto two   = m1.add_literal({s, {2}});
-        auto sum1  = m1.add_instruction(migraphx::make_op("add"), x, one);
-        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2  = m1.add_instruction(migraphx::make_op("add"), y, two);
-        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), sum2);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto one    = m1.add_literal({s, {1}});
+        auto two    = m1.add_literal({s, {2}});
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, one);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, two);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
         m1.add_instruction(pass_op{}, concat);
     }
     run_pass(m1);
@@ -618,8 +608,7 @@ TEST_CASE(simplify_concat_add_relu_partial_broadcast)
         auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), one, two);
         auto concatb = m2.add_instruction(b, concat1);
         auto sum     = m2.add_instruction(migraphx::make_op("add"), x, y);
-        auto concat2 =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), sum, concatb);
+        auto concat2 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), sum, concatb);
         m2.add_instruction(pass_op{}, concat2);
     }
     EXPECT(m1.sort() == m2.sort());
@@ -630,19 +619,18 @@ TEST_CASE(simplify_concat_add_relu_broadcast_different_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {2, 1, 4, 5}};
-        auto x     = m1.add_parameter("x", s);
-        auto y     = m1.add_parameter("y", s);
-        auto one   = m1.add_literal(1);
-        auto oneb  = m1.add_instruction(b, one);
-        auto two   = m1.add_literal(2);
-        auto twob  = m1.add_instruction(b, two);
-        auto sum1  = m1.add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2  = m1.add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), sum2);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
+        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto one    = m1.add_literal(1);
+        auto oneb   = m1.add_instruction(b, one);
+        auto two    = m1.add_literal(2);
+        auto twob   = m1.add_instruction(b, two);
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
         m1.add_instruction(pass_op{}, concat);
     }
     run_pass(m1);
@@ -669,19 +657,18 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     auto s = migraphx::shape{migraphx::shape::int32_type, {2, 1, 4, 5}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {2, 1, 4, 5}};
-        auto x     = m1.add_parameter("x", s);
-        auto y     = m1.add_parameter("y", s);
-        auto one   = m1.add_literal(1);
-        auto oneb  = m1.add_instruction(b, one);
-        auto two   = m1.add_literal(2);
-        auto twob  = m1.add_instruction(b, two);
-        auto sum1  = m1.add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2  = m1.add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), sum2);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+        auto b      = migraphx::op::broadcast{1, {2, 1, 4, 5}};
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto one    = m1.add_literal(1);
+        auto oneb   = m1.add_instruction(b, one);
+        auto two    = m1.add_literal(2);
+        auto twob   = m1.add_instruction(b, two);
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
         m1.add_instruction(pass_op{}, concat);
     }
     run_pass(m1);
@@ -708,8 +695,8 @@ TEST_CASE(simplify_div_const)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two  = m1.add_literal(2);
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = m1.add_literal(2);
         m1.add_instruction(migraphx::make_op("div"), x, two);
     }
     run_pass(m1);
@@ -728,17 +715,17 @@ TEST_CASE(simplify_sub_const)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two  = m1.add_literal(2);
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = m1.add_literal(2);
         m1.add_instruction(migraphx::make_op("sub"), x, two);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two  = m2.add_literal(2);
-        auto neg  = m2.insert_instruction(std::next(two), migraphx::make_op("neg"), two);
+        auto x   = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = m2.add_literal(2);
+        auto neg = m2.insert_instruction(std::next(two), migraphx::make_op("neg"), two);
         m2.add_instruction(migraphx::make_op("add"), x, neg);
     }
     EXPECT(m1 == m2);
@@ -756,7 +743,7 @@ TEST_CASE(simplify_rsqrt)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
         m2.add_instruction(migraphx::make_op("rsqrt"), x);
     }
     EXPECT(m1 == m2);
@@ -831,12 +818,12 @@ TEST_CASE(simplify_slice_concat_non_uniform)
         auto yslice3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {192}}, {"ends", {256}}}), y);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                           xslice1,
-                                           xslice2,
-                                           xslice3,
-                                           yslice1,
-                                           yslice2,
-                                           yslice3);
+                                         xslice1,
+                                         xslice2,
+                                         xslice3,
+                                         yslice1,
+                                         yslice2,
+                                         yslice3);
         m1.add_instruction(pass_op{}, concat);
     }
     run_pass(m1);
@@ -873,12 +860,12 @@ TEST_CASE(simplify_slice_concat_flipped)
         auto yslice3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {64}}, {"ends", {192}}}), y);
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                                           xslice1,
-                                           xslice2,
-                                           xslice3,
-                                           yslice1,
-                                           yslice2,
-                                           yslice3);
+                                         xslice1,
+                                         xslice2,
+                                         xslice3,
+                                         yslice1,
+                                         yslice2,
+                                         yslice3);
         m1.add_instruction(pass_op{}, concat);
     }
     migraphx::module m2 = m1;
@@ -1106,16 +1093,15 @@ TEST_CASE(simplify_split_add_relu_concat_same_axis)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
-        auto one   = m1.add_literal(1);
-        auto oneb  = m1.add_instruction(b, one);
-        auto two   = m1.add_literal(2);
-        auto twob  = m1.add_instruction(b, two);
-        auto sum1  = m1.add_instruction(migraphx::make_op("add"), x, oneb);
-        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), sum1);
-        auto sum2  = m1.add_instruction(migraphx::make_op("add"), y, twob);
-        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), sum2);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
+        auto one    = m1.add_literal(1);
+        auto oneb   = m1.add_instruction(b, one);
+        auto two    = m1.add_literal(2);
+        auto twob   = m1.add_instruction(b, two);
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, oneb);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, twob);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), relu1, relu2);
         m1.add_instruction(pass_op{}, concat);
     }
     run_pass(m1);
@@ -1607,8 +1593,8 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
 {
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m1.add_literal(
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m1.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto conv   = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         auto slice1 = m1.add_instruction(
@@ -1636,8 +1622,8 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
-        auto w    = m2.add_literal(
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1024, 17, 17}});
+        auto w = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::int32_type, {768, 1024, 1, 1}}));
         auto wslice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {384}}}), w);
@@ -1648,9 +1634,8 @@ TEST_CASE(simplify_mul_slice_conv_horiz_fusion)
         auto mul     = m2.add_instruction(migraphx::make_op("mul"), b1, wslice1);
         auto wslice2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {384}}, {"ends", {768}}}), w);
-        auto concat1 =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), mul, wslice2);
-        auto conv = m2.add_instruction(migraphx::make_op("convolution"), x, concat1);
+        auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), mul, wslice2);
+        auto conv    = m2.add_instruction(migraphx::make_op("convolution"), x, concat1);
         auto a2 =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::int32_type, {384}}, 2));
         auto a3 =
@@ -1745,7 +1730,7 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
 {
     auto create_m1 = [](std::size_t batch_size) {
         migraphx::module m1;
-        auto s    = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m1.add_parameter("input", s);
@@ -1778,7 +1763,7 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
 
     auto create_m2 = [](std::size_t batch_size) {
         migraphx::module m;
-        auto s   = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 256, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m.add_parameter("input", s);
@@ -1906,7 +1891,7 @@ TEST_CASE(reorder_reshape_slice_diff_dims)
 {
     auto create_m1 = [](std::size_t batch_size) {
         migraphx::module m1;
-        auto s    = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 96, 96}};
         std::vector<int64_t> perm0 = {0, 2, 1, 3};
         std::vector<int64_t> perm1 = {0, 2, 3, 1};
         auto input                 = m1.add_parameter("input", s);
@@ -2005,7 +1990,7 @@ TEST_CASE(reorder_slice_trans_diff_perm)
 {
     auto create_m1 = [](std::size_t batch_size) {
         migraphx::module m1;
-        auto s    = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
+        auto s = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         std::vector<int64_t> perm0 = {0, 2, 1};
         std::vector<int64_t> perm1 = {0, 1, 2};
         auto input                 = m1.add_parameter("input", s);

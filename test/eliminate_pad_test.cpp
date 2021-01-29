@@ -10,8 +10,7 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m,
-                         {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::instruction_ref
@@ -71,9 +70,8 @@ TEST_CASE(rewrite_pad)
     EXPECT(om1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
     EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
 
-    EXPECT(std::none_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "pad";
-    }));
+    EXPECT(std::none_of(
+        m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
 TEST_CASE(rewrite_pad_im2col_asymetric)
@@ -100,9 +98,8 @@ TEST_CASE(rewrite_pad_im2col_asymetric)
     EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0});
 
     run_pass(m);
-    EXPECT(std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
-        return ins.name() == "pad";
-    }));
+    EXPECT(std::any_of(
+        m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

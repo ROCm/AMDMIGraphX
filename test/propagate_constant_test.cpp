@@ -8,16 +8,15 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m,
-                         {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(const_add)
 {
     migraphx::module m1;
-    auto one  = m1.add_literal(1);
-    auto two  = m1.add_literal(2);
-    auto sum  = m1.add_instruction(migraphx::make_op("add"), one, two);
+    auto one = m1.add_literal(1);
+    auto two = m1.add_literal(2);
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
     m1.add_instruction(pass_op{}, sum);
     run_pass(m1);
 
@@ -30,9 +29,9 @@ TEST_CASE(const_add)
 TEST_CASE(const_add_parameter)
 {
     migraphx::module m1;
-    auto one  = m1.add_parameter("one", {migraphx::shape::int32_type, {1}});
-    auto two  = m1.add_literal(2);
-    auto sum  = m1.add_instruction(migraphx::make_op("add"), one, two);
+    auto one = m1.add_parameter("one", {migraphx::shape::int32_type, {1}});
+    auto two = m1.add_literal(2);
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
     m1.add_instruction(pass_op{}, sum);
     run_pass(m1);
 
@@ -78,11 +77,11 @@ TEST_CASE(const_add_mul)
 TEST_CASE(const_add_scalar)
 {
     migraphx::module m1;
-    auto one  = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                    m1.add_literal(1));
-    auto two  = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                    m1.add_literal(2));
-    auto sum  = m1.add_instruction(migraphx::make_op("add"), one, two);
+    auto one = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                  m1.add_literal(1));
+    auto two = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                  m1.add_literal(2));
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
     m1.add_instruction(pass_op{}, sum);
     run_pass(m1);
 
@@ -98,7 +97,7 @@ TEST_CASE(const_scalar)
     migraphx::module m1;
     {
         auto one = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                        m1.add_literal(1));
+                                      m1.add_literal(1));
         m1.add_instruction(pass_op{}, one);
     }
     run_pass(m1);
@@ -106,7 +105,7 @@ TEST_CASE(const_scalar)
     migraphx::module m2;
     {
         auto one = m2.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                        m2.add_literal(1));
+                                      m2.add_literal(1));
         m2.add_instruction(pass_op{}, one);
     }
     EXPECT(m1 == m2);

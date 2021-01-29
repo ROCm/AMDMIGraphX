@@ -6,10 +6,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
-{
-    migraphx::run_passes(m, {migraphx::auto_contiguous{}});
-}
+void run_pass(migraphx::module& m) { migraphx::run_passes(m, {migraphx::auto_contiguous{}}); }
 
 // TODO: Add this test case
 void literal_broadcast()
@@ -40,7 +37,7 @@ TEST_CASE(after_literal_transpose)
 {
     migraphx::module m;
 
-    auto l   = m.add_literal(get_2x2());
+    auto l = m.add_literal(get_2x2());
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
     auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
@@ -56,8 +53,8 @@ TEST_CASE(after_literal_broadcast)
 {
     migraphx::module m;
 
-    auto l1  = m.add_literal(get_2x2());
-    auto l2  = m.add_literal(get_2());
+    auto l1 = m.add_literal(get_2x2());
+    auto l2 = m.add_literal(get_2());
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().broadcasted());
     auto b = m.add_instruction(
@@ -74,7 +71,7 @@ TEST_CASE(after_param_transpose)
 {
     migraphx::module m;
 
-    auto l   = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 2}});
+    auto l = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 2}});
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
     auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
@@ -90,8 +87,8 @@ TEST_CASE(after_param_broadcast)
 {
     migraphx::module m;
 
-    auto l1  = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 2}});
-    auto l2  = m.add_parameter("2", {migraphx::shape::float_type, {2}});
+    auto l1 = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 2}});
+    auto l2 = m.add_parameter("2", {migraphx::shape::float_type, {2}});
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().broadcasted());
     auto b = m.add_instruction(

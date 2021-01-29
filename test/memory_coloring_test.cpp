@@ -42,17 +42,16 @@ migraphx::instruction_ref add_alloc(migraphx::module& m, const migraphx::shape& 
 
 bool no_allocate(const migraphx::module& m)
 {
-    return std::none_of(
-        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "allocate"; });
+    return std::none_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "allocate"; });
 }
 
 TEST_CASE(test1)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
@@ -78,10 +77,10 @@ TEST_CASE(test3)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {128}});
-    auto m1  = m.add_instruction(pass_op{}, m2, a1);
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {128}});
+    auto m1 = m.add_instruction(pass_op{}, m2, a1);
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, p3, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 672);
@@ -92,10 +91,10 @@ TEST_CASE(test4)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {0}});
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {128}});
-    auto m1  = m.add_instruction(pass_op{}, m2, a1);
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {0}});
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {128}});
+    auto m1 = m.add_instruction(pass_op{}, m2, a1);
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, p3, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 672);
@@ -106,9 +105,9 @@ TEST_CASE(test5)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
@@ -119,10 +118,10 @@ TEST_CASE(test6)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, p3, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 352);
@@ -133,10 +132,10 @@ TEST_CASE(test7)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, p3, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 224);
@@ -147,10 +146,10 @@ TEST_CASE(test8)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {192}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {192}});
     m.add_instruction(pass_op{}, p3, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 960);
@@ -161,10 +160,10 @@ TEST_CASE(test9)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto p3  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto p3 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, p3, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 96);
@@ -175,7 +174,7 @@ TEST_CASE(test10)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 32);
@@ -186,11 +185,11 @@ TEST_CASE(test11)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m2  = m.add_instruction(pass_op{}, a2, m1);
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
     m.add_instruction(pass_op{}, a3, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 224);
@@ -201,11 +200,11 @@ TEST_CASE(test12)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m2  = m.add_instruction(pass_op{}, a2, m1);
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
     m.add_instruction(pass_op{}, a3, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 352);
@@ -216,11 +215,11 @@ TEST_CASE(test13)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m2  = m.add_instruction(pass_op{}, a2, m1);
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
     m.add_instruction(pass_op{}, a3, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 224);
@@ -231,11 +230,11 @@ TEST_CASE(test14)
 {
     migraphx::module m;
 
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = m.add_instruction(pass_op{}, a2, m1);
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
     m.add_instruction(pass_op{}, a3, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 224);
@@ -246,11 +245,11 @@ TEST_CASE(test15)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m2  = m.add_instruction(pass_op{}, a2);
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m2 = m.add_instruction(pass_op{}, a2);
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a3, m1, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 352);
@@ -261,11 +260,11 @@ TEST_CASE(test16)
 {
     migraphx::module m;
 
-    auto a1  = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8}}));
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {40}}));
-    auto m2  = m.add_instruction(pass_op{}, a2);
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8}}));
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {40}}));
+    auto m2 = m.add_instruction(pass_op{}, a2);
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a3, m1, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 160);
@@ -276,11 +275,11 @@ TEST_CASE(test17)
 {
     migraphx::module m;
 
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a1  = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8}}));
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {40}}));
-    auto m2  = m.add_instruction(pass_op{}, a2);
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8}}));
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {40}}));
+    auto m2 = m.add_instruction(pass_op{}, a2);
     m.add_instruction(pass_op{}, a3, m1, m2);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 160);
@@ -291,11 +290,11 @@ TEST_CASE(test18)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto m2  = m.add_instruction(pass_op{}, a1, m1);
-    auto p3  = m.add_instruction(pass_op{}, m2, m1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto m2 = m.add_instruction(pass_op{}, a1, m1);
+    auto p3 = m.add_instruction(pass_op{}, m2, m1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a2, m1, m2, p3);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
@@ -306,11 +305,11 @@ TEST_CASE(test19)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m2  = m.add_instruction(pass_op{}, a2, m1);
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a3, m2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 352);
@@ -321,11 +320,11 @@ TEST_CASE(test20)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto m1  = m.add_instruction(pass_op{}, a1, a2, a3);
-    auto a4  = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto m1 = m.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(m, {migraphx::shape::float_type, {32}});
     m.add_instruction(pass_op{}, a4, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 384);
@@ -336,11 +335,11 @@ TEST_CASE(test21)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto m1  = m.add_instruction(pass_op{}, a1, a2, a3);
-    auto a4  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto m1 = m.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a4, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 288);
@@ -351,11 +350,11 @@ TEST_CASE(test22)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1, a2, a3);
-    auto a4  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a4, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 288);
@@ -366,11 +365,11 @@ TEST_CASE(test23)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto m1  = m.add_instruction(pass_op{}, a1, a2, a3);
-    auto a4  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto m1 = m.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a4, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 288);
@@ -381,11 +380,11 @@ TEST_CASE(test24)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {32}});
-    auto m1  = m.add_instruction(pass_op{}, a1, a2, a3);
-    auto a4  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {32}});
+    auto m1 = m.add_instruction(pass_op{}, a1, a2, a3);
+    auto a4 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a4, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 384);
@@ -396,7 +395,7 @@ TEST_CASE(test25)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(nop{});
     auto m1 = m.add_instruction(pass_op{}, a1);
     m.add_instruction(nop{});
@@ -411,7 +410,7 @@ TEST_CASE(test26)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(nop{}, a1);
     auto m1 = m.add_instruction(pass_op{}, a1);
     m.add_instruction(nop{}, a1, m1);
@@ -426,9 +425,9 @@ TEST_CASE(test27)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a1);
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(nop{}, a2, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
@@ -500,11 +499,11 @@ TEST_CASE(test32)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m1  = m.add_instruction(pass_op{}, a2, a1, a3);
-    auto a5  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m1 = m.add_instruction(pass_op{}, a2, a1, a3);
+    auto a5 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a5, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 352);
@@ -515,11 +514,11 @@ TEST_CASE(test33)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a2, a1, a3);
-    auto a5  = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a2, a1, a3);
+    auto a5 = add_alloc(m, {migraphx::shape::float_type, {40}});
     m.add_instruction(pass_op{}, a5, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
@@ -530,11 +529,11 @@ TEST_CASE(test34)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto m1  = m.add_instruction(pass_op{}, a2, a1, a3);
-    auto a5  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto m1 = m.add_instruction(pass_op{}, a2, a1, a3);
+    auto a5 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a5, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 480);
@@ -545,11 +544,11 @@ TEST_CASE(test35)
 {
     migraphx::module m;
 
-    auto a1  = add_alloc(m, {migraphx::shape::float_type, {40}});
-    auto a2  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto a3  = add_alloc(m, {migraphx::shape::float_type, {8}});
-    auto m1  = m.add_instruction(pass_op{}, a2, a1, a3);
-    auto a5  = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a1 = add_alloc(m, {migraphx::shape::float_type, {40}});
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto a3 = add_alloc(m, {migraphx::shape::float_type, {8}});
+    auto m1 = m.add_instruction(pass_op{}, a2, a1, a3);
+    auto a5 = add_alloc(m, {migraphx::shape::float_type, {8}});
     m.add_instruction(pass_op{}, a5, m1);
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 224);

@@ -91,6 +91,7 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>

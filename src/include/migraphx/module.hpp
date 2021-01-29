@@ -28,7 +28,7 @@ using parameter_map = std::unordered_map<std::string, argument>;
  */
 struct module
 {
-    module(const std::string name="");
+    module(const std::string name = "");
 
     // move constructor
     module(module&&) noexcept;

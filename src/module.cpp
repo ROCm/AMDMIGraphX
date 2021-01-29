@@ -62,7 +62,8 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-module::module(const std::string name) : impl(std::make_unique<module_impl>()) {
+module::module(const std::string name) : impl(std::make_unique<module_impl>())
+{
     impl->name = name;
 }
 
@@ -79,10 +80,7 @@ module& module::operator=(module m)
     return *this;
 }
 
-std::string module::name() const
-{
-    return impl->name;
-}
+std::string module::name() const { return impl->name; }
 
 void module::assign(const module& m)
 {
@@ -96,7 +94,7 @@ void module::assign(const module& m)
         impl->instructions.clear();
     }
     impl->input_names = m.impl->input_names;
-    impl->name = m.impl->name;
+    impl->name        = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))

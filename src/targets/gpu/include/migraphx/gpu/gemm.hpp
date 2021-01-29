@@ -47,8 +47,9 @@ struct rocblas_gemm
         // k be multiple of 4
         if(op.name() == "quant_dot" && (inputs[0].lens()[kdim] % 4) != 0)
         {
-            MIGRAPHX_THROW("GPU_GEMM: size of A {" + to_string_range(inputs[0].lens()) + "} and B {" +
-                           to_string_range(inputs[1].lens()) + "} must be multiple of 4 for int8 type");
+            MIGRAPHX_THROW("GPU_GEMM: size of A {" + to_string_range(inputs[0].lens()) +
+                           "} and B {" + to_string_range(inputs[1].lens()) +
+                           "} must be multiple of 4 for int8 type");
         }
 
         return op.compute_shape(in_shapes);

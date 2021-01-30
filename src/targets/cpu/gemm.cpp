@@ -4,7 +4,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/cpu/dnnl.hpp>
-#include <migraphx/cpu/migemm.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 

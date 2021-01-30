@@ -755,4 +755,23 @@ TEST_CASE(value_init_from_vector)
     EXPECT(values.at("a").to_vector<int>() == v);
 }
 
+TEST_CASE(value_binary_default)
+{
+    migraphx::value v;
+    v = migraphx::value::binary{};
+    EXPECT(v.is_binary());
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_binary)
+{
+    migraphx::value v;
+    std::vector<std::uint8_t> data(20);
+    std::iota(data.begin(), data.end(), 0);
+    v = migraphx::value::binary{data};
+    EXPECT(v.is_binary());
+    EXPECT(v.get_binary() == data);
+    EXPECT(v.get_key().empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -7,7 +7,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <unordered_map>
-#ifdef USE_DNNL
 #include <dnnl.hpp>
 #include <migraphx/errors.hpp>
 
@@ -225,7 +224,5 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
 
 #endif

@@ -458,6 +458,15 @@ void print_value(std::ostream& os, const std::vector<value>& x)
     os << "}";
 }
 
+void print_value(std::ostream& os, const value::binary& x)
+{
+    // Convert binary to integers
+    std::vector<int> v(x.begin(), x.end());
+    os << "{";
+    os << to_string_range(v);
+    os << "}";
+}
+
 std::ostream& operator<<(std::ostream& os, const value& d)
 {
     d.visit([&](auto&& y) { print_value(os, y); });

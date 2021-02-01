@@ -27,7 +27,7 @@ struct onnx_parser
         attribute_map attributes{};
         std::size_t num_outputs = 1;
         std::string name        = "";
-        module* mm              = nullptr;
+        module* mdl              = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,
@@ -52,7 +52,7 @@ struct onnx_parser
     };
     using node_map = std::unordered_map<std::string, onnx::NodeProto>;
     using op_func  = std::function<std::vector<instruction_ref>(
-        const onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
+        onnx_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
@@ -65,11 +65,11 @@ struct onnx_parser
     onnx_parser();
     operation load(const std::string& name, const node_info& info) const;
 
-    void parse_undefined(module* mm, const std::string& name);
+    void parse_undefined(module* mdl, const std::string& name);
 
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);
-    void parse_graph(const onnx::GraphProto& graph);
+    void parse_graph(module* mdl, const onnx::GraphProto& graph);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;

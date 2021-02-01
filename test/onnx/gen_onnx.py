@@ -1517,6 +1517,134 @@ def group_conv_test():
 
 
 @onnx_test
+def if_else_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out', onnx.TensorProto.FLOAT, [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out', onnx.TensorProto.FLOAT, [2, 3])
+
+    xt = np.ones((2, 3)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+            data_type = TensorProto.FLOAT,
+            dims=xt.shape,
+            vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+            data_type = TensorProto.FLOAT,
+            dims=yt.shape,
+            vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node(
+        'Add',
+        inputs=['x', 'xt'],
+        outputs=['then_out']
+    )
+
+    else_mul_node = onnx.helper.make_node(
+        'Mul',
+        inputs=['y', 'yt'],
+        outputs=['else_out']
+    )
+
+    then_body = onnx.helper.make_graph(
+        [then_add_node],
+        'then_body',
+        [],
+        [then_out]
+    )
+
+    else_body = onnx.helper.make_graph(
+        [else_mul_node],
+        'else_body',
+        [],
+        [else_out]
+    )
+
+    cond = np.array([0]).astype(np.bool)
+    cond_tensor = helper.make_tensor(name="cond",
+                                    data_type=TensorProto.BOOL,
+                                    dims=cond.shape,
+                                    vals=cond.astype(bool))
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node(
+        'If',
+        inputs=['cond'],
+        outputs=['res'],
+        then_branch=then_body,
+        else_branch=else_body
+    )
+
+    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+
+
+@onnx_test
+def if_then_test():
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])
+
+    then_out = onnx.helper.make_tensor_value_info('then_out', onnx.TensorProto.FLOAT, [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out', onnx.TensorProto.FLOAT, [2, 3])
+
+    xt = np.ones((2, 3)).astype(np.float)
+    xt_tensor = helper.make_tensor(name='xt',
+            data_type = TensorProto.FLOAT,
+            dims=xt.shape,
+            vals=xt.flatten().astype(np.float32))
+
+    yt = np.random.randn(2, 3).astype(np.float)
+    yt_tensor = helper.make_tensor(name='yt',
+            data_type = TensorProto.FLOAT,
+            dims=yt.shape,
+            vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node(
+        'Add',
+        inputs=['x', 'xt'],
+        outputs=['then_out']
+    )
+
+    else_mul_node = onnx.helper.make_node(
+        'Mul',
+        inputs=['y', 'yt'],
+        outputs=['else_out']
+    )
+
+    then_body = onnx.helper.make_graph(
+        [then_add_node],
+        'then_body',
+        [],
+        [then_out]
+    )
+
+    else_body = onnx.helper.make_graph(
+        [else_mul_node],
+        'else_body',
+        [],
+        [else_out]
+    )
+
+    cond = np.array([1]).astype(np.bool)
+    cond_tensor = helper.make_tensor(name="cond",
+                                    data_type=TensorProto.BOOL,
+                                    dims=cond.shape,
+                                    vals=cond.astype(bool))
+    res = onnx.helper.make_tensor_value_info('res', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node(
+        'If',
+        inputs=['cond'],
+        outputs=['res'],
+        then_branch=then_body,
+        else_branch=else_body
+    )
+
+    return ([node], [x, y], [res], [cond_tensor, xt_tensor, yt_tensor])
+
+
+@onnx_test
 def imagescaler_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 16, 16])

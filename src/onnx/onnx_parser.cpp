@@ -216,7 +216,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
 void onnx_parser::parse_from(const void* data, std::size_t size)
 {
-    auto* mm         = prog.get_main_module();
+    auto* mm = prog.get_main_module();
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {

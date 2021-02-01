@@ -27,7 +27,7 @@ struct onnx_parser
         attribute_map attributes{};
         std::size_t num_outputs = 1;
         std::string name        = "";
-        module* mdl              = nullptr;
+        module* mdl             = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

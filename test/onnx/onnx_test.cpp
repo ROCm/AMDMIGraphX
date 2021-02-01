@@ -1386,7 +1386,7 @@ TEST_CASE(if_else_test)
     std::vector<float> ones(s.elements(), 1.0f);
     mm->add_literal(s, ones);
     std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
-    auto l2 = mm->add_literal(s, rand);
+    auto l2                 = mm->add_literal(s, rand);
 
     mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
@@ -1407,7 +1407,7 @@ TEST_CASE(if_then_test)
     mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1 = mm->add_literal(s, ones);
+    auto l1                 = mm->add_literal(s, ones);
     std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
     mm->add_literal(s, rand);
 
@@ -1419,7 +1419,7 @@ TEST_CASE(if_then_test)
 
     auto prog = migraphx::parse_onnx("if_then_test.onnx");
 
-    EXPECT(p == prog);    
+    EXPECT(p == prog);
 }
 
 TEST_CASE(imagescaler_test)

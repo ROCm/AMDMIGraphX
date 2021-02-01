@@ -76,13 +76,14 @@ TEST_CASE(if_else_test)
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
 
     migraphx::parameter_map pp;
-    pp["y"]    = migraphx::argument(s_data, data.data());
+    pp["y"] = migraphx::argument(s_data, data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {-0.0364609435,  0.475317657, -0.00417715637, -0.0599277429, 0.0755792186, -0.0218581557};
+    std::vector<float> gold = {
+        -0.0364609435, 0.475317657, -0.00417715637, -0.0599277429, 0.0755792186, -0.0218581557};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

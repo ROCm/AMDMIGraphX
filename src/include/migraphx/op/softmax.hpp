@@ -30,8 +30,9 @@ struct softmax
     std::string name() const { return "softmax"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
-        return inputs.at(0);
+        check_shapes{inputs, *this}.has(1);
+        auto lens = inputs.at(0).lens();
+        return {inputs.at(0).type(), lens};
     }
 
     auto output() const

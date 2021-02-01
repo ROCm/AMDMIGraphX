@@ -1822,6 +1822,18 @@ def logsoftmax_test():
 
 
 @onnx_test
+def logsoftmax_nonstd_input_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 4])
+
+    node0 = onnx.helper.make_node("Transpose", perm=[1, 0], inputs=['0'], outputs=['1'])
+    node1 = onnx.helper.make_node('LogSoftmax', inputs=['1'], outputs=['2'])
+
+    return ([node0, node1], [x], [z])
+
+
+@onnx_test
 def lrn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 28, 24, 24])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 28, 24, 24])
@@ -2949,6 +2961,18 @@ def softmax_test():
     node = onnx.helper.make_node('Softmax', inputs=['0'], outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def softmax_nonstd_input_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 4])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 4])
+
+    node0 = onnx.helper.make_node("Transpose", perm=[1, 0], inputs=['0'], outputs=['1'])
+    node1 = onnx.helper.make_node('Softmax', inputs=['1'], outputs=['2'])
+
+    return ([node0, node1], [x], [z])
 
 
 @onnx_test

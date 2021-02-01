@@ -11,49 +11,46 @@
 #include <migraphx/verify.hpp>
 
 bool is_pooling(migraphx::instruction& ins) { return ins.name() == "pooling"; }
-static void opt_pooling(migraphx::program& prog)
+static void opt_pooling(migraphx::module& m)
 {
-    auto* mm = prog.get_main_module();
     migraphx::rewrite_pooling rp;
     migraphx::dead_code_elimination dce;
-    rp.apply(*mm);
-    dce.apply(*mm);
+    rp.apply(m);
+    dce.apply(m);
 }
 
 TEST_CASE(rewrite_pooling_test)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
     auto pooling_program = [&](const std::string& mode) {
-        migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
-                                                          {"padding", {0, 0, 0}},
-                                                          {"stride", {1, 1, 1}},
-                                                          {"lengths", {3, 4, 5}}}),
-                                       input);
-        mm->add_return({ret});
-        return p;
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                       {{"mode", mode},
+                                                        {"padding", {0, 0, 0}},
+                                                        {"stride", {1, 1, 1}},
+                                                        {"lengths", {3, 4, 5}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
     };
 
     auto opt_program = [&](const migraphx::operation& reduce_op) {
-        migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), input);
-        auto rdm   = mm->add_instruction(reduce_op, rsp);
+        migraphx::module m;
+        auto input = m.add_parameter("x", s);
+        auto rsp   = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4, -1}}}), input);
+        auto rdm   = m.add_instruction(reduce_op, rsp);
         auto ret =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 1, 1, 1}}}), rdm);
-        mm->add_return({ret});
-        return p;
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 1, 1, 1}}}), rdm);
+        m.add_return({ret});
+        return m;
     };
 
     auto test_rewrite = [&](const std::string& mode, const migraphx::operation& op) {
-        migraphx::program p1 = pooling_program(mode);
-        migraphx::program p2 = opt_program(op);
-        opt_pooling(p1);
-        EXPECT(p1 == p2);
+        migraphx::module m1 = pooling_program(mode);
+        migraphx::module m2 = opt_program(op);
+        opt_pooling(m1);
+        EXPECT(m1 == m2);
     };
 
     test_rewrite("average", migraphx::make_op("reduce_mean", {{"axes", {1}}}));
@@ -64,75 +61,72 @@ TEST_CASE(rewrite_avepooling_na1_test)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
     auto pooling_program = [&]() {
-        migraphx::program p;
+        migraphx::module m;
 
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", "average"},
-                                                          {"padding", {0, 1, 0}},
-                                                          {"stride", {1, 1, 1}},
-                                                          {"lengths", {3, 4, 5}}}),
-                                       input);
-        mm->add_return({ret});
-        return p;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                       {{"mode", "average"},
+                                                        {"padding", {0, 1, 0}},
+                                                        {"stride", {1, 1, 1}},
+                                                        {"lengths", {3, 4, 5}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
     };
 
-    migraphx::program p1 = pooling_program();
-    migraphx::program p2 = p1;
+    migraphx::module m1 = pooling_program();
+    migraphx::module m2 = m1;
 
-    opt_pooling(p1);
-    EXPECT(p1 == p2);
+    opt_pooling(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(rewrite_avepooling_na2_test)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
     auto pooling_program = [&]() {
-        migraphx::program p;
+        migraphx::module m;
 
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", "average"},
-                                                          {"padding", {0, 0, 0}},
-                                                          {"stride", {1, 2, 1}},
-                                                          {"lengths", {3, 4, 5}}}),
-                                       input);
-        mm->add_return({ret});
-        return p;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                       {{"mode", "average"},
+                                                        {"padding", {0, 0, 0}},
+                                                        {"stride", {1, 2, 1}},
+                                                        {"lengths", {3, 4, 5}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
     };
 
-    migraphx::program p1 = pooling_program();
-    migraphx::program p2 = p1;
+    migraphx::module m1 = pooling_program();
+    migraphx::module m2 = m1;
 
-    opt_pooling(p1);
-    EXPECT(p1 == p2);
+    opt_pooling(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(rewrite_avepooling_na3_test)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
     auto pooling_program = [&]() {
-        migraphx::program p;
+        migraphx::module m;
 
-        auto* mm   = p.get_main_module();
-        auto input = mm->add_parameter("x", s);
-        auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", "max"},
-                                                          {"padding", {0, 0, 0}},
-                                                          {"stride", {1, 1, 1}},
-                                                          {"lengths", {3, 3, 5}}}),
-                                       input);
-        mm->add_return({ret});
-        return p;
+        auto input = m.add_parameter("x", s);
+        auto ret   = m.add_instruction(migraphx::make_op("pooling",
+                                                       {{"mode", "max"},
+                                                        {"padding", {0, 0, 0}},
+                                                        {"stride", {1, 1, 1}},
+                                                        {"lengths", {3, 3, 5}}}),
+                                     input);
+        m.add_return({ret});
+        return m;
     };
 
-    migraphx::program p1 = pooling_program();
-    migraphx::program p2 = p1;
+    migraphx::module m1 = pooling_program();
+    migraphx::module m2 = m1;
 
-    opt_pooling(p1);
-    EXPECT(p1 == p2);
+    opt_pooling(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(literal_rewrite_pooling_test)

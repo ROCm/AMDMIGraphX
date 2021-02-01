@@ -6,122 +6,109 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::program& p)
+void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(*p.get_main_module(),
-                         {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(const_add)
 {
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
-    auto one  = mm1->add_literal(1);
-    auto two  = mm1->add_literal(2);
-    auto sum  = mm1->add_instruction(migraphx::make_op("add"), one, two);
-    mm1->add_instruction(pass_op{}, sum);
-    run_pass(p1);
+    migraphx::module m1;
+    auto one = m1.add_literal(1);
+    auto two = m1.add_literal(2);
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
+    m1.add_instruction(pass_op{}, sum);
+    run_pass(m1);
 
-    migraphx::program p2;
-    auto* mm2  = p2.get_main_module();
-    auto total = mm2->add_literal(3);
-    mm2->add_instruction(pass_op{}, total);
-    EXPECT(p1 == p2);
+    migraphx::module m2;
+    auto total = m2.add_literal(3);
+    m2.add_instruction(pass_op{}, total);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(const_add_parameter)
 {
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
-    auto one  = mm1->add_parameter("one", {migraphx::shape::int32_type, {1}});
-    auto two  = mm1->add_literal(2);
-    auto sum  = mm1->add_instruction(migraphx::make_op("add"), one, two);
-    mm1->add_instruction(pass_op{}, sum);
-    run_pass(p1);
+    migraphx::module m1;
+    auto one = m1.add_parameter("one", {migraphx::shape::int32_type, {1}});
+    auto two = m1.add_literal(2);
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
+    m1.add_instruction(pass_op{}, sum);
+    run_pass(m1);
 
-    migraphx::program p2;
-    auto* mm2  = p2.get_main_module();
-    auto total = mm2->add_literal(3);
-    mm2->add_instruction(pass_op{}, total);
-    EXPECT(p1 != p2);
+    migraphx::module m2;
+    auto total = m2.add_literal(3);
+    m2.add_instruction(pass_op{}, total);
+    EXPECT(m1 != m2);
 }
 
 TEST_CASE(const_multiadd)
 {
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
-    auto one  = mm1->add_literal(1);
-    auto two  = mm1->add_literal(2);
-    auto sum1 = mm1->add_instruction(migraphx::make_op("add"), one, two);
-    auto sum2 = mm1->add_instruction(migraphx::make_op("add"), sum1, two);
-    mm1->add_instruction(pass_op{}, sum2);
-    run_pass(p1);
+    migraphx::module m1;
+    auto one  = m1.add_literal(1);
+    auto two  = m1.add_literal(2);
+    auto sum1 = m1.add_instruction(migraphx::make_op("add"), one, two);
+    auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, two);
+    m1.add_instruction(pass_op{}, sum2);
+    run_pass(m1);
 
-    migraphx::program p2;
-    auto* mm2  = p2.get_main_module();
-    auto total = mm2->add_literal(5);
-    mm2->add_instruction(pass_op{}, total);
-    EXPECT(p1 == p2);
+    migraphx::module m2;
+    auto total = m2.add_literal(5);
+    m2.add_instruction(pass_op{}, total);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(const_add_mul)
 {
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
-    auto one  = mm1->add_literal(1);
-    auto two  = mm1->add_literal(2);
-    auto mul  = mm1->add_instruction(migraphx::make_op("mul"), two, two);
-    auto sum1 = mm1->add_instruction(migraphx::make_op("add"), one, mul);
-    auto sum2 = mm1->add_instruction(migraphx::make_op("add"), sum1, two);
-    mm1->add_instruction(pass_op{}, sum2);
-    run_pass(p1);
+    migraphx::module m1;
+    auto one  = m1.add_literal(1);
+    auto two  = m1.add_literal(2);
+    auto mul  = m1.add_instruction(migraphx::make_op("mul"), two, two);
+    auto sum1 = m1.add_instruction(migraphx::make_op("add"), one, mul);
+    auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, two);
+    m1.add_instruction(pass_op{}, sum2);
+    run_pass(m1);
 
-    migraphx::program p2;
-    auto* mm2  = p2.get_main_module();
-    auto total = mm2->add_literal(7);
-    mm2->add_instruction(pass_op{}, total);
-    EXPECT(p1 == p2);
+    migraphx::module m2;
+    auto total = m2.add_literal(7);
+    m2.add_instruction(pass_op{}, total);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(const_add_scalar)
 {
-    migraphx::program p1;
-    auto* mm1 = p1.get_main_module();
-    auto one  = mm1->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                    mm1->add_literal(1));
-    auto two  = mm1->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                    mm1->add_literal(2));
-    auto sum  = mm1->add_instruction(migraphx::make_op("add"), one, two);
-    mm1->add_instruction(pass_op{}, sum);
-    run_pass(p1);
+    migraphx::module m1;
+    auto one = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                  m1.add_literal(1));
+    auto two = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                  m1.add_literal(2));
+    auto sum = m1.add_instruction(migraphx::make_op("add"), one, two);
+    m1.add_instruction(pass_op{}, sum);
+    run_pass(m1);
 
-    migraphx::program p2;
-    auto* mm2 = p2.get_main_module();
+    migraphx::module m2;
     auto total =
-        mm2->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2}}, {3, 3, 3, 3}});
-    mm2->add_instruction(pass_op{}, total);
-    EXPECT(p1 == p2);
+        m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 2}}, {3, 3, 3, 3}});
+    m2.add_instruction(pass_op{}, total);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(const_scalar)
 {
-    migraphx::program p1;
+    migraphx::module m1;
     {
-        auto* mm1 = p1.get_main_module();
-        auto one = mm1->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                        mm1->add_literal(1));
-        mm1->add_instruction(pass_op{}, one);
+        auto one = m1.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                      m1.add_literal(1));
+        m1.add_instruction(pass_op{}, one);
     }
-    run_pass(p1);
+    run_pass(m1);
 
-    migraphx::program p2;
+    migraphx::module m2;
     {
-        auto* mm2 = p2.get_main_module();
-        auto one = mm2->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
-                                        mm2->add_literal(1));
-        mm2->add_instruction(pass_op{}, one);
+        auto one = m2.add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 2}}}),
+                                      m2.add_literal(1));
+        m2.add_instruction(pass_op{}, one);
     }
-    EXPECT(p1 == p2);
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

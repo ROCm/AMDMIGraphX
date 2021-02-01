@@ -66,10 +66,10 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
 {
     if(args.size() == 3)
     {
-        auto bias_bcast = mdl->add_instruction(
+        auto bias_bcast = mod->add_instruction(
             make_op("broadcast", {{"axis", axis}, {"dims", curr_ins->get_shape().lens()}}),
             args[2]);
-        return mdl->add_instruction(make_op("add"), curr_ins, bias_bcast);
+        return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
@@ -140,12 +140,12 @@ instruction_ref
 onnx_parser::node_info::add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const
 {
-    return mdl->add_instruction(op, args);
+    return mod->add_instruction(op, args);
 }
 
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
 {
-    return mdl->add_literal(std::move(l));
+    return mod->add_literal(std::move(l));
 }
 
 onnx_parser::onnx_parser()
@@ -183,11 +183,11 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
     return op;
 }
 
-void onnx_parser::parse_undefined(module* mdl, const std::string& name)
+void onnx_parser::parse_undefined(module* mod, const std::string& name)
 {
     if(!contains(instructions, name))
     {
-        auto ins           = mdl->add_instruction(make_op("undefined"));
+        auto ins           = mod->add_instruction(make_op("undefined"));
         instructions[name] = ins;
     }
 }
@@ -231,11 +231,11 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     }
 }
 
-void onnx_parser::parse_graph(module* mdl, const onnx::GraphProto& graph)
+void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
     for(auto&& f : graph.initializer())
     {
-        instructions[f.name()] = mdl->add_literal(parse_tensor(f));
+        instructions[f.name()] = mod->add_literal(parse_tensor(f));
     }
 
     for(auto&& input : graph.input())
@@ -251,7 +251,7 @@ void onnx_parser::parse_graph(module* mdl, const onnx::GraphProto& graph)
             }
 
             shape s            = parse_type(input.type(), dims);
-            instructions[name] = mdl->add_parameter(name, s);
+            instructions[name] = mod->add_parameter(name, s);
         }
     }
 
@@ -262,7 +262,7 @@ void onnx_parser::parse_graph(module* mdl, const onnx::GraphProto& graph)
         {
             if(input.empty())
             {
-                this->parse_undefined(mdl, input);
+                this->parse_undefined(mod, input);
             }
             if(instructions.count(input) == 0)
             {
@@ -277,14 +277,14 @@ void onnx_parser::parse_graph(module* mdl, const onnx::GraphProto& graph)
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
-                result.push_back(mdl->add_instruction(op::unknown{node.op_type()}, args));
+                result.push_back(mod->add_instruction(op::unknown{node.op_type()}, args));
             else
                 MIGRAPHX_THROW("Unknown operator: " + node.op_type());
         }
         else
         {
             result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node.op_type(), mdl}, args);
+                *this, {get_attributes(node), output_num, node.op_type(), mod}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());
@@ -316,7 +316,7 @@ void onnx_parser::parse_graph(module* mdl, const onnx::GraphProto& graph)
                    [&](const auto& name) { return instructions[name]; });
 
     // add the return instuction
-    mdl->add_return(output_ins);
+    mod->add_return(output_ins);
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

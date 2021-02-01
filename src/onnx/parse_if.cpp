@@ -33,25 +33,26 @@ struct parse_if : op_parser<parse_if>
             MIGRAPHX_THROW("PARSE_IF: condition input can have only one element!");
         }
 
-        auto mdl = info.mdl;
+        auto* mod = info.mod;
         // then branch
         if(vec_conds.front())
         {
             const auto& then_graph = info.attributes.at("then_branch").g();
-            parser.parse_graph(mdl, then_graph);
+            parser.parse_graph(mod, then_graph);
         }
         // else branch
         else
         {
             const auto& else_graph = info.attributes.at("else_branch").g();
-            parser.parse_graph(mdl, else_graph);
+            parser.parse_graph(mod, else_graph);
         }
 
         // inputs of the return instruction are that of the output of the
         // if instruction
-        instruction_ref ret_ins = std::prev(mdl->end());
+        instruction_ref ret_ins = std::prev(mod->end());
         auto outputs            = ret_ins->inputs();
-        mdl->remove_instruction(ret_ins);
+        assert(ret_ins->name() == "@return");
+        mod->remove_instruction(ret_ins);
 
         return outputs;
     }

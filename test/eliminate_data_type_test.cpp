@@ -7,7 +7,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, std::unordered_set<migraphx::shape::type_t> types)
+void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
 {
     migraphx::run_passes(
         m,

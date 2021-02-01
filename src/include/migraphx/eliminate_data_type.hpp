@@ -3,7 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
-#include <unordered_set>
+#include <set>
 #include <string>
 
 namespace migraphx {
@@ -17,7 +17,7 @@ struct module;
  */
 struct eliminate_data_type
 {
-    std::unordered_set<shape::type_t> types;
+    std::set<shape::type_t> types;
     shape::type_t target_type;
     std::string name() const { return "eliminate_data_type"; }
     void apply(module& m) const;

@@ -22,7 +22,8 @@ struct parse_if : op_parser<parse_if>
         // cond is not constant, need to create sub_modules
         if(cond_arg.empty())
         {
-            MIGRAPHX_THROW("PARSE_IF: current implementation requires condition input to be constant!");
+            MIGRAPHX_THROW(
+                "PARSE_IF: current implementation requires condition input to be constant!");
         }
 
         std::vector<bool> vec_conds;

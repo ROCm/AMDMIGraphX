@@ -6,11 +6,10 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-void run_pass(migraphx::program& p, std::size_t align = 32)
+void run_pass(migraphx::module& m, std::size_t align = 32)
 {
     migraphx::run_passes(
-        *p.get_main_module(),
-        {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
+        m, {migraphx::eliminate_allocation{"allocate", align}, migraphx::dead_code_elimination{}});
 }
 
 struct allocate
@@ -39,78 +38,74 @@ struct allocate
 
 TEST_CASE(basic)
 {
-    migraphx::program p;
+    migraphx::module m;
 
-    auto* mm = p.get_main_module();
-    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
-    auto p1  = mm->add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {8}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
-    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
-    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+    auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {40}}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
 
-    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    mm->add_instruction(pass_op{}, a3, p2);
+    auto a3 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    m.add_instruction(pass_op{}, a3, m2);
 
-    run_pass(p);
-    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(m.get_parameter_shape("memory").bytes() == (8 * 4 + 40 * 4 + 200 * 4));
 }
 
 TEST_CASE(aligned)
 {
-    migraphx::program p;
+    migraphx::module m;
 
-    auto* mm = p.get_main_module();
-    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1  = mm->add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
-    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+    auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
 
-    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    mm->add_instruction(pass_op{}, a3, p2);
+    auto a3 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    m.add_instruction(pass_op{}, a3, m2);
 
-    run_pass(p);
-    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(m.get_parameter_shape("memory").bytes() == (32 + 32 + 200 * 4));
 }
 
 TEST_CASE(unaligned)
 {
-    migraphx::program p;
+    migraphx::module m;
 
-    auto* mm = p.get_main_module();
-    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1  = mm->add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
-    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+    auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
 
-    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    mm->add_instruction(pass_op{}, a3, p2);
+    auto a3 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    m.add_instruction(pass_op{}, a3, m2);
 
-    run_pass(p, 1);
-    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
+    run_pass(m, 1);
+    EXPECT(m.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(m.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
 TEST_CASE(float_aligned)
 {
-    migraphx::program p;
+    migraphx::module m;
 
-    auto* mm = p.get_main_module();
-    auto a1  = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
-    auto p1  = mm->add_instruction(pass_op{}, a1);
+    auto a1 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {1}}});
+    auto m1 = m.add_instruction(pass_op{}, a1);
 
-    auto a2 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
-    auto p2 = mm->add_instruction(pass_op{}, a2, p1);
+    auto a2 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2}}});
+    auto m2 = m.add_instruction(pass_op{}, a2, m1);
 
-    auto a3 = mm->add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
-    mm->add_instruction(pass_op{}, a3, p2);
+    auto a3 = m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {200}}});
+    m.add_instruction(pass_op{}, a3, m2);
 
-    run_pass(p, 4);
-    EXPECT(p.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
-    EXPECT(p.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
+    run_pass(m, 4);
+    EXPECT(m.get_output_shapes().back() == migraphx::shape{migraphx::shape::float_type, {200}});
+    EXPECT(m.get_parameter_shape("memory").bytes() == (1 * 4 + 2 * 4 + 200 * 4));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

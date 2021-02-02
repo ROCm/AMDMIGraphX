@@ -31,6 +31,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-pip \
     software-properties-common \
     wget \
+    rocm-dkms \
     rocm-device-libs \
     miopen-hip \
     rocblas \
@@ -90,7 +91,7 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
-ARG ONNXRUNTIME_COMMIT=417929b049829c44bcd59c0d0eae7ae6c71ab111
+ARG ONNXRUNTIME_COMMIT=24f1bd6156cf5968bbc76dfb0e801a9b9c56b9fc
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \

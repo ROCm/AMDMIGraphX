@@ -1008,7 +1008,7 @@ void simplify_algebra::apply(module& p) const
                             find_rsqrt{},
                             find_concat_op{},
                             find_split_concat{},
-                            find_splits{},
+                            // find_splits{},
                             find_split_reshape{},
                             find_split_transpose{});
         dead_code_elimination{}.apply(p);

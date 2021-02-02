@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <migraphx/literal.hpp>
 #include <migraphx/operators.hpp>
@@ -1394,7 +1395,15 @@ TEST_CASE(if_else_test)
     auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("if_else_test.onnx");
+    std::ifstream ifs("if_else_test.onnx", std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    auto length = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::vector<char> onnx_buffer(length);
+    ifs.read(onnx_buffer.data(), length);
+    ifs.close();
+
+    auto prog     = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
 
     EXPECT(p == prog);
 }

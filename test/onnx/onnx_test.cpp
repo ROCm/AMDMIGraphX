@@ -1403,7 +1403,7 @@ TEST_CASE(if_else_test)
     ifs.read(onnx_buffer.data(), length);
     ifs.close();
 
-    auto prog     = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
 
     EXPECT(p == prog);
 }

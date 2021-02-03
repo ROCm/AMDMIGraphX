@@ -68,6 +68,7 @@ bool operator==(const instruction& i, instruction_ref ref)
 
 bool instruction::valid(instruction_ref start) const
 {
+    (void)start;
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
                return self != i->outputs().end();
@@ -184,7 +185,7 @@ void instruction::replace(instruction_ref ins,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> module_args)
 {
-    ins->replace(std::move(o), r, args, module_args);
+    ins->replace(std::move(o), r, std::move(args), std::move(module_args));
     backreference(ins);
 }
 

@@ -130,7 +130,7 @@ void module::assign(const module& m, std::unordered_map<instruction_ref, instruc
             std::vector<module_ref> copy_arg_modules;
             if(not arg_modules.empty())
             {
-                for(auto mod : arg_modules)
+                for(auto* mod : arg_modules)
                 {
                     module_ref copy_mod = this->create_sub_module(mod->name());
                     copy_mod->assign(*mod, ins_map);
@@ -239,14 +239,14 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> modules)
+                                            std::vector<module_ref> module_args) const
 {
     assert(std::all_of(
                args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
            "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
-    auto out_shapes = compute_shape(modules[0]);
-    instruction::replace(ins, op, out_shapes[0], std::move(args), std::move(modules));
+    auto out_shapes = compute_shape(module_args[0]);
+    instruction::replace(ins, op, out_shapes[0], std::move(args), std::move(module_args));
     assert(ins->valid(begin()));
     return ins;
 }

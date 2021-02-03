@@ -469,7 +469,8 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::print(std::unordered_map<instruction_ref, std::string>& names, const std::function<void(instruction_ref)>& print_func) const
+void program::print(std::unordered_map<instruction_ref, std::string>& names,
+                    const std::function<void(instruction_ref)>& print_func) const
 {
     for(const auto& mdl : this->impl->modules)
     {

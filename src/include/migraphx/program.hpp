@@ -72,9 +72,7 @@ struct program
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
-    void print(const std::function<void(instruction_ref,
-                                        const std::unordered_map<instruction_ref, std::string>&)>&
-                   print_func) const;
+    void print(std::unordered_map<instruction_ref, std::string>& names, const std::function<void(instruction_ref)>& print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;

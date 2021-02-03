@@ -138,9 +138,7 @@ struct module
                      std::unordered_map<instruction_ref, std::string>& names1) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
-               const std::function<void(instruction_ref,
-                                        const std::unordered_map<instruction_ref, std::string>&)>&
-                   print_func) const;
+               const std::function<void(instruction_ref)>& print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;

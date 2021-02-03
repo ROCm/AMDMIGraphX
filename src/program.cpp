@@ -399,7 +399,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    this->print([&](auto ins, auto names) {
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, [&](auto ins) {
         print_instruction(std::cout, ins, names);
 
         // skip return instruction
@@ -442,6 +443,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
+    std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
            return (it.second.end() == ins);
        }))
@@ -458,7 +460,7 @@ void program::debug_print(instruction_ref ins) const
     }
 
     std::stringstream ss;
-    this->print([&](auto x, const auto& names) {
+    this->print(names, [&](auto x) {
         if(x == ins)
         {
             print_instruction(std::cout, x, names);
@@ -467,15 +469,12 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::print(const std::function<
-                    void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
-                        print_func) const
+void program::print(std::unordered_map<instruction_ref, std::string>& names, const std::function<void(instruction_ref)>& print_func) const
 {
-    std::unordered_map<instruction_ref, std::string> names1;
     for(const auto& mdl : this->impl->modules)
     {
         std::cout << mdl.first << ":" << std::endl;
-        mdl.second.print(names1, print_func);
+        mdl.second.print(names, print_func);
     }
 }
 

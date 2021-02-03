@@ -11,6 +11,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
 #include <migraphx/config.hpp>
@@ -168,6 +169,33 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
     return compute_op(rank<2>{}, x, output_shape, input);
 }
 
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(input, module_args, f))
+{
+    return x.compute(input, module_args, f);
+}
+
+template <class T, class F>
+argument
+    compute_op(rank<0>, const T& x, const std::vector<argument>&, const std::vector<module_ref>&, F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    const std::vector<argument>& input,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<1>{}, x, input, module_args, f);
+}
+
 template <class T>
 auto is_context_free_op(rank<1>,
                         const T& x,
@@ -305,6 +333,15 @@ void from_value_op(T& x, const value& v)
              input   = 'const std::vector<argument>&',
              const   = True,
              default = 'detail::compute_op'),
+     virtual(
+         'compute',
+         returns     = 'argument',
+         input       = 'const std::vector<argument>&',
+         module_args = 'const std::vector<module_ref>&',
+         run =
+             'std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>',
+         const   = True,
+         default = 'detail::compute_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
      virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
      virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),

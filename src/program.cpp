@@ -471,9 +471,11 @@ void program::print(const std::function<
                     void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
                         print_func) const
 {
+    std::unordered_map<instruction_ref, std::string> names1;
     for(const auto& mdl : this->impl->modules)
     {
-        mdl.second.print(print_func);
+        std::cout << mdl.first << ":" << std::endl;
+        mdl.second.print(names1, print_func);
     }
 }
 

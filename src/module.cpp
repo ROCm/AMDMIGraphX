@@ -599,25 +599,10 @@ void module::debug_print(instruction_ref ins,
 
 void module::debug_print(instruction_ref ins) const
 {
-    if(ins == this->end())
-    {
-        std::cout << "End instruction" << std::endl;
-        return;
-    }
-    if(not has_instruction(ins))
-    {
-        std::cout << "Instruction not part of module" << std::endl;
-        return;
-    }
-    std::stringstream ss;
-    this->print([&](auto x, const auto& names) {
-        if(x == ins)
-        {
-            print_instruction(std::cout, x, names);
-            std::cout << std::endl;
-        }
-    });
+    std::unordered_map<instruction_ref, std::string> names1;
+    this->debug_print(ins, names1);
 }
+
 void module::debug_print(const std::vector<instruction_ref>& inss) const
 {
     for(auto ins : inss)
@@ -815,7 +800,6 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    // std::cout << "Module " << m.name() << "..." << std::endl;
     std::unordered_map<instruction_ref, std::string> names1;
     m.print(names1, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);

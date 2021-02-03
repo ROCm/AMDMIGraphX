@@ -149,6 +149,9 @@ struct module
 
     module& sort();
 
+    module_ref get_parent_module() const { return parent_mdl; }
+    void set_parent_module(module_ref mdl) { parent_mdl = mdl; }
+
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }

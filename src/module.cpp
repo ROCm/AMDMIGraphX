@@ -24,7 +24,9 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    std::list<module> sub_modules;
     std::vector<std::string> input_names;
+    std::string name;    
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -61,13 +63,20 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-module::module() : impl(std::make_unique<module_impl>()) {}
+module::module(const std::string& name) : impl(std::make_unique<module_impl>()) 
+{
+    impl->name = name;
+}
 
 module::module(module&&) noexcept = default;
 module::~module() noexcept        = default;
 
 // copy constructor
-module::module(const module& m) { assign(m); }
+module::module(const module& m)
+{
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    assign(m, ins_map);
+}
 
 // copy assignment operator
 module& module::operator=(module m)
@@ -76,7 +85,12 @@ module& module::operator=(module m)
     return *this;
 }
 
-void module::assign(const module& m)
+std::string module::name() const 
+{
+    return impl->name;
+}
+
+void module::assign(const module& m, std::unordered_map<instruction_ref, instruction_ref> ins_map)
 {
     // clean the current module
     if(!impl)
@@ -88,8 +102,9 @@ void module::assign(const module& m)
         impl->instructions.clear();
     }
     impl->input_names = m.impl->input_names;
+    impl->name        = m.impl->name;
 
-    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    std::unordered_map<module_ref, module_ref> sub_module_map;
     for(auto ins : iterator_for(m))
     {
         instruction_ref copy_ins{};
@@ -113,6 +128,28 @@ void module::assign(const module& m)
         }
         else
         {
+            // if there are sub_module inputs, need to make a copy of the submodule
+            auto arg_modules = ins->module_inputs();
+            std::vector<module_ref> copy_arg_modules;
+            if(not arg_modules.empty())
+            {
+                for(auto mod : arg_modules)
+                {
+                    module_ref copy_mod = this->create_sub_module(mod->name());
+                    copy_mod->assign(*mod, ins_map);
+                    sub_module_map[mod] = copy_mod;
+                }
+
+                copy_arg_modules.resize(arg_modules.size());
+                assert(std::all_of(arg_modules.begin(), arg_modules.end(), [&](auto i) {
+                    return sub_module_map.count(i) > 0;
+                }));
+                std::transform(arg_modules.begin(),
+                               arg_modules.end(),
+                               copy_arg_modules.begin(),
+                               [&](auto i) { return sub_module_map[i]; });
+            }
+
             // retrieve its mapped input
             auto inputs = ins->inputs();
             // ensure all inputs have its corresponding copy instructions
@@ -128,7 +165,14 @@ void module::assign(const module& m)
             }
             else
             {
-                copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+                if(copy_arg_modules.empty())
+                {
+                    copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+                }
+                else
+                {
+                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, copy_arg_modules);
+                }
             }
         }
 
@@ -155,6 +199,30 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     return result;
 }
 
+instruction_ref module::add_instruction(const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args)
+{
+    return insert_instruction(impl->instructions.end(), op, std::move(args), std::move(module_args));
+}
+
+instruction_ref module::insert_instruction(instruction_ref ins,
+                                           const operation& op,
+                                           std::vector<instruction_ref> args,
+                                           std::vector<module_ref> module_args)
+{
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
+    auto out_shapes = compute_shape(module_args[0]);
+    auto result =
+        impl->instructions.insert(ins, {op, out_shapes[0], std::move(args), std::move(module_args)});
+    instruction::backreference(result);
+    assert(result->valid(begin()));
+    return result;
+}
+
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
@@ -166,6 +234,21 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
     shape r = compute_shape(op, args);
     instruction::replace(ins, op, r, std::move(args));
+    assert(ins->valid(begin()));
+    return ins;
+}
+
+instruction_ref module::replace_instruction(instruction_ref ins,
+                                            const operation& op,
+                                            std::vector<instruction_ref> args,
+                                            std::vector<module_ref> modules)
+{
+    assert(std::all_of(
+               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+           "Argument is not an exisiting instruction");
+    assert(not starts_with(op.name(), "@"));
+    auto out_shapes = compute_shape(modules[0]);
+    instruction::replace(ins, op, out_shapes[0], std::move(args), std::move(modules));
     assert(ins->valid(begin()));
     return ins;
 }
@@ -239,6 +322,26 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     for(auto ins : src->inputs())
         this->move_instruction(ins, src);
     return src;
+}
+
+module_ref module::create_sub_module(const std::string& name)
+{
+    this->impl->sub_modules.push_back(module(name));
+    module_ref sub_mdl = &this->impl->sub_modules.back();
+    sub_mdl->set_parent_module(this);
+
+    return sub_mdl;
+}
+
+std::vector<module_ref> module::get_sub_modules() const
+{
+    std::vector<module_ref> sub_modules(this->impl->sub_modules.size());
+    std::transform(this->impl->sub_modules.begin(),
+                   this->impl->sub_modules.end(),
+                   sub_modules.begin(),
+                   [](auto& mdl) { return &mdl; });
+
+    return sub_modules;
 }
 
 instruction_ref module::add_literal(literal l)
@@ -345,10 +448,26 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 
 bool module::has_instruction(instruction_ref ins) const
 {
-    return std::find_if(
-               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-                   return std::addressof(*ins) == std::addressof(x);
-               }) != impl->instructions.end();
+    if(std::find_if(
+           impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+               return std::addressof(*ins) == std::addressof(x);
+           }) != impl->instructions.end())
+    {
+        return true;
+    }
+
+    module_ref mdl = this->parent_mdl;
+    while(mdl != nullptr)
+    {
+        if(mdl->has_instruction(ins))
+        {
+            return true;
+        }
+
+        mdl = mdl->parent_mdl;
+    }
+
+    return false;
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }
@@ -389,13 +508,19 @@ void module::finalize(context& ctx)
     {
         ins->finalize(ctx);
     }
+
+    for(auto& sub_mdl : this->impl->sub_modules)
+    {
+        sub_mdl.finalize(ctx);
+    }
 }
 
 value module::to_value() const
 {
     value result;
     value nodes;
-    this->print([&](auto ins, const auto& names) {
+    std::unordered_map<instruction_ref, std::string> names1;
+    this->print(names1, [&](auto ins, const auto& names) {
         value node;
         node["output"] = names.at(ins);
         node["name"]   = ins->name();
@@ -450,6 +575,30 @@ void module::from_value(const value& v)
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }
+
+void module::debug_print(instruction_ref ins,
+                         std::unordered_map<instruction_ref, std::string>& names1) const
+{
+    if(ins == this->end())
+    {
+        std::cout << "End instruction" << std::endl;
+        return;
+    }
+    if(not has_instruction(ins))
+    {
+        std::cout << "Instruction not part of module" << std::endl;
+        return;
+    }
+    std::stringstream ss;
+    this->print(names1, [&](auto x, const auto& names) {
+        if(x == ins)
+        {
+            print_instruction(std::cout, x, names1);
+            std::cout << std::endl;
+        }
+    });
+}
+
 void module::debug_print(instruction_ref ins) const
 {
     if(ins == this->end())
@@ -478,13 +627,12 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
-void module::print(const std::function<
-                   void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
+void module::print(std::unordered_map<instruction_ref, std::string>& names,
+                   const std::function<void(
+                       instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
                        print_func) const
 {
-    std::unordered_map<instruction_ref, std::string> names;
     int count = 0;
-
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -503,8 +651,13 @@ void module::print(const std::function<
                            ins->inputs().end(),
                            [&](auto arg) { return this->has_instruction(arg); }) &&
                "DEBUG_PRINT: Instruction not found");
-
         print_func(ins, names);
+    }
+
+    // print sub_graph
+    for(auto& sub_mdl : this->impl->sub_modules)
+    {
+        sub_mdl.print(names, print_func);
     }
 }
 
@@ -515,9 +668,10 @@ static std::string enclose_name(const std::string& name)
 
 void module::print_graph(std::ostream& os, bool brief) const
 {
+    std::unordered_map<instruction_ref, std::string> names1;    
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    this->print([&](auto ins, const auto& names) {
+    this->print(names1, [&](auto ins, const auto& names) {
         std::string label;
         if(brief)
             label = ins->name();
@@ -593,7 +747,8 @@ void module::print_cpp(std::ostream& os) const
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    this->print([&](auto ins, const auto& names) {
+    std::unordered_map<instruction_ref, std::string> names1;
+    this->print(names1, [&](auto ins, const auto& names) {
         auto op = cpp_op_var(names.at(ins), ins);
         if(ins->name().front() != '@')
         {
@@ -639,8 +794,9 @@ void module::print_cpp(std::ostream& os) const
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    this->print([&](auto ins, const auto& names) {
-        print_instruction(os, ins, names);
+    std::unordered_map<instruction_ref, std::string> names1;
+    this->print(names1, [&](auto ins, const auto& names) {
+        print_instruction(os, ins, names1);
         a(ins);
         os << std::endl;
     });
@@ -661,7 +817,9 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    m.print([&](auto ins, const auto& names) {
+    // std::cout << "Module " << m.name() << "..." << std::endl;
+    std::unordered_map<instruction_ref, std::string> names1;
+    m.print(names1, [&](auto ins, const auto& names) {
         print_instruction(os, ins, names);
         os << std::endl;
     });

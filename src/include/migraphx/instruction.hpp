@@ -4,6 +4,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
@@ -13,6 +14,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+std::vector<shape> compute_shape(module_ref mdl);
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 
@@ -21,6 +23,11 @@ struct instruction
     instruction() {}
 
     instruction(operation o, shape r, std::vector<instruction_ref> args);
+
+    instruction(operation o,
+                shape r,
+                std::vector<instruction_ref> args,
+                std::vector<module_ref> modules);
 
     instruction(literal l);
 
@@ -44,6 +51,8 @@ struct instruction
     std::string name() const;
 
     const std::vector<instruction_ref>& inputs() const;
+
+    const std::vector<module_ref>& module_inputs() const;
 
     const std::vector<instruction_ref>& outputs() const;
 
@@ -72,6 +81,12 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
+    static void replace(instruction_ref ins,
+                        operation o,
+                        const shape& r,
+                        std::vector<instruction_ref> args,
+                        std::vector<module_ref> modules_args);
+
     bool can_eval() const;
 
     argument eval(bool check_eval = true) const;
@@ -87,7 +102,16 @@ struct instruction
     void replace(operation o, const shape& r, std::vector<instruction_ref> args);
 
     // internal
+    void replace(operation o,
+                 const shape& r,
+                 std::vector<instruction_ref> args,
+                 std::vector<module_ref> mdl_args);
+
+    // internal
     void replace(std::vector<instruction_ref> args);
+
+    // internal
+    void replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args);    
 
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);
@@ -98,6 +122,7 @@ struct instruction
     shape result{};
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
+    std::vector<module_ref> module_args;
     literal lit;
 };
 } // namespace MIGRAPHX_INLINE_NS

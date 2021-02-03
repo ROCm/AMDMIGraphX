@@ -1,12 +1,24 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/erase.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
     : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
+{
+}
+
+instruction::instruction(operation o,
+                         shape r,
+                         std::vector<instruction_ref> args,
+                         std::vector<module_ref> modules)
+    : op(std::move(o)),
+      result(std::move(r)),
+      arguments(std::move(args)),
+      module_args(std::move(modules))
 {
 }
 
@@ -46,6 +58,7 @@ void instruction::clear_arguments()
         arg->remove_output(*this);
     }
     arguments.clear();
+    module_args.clear();
 }
 
 bool operator==(const instruction& i, instruction_ref ref)
@@ -57,8 +70,7 @@ bool instruction::valid(instruction_ref start) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
-               return self != i->outputs().end() &&
-                      std::distance(start, i) < std::distance(start, *self);
+               return self != i->outputs().end();
            });
 }
 
@@ -81,7 +93,15 @@ bool instruction::valid() const
     {
         try
         {
-            computed = compute_shape(op, arguments);
+            if(module_args.empty())
+            {
+                computed = compute_shape(op, arguments);
+            }
+            else
+            {
+                auto out_shapes = compute_shape(module_args[0]);
+                computed        = out_shapes[0];
+            }
         }
         catch(migraphx::exception&)
         {
@@ -106,6 +126,8 @@ const operation& instruction::get_operator() const { return op; }
 std::string instruction::name() const { return op.name(); }
 
 const std::vector<instruction_ref>& instruction::inputs() const { return arguments; }
+
+const std::vector<module_ref>& instruction::module_inputs() const { return module_args; }
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
 
@@ -156,6 +178,16 @@ void instruction::replace(instruction_ref ins,
     backreference(ins);
 }
 
+void instruction::replace(instruction_ref ins,
+                          operation o,
+                          const shape& r,
+                          std::vector<instruction_ref> args,
+                          std::vector<module_ref> module_args)
+{
+    ins->replace(std::move(o), r, args, module_args);
+    backreference(ins);
+}
+
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
     op = std::move(o);
@@ -163,10 +195,27 @@ void instruction::replace(operation o, const shape& r, std::vector<instruction_r
     replace(std::move(args));
 }
 
+void instruction::replace(operation o,
+                          const shape& r,
+                          std::vector<instruction_ref> args,
+                          std::vector<module_ref> mdl_args)
+{
+    op = std::move(o);
+    replace(r);
+    replace(std::move(args), std::move(mdl_args));
+}
+
 void instruction::replace(std::vector<instruction_ref> args)
 {
     clear_arguments();
     arguments = std::move(args);
+}
+
+void instruction::replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args)
+{
+    clear_arguments();
+    arguments   = std::move(args);
+    module_args = std::move(mdl_args);
 }
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
@@ -271,6 +320,12 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
 {
     return op.compute_shape(to_shapes(args));
+}
+
+std::vector<shape> compute_shape(module_ref mdl)
+{
+    auto out_shapes = mdl->get_output_shapes();
+    return out_shapes;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

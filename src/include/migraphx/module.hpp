@@ -23,12 +23,14 @@ struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
 
+using module_ref = module*;
+
 /**
  * @brief Stores the instruction stream
  */
 struct module
 {
-    module();
+    module(const std::string& name = "");
 
     // move constructor
     module(module&&) noexcept;
@@ -41,14 +43,19 @@ struct module
 
     ~module() noexcept;
 
-    std::string name() const { return module_name; }
+    std::string name() const;
 
     template <class... Ts>
     instruction_ref add_instruction(operation op, Ts... args)
     {
         return add_instruction(op, {args...});
     }
+
     instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
+
+    instruction_ref add_instruction(const operation& op,
+                                    std::vector<instruction_ref> args,
+                                    std::vector<module_ref> module_args);
 
     template <class... Ts>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
@@ -57,6 +64,11 @@ struct module
     }
     instruction_ref
     insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
+
+    instruction_ref insert_instruction(instruction_ref ins,
+                                       const operation& op,
+                                       std::vector<instruction_ref> args,
+                                       std::vector<module_ref> module_args);
 
     template <class... Ts>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
@@ -67,6 +79,11 @@ struct module
                                         const operation& op,
                                         std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
+    instruction_ref replace_instruction(instruction_ref ins,
+                                        const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args);
+
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
     instruction_ref remove_instruction(instruction_ref ins);
@@ -74,6 +91,9 @@ struct module
 
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
+
+    module_ref create_sub_module(const std::string& name);
+    std::vector<module_ref> get_sub_modules() const;
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -114,8 +134,11 @@ struct module
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
+    void debug_print(instruction_ref ins,
+                     std::unordered_map<instruction_ref, std::string>& names1) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
-    void print(const std::function<void(instruction_ref,
+    void print(std::unordered_map<instruction_ref, std::string>& names,
+               const std::function<void(instruction_ref,
                                         const std::unordered_map<instruction_ref, std::string>&)>&
                    print_func) const;
 
@@ -131,9 +154,9 @@ struct module
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }
 
     private:
-    void assign(const module& m);
+    void assign(const module& m, std::unordered_map<instruction_ref, instruction_ref> ins_map);
     std::unique_ptr<module_impl> impl;
-    std::string module_name;
+    module_ref parent_mdl = nullptr;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

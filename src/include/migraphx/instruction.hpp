@@ -111,7 +111,7 @@ struct instruction
     void replace(std::vector<instruction_ref> args);
 
     // internal
-    void replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args);    
+    void replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args);
 
     // internal
     void replace_argument(instruction_ref old, instruction_ref new_ins);

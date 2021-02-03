@@ -26,7 +26,7 @@ struct module_impl
     std::list<instruction> instructions;
     std::list<module> sub_modules;
     std::vector<std::string> input_names;
-    std::string name;    
+    std::string name;
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -63,7 +63,7 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-module::module(const std::string& name) : impl(std::make_unique<module_impl>()) 
+module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
 }
@@ -85,10 +85,7 @@ module& module::operator=(module m)
     return *this;
 }
 
-std::string module::name() const 
-{
-    return impl->name;
-}
+std::string module::name() const { return impl->name; }
 
 void module::assign(const module& m, std::unordered_map<instruction_ref, instruction_ref> ins_map)
 {
@@ -203,7 +200,8 @@ instruction_ref module::add_instruction(const operation& op,
                                         std::vector<instruction_ref> args,
                                         std::vector<module_ref> module_args)
 {
-    return insert_instruction(impl->instructions.end(), op, std::move(args), std::move(module_args));
+    return insert_instruction(
+        impl->instructions.end(), op, std::move(args), std::move(module_args));
 }
 
 instruction_ref module::insert_instruction(instruction_ref ins,
@@ -216,8 +214,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
            "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shapes = compute_shape(module_args[0]);
-    auto result =
-        impl->instructions.insert(ins, {op, out_shapes[0], std::move(args), std::move(module_args)});
+    auto result     = impl->instructions.insert(
+        ins, {op, out_shapes[0], std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -668,7 +666,7 @@ static std::string enclose_name(const std::string& name)
 
 void module::print_graph(std::ostream& os, bool brief) const
 {
-    std::unordered_map<instruction_ref, std::string> names1;    
+    std::unordered_map<instruction_ref, std::string> names1;
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
     this->print(names1, [&](auto ins, const auto& names) {

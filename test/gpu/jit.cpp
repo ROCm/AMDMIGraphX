@@ -81,22 +81,22 @@ TEST_CASE(code_object_hip)
 
     migraphx::shape input{migraphx::shape::int32_type, {5}};
 
-
     std::vector<migraphx::shape> expected_inputs = {input, input};
-    auto co = migraphx::make_op("gpu::code_object", {{"code_object", migraphx::value::binary{binaries.front()}}, 
-                                            {"symbol_name", "add_2"},
-                                            {"global", input.elements()},
-                                            {"local", 1024},
-                                            {"expected_inputs", migraphx::to_value(expected_inputs)},
-                                            {"output", migraphx::to_value(input)}
-                                            });
+    auto co                                      = migraphx::make_op("gpu::code_object",
+                                {{"code_object", migraphx::value::binary{binaries.front()}},
+                                 {"symbol_name", "add_2"},
+                                 {"global", input.elements()},
+                                 {"local", 1024},
+                                 {"expected_inputs", migraphx::to_value(expected_inputs)},
+                                 {"output", migraphx::to_value(input)}});
 
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto input_literal = migraphx::generate_literal(input);
-    auto output_literal = migraphx::transform(input_literal, [](auto x) { return x+2; });
-    auto x = mm->add_literal(input_literal);
-    auto y = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(input)}}));
+    auto* mm            = p.get_main_module();
+    auto input_literal  = migraphx::generate_literal(input);
+    auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 2; });
+    auto x              = mm->add_literal(input_literal);
+    auto y              = mm->add_instruction(
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(input)}}));
     mm->add_instruction(co, x, y);
     migraphx::compile_options options;
     options.offload_copy = true;

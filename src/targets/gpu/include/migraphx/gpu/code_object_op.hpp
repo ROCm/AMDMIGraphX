@@ -26,13 +26,12 @@ struct code_object_op
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.code_object, "code_object"),
-            f(self.symbol_name, "symbol_name"),
-            f(self.global, "global"),
-            f(self.local, "local"),
-            f(self.expected_inputs, "expected_inputs"),
-            f(self.output, "output"));
+        return pack(f(self.code_object, "code_object"),
+                    f(self.symbol_name, "symbol_name"),
+                    f(self.global, "global"),
+                    f(self.local, "local"),
+                    f(self.expected_inputs, "expected_inputs"),
+                    f(self.output, "output"));
     }
 
     std::string name() const { return "gpu::code_object"; }

@@ -17,16 +17,17 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     std::transform(einputs.begin(), einputs.end(), einputs.begin(), [](const shape& s) {
         return s.normalize_standard();
     });
-    if (einputs != inputs)
-        MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" + to_string_range(inputs) + "]");
+    if(einputs != inputs)
+        MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
+                       to_string_range(inputs) + "]");
     return output;
 }
-argument code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument
+code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     std::vector<void*> kargs(args.size());
-    std::transform(args.begin(), args.end(), kargs.begin(), [](const argument& a) {
-        return a.data();
-    });
+    std::transform(
+        args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
     k.launch(ctx.get_stream().get(), global, local, std::move(kargs));
     return args.back();
 }

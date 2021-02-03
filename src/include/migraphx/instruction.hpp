@@ -85,7 +85,7 @@ struct instruction
                         operation o,
                         const shape& r,
                         std::vector<instruction_ref> args,
-                        std::vector<module_ref> modules_args);
+                        std::vector<module_ref> module_args);
 
     bool can_eval() const;
 

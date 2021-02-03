@@ -31,7 +31,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-pip \
     software-properties-common \
     wget \
-    rocm-dkms \
     rocm-device-libs \
     miopen-hip \
     rocblas \

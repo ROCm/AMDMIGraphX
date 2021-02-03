@@ -11,7 +11,6 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
-#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -232,10 +231,8 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     }
 }
 
-static std::recursive_mutex g_mtx;
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
-    std::lock_guard<std::recursive_mutex> lock(g_mtx);
     for(auto&& f : graph.initializer())
     {
         instructions[f.name()] = mod->add_literal(parse_tensor(f));

@@ -1828,11 +1828,11 @@ def logsoftmax_nonstd_input_test():
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 4])
 
     node0 = onnx.helper.make_node('Slice',
-                                 inputs=['0'],
-                                 axes=[0, 1],
-                                 starts=[1, 0],
-                                 ends=[4, 4],
-                                 outputs=['1'])
+                                  inputs=['0'],
+                                  axes=[0, 1],
+                                  starts=[1, 0],
+                                  ends=[4, 4],
+                                  outputs=['1'])
 
     node1 = onnx.helper.make_node('LogSoftmax', inputs=['1'], outputs=['2'])
 
@@ -2976,11 +2976,11 @@ def softmax_nonstd_input_test():
     z = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 4])
 
     node0 = onnx.helper.make_node('Slice',
-                                 inputs=['0'],
-                                 axes=[0, 1],
-                                 starts=[1, 0],
-                                 ends=[4, 4],
-                                 outputs=['1'])
+                                  inputs=['0'],
+                                  axes=[0, 1],
+                                  starts=[1, 0],
+                                  ends=[4, 4],
+                                  outputs=['1'])
 
     node1 = onnx.helper.make_node('Softmax', inputs=['1'], outputs=['2'])
 

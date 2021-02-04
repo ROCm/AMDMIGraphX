@@ -36,12 +36,6 @@ struct tf_parser
         instruction_ref add_instruction(const operation& op,
                                         const std::vector<instruction_ref>& args) const;
 
-        template <class T>
-        void add_generic_op(std::string name, T x);
-
-        template <class T>
-        void add_binary_op(std::string name, T x);
-
         template <class... Ts>
         instruction_ref add_instruction(const operation& op, Ts... xs) const
         {

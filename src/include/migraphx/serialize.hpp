@@ -135,7 +135,7 @@ auto from_value_impl(rank<2>, const value& v, T& x)
     -> decltype(x.insert(x.end(), *x.begin()), void())
 {
     x.clear();
-    if (v.is_binary())
+    if(v.is_binary())
     {
         for(auto&& e : v.get_binary())
             x.insert(x.end(), e);

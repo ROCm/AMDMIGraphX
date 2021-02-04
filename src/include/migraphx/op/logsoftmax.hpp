@@ -30,7 +30,7 @@ struct logsoftmax
     std::string name() const { return "logsoftmax"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        if (inputs.at(0).packed())
+        if(inputs.at(0).packed())
         {
             return inputs.at(0);
         }

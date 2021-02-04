@@ -43,6 +43,16 @@ struct code_object_op
     {
         return shapes.size() - 1;
     }
+
+    friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)
+    {
+        os << op.name() << "[";
+        os << "code_object=" << op.code_object.size() << ",";
+        os << "symbol_name=" << op.symbol_name << ",";
+        os << "global=" << op.global << ",";
+        os << "local=" << op.local << ",";
+        return os;
+    }
 };
 
 } // namespace gpu

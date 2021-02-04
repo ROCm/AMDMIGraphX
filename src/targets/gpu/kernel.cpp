@@ -3,6 +3,9 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 
+#include <cassert>
+#include <iostream>
+
 // extern declare the function since hip/hip_ext.h header is broken
 extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
                                            uint32_t,
@@ -82,6 +85,7 @@ void kernel::launch(hipStream_t stream,
                     std::size_t local,
                     std::vector<void*> args) const
 {
+    assert(impl != nullptr);
     void* kernargs   = args.data();
     std::size_t size = args.size() * sizeof(void*);
 
@@ -93,6 +97,7 @@ void kernel::launch(hipStream_t stream,
                     std::size_t local,
                     const std::vector<kernel_argument>& args) const
 {
+    assert(impl != nullptr);
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 

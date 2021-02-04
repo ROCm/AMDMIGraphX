@@ -99,10 +99,9 @@ TEST_CASE(code_object_hip)
         migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(input)}}));
     mm->add_instruction(co, x, y);
     migraphx::compile_options options;
-    options.offload_copy = true;
     p.compile(migraphx::gpu::target{}, options);
 
-    auto result = p.eval({}).front();
+    auto result = migraphx::gpu::from_gpu(p.eval({}).front());
 
     EXPECT(result == output_literal.get_argument());
 }

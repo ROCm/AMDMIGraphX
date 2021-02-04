@@ -96,13 +96,13 @@ dependencies, then all dependencies are installed at default locations, and MIGr
 * In ROCm3.3:
 
 ```
-CXX=/opt/rocm/bin/hcc cmake ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
 
 * In ROCm3.7 or later releases:
 
 ```
-CXX=/opt/rocm/llvm/bin/clang++ cmake ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=/some/dir ..
 ```
 
 If the above rbuild command was used to build and install the dependencies, then all dependencies are in the folder

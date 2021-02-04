@@ -6,55 +6,43 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y curl apt-utils wget software-properties-common
-RUN curl https://raw.githubusercontent.com/RadeonOpenCompute/ROCm-docker/master/add-rocm.sh | bash
-
-# Add ubuntu toolchain
-RUN apt-get update && add-apt-repository ppa:ubuntu-toolchain-r/test -y
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/.apt_3.7/ xenial main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    clang-5.0 \
     clang-format-5.0 \
-    clang-tidy-5.0 \
     cmake \
-    comgr \
     curl \
     doxygen \
     g++-5 \
     g++-7 \
     gdb \
     git \
-    hsa-rocr-dev \
-    hsakmt-roct-dev \
     lcov \
-    libelf-dev \
-    libfile-which-perl \
-    libncurses5-dev \
-    libnuma-dev \
-    libpthread-stubs0-dev \
-    libssl-dev \
     locales \
     pkg-config \
+    python \
+    python-dev \
+    python-pip \
     python3 \
     python3-dev \
     python3-pip \
-    python-pip \
-    python-dev \
-    rocm-device-libs \
-    rocm-opencl \
-    rocm-opencl-dev \
     software-properties-common \
-    sudo \
     wget \
+    rocm-device-libs \
+    miopen-hip \
+    rocblas \
     zlib1g-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Wokaround broken rocm packages for rocm >= 3.1 
-RUN [ -d /opt/rocm ] || ln -sd $(realpath /opt/rocm-*) /opt/rocm
+# Workaround broken rocm packages
+RUN ln -s /opt/rocm-* /opt/rocm
+RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
+RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
+RUN ldconfig
 
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
@@ -62,11 +50,8 @@ RUN update-locale LANG=en_US.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install cget
-RUN pip3 install cget 
-
-# Install rclone
-RUN pip install https://github.com/pfultz2/rclone/archive/master.tar.gz
+# Install rbuild
+RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
@@ -75,28 +60,30 @@ RUN pip3 install yapf==0.28.0
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
-# Install hcc
-RUN rclone -b roc-3.0.x -c 286651a04d9c3a8e3052dd84b1822985498cd27d https://github.com/RadeonOpenCompute/hcc.git /hcc
-RUN cget -p $PREFIX install hcc,/hcc
-
-# Use hcc
-RUN cget -p $PREFIX init --cxx $PREFIX/bin/hcc
-
-# Workaround hip's broken cmake
-RUN ln -s $PREFIX /opt/rocm/hip
-RUN ln -s $PREFIX /opt/rocm/hcc
-
-# Install dependencies
-ADD dev-requirements.txt /dev-requirements.txt
-ADD requirements.txt /requirements.txt
-RUN cget -p $PREFIX install -f /dev-requirements.txt -DMIOPEN_CACHE_DIR=""
-
 RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
 RUN chmod +x /download_models.sh && /download_models.sh && rm /download_models.sh
+
+# Install dependencies
+ADD dev-requirements.txt /dev-requirements.txt
+ADD requirements.txt /requirements.txt
+# Manually ignore rocm dependencies
+RUN cget -p $PREFIX ignore \
+    RadeonOpenCompute/clang-ocl \
+    ROCm-Developer-Tools/HIP \
+    ROCmSoftwarePlatform/MIOpen \
+    ROCmSoftwarePlatform/MIOpenGEMM \
+    ROCmSoftwarePlatform/rocBLAS
+RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
+RUN cget -p $PREFIX install -f dev-requirements.txt
+RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
+
+# Install latest ccache version
+RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
+RUN cget -p $PREFIX install ccache@v4.1
 
 # Install newer cmake for onnx runtime
 RUN cget -p /opt/cmake install kitware/cmake@v3.13.0

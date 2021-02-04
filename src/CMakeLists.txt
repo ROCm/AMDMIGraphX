@@ -29,6 +29,7 @@ add_library(migraphx
     msgpack.cpp
     operation.cpp
     program.cpp
+    module.cpp
     quantization.cpp
     reduce_dims.cpp
     remap.cpp
@@ -97,6 +98,9 @@ register_migraphx_ops(
     less
     load
     log
+    logical_and
+    logical_or
+    logical_xor
     logsoftmax
     lrn
     lstm

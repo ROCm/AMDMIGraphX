@@ -1017,6 +1017,47 @@ def deconv_stride_test():
 
 
 @onnx_test
+def dequantizelinear_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
+    arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node(
+        'DequantizeLinear',
+        inputs=['0', '1', '2'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1, arg2], [arg_out])
+
+
+def make_dequantizelinear_axis_graph(axis):
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 1, 5, 1])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
+    arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [1, 1, 5, 1])
+
+    node = onnx.helper.make_node('DequantizeLinear',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['out'],
+                                 axis=axis)
+
+    return ([node], [arg0, arg1, arg2], [arg_out])
+
+
+@onnx_test
+def dequantizelinear_axis_test():
+    return make_dequantizelinear_axis_graph(2)
+
+
+@onnx_test
+def dequantizelinear_neg_axis_test():
+    return make_dequantizelinear_axis_graph(-2)
+
+
+@onnx_test
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -1735,6 +1776,39 @@ def log_test():
 
 
 @onnx_test
+def logical_and_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('And', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test
+def logical_or_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [2, 3, 4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Or', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test
+def logical_xor_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4, 1])
+    z = helper.make_tensor_value_info('2', TensorProto.BOOL, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Xor', inputs=['0', '1'], outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test
 def logsoftmax_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -2115,6 +2189,38 @@ def pow_test():
 
 
 @onnx_test
+def pow_fp32_i64_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Pow',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def pow_i64_fp32_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3, 4, 5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT64,
+                                            [2, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'Pow',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
 def prelu_brcst_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])
@@ -2128,6 +2234,47 @@ def prelu_brcst_test():
     )
 
     return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
+def quantizelinear_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
+    arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['0', '1', '2'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1, arg2], [arg_out])
+
+
+def make_quantizelinear_axis_graph(axis):
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 5, 1])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [5])
+    arg2 = helper.make_tensor_value_info('2', TensorProto.INT8, [5])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8,
+                                            [1, 1, 5, 1])
+
+    node = onnx.helper.make_node('QuantizeLinear',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['out'],
+                                 axis=axis)
+
+    return ([node], [arg0, arg1, arg2], [arg_out])
+
+
+@onnx_test
+def quantizelinear_axis_test():
+    return make_quantizelinear_axis_graph(2)
+
+
+@onnx_test
+def quantizelinear_neg_axis_test():
+    return make_quantizelinear_axis_graph(-2)
 
 
 @onnx_test

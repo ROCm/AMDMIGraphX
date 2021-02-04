@@ -42,6 +42,9 @@ add_library(migraphx_device
     device/layernorm.cpp
     device/less.cpp
     device/log.cpp
+    device/logical_and.cpp
+    device/logical_or.cpp
+    device/logical_xor.cpp
     device/logsoftmax.cpp
     device/max.cpp
     device/min.cpp
@@ -167,6 +170,9 @@ register_migraphx_gpu_ops(hip_
     less
     log
     logsoftmax
+    logical_and
+    logical_or
+    logical_xor
     max
     min
     mul
@@ -255,6 +261,17 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
 )
+
+# Check miopen find mode api
+include(CheckLibraryExists)
+get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+if(HAS_FIND_MODE_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
+    message(STATUS "MIOpen has find mode api")
+else()
+    message(STATUS "MIOpen does not have find mode api")
+endif()
 
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)

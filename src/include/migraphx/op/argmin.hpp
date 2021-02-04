@@ -8,6 +8,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,12 +38,8 @@ struct argmin
         check_shapes{inputs, *this}.has(1).standard();
         auto lens     = inputs[0].lens();
         int64_t n_dim = static_cast<int64_t>(lens.size());
-        if(axis >= n_dim || axis < 0)
-        {
-            MIGRAPHX_THROW("ARGMIN: axis is out of range.");
-        }
 
-        int64_t tuned_axis = (axis < 0) ? axis + n_dim : axis;
+        int64_t tuned_axis = tune_axis(n_dim, axis, name());
         lens[tuned_axis]   = 1;
 
         return {shape::int64_type, lens};

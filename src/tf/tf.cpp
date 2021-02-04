@@ -34,6 +34,7 @@
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/tune_axis.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -876,10 +877,8 @@ struct tf_parser
         {
             axis = static_cast<int>(attributes.at("axis").i());
         }
-        if(axis < 0)
-        {
-            axis += num_dims;
-        }
+
+        axis = tune_axis(num_dims, axis, "tf_parse_softmax");
 
         return mm->add_instruction(Op{axis}, make_contiguous(args[0]));
     }

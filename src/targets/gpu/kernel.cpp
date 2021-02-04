@@ -2,9 +2,7 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
-
 #include <cassert>
-#include <iostream>
 
 // extern declare the function since hip/hip_ext.h header is broken
 extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT

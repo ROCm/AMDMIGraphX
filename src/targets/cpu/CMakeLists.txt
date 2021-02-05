@@ -11,6 +11,7 @@ add_library(migraphx_cpu
     dnnl.cpp
     eltwise.cpp
     logsoftmax.cpp
+    lrn.cpp
     mul.cpp
     pooling.cpp
     relu.cpp

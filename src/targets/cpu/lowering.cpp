@@ -51,51 +51,6 @@ typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::ena
     return x;
 }
 
-struct cpu_lrn
-{
-    op::lrn op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::lrn"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            int n_batch         = output_shape.lens()[0];
-            int channels        = output_shape.lens()[1];
-            int height          = output_shape.lens()[2];
-            int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
-            int radius_lower    = (op.size - 1) / 2;
-            int radius_upper    = op.size / 2 + 1;
-
-            par_dfor(n_batch, height, width)([&](int b, int h, int w) {
-                float scale = 0;
-                dfor(channels)([&](int c) {
-                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
-                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
-                    for(auto k = start; k < end; ++k)
-                    {
-                        scale += std::pow(input(b, k, h, w), 2);
-                    }
-                    scale *= alphaoverarea;
-                    scale += op.bias;
-                    scale              = std::pow(scale, -op.beta);
-                    output(b, c, h, w) = input(b, c, h, w) * scale;
-                });
-            });
-        });
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_lrn)
-
 template <class Op>
 struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
 {
@@ -580,12 +535,12 @@ struct cpu_apply
         extend_op("logsoftmax", "dnnl::logsoftmax", true);
         extend_op("convolution", "dnnl::convolution", true);
         extend_op("dot", "dnnl::dot", true);
+        extend_op("lrn", "dnnl::lrn", true);
 
         extend_op("contiguous", "cpu::contiguous", true);
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("im2col", "cpu::im2col");
         extend_op("leaky_relu", "cpu::leaky_relu");
-        extend_op("lrn", "cpu::lrn");
         extend_op("pad", "cpu::pad");
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
     }

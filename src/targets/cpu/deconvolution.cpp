@@ -22,7 +22,6 @@ struct dnnl_deconvolution
             auto strides = s.strides();
             std::swap(strides[0], strides[1]);
             return {s.type(), lens, strides};
-
         }
         return s;
     }

@@ -334,17 +334,6 @@ struct leaky_relu_op
     }
 };
 
-struct elu_op
-{
-    op::elu op;
-    std::string name() const { return "cpu::elu"; }
-    auto fcn() const
-    {
-        auto a = op.alpha;
-        return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
-    }
-};
-
 template <typename Op>
 struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
 {
@@ -382,7 +371,6 @@ struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
     }
 };
 template struct cpu_unary2<leaky_relu_op>;
-template struct cpu_unary2<elu_op>;
 
 template <class Op>
 struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
@@ -599,8 +587,6 @@ struct cpu_apply
         extend_op("leaky_relu", "cpu::leaky_relu");
         extend_op("lrn", "cpu::lrn");
         extend_op("pad", "cpu::pad");
-        extend_op("quant_convolution", "cpu::quant_convolution", true);
-        extend_op("quant_dot", "cpu::quant_dot", true);
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
     }
 

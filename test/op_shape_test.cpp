@@ -21,7 +21,7 @@ void expect_shape(const migraphx::shape& expected, const migraphx::operation& op
     mm->add_instruction(op, args);
     if(p.get_output_shapes().back() != expected)
     {
-        std::cout << "FAILED: Incorrect shape for " << op.name() << ": ";
+        std::cout << "FAILED: Incorrect shape for " << op << ": ";
         std::cout << expected << " != " << p.get_output_shapes().back() << std::endl;
         for(auto&& s : shapes)
             std::cout << "    " << s << std::endl;

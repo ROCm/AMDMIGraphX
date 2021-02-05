@@ -12,20 +12,6 @@
 
 #include <migraphx/fallthrough.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/op/argmax.hpp>
-#include <migraphx/op/argmin.hpp>
-#include <migraphx/op/batch_norm_inference.hpp>
-#include <migraphx/op/common.hpp>
-#include <migraphx/op/concat.hpp>
-#include <migraphx/op/convolution.hpp>
-#include <migraphx/op/gather.hpp>
-#include <migraphx/op/pad.hpp>
-#include <migraphx/op/pooling.hpp>
-#include <migraphx/op/reshape.hpp>
-#include <migraphx/op/slice.hpp>
-#include <migraphx/op/softmax.hpp>
-#include <migraphx/op/squeeze.hpp>
-#include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,8 +19,6 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/make_op.hpp>
 
-#include <migraphx/pad_calc.hpp>
-#include <migraphx/tune_axis.hpp>
 #include <migraphx/tf/tf_parser.hpp>
 #include <migraphx/tf/op_parser.hpp>
 
@@ -152,36 +136,6 @@ instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::str
     }
 }
 
-std::vector<size_t> tf_parser::parse_axes(const attribute_map& attributes,
-                                          const std::string& s,
-                                          const size_t num_dims) const
-{
-    auto attrs = attributes.at(s).list().i();
-    std::vector<size_t> axes;
-    copy(attrs.begin(), attrs.end(), std::back_inserter(axes));
-    if(is_nhwc)
-    {
-        std::transform(axes.begin(), axes.end(), axes.begin(), [&](size_t axis) {
-            return parse_axis(axis, num_dims);
-        });
-    }
-    return axes;
-}
-
-template <class T>
-std::vector<T> tf_parser::parse_axes(std::vector<T> axes, const size_t num_dims) const
-{
-    if(is_nhwc)
-    {
-        std::vector<T> new_axes;
-        std::transform(axes.begin(), axes.end(), std::back_inserter(new_axes), [&](size_t axis) {
-            return parse_axis(axis, num_dims);
-        });
-        return new_axes;
-    }
-    return axes;
-}
-
 int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const
 {
     int64_t new_dim = dim;
@@ -209,13 +163,6 @@ tf_parser::node_info::add_instruction(const operation& op,
 instruction_ref tf_parser::node_info::add_literal(literal l) const
 {
     return mm->add_literal(std::move(l));
-}
-
-std::vector<int64_t> get_axes(size_t num_axes)
-{
-    std::vector<int64_t> axes(num_axes);
-    std::iota(axes.begin(), axes.end(), 0);
-    return axes;
 }
 
 std::vector<int64_t> get_axes_from_mask(const size_t num_axes, const uint32_t mask)

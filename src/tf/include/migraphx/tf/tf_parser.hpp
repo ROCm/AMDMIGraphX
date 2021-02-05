@@ -72,10 +72,6 @@ struct tf_parser
     instruction_ref to_kcxy(instruction_ref ins) const;
     std::vector<instruction_ref> to_nchw(const std::vector<instruction_ref>& args) const;
     std::vector<instruction_ref> to_nhwc(const std::vector<instruction_ref>& args) const;
-    std::vector<size_t>
-    parse_axes(const attribute_map& attributes, const std::string& s, size_t num_dims) const;
-    template <class T>
-    std::vector<T> parse_axes(std::vector<T> axes, size_t num_dims) const;
     int64_t parse_axis(int64_t dim, size_t num_dims) const;
     // tf stores certain attributes such as strides, dilations, as a 4D input.
     // The first and last dims are equal to 1, and the relevant data is in dims 2 and 3.
@@ -101,10 +97,7 @@ struct tf_parser
     shape::type_t parse_type(tensorflow::DataType t) const;
 };
 
-std::vector<int64_t> get_axes(size_t num_axes);
 std::vector<int64_t> get_axes_from_mask(size_t num_axes, uint32_t mask);
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1);
 
 } // namespace tf
 } // namespace MIGRAPHX_INLINE_NS

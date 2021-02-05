@@ -401,7 +401,7 @@ struct cpu_apply
         }
     }
 
-    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = false)
+    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = true)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
@@ -437,19 +437,18 @@ struct cpu_apply
         extend_dnnl_algo("abs", "dnnl::eltwise", "eltwise_abs");
         extend_dnnl_algo("sqrt", "dnnl::eltwise", "eltwise_sqrt");
 
-        extend_op("softmax", "dnnl::softmax", true);
-        extend_op("logsoftmax", "dnnl::logsoftmax", true);
-        extend_op("convolution", "dnnl::convolution", true);
-        extend_op("deconvolution", "dnnl::deconvolution", true);
-        extend_op("dot", "dnnl::dot", true);
-        extend_op("lrn", "dnnl::lrn", true);
+        extend_op("softmax", "dnnl::softmax");
+        extend_op("logsoftmax", "dnnl::logsoftmax");
+        extend_op("convolution", "dnnl::convolution");
+        extend_op("deconvolution", "dnnl::deconvolution");
+        extend_op("dot", "dnnl::dot");
+        extend_op("lrn", "dnnl::lrn");
 
-        extend_op("contiguous", "cpu::contiguous", true);
-        // extend_op("deconvolution", "cpu::deconvolution");
-        extend_op("im2col", "cpu::im2col");
-        extend_op("leaky_relu", "cpu::leaky_relu");
-        extend_op("pad", "cpu::pad");
-        extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
+        extend_op("contiguous", "cpu::contiguous");
+        extend_op("im2col", "cpu::im2col", false);
+        extend_op("leaky_relu", "cpu::leaky_relu", false);
+        extend_op("pad", "cpu::pad", false);
+        extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output", false);
     }
 
     void apply()

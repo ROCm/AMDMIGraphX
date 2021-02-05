@@ -396,6 +396,11 @@ void module::finalize(context& ctx)
     {
         ins->finalize(ctx);
     }
+    // Warn when an instruction is not normalized
+    auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
+    if(ins != end())
+        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
+                  << std::endl;
 }
 
 value module::to_value() const
@@ -404,9 +409,10 @@ value module::to_value() const
     value nodes;
     this->print([&](auto ins, const auto& names) {
         value node;
-        node["output"] = names.at(ins);
-        node["name"]   = ins->name();
-        node["shape"]  = migraphx::to_value(ins->get_shape());
+        node["output"]     = names.at(ins);
+        node["name"]       = ins->name();
+        node["shape"]      = migraphx::to_value(ins->get_shape());
+        node["normalized"] = ins->is_normalized();
         if(ins->name() == "@literal")
             node["literal"] = migraphx::to_value(ins->get_literal());
         node["operator"] = ins->get_operator().to_value();
@@ -428,8 +434,9 @@ void module::from_value(const value& v)
     for(const value& node : v.at("nodes"))
     {
         instruction_ref output;
-        auto name   = node.at("name").to<std::string>();
-        auto fields = node.at("operator");
+        auto name       = node.at("name").to<std::string>();
+        auto fields     = node.at("operator");
+        auto normalized = node.at("normalized").to<bool>();
         if(name == "@param")
         {
             output = this->add_parameter(fields["parameter"].to<std::string>(),
@@ -452,6 +459,7 @@ void module::from_value(const value& v)
             else
                 output = this->add_instruction(op, inputs);
         }
+        output->set_normalized(normalized);
         instructions[node.at("output").to<std::string>()] = output;
     }
 }

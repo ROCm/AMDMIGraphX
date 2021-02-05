@@ -22,8 +22,8 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
         inputs.pop_back();
         check_shapes{inputs, *this}.has(1).packed();
         auto s = inputs.at(0);
-        auto r  = s;
-        if (not s.packed())
+        auto r = s;
+        if(not s.packed())
             r = shape{s.type(), s.lens()};
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));
@@ -32,9 +32,7 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
 
     dnnl::eltwise_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference,
-                to_dnnl_algo(algo),
-                m.at(DNNL_ARG_SRC_0)};
+        return {dnnl::prop_kind::forward_inference, to_dnnl_algo(algo), m.at(DNNL_ARG_SRC_0)};
     }
 };
 

@@ -228,7 +228,8 @@ std::vector<argument> generic_eval(const module& p,
                     return results[i];
                 });
             results.emplace(ins, trace(ins, [&] {
-                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values);
                             }));
         }
         assert(results.find(ins) != results.end());
@@ -284,7 +285,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 3;
+const int program_file_version = 4;
 
 value program::to_value() const
 {

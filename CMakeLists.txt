@@ -19,6 +19,19 @@ endif()
 
 project(migraphx)
 find_package(ROCM REQUIRED)
+
+find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
+if (NOT HALF_INCLUDE_DIR)
+    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+endif()
+
+include(CheckTypeSize)
+set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
+set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
+check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
+set(CMAKE_REQUIRED_INCLUDES)
+set(CMAKE_EXTRA_INCLUDE_FILES)
+
 find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)

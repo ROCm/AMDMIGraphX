@@ -10,9 +10,11 @@ add_library(migraphx_cpu
     copy.cpp
     dnnl.cpp
     eltwise.cpp
+    logsoftmax.cpp
     mul.cpp
     pooling.cpp
     relu.cpp
+    softmax.cpp
     gemm.cpp
     target.cpp
     lowering.cpp

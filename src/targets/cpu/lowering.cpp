@@ -587,6 +587,9 @@ struct cpu_apply
         extend_dnnl_algo("elu", "dnnl::eltwise", "eltwise_elu");
         extend_dnnl_algo("abs", "dnnl::eltwise", "eltwise_abs");
         extend_dnnl_algo("sqrt", "dnnl::eltwise", "eltwise_sqrt");
+        
+        extend_op("softmax", "dnnl::softmax", true);
+        extend_op("logsoftmax", "dnnl::logsoftmax", true);
         extend_op("convolution", "dnnl::convolution", true);
         extend_op("dot", "dnnl::dot", true);
 
@@ -594,13 +597,11 @@ struct cpu_apply
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("im2col", "cpu::im2col");
         extend_op("leaky_relu", "cpu::leaky_relu");
-        extend_op("logsoftmax", "cpu::logsoftmax");
         extend_op("lrn", "cpu::lrn");
         extend_op("pad", "cpu::pad");
         extend_op("quant_convolution", "cpu::quant_convolution", true);
         extend_op("quant_dot", "cpu::quant_dot", true);
         extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
-        extend_op("softmax", "cpu::softmax");
     }
 
     void apply()

@@ -163,9 +163,6 @@ if(HAS_LIB_STD_FILESYSTEM)
 target_link_libraries(migraphx PRIVATE -lstdc++fs)
 endif()
 
-
-find_path(HALF_INCLUDE_DIR half.hpp)
-# TODO: Fix the incorrect path
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
 find_package(msgpack REQUIRED)
@@ -195,6 +192,10 @@ list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
+endif()
+
+if(HAVE_HALF_EXPR)
+    target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
 
 rocm_export_targets(

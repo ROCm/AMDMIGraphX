@@ -10,7 +10,13 @@ struct dnnl_lrn : dnnl_extend_op<dnnl_lrn, dnnl::lrn_forward, op::lrn>
 {
     dnnl::lrn_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference, dnnl::algorithm::lrn_across_channels, m.at(DNNL_ARG_SRC_0), this->op.size, this->op.alpha, this->op.beta, this->op.bias};
+        return {dnnl::prop_kind::forward_inference,
+                dnnl::algorithm::lrn_across_channels,
+                m.at(DNNL_ARG_SRC_0),
+                this->op.size,
+                this->op.alpha,
+                this->op.beta,
+                this->op.bias};
     }
 };
 

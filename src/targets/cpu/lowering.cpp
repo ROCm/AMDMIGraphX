@@ -587,7 +587,7 @@ struct cpu_apply
         extend_dnnl_algo("elu", "dnnl::eltwise", "eltwise_elu");
         extend_dnnl_algo("abs", "dnnl::eltwise", "eltwise_abs");
         extend_dnnl_algo("sqrt", "dnnl::eltwise", "eltwise_sqrt");
-        
+
         extend_op("softmax", "dnnl::softmax", true);
         extend_op("logsoftmax", "dnnl::logsoftmax", true);
         extend_op("convolution", "dnnl::convolution", true);

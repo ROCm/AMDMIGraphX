@@ -23,10 +23,10 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
         check_shapes{inputs, *this}.has(2);
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
-        auto r = s0;
+        auto r  = s0;
         if(s0 != s1 or !s0.packed())
         {
-            r =  shape{s0.type(), s0.lens()};
+            r = shape{s0.type(), s0.lens()};
         }
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));
@@ -35,10 +35,7 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
 
     dnnl::binary::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {to_dnnl_algo(algo),
-                m.at(DNNL_ARG_SRC_0),
-                m.at(DNNL_ARG_SRC_1),
-                m.at(DNNL_ARG_DST)};
+        return {to_dnnl_algo(algo), m.at(DNNL_ARG_SRC_0), m.at(DNNL_ARG_SRC_1), m.at(DNNL_ARG_DST)};
     }
 };
 

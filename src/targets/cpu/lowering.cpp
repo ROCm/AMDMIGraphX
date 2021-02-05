@@ -562,7 +562,9 @@ struct cpu_apply
         });
     }
 
-    void extend_dnnl_algo(const std::string& op_name, const std::string& cpu_name, const std::string& algo)
+    void extend_dnnl_algo(const std::string& op_name,
+                          const std::string& cpu_name,
+                          const std::string& algo)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto op = make_op(cpu_name, {{"algo", algo}});

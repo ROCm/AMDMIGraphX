@@ -9,6 +9,7 @@ add_library(migraphx_cpu
     convolution.cpp
     copy.cpp
     dnnl.cpp
+    eltwise.cpp
     mul.cpp
     pooling.cpp
     relu.cpp

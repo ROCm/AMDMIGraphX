@@ -582,15 +582,16 @@ struct cpu_apply
         extend_dnnl_algo("div", "dnnl::binary", "binary_div");
         // extend_dnnl_algo("sub", "dnnl::binary", "binary_sub");
 
-        // extend_op("add", "dnnl::add", true);
-        // extend_op("mul", "dnnl::mul", true);
+        extend_dnnl_algo("relu", "dnnl::eltwise", "eltwise_relu");
+        extend_dnnl_algo("tanh", "dnnl::eltwise", "eltwise_tanh");
+        extend_dnnl_algo("elu", "dnnl::eltwise", "eltwise_elu");
+        extend_dnnl_algo("abs", "dnnl::eltwise", "eltwise_abs");
+        extend_dnnl_algo("sqrt", "dnnl::eltwise", "eltwise_sqrt");
         extend_op("convolution", "dnnl::convolution", true);
         extend_op("dot", "dnnl::dot", true);
-        extend_op("relu", "dnnl::relu", true);
 
         extend_op("contiguous", "cpu::contiguous", true);
         extend_op("deconvolution", "cpu::deconvolution");
-        extend_op("elu", "cpu::elu");
         extend_op("im2col", "cpu::im2col");
         extend_op("leaky_relu", "cpu::leaky_relu");
         extend_op("logsoftmax", "cpu::logsoftmax");

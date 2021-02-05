@@ -557,16 +557,31 @@ struct cpu_apply
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(allocate)
-                replace(ins, make_op(cpu_name, op.to_value()));
+                return replace(ins, make_op(cpu_name, op.to_value()));
             return modl->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+        });
+    }
+
+    void extend_dnnl_algo(const std::string& op_name, const std::string& cpu_name, const std::string& algo)
+    {
+        apply_map.emplace(op_name, [=](instruction_ref ins) {
+            auto op = make_op(cpu_name, {{"algo", algo}});
+            return replace(ins, op);
         });
     }
 
     void init()
     {
         create_output_names();
-        extend_op("add", "dnnl::add", true);
-        extend_op("mul", "dnnl::mul", true);
+        extend_dnnl_algo("add", "dnnl::binary", "binary_add");
+        extend_dnnl_algo("mul", "dnnl::binary", "binary_mul");
+        extend_dnnl_algo("max", "dnnl::binary", "binary_max");
+        extend_dnnl_algo("min", "dnnl::binary", "binary_min");
+        extend_dnnl_algo("div", "dnnl::binary", "binary_div");
+        // extend_dnnl_algo("sub", "dnnl::binary", "binary_sub");
+
+        // extend_op("add", "dnnl::add", true);
+        // extend_op("mul", "dnnl::mul", true);
         extend_op("convolution", "dnnl::convolution", true);
         extend_op("dot", "dnnl::dot", true);
         extend_op("relu", "dnnl::relu", true);

@@ -3,10 +3,12 @@ add_library(migraphx_cpu
     allocation_model.cpp
     allocate.cpp
     add.cpp
+    binary.cpp
     contiguous.cpp
     concat.cpp
     convolution.cpp
     copy.cpp
+    dnnl.cpp
     mul.cpp
     pooling.cpp
     relu.cpp

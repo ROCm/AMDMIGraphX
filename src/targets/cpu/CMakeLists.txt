@@ -8,6 +8,7 @@ add_library(migraphx_cpu
     concat.cpp
     convolution.cpp
     copy.cpp
+    deconvolution.cpp
     dnnl.cpp
     eltwise.cpp
     logsoftmax.cpp

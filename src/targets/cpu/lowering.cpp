@@ -492,19 +492,12 @@ struct cpu_apply
     void apply()
     {
         init();
+        // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {
-            if(it->name() == "pooling")
-            {
-                apply_pooling(it);
-            }
-            else if(it->name() == "pow")
+            if(it->name() == "pow")
             {
                 apply_pow(it);
-            }
-            else if(apply_map.count(it->name()) > 0)
-            {
-                apply_map.at(it->name())(it);
             }
         }
         for(auto it : iterator_for(*modl))
@@ -512,6 +505,14 @@ struct cpu_apply
             if(it->name() == "@literal")
             {
                 apply_literal(it);
+            }
+            else if(it->name() == "pooling")
+            {
+                apply_pooling(it);
+            }
+            else if(apply_map.count(it->name()) > 0)
+            {
+                apply_map.at(it->name())(it);
             }
         }
     }
@@ -523,15 +524,12 @@ struct cpu_apply
 
     instruction_ref apply_pow(instruction_ref ins)
     {
-        auto e = ins->inputs()[1]->eval();
-        if(e.empty())
+        auto beta = read_scalar<float>(ins->inputs()[1]);
+        if (beta.empty())
             return ins;
-        if(not e.single() and not e.get_shape().scalar())
-            return ins;
-        float beta = e.at<float>();
         return replace(
             ins,
-            make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta}}),
+            make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
             {ins->inputs().front()});
     }
 
@@ -548,6 +546,19 @@ struct cpu_apply
         else if(mode == "average")
             return replace(ins, make_op("cpu::pooling_average", v));
         return ins;
+    }
+
+    template<class T>
+    static std::vector<T> read_scalar(instruction_ref ins)
+    {
+        if (ins->name() == "contiguous")
+            return read_scalar<T>(ins->inputs().front());
+        if (ins->get_shape().elements() != 1 and not ins->get_shape().scalar())
+            return {};
+        auto r = ins->eval();
+        if (r.empty())
+            return {};
+        return {r.at<T>()};
     }
 
     instruction_ref replace(instruction_ref ins, const operation& op)

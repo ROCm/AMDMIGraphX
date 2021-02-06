@@ -8,7 +8,7 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::eliminate_contiguous{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::eliminate_contiguous{"contiguous"}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(standard_op)

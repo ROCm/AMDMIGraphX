@@ -62,7 +62,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             propagate_constant{},
             dead_code_elimination{},
             lowering{},
-            eliminate_contiguous{},
+            eliminate_contiguous{"dnnl::reorder"},
             dead_code_elimination{},
             adjust_allocation{cpu_allocation_model{}},
             dead_code_elimination{},

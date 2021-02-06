@@ -15,6 +15,7 @@ add_library(migraphx_cpu
     lrn.cpp
     mul.cpp
     pooling.cpp
+    reduction.cpp
     relu.cpp
     reorder.cpp
     softmax.cpp

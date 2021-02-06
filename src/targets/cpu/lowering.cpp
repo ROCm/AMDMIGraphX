@@ -524,12 +524,15 @@ struct cpu_apply
     instruction_ref apply_pow(instruction_ref ins)
     {
         auto e = ins->inputs()[1]->eval();
-        if (e.empty())
+        if(e.empty())
             return ins;
-        if (not e.single() and not e.get_shape().scalar())
+        if(not e.single() and not e.get_shape().scalar())
             return ins;
         float beta = e.at<float>();
-        return replace(ins, make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta}}), {ins->inputs().front()});
+        return replace(
+            ins,
+            make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta}}),
+            {ins->inputs().front()});
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
@@ -552,7 +555,8 @@ struct cpu_apply
         return replace(ins, op, ins->inputs());
     }
 
-    instruction_ref replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+    instruction_ref
+    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
     {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);

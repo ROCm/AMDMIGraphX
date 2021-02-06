@@ -460,6 +460,8 @@ struct cpu_apply
                           {
                               {"abs", "eltwise_abs"},
                               {"elu", "eltwise_elu"},
+                              {"exp", "eltwise_exp"},
+                              {"log", "eltwise_log"},
                               {"relu", "eltwise_relu"},
                               {"sqrt", "eltwise_sqrt"},
                               {"tanh", "eltwise_tanh"},
@@ -496,6 +498,10 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
+            else if(it->name() == "pow")
+            {
+                apply_pow(it);
+            }
             else if(apply_map.count(it->name()) > 0)
             {
                 apply_map.at(it->name())(it);
@@ -515,6 +521,17 @@ struct cpu_apply
         return modl->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
     }
 
+    instruction_ref apply_pow(instruction_ref ins)
+    {
+        auto e = ins->inputs()[1]->eval();
+        if (e.empty())
+            return ins;
+        if (not e.single() and not e.get_shape().scalar())
+            return ins;
+        float beta = e.at<float>();
+        return replace(ins, make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta}}), {ins->inputs().front()});
+    }
+
     instruction_ref apply_pooling(instruction_ref ins)
     {
         auto&& op = ins->get_operator();
@@ -532,7 +549,11 @@ struct cpu_apply
 
     instruction_ref replace(instruction_ref ins, const operation& op)
     {
-        auto inputs = ins->inputs();
+        return replace(ins, op, ins->inputs());
+    }
+
+    instruction_ref replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+    {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);
     }

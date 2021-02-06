@@ -8,10 +8,12 @@ namespace cpu {
 struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
 {
     std::string algo;
+    float alpha = 0;
+    float beta = 0;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.algo, "algo"));
+        return pack(f(self.algo, "algo"), f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 
     std::string name() const { return "dnnl::eltwise"; }
@@ -32,7 +34,7 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
 
     dnnl::eltwise_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {dnnl::prop_kind::forward_inference, to_dnnl_algo(algo), m.at(DNNL_ARG_SRC_0)};
+        return {dnnl::prop_kind::forward_inference, to_dnnl_algo(algo), m.at(DNNL_ARG_SRC_0), alpha, beta};
     }
 };
 

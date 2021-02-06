@@ -492,17 +492,20 @@ struct cpu_apply
         init();
         for(auto it : iterator_for(*modl))
         {
-            if(it->name() == "@literal")
-            {
-                apply_literal(it);
-            }
-            else if(it->name() == "pooling")
+            if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
             else if(apply_map.count(it->name()) > 0)
             {
                 apply_map.at(it->name())(it);
+            }
+        }
+        for(auto it : iterator_for(*modl))
+        {
+            if(it->name() == "@literal")
+            {
+                apply_literal(it);
             }
         }
     }

@@ -450,27 +450,27 @@ struct cpu_apply
         extend_dnnl_algos("dnnl::binary",
                           {
                               {"add", "binary_add"},
-                              {"mul", "binary_mul"},
+                              {"div", "binary_div"},
                               {"max", "binary_max"},
                               {"min", "binary_min"},
-                              {"div", "binary_div"},
+                              {"mul", "binary_mul"},
                           });
 
         extend_dnnl_algos("dnnl::eltwise",
                           {
-                              {"relu", "eltwise_relu"},
-                              {"tanh", "eltwise_tanh"},
-                              {"elu", "eltwise_elu"},
                               {"abs", "eltwise_abs"},
+                              {"elu", "eltwise_elu"},
+                              {"relu", "eltwise_relu"},
                               {"sqrt", "eltwise_sqrt"},
+                              {"tanh", "eltwise_tanh"},
                           });
 
         extend_dnnl_algos("dnnl::reduction",
                           {
                               {"reduce_max", "reduction_max"},
+                              {"reduce_mean", "reduction_mean"},
                               {"reduce_min", "reduction_min"},
                               {"reduce_sum", "reduction_sum"},
-                              {"reduce_mean", "reduction_mean"},
                           });
 
         extend_op("softmax", "dnnl::softmax");

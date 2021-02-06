@@ -411,63 +411,67 @@ struct cpu_apply
         });
     }
 
-    template<class F>
+    template <class F>
     void extend_dnnl_algos(const std::string& dnnl_name,
-                            F f,
-                            const std::vector<std::pair<std::string, std::string>>& algos)
+                           F f,
+                           const std::vector<std::pair<std::string, std::string>>& algos)
     {
-        for(auto&& pp:algos)
+        for(auto&& pp : algos)
         {
             std::string op_name = pp.first;
-            std::string algo = pp.second;
+            std::string algo    = pp.second;
             apply_map.emplace(op_name, [=](instruction_ref ins) {
                 auto v = f(ins);
-                if (not v.is_object())
+                if(not v.is_object())
                     return ins;
                 v["algo"] = algo;
-                auto op = make_op(dnnl_name, v);
+                auto op   = make_op(dnnl_name, v);
                 return replace(ins, op);
             });
         }
     }
 
     void extend_dnnl_algos(const std::string& dnnl_name,
-                            const std::vector<std::pair<std::string, std::string>>& algos)
+                           const std::vector<std::pair<std::string, std::string>>& algos)
     {
-        return extend_dnnl_algos(dnnl_name, [](auto ins) -> value { 
-            auto v = ins->get_operator().to_value();
-            if(not v.is_object())
-                return value::object{};
-            return v; 
-        }, 
-            algos);
+        return extend_dnnl_algos(dnnl_name,
+                                 [](auto ins) -> value {
+                                     auto v = ins->get_operator().to_value();
+                                     if(not v.is_object())
+                                         return value::object{};
+                                     return v;
+                                 },
+                                 algos);
     }
 
     void init()
     {
         create_output_names();
-        extend_dnnl_algos("dnnl::binary", {
-            {"add", "binary_add"},
-            {"mul", "binary_mul"},
-            {"max", "binary_max"},
-            {"min", "binary_min"},
-            {"div", "binary_div"},
-        });
+        extend_dnnl_algos("dnnl::binary",
+                          {
+                              {"add", "binary_add"},
+                              {"mul", "binary_mul"},
+                              {"max", "binary_max"},
+                              {"min", "binary_min"},
+                              {"div", "binary_div"},
+                          });
 
-        extend_dnnl_algos("dnnl::eltwise", {
-            {"relu", "eltwise_relu"},
-            {"tanh", "eltwise_tanh"},
-            {"elu", "eltwise_elu"},
-            {"abs", "eltwise_abs"},
-            {"sqrt", "eltwise_sqrt"},
-        });
-        
-        extend_dnnl_algos("dnnl::reduction", {
-            {"reduce_max", "reduction_max"},
-            {"reduce_min", "reduction_min"},
-            {"reduce_sum", "reduction_sum"},
-            {"reduce_mean", "reduction_mean"},
-        });
+        extend_dnnl_algos("dnnl::eltwise",
+                          {
+                              {"relu", "eltwise_relu"},
+                              {"tanh", "eltwise_tanh"},
+                              {"elu", "eltwise_elu"},
+                              {"abs", "eltwise_abs"},
+                              {"sqrt", "eltwise_sqrt"},
+                          });
+
+        extend_dnnl_algos("dnnl::reduction",
+                          {
+                              {"reduce_max", "reduction_max"},
+                              {"reduce_min", "reduction_min"},
+                              {"reduce_sum", "reduction_sum"},
+                              {"reduce_mean", "reduction_mean"},
+                          });
 
         extend_op("softmax", "dnnl::softmax");
         extend_op("logsoftmax", "dnnl::logsoftmax");

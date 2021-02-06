@@ -525,12 +525,12 @@ struct cpu_apply
     instruction_ref apply_pow(instruction_ref ins)
     {
         auto beta = read_scalar<float>(ins->inputs()[1]);
-        if (beta.empty())
+        if(beta.empty())
             return ins;
-        return replace(
-            ins,
-            make_op("dnnl::eltwise", {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
-            {ins->inputs().front()});
+        return replace(ins,
+                       make_op("dnnl::eltwise",
+                               {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
+                       {ins->inputs().front()});
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
@@ -548,15 +548,15 @@ struct cpu_apply
         return ins;
     }
 
-    template<class T>
+    template <class T>
     static std::vector<T> read_scalar(instruction_ref ins)
     {
-        if (ins->name() == "contiguous")
+        if(ins->name() == "contiguous")
             return read_scalar<T>(ins->inputs().front());
-        if (ins->get_shape().elements() != 1 and not ins->get_shape().scalar())
+        if(ins->get_shape().elements() != 1 and not ins->get_shape().scalar())
             return {};
         auto r = ins->eval();
-        if (r.empty())
+        if(r.empty())
             return {};
         return {r.at<T>()};
     }

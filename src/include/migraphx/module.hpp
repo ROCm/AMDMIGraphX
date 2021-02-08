@@ -92,8 +92,8 @@ struct module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
-    module_ref create_sub_module(const std::string& name);
-    std::vector<module_ref> get_sub_modules() const;
+    // module_ref create_sub_module(const std::string& name);
+    // std::vector<module_ref> get_sub_modules() const;
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -154,8 +154,11 @@ struct module
     friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }
 
+    void assign(const module& m,
+                std::unordered_map<instruction_ref, instruction_ref> ins_map,
+                const std::unordered_map<module_ref, module_ref>& mod_map);
+
     private:
-    void assign(const module& m, std::unordered_map<instruction_ref, instruction_ref> ins_map);
     std::unique_ptr<module_impl> impl;
     module_ref parent_mdl = nullptr;
 };

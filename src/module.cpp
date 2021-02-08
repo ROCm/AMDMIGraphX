@@ -24,7 +24,6 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
-    std::list<module> sub_modules;
     std::vector<std::string> input_names;
     std::string name;
 };
@@ -74,8 +73,7 @@ module::~module() noexcept        = default;
 // copy constructor
 module::module(const module& m)
 {
-    std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    assign(m, ins_map);
+    assign(m, {}, {});
 }
 
 // copy assignment operator
@@ -87,7 +85,9 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
-void module::assign(const module& m, std::unordered_map<instruction_ref, instruction_ref> ins_map)
+void module::assign(const module& m,
+                    std::unordered_map<instruction_ref, instruction_ref> ins_map,
+                    const std::unordered_map<module_ref, module_ref>& mod_map)
 {
     // clean the current module
     if(!impl)
@@ -126,25 +126,26 @@ void module::assign(const module& m, std::unordered_map<instruction_ref, instruc
         else
         {
             // if there are sub_module inputs, need to make a copy of the submodule
-            auto arg_modules = ins->module_inputs();
-            std::vector<module_ref> copy_arg_modules;
-            if(not arg_modules.empty())
+            auto module_args = ins->module_inputs();
+            std::vector<module_ref> copy_module_args;
+            if(not module_args.empty())
             {
-                for(auto* mod : arg_modules)
+                for(auto mdl : module_args)
                 {
-                    module_ref copy_mod = this->create_sub_module(mod->name());
-                    copy_mod->assign(*mod, ins_map);
-                    sub_module_map[mod] = copy_mod;
+                    auto prt_mdl        = mdl->get_parent_module();
+                    module_ref copy_mdl = mod_map.at(mdl);
+                    copy_mdl->set_parent_module(mod_map.at(prt_mdl));
+                    copy_mdl->assign(*mdl, ins_map, mod_map);
                 }
 
-                copy_arg_modules.resize(arg_modules.size());
-                assert(std::all_of(arg_modules.begin(), arg_modules.end(), [&](auto i) {
-                    return sub_module_map.count(i) > 0;
+                copy_module_args.resize(module_args.size());
+                assert(std::all_of(module_args.begin(), module_args.end(), [&](auto i) {
+                    return mod_map.count(i) > 0;
                 }));
-                std::transform(arg_modules.begin(),
-                               arg_modules.end(),
-                               copy_arg_modules.begin(),
-                               [&](auto i) { return sub_module_map[i]; });
+                std::transform(module_args.begin(),
+                               module_args.end(),
+                               copy_module_args.begin(),
+                               [&](auto i) { return mod_map.at(i); });
             }
 
             // retrieve its mapped input
@@ -162,13 +163,13 @@ void module::assign(const module& m, std::unordered_map<instruction_ref, instruc
             }
             else
             {
-                if(copy_arg_modules.empty())
+                if(copy_module_args.empty())
                 {
                     copy_ins = add_instruction(ins->get_operator(), copy_inputs);
                 }
                 else
                 {
-                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, copy_arg_modules);
+                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, copy_module_args);
                 }
             }
         }
@@ -322,25 +323,25 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-module_ref module::create_sub_module(const std::string& name)
-{
-    this->impl->sub_modules.push_back(module(name));
-    module_ref sub_mdl = &this->impl->sub_modules.back();
-    sub_mdl->set_parent_module(this);
+// module_ref module::create_sub_module(const std::string& name)
+// {
+//     this->impl->sub_modules.push_back(module(name));
+//     module_ref sub_mdl = &this->impl->sub_modules.back();
+//     sub_mdl->set_parent_module(this);
 
-    return sub_mdl;
-}
+//     return sub_mdl;
+// }
 
-std::vector<module_ref> module::get_sub_modules() const
-{
-    std::vector<module_ref> sub_modules(this->impl->sub_modules.size());
-    std::transform(this->impl->sub_modules.begin(),
-                   this->impl->sub_modules.end(),
-                   sub_modules.begin(),
-                   [](auto& mdl) { return &mdl; });
+// std::vector<module_ref> module::get_sub_modules() const
+// {
+//     std::vector<module_ref> sub_modules(this->impl->sub_modules.size());
+//     std::transform(this->impl->sub_modules.begin(),
+//                    this->impl->sub_modules.end(),
+//                    sub_modules.begin(),
+//                    [](auto& mdl) { return &mdl; });
 
-    return sub_modules;
-}
+//     return sub_modules;
+// }
 
 instruction_ref module::add_literal(literal l)
 {
@@ -505,17 +506,17 @@ void module::finalize(context& ctx)
     for(auto ins : iterator_for(*this))
     {
         ins->finalize(ctx);
+        for(auto& smod : ins->module_inputs())
+        {
+            smod->finalize(ctx);
+        }
     }
+
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
         std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
-
-    for(auto& sub_mdl : this->impl->sub_modules)
-    {
-        sub_mdl.finalize(ctx);
-    }
 }
 
 value module::to_value() const
@@ -622,6 +623,7 @@ void module::print(std::unordered_map<instruction_ref, std::string>& names,
                    const std::function<void(instruction_ref)>& print_func) const
 {
     int count = 0;
+    std::unordered_set<module_ref> set_smod;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -640,13 +642,14 @@ void module::print(std::unordered_map<instruction_ref, std::string>& names,
                            ins->inputs().end(),
                            [&](auto arg) { return this->has_instruction(arg); }) &&
                "DEBUG_PRINT: Instruction not found");
-        print_func(ins);
-    }
 
-    // print sub_graph
-    for(auto& sub_mdl : this->impl->sub_modules)
-    {
-        sub_mdl.print(names, print_func);
+        auto& mod_args = ins->module_inputs();
+        for(auto& smod : mod_args)
+        {
+            set_smod.insert(smod);
+        }
+
+        print_func(ins);
     }
 }
 
@@ -804,13 +807,32 @@ module& module::sort()
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
-std::ostream& operator<<(std::ostream& os, const module& m)
+static void print_module(std::ostream& os,
+                         const module& m,
+                         std::unordered_map<instruction_ref, std::string> names)
 {
-    std::unordered_map<instruction_ref, std::string> names;
+    // os << "Module \"" << m.name() << "\" ..." << std::endl;
+    std::unordered_set<module_ref> sub_mods;
     m.print(names, [&](auto ins) {
         print_instruction(os, ins, names);
         os << std::endl;
+        auto& mod_args = ins->module_inputs();
+        for(auto& smod : mod_args)
+        {
+            sub_mods.insert(smod);
+        }
     });
+    os << std::endl;
+
+    for(auto& smod : sub_mods)
+    {
+        print_module(os, *smod, names);
+    }
+}
+
+std::ostream& operator<<(std::ostream& os, const module& m)
+{
+    print_module(os, m, {});
     return os;
 }
 

@@ -89,7 +89,16 @@ void program::assign(const program& p)
     }
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
-    impl->modules     = p.impl->modules;
+    std::unordered_map<module_ref, module_ref> map_mods;
+    std::unordered_map<instruction_ref, instruction_ref> map_insts;
+    for(auto& mod_pair : p.impl->modules)
+    {
+        auto& name                          = mod_pair.first;
+        impl->modules[name]                 = {name};
+        map_mods[&p.impl->modules.at(name)] = &impl->modules.at(name);
+    }
+
+    impl->modules.at("main").assign(p.impl->modules.at("main"), map_insts, map_mods);
 }
 
 shape program::get_parameter_shape(std::string name) const
@@ -146,28 +155,24 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
-    for(auto& mp : impl->modules)
+    auto* modl = get_main_module();
+    // std::cout << "compiling module: " << modl->name() << std::endl;
+    assert(modl->validate() == modl->end());
+    run_passes(*modl, passes, options.trace);
+    auto invalid = this->validate();
+    if(invalid != modl->end())
     {
-        auto& modl = mp.second;
-        assert(modl.validate() == modl.end());
-        run_passes(modl, passes, options.trace);
-        auto invalid = this->validate();
-        if(invalid != modl.end())
-        {
-            auto index = std::distance(modl.begin(), invalid);
-            MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " +
-                           std::to_string(index));
-        }
-        modl.finalize(this->impl->ctx);
+        auto index = std::distance(modl->begin(), invalid);
+        MIGRAPHX_THROW("Invalid module " + modl->name() + " from compilation at instruction " +
+                       std::to_string(index));
     }
+    modl->finalize(this->impl->ctx);
 }
 
 void program::finalize()
 {
-    for(auto& mp : this->impl->modules)
-    {
-        mp.second.finalize(this->impl->ctx);
-    }
+    auto* mm = this->get_main_module();
+    mm->finalize(this->impl->ctx);
 }
 
 template <class F>

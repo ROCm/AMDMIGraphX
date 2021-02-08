@@ -6,7 +6,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-#if USE_DNNL
 struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
 {
     std::vector<int> arg_map(int size) const
@@ -39,7 +38,6 @@ struct dnnl_concat : dnnl_extend_op<dnnl_concat, dnnl::concat, op::concat>
         return dnnl::concat::primitive_desc(d.dst, d.axis, d.srcs, get_dnnl_context().engine);
     }
 };
-#endif
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

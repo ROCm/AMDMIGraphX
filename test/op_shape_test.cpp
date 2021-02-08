@@ -936,12 +936,6 @@ TEST_CASE(quant_dot_2args)
     }
 
     {
-        migraphx::shape s_m1{migraphx::shape::int8_type, {2, 3}};
-        migraphx::shape s_m2{migraphx::shape::int8_type, {3, 8}};
-        throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
-    }
-
-    {
         migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
         throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);

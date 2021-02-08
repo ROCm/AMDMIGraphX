@@ -172,7 +172,8 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
         const auto& self = static_cast<const Derived&>(*this);
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes(inputs, self).packed();
+        // dnnl has some issues with non-packed inputs
+        check_shapes(inputs, self).packed_or_broadcasted();
         auto r = migraphx::compute_shape(op, inputs);
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));

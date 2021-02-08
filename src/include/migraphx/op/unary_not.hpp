@@ -16,6 +16,8 @@ struct unary_not : unary<unary_not>
     {
         return [](auto x) { return not x; };
     }
+
+    std::string name() const { return "not"; }
 };
 
 } // namespace op

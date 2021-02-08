@@ -24,7 +24,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
-#include <migraphx/cpu/migemm.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
@@ -564,37 +563,15 @@ struct cpu_apply
         });
     }
 
-    void extend_dnnl_extend_op(const std::string& op_name,
-                               const std::string& cpu_name,
-                               const std::string& dnnl_name)
-    {
-        apply_map.emplace(op_name, [=](instruction_ref ins) {
-            auto&& op = ins->get_operator();
-            if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return replace(ins, make_op(dnnl_name, op.to_value()));
-            return replace(ins, make_op(cpu_name, op.to_value()));
-        });
-    }
-
-    void extend_dnnl_extend_op(const std::string& op_name, const std::string& dnnl_name)
-    {
-        apply_map.emplace(op_name, [=](instruction_ref ins) {
-            auto&& op = ins->get_operator();
-            if(has_op(dnnl_name) and ins->get_shape().type() == shape::type_t::float_type)
-                return replace(ins, make_op(dnnl_name, op.to_value()));
-            return ins;
-        });
-    }
-
     void init()
     {
         create_output_names();
-        extend_dnnl_extend_op("add", "cpu::add", "dnnl::add");
-        extend_dnnl_extend_op("mul", "cpu::mul", "dnnl::mul");
-        extend_dnnl_extend_op("convolution", "cpu::convolution", "dnnl::convolution");
-        extend_dnnl_extend_op("dot", "cpu::dot", "dnnl::dot");
-        extend_dnnl_extend_op("relu", "cpu::relu", "dnnl::relu");
-        extend_dnnl_extend_op("concat", "dnnl::concat");
+        extend_op("add", "dnnl::add", true);
+        extend_op("mul", "dnnl::mul", true);
+        extend_op("convolution", "dnnl::convolution", true);
+        extend_op("dot", "dnnl::dot", true);
+        extend_op("relu", "dnnl::relu", true);
+
         extend_op("contiguous", "cpu::contiguous", true);
         extend_op("deconvolution", "cpu::deconvolution");
         extend_op("elu", "cpu::elu");

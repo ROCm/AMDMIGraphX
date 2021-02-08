@@ -2,15 +2,12 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_CPU_PARALLEL_HPP
 
 #include <migraphx/config.hpp>
-#if USE_DNNL
 #include <omp.h>
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-#if USE_DNNL
 template <class F>
 void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
 {
@@ -43,7 +40,6 @@ void parallel_for(std::size_t n, F f)
     const int min_grain = 8;
     parallel_for(n, min_grain, f);
 }
-#endif
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

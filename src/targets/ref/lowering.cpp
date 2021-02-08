@@ -799,7 +799,7 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
         shape batch_shape{shape::int32_type, batch_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
-            using value_type = typename decltype(input)::value_type;
+            using value_type = accumulator_type<typename decltype(input)::value_type>;
             std::vector<value_type> batch_max(batch_shape.elements(),
                                               std::numeric_limits<value_type>::lowest());
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
@@ -808,7 +808,8 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[tuned_axis] = j;
-                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
+                    batch_max[i] =
+                        std::max<value_type>(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)

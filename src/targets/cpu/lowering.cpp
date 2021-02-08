@@ -233,76 +233,76 @@ struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
 };
 template struct cpu_unary2<leaky_relu_op>;
 
-template <class Op>
-struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
-{
-    cpu_softmax() = default;
+// template <class Op>
+// struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
+// {
+//     cpu_softmax() = default;
 
-    cpu_softmax(Op pop) : op(std::move(pop)) {}
+//     cpu_softmax(Op pop) : op(std::move(pop)) {}
 
-    Op op;
+//     Op op;
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
+//     template <class Self, class F>
+//     static auto reflect(Self& self, F f)
+//     {
+//         return migraphx::reflect(self.op, f);
+//     }
 
-    std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(1).standard();
-        return op.normalize_compute_shape(inputs);
-    }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        auto batch_lens        = output_shape.lens();
-        int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
-        std::size_t n_dims     = batch_lens[tuned_axis];
-        batch_lens[tuned_axis] = 1;
-        shape batch_shape{shape::int32_type, batch_lens};
+//     std::string name() const { return "cpu::" + op.name(); }
+//     shape compute_shape(const std::vector<shape>& inputs) const
+//     {
+//         check_shapes{inputs, *this}.has(1).standard();
+//         return op.normalize_compute_shape(inputs);
+//     }
+//     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
+//     {
+//         argument result{output_shape};
+//         auto batch_lens        = output_shape.lens();
+//         int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
+//         std::size_t n_dims     = batch_lens[tuned_axis];
+//         batch_lens[tuned_axis] = 1;
+//         shape batch_shape{shape::int32_type, batch_lens};
 
-        visit_all(result, args[0])([&](auto output, auto input) {
-            using value_type = typename decltype(input)::value_type;
-            std::vector<value_type> batch_max(batch_shape.elements(),
-                                              std::numeric_limits<value_type>::lowest());
-            std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
-            par_for(batch_shape.elements(), [&](auto i) {
-                auto idx = batch_shape.multi(i);
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
-                }
+//         visit_all(result, args[0])([&](auto output, auto input) {
+//             using value_type = typename decltype(input)::value_type;
+//             std::vector<value_type> batch_max(batch_shape.elements(),
+//                                               std::numeric_limits<value_type>::lowest());
+//             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
+//             par_for(batch_shape.elements(), [&](auto i) {
+//                 auto idx = batch_shape.multi(i);
+//                 for(std::size_t j = 0; j < n_dims; ++j)
+//                 {
+//                     idx[tuned_axis] = j;
+//                     batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
+//                 }
 
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis]   = j;
-                    std::size_t index = output_shape.index(idx);
-                    output[index]     = std::exp(input[index] - batch_max[i]);
-                }
+//                 for(std::size_t j = 0; j < n_dims; ++j)
+//                 {
+//                     idx[tuned_axis]   = j;
+//                     std::size_t index = output_shape.index(idx);
+//                     output[index]     = std::exp(input[index] - batch_max[i]);
+//                 }
 
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    batch_sum[i] += output(idx.begin(), idx.end());
-                }
+//                 for(std::size_t j = 0; j < n_dims; ++j)
+//                 {
+//                     idx[tuned_axis] = j;
+//                     batch_sum[i] += output(idx.begin(), idx.end());
+//                 }
 
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    output(idx.begin(), idx.end()) =
-                        op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
-                }
-            });
-        });
+//                 for(std::size_t j = 0; j < n_dims; ++j)
+//                 {
+//                     idx[tuned_axis] = j;
+//                     output(idx.begin(), idx.end()) =
+//                         op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
+//                 }
+//             });
+//         });
 
-        return result;
-    }
-};
-template struct cpu_softmax<op::softmax>;
-template struct cpu_softmax<op::logsoftmax>;
+//         return result;
+//     }
+// };
+// template struct cpu_softmax<op::softmax>;
+// template struct cpu_softmax<op::logsoftmax>;
 
 struct cpu_rnn_var_sl_last_output
 {
@@ -412,9 +412,7 @@ struct cpu_apply
         });
     }
 
-    template <class F>
     void extend_dnnl_algos(const std::string& dnnl_name,
-                           F f,
                            const std::vector<std::pair<std::string, std::string>>& algos)
     {
         for(auto&& pp : algos)
@@ -422,7 +420,7 @@ struct cpu_apply
             std::string op_name = pp.first;
             std::string algo    = pp.second;
             apply_map.emplace(op_name, [=](instruction_ref ins) {
-                auto v = f(ins);
+                auto v = ins->get_operator().to_value();
                 if(not v.is_object())
                     return ins;
                 v["algo"] = algo;
@@ -430,19 +428,6 @@ struct cpu_apply
                 return replace(ins, op);
             });
         }
-    }
-
-    void extend_dnnl_algos(const std::string& dnnl_name,
-                           const std::vector<std::pair<std::string, std::string>>& algos)
-    {
-        return extend_dnnl_algos(dnnl_name,
-                                 [](auto ins) -> value {
-                                     auto v = ins->get_operator().to_value();
-                                     if(not v.is_object())
-                                         return value::object{};
-                                     return v;
-                                 },
-                                 algos);
     }
 
     void init()

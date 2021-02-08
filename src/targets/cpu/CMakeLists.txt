@@ -2,9 +2,7 @@
 add_library(migraphx_cpu
     allocation_model.cpp
     allocate.cpp
-    add.cpp
     binary.cpp
-    contiguous.cpp
     concat.cpp
     convolution.cpp
     copy.cpp
@@ -13,10 +11,8 @@ add_library(migraphx_cpu
     eltwise.cpp
     logsoftmax.cpp
     lrn.cpp
-    mul.cpp
     pooling.cpp
     reduction.cpp
-    relu.cpp
     reorder.cpp
     softmax.cpp
     gemm.cpp

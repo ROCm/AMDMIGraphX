@@ -23,11 +23,13 @@ struct deduce
     using type = T;
 };
 
+#ifdef HAS_HALF_V1
 template <>
 struct deduce<half_float::detail::expr>
 {
     using type = half;
 };
+#endif
 } // namespace detail
 
 template <class T>

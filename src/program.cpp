@@ -62,7 +62,7 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {}; }
+program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {"main"}; }
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -228,7 +228,8 @@ std::vector<argument> generic_eval(const module& p,
                     return results[i];
                 });
             results.emplace(ins, trace(ins, [&] {
-                                return ins->get_operator().compute(ctx, ins->get_shape(), values);
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values);
                             }));
         }
         assert(results.find(ins) != results.end());
@@ -284,7 +285,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 3;
+const int program_file_version = 4;
 
 value program::to_value() const
 {
@@ -324,7 +325,7 @@ void program::from_value(const value& v)
     {
         const auto& key = vv.get_key();
         auto val        = vv.without_key();
-        module modl;
+        module modl{key};
         modl.from_value(val);
         impl->modules[key] = modl;
     }
@@ -507,9 +508,9 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
     }
 }
 
-module* program::get_main_module() { return &impl->modules["main"]; }
+module* program::get_main_module() { return &impl->modules.at("main"); }
 
-const module* program::get_main_module() const { return &impl->modules["main"]; }
+const module* program::get_main_module() const { return &impl->modules.at("main"); }
 
 program& program::sort()
 {

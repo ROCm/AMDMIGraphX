@@ -7,7 +7,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <unordered_map>
-#ifdef USE_DNNL
 #include <dnnl.hpp>
 #include <migraphx/errors.hpp>
 
@@ -132,6 +131,7 @@ struct dnnl_op : auto_register_op<Derived>
         std::unordered_map<int, dnnl::memory::desc> result;
         result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
         auto m               = self.arg_map(inputs.size());
+        assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
             result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i], i));
@@ -166,6 +166,7 @@ struct dnnl_op : auto_register_op<Derived>
         // Compensate for allocation
         inputs.pop_back();
         const auto& self = static_cast<const Derived&>(*this);
+        auto name        = self.name();
         auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
         auto arg_lookup  = self.arg_map(inputs.size());
@@ -177,9 +178,13 @@ struct dnnl_op : auto_register_op<Derived>
             auto debug_md = to_memory_desc(output_shape, to_shapes(debug_args));
             for(auto&& p : debug_md)
             {
+                if(md.count(p.first) == 0)
+                    MIGRAPHX_THROW(name +
+                                   ": Missing memory descriptor for: " + std::to_string(p.first));
                 if(p.second == md.at(p.first))
                     continue;
-                MIGRAPHX_THROW("Memory descriptor has changed for: " + std::to_string(p.first));
+                MIGRAPHX_THROW(name +
+                               ": Memory descriptor has changed for: " + std::to_string(p.first));
             }
 #endif
             std::unordered_map<int, dnnl::memory> m;
@@ -219,7 +224,5 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
 
 #endif

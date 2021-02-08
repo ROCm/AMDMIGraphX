@@ -71,10 +71,7 @@ module::module(module&&) noexcept = default;
 module::~module() noexcept        = default;
 
 // copy constructor
-module::module(const module& m)
-{
-    assign(m, {}, {});
-}
+module::module(const module& m) { assign(m, {}, {}); }
 
 // copy assignment operator
 module& module::operator=(module m)

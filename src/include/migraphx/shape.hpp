@@ -59,6 +59,8 @@ struct shape
     {
     };
 
+    static const std::vector<type_t>& types();
+
     shape();
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
@@ -128,6 +130,10 @@ struct shape
     {
         using type = std::conditional_t<std::is_same<T, bool>{}, int8_t, T>;
 
+        type max() const { return std::numeric_limits<type>::max(); }
+
+        type min() const { return std::numeric_limits<type>::lowest(); }
+
         template <class U>
         type operator()(U u) const
         {
@@ -166,9 +172,9 @@ struct shape
     };
 
     template <class Visitor>
-    void visit_type(Visitor v) const
+    static void visit(type_t t, Visitor v)
     {
-        switch(this->type())
+        switch(t)
         {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -176,6 +182,12 @@ struct shape
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE
         }
         MIGRAPHX_THROW("Unknown type");
+    }
+
+    template <class Visitor>
+    void visit_type(Visitor v) const
+    {
+        visit(this->type(), v);
     }
 
     template <class Visitor>

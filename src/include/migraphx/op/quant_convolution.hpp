@@ -8,6 +8,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
@@ -34,6 +35,8 @@ struct quant_convolution
                     f(self.padding_mode, "padding_mode"),
                     f(self.group, "group"));
     }
+
+    value attributes() const { return {{"general_data_type", "convolution"}}; }
 
     std::string name() const { return "quant_convolution"; }
 

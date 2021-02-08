@@ -79,6 +79,14 @@ struct shape_impl
     }
 };
 
+const std::vector<shape::type_t>& shape::types()
+{
+    static const std::vector<shape::type_t> result = {
+#define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)};
+    return result;
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}

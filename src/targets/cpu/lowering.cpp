@@ -367,6 +367,7 @@ struct cpu_apply
                               {"reduce_sum", "reduction_sum"},
                           });
 
+        extend_op("concat", "dnnl::concat");
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
         extend_op("deconvolution", "dnnl::deconvolution");

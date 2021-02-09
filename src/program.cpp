@@ -300,12 +300,11 @@ value program::to_value() const
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
-    result["modules"] = value::object{};
-    auto& module_val  = result.at("modules");
-    for(auto& m : impl->modules)
-    {
-        module_val[m.first] = m.second.to_value();
-    }
+    value module_vals = value::object{};
+    auto* mm = get_main_module();
+    mm->to_value(module_vals, {});
+    result["modules"] = module_vals;
+
     return result;
 }
 
@@ -325,15 +324,21 @@ void program::from_value(const value& v)
         this->impl->ctx.from_value(v.at("context"));
     }
 
-    auto val_modules = v.at("modules");
-    for(const auto& vv : val_modules)
+    auto module_vals = v.at("modules");
+    std::unordered_map<std::string, module_ref> map_mods;
+    for(const auto& vv : module_vals)
     {
         const auto& key = vv.get_key();
         auto val        = vv.without_key();
-        module modl{key};
-        modl.from_value(val);
-        impl->modules[key] = modl;
+        impl->modules[key] = {key};
+        map_mods[key] = &impl->modules[key];
     }
+
+    std::unordered_map<std::string, instruction_ref> map_insts;
+    auto mm_val = module_vals.at("main");
+    auto *mm = get_main_module();
+    mm->from_value(module_vals, map_insts, map_mods);
+
     this->finalize();
 }
 

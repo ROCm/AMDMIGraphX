@@ -306,7 +306,11 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
-    impl->instructions.splice(dst, impl->instructions, src);
+    if (contains(impl->instructions, src))
+    {
+        impl->instructions.splice(dst, impl->instructions, src);
+    }
+
     return src;
 }
 
@@ -486,11 +490,11 @@ void module::finalize(context& ctx)
                   << std::endl;
 }
 
-value module::to_value() const
+value module::to_value(value& v, std::unordered_map<instruction_ref, std::string> names) const
 {
     value result;
     value nodes;
-    std::unordered_map<instruction_ref, std::string> names;
+    result["name"] = name();
     this->print(names, [&](auto ins) {
         value node;
         node["output"]     = names.at(ins);
@@ -506,16 +510,34 @@ value module::to_value() const
                        std::back_inserter(inputs),
                        [&](auto i) { return names.at(i); });
         node["inputs"] = inputs;
+        auto module_args = ins->module_inputs();
+        if (not module_args.empty())
+        {
+            std::vector<std::string> module_inputs;
+            std::transform(module_args.begin(), module_args.end(), std::back_inserter(module_inputs), [&](auto mod) {
+                return mod->name();
+            });
+            node["module_inputs"] = module_inputs;
+
+            for (auto& smod : module_args)
+            {
+                smod->to_value(v, names);
+            }
+        }
+
         nodes.push_back(node);
     });
     result["nodes"] = nodes;
+
+    v[name()] = result;
+
     return result;
 }
 
-void module::from_value(const value& v)
+void module::from_value(const value& v, std::unordered_map<std::string, instruction_ref>& instructions, const std::unordered_map<std::string, module_ref>& map_mods)
 {
-    std::unordered_map<std::string, instruction_ref> instructions;
-    for(const value& node : v.at("nodes"))
+    auto& module_val = v.at(name());
+    for(const value& node : module_val.at("nodes"))
     {
         instruction_ref output;
         auto name       = node.at("name").to<std::string>();
@@ -538,10 +560,33 @@ void module::from_value(const value& v)
                            node.at("inputs").end(),
                            std::back_inserter(inputs),
                            [&](const value& i) { return instructions[i.to<std::string>()]; });
+
+            std::vector<module_ref> module_inputs;
+            if (node.contains("module_inputs"))
+            {
+                std::transform(node.at("module_inputs").begin(),
+                            node.at("module_inputs").end(),
+                            std::back_inserter(module_inputs),
+                            [&](const value& i) { return map_mods.at(i.to<std::string>()); });
+
+                for (auto& smod : module_inputs)
+                {
+                    smod->from_value(v, instructions, map_mods);
+                }
+            }
+
             if(name == "@return")
+            {
                 output = this->add_return(inputs);
-            else
+            }
+            else if (module_inputs.empty())
+            {
                 output = this->add_instruction(op, inputs);
+            }
+            else
+            {
+                output = this->add_instruction(op, inputs, module_inputs);
+            }
         }
         output->set_normalized(normalized);
         instructions[node.at("output").to<std::string>()] = output;
@@ -590,7 +635,6 @@ void module::print(std::unordered_map<instruction_ref, std::string>& names,
                    const std::function<void(instruction_ref)>& print_func) const
 {
     int count = 0;
-    std::unordered_set<module_ref> set_smod;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -609,12 +653,6 @@ void module::print(std::unordered_map<instruction_ref, std::string>& names,
                            ins->inputs().end(),
                            [&](auto arg) { return this->has_instruction(arg); }) &&
                "DEBUG_PRINT: Instruction not found");
-
-        auto& mod_args = ins->module_inputs();
-        for(auto& smod : mod_args)
-        {
-            set_smod.insert(smod);
-        }
 
         print_func(ins);
     }
@@ -793,7 +831,6 @@ static void print_module(std::ostream& os,
                          const module& m,
                          std::unordered_map<instruction_ref, std::string> names)
 {
-    // os << "Module \"" << m.name() << "\" ..." << std::endl;
     std::unordered_set<module_ref> sub_mods;
     m.print(names, [&](auto ins) {
         print_instruction(os, ins, names);

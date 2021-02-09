@@ -166,14 +166,19 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
         return migraphx::reflect(self.op, f);
     }
 
+    // dnnl has some issues with non-packed inputs
+    void required(const check_shapes& cs) const
+    {
+        cs.packed_or_broadcasted();
+    }
+
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
         const auto& self = static_cast<const Derived&>(*this);
         // Compensate for allocation
         inputs.pop_back();
-        // dnnl has some issues with non-packed inputs
-        check_shapes(inputs, self).packed_or_broadcasted();
+        self.required(check_shapes(inputs, self));
         auto r = migraphx::compute_shape(op, inputs);
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));

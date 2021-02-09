@@ -15,10 +15,7 @@ struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
-    void required(const check_shapes& cs) const
-    {
-        cs.not_broadcasted();
-    }
+    void required(const check_shapes& cs) const { cs.not_broadcasted(); }
 
     dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {

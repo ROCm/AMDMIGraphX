@@ -104,33 +104,42 @@ struct reduce_dims_base
     }
 };
 
-template<class T, std::size_t N>
+template <class T, std::size_t N>
 struct vec
 {
-    union {
+    union
+    {
         std::array<T, N> array;
-        T __attribute__ ((vector_size (N))) vector;
+        T __attribute__((vector_size(N))) vector;
     };
 };
 
+template <class T>
+constexpr std::integral_constant<std::size_t, 0> vec_size(const T&)
+{
+    return {};
+}
 
-template<class T>
-constexpr std::integral_constant<std::size_t, 0> vec_size(const T&) { return {}; }
+template <class T, std::size_t N>
+constexpr std::integral_constant<std::size_t, N> vec_size(const vec<T, N>&)
+{
+    return {};
+}
 
-template<class T, std::size_t N>
-constexpr std::integral_constant<std::size_t, N> vec_size(const vec<T, N>&) { return {}; }
+template <class T>
+constexpr std::size_t vec_size()
+{
+    return decltype(vec_size(std::declval<T>())){};
+}
 
-template<class T>
-constexpr std::size_t vec_size() { return decltype(vec_size(std::declval<T>())){}; }
-
-template<class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() > 0))>
+template <class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() > 0))>
 void vec_apply(F f, V& v, Vs... vs)
 {
-    for(std::size_t i = 0;i < vec_size<V>();i++)
+    for(std::size_t i = 0; i < vec_size<V>(); i++)
         f(v.array[i], vs.vector[i]...);
 }
 
-template<class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() == 0))>
+template <class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() == 0))>
 void vec_apply(F f, V& v, Vs&... vs)
 {
     f(v, vs...);
@@ -138,9 +147,9 @@ void vec_apply(F f, V& v, Vs&... vs)
 
 inline std::size_t find_packed_len(const shape& s)
 {
-    for(std::size_t i = 0;i<s.lens().size();i++)
+    for(std::size_t i = 0; i < s.lens().size(); i++)
     {
-        if (s.lens()[i] > 1 and s.strides()[i] == 1)
+        if(s.lens()[i] > 1 and s.strides()[i] == 1)
         {
             return i;
         }
@@ -148,12 +157,12 @@ inline std::size_t find_packed_len(const shape& s)
     return -1;
 }
 
-template<std::size_t N>
+template <std::size_t N>
 shape vectorize(const shape& s)
 {
     assert(s.standard() or s.broadcasted());
     auto lens = s.lens();
-    if (s.broadcasted())
+    if(s.broadcasted())
     {
         auto n = find_packed_len(s);
         assert(n != -1);
@@ -167,41 +176,47 @@ shape vectorize(const shape& s)
     }
 }
 
-template<std::size_t N, class T>
+template <std::size_t N, class T>
 tensor_view<vec<T, N>> vectorize(tensor_view<T> tv)
 {
     return {vectorize<N>(tv.get_shape()), reinterpret_cast<vec<T, N>*>(tv.data())};
 }
 
-template<class T>
-struct is_vector_type
-: std::false_type
-{};
+template <class T>
+struct is_vector_type : std::false_type
+{
+};
 
-template<>
+template <>
 struct is_vector_type<float> : std::true_type
-{};
+{
+};
 
-template<class... Ts>
-struct is_vector_tensor_view
-: and_<is_vector_type<typename Ts::value_type>{}...>
-{};
+template <class... Ts>
+struct is_vector_tensor_view : and_<is_vector_type<typename Ts::value_type>{}...>
+{
+};
 
 template <std::size_t N, class... Xs>
 bool is_vectorizable(const Xs&... xs)
 {
-    return all_of({xs...}, [](const auto& s) { 
+    return all_of({xs...}, [](const auto& s) {
 
         if(s.standard() and (s.lens().back() % N) == 0)
             return true;
-        if (s.broadcasted())
+        if(s.broadcasted())
         {
-            auto n = std::inner_product(s.lens().begin(), s.lens().end(), s.strides().begin(), 0, std::plus<>{}, [&](auto len, auto stride) -> std::size_t {
-                if(stride > 0 and len == 1)
-                    return 0;
-                return stride;
-            });
-            if (n == 1)
+            auto n = std::inner_product(s.lens().begin(),
+                                        s.lens().end(),
+                                        s.strides().begin(),
+                                        0,
+                                        std::plus<>{},
+                                        [&](auto len, auto stride) -> std::size_t {
+                                            if(stride > 0 and len == 1)
+                                                return 0;
+                                            return stride;
+                                        });
+            if(n == 1)
             {
                 auto i = find_packed_len(s);
                 assert(i != -1);
@@ -212,26 +227,23 @@ bool is_vectorizable(const Xs&... xs)
     });
 }
 
-template<class... Ts, MIGRAPHX_REQUIRES(is_vector_tensor_view<Ts...>{})>
+template <class... Ts, MIGRAPHX_REQUIRES(is_vector_tensor_view<Ts...>{})>
 auto auto_vectorize(const shape& base_shape, Ts... xs)
 {
     return [=](auto f) {
-        if (is_vectorizable<32>(base_shape, xs.get_shape()...))
+        if(is_vectorizable<32>(base_shape, xs.get_shape()...))
             f(vectorize<32>(base_shape), vectorize<32>(xs)...);
-        else if (is_vectorizable<8>(base_shape, xs.get_shape()...))
+        else if(is_vectorizable<8>(base_shape, xs.get_shape()...))
             f(vectorize<8>(base_shape), vectorize<8>(xs)...);
         else
             f(base_shape, xs...);
     };
 }
 
-template<class... Ts, MIGRAPHX_REQUIRES(not is_vector_tensor_view<Ts...>{})>
+template <class... Ts, MIGRAPHX_REQUIRES(not is_vector_tensor_view<Ts...>{})>
 auto auto_vectorize(const shape& base_shape, Ts... xs)
 {
-    return [=](auto f) {
-        f(base_shape, xs...);
-    };
-
+    return [=](auto f) { f(base_shape, xs...); };
 }
 
 template <class X, class... Xs>
@@ -301,7 +313,7 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         visit_all(result, get_arg(args, 0))([&](auto output, auto input) {
             auto op2 = op;
             pointwise(output, input)(
-                ctx, output.get_shape(), 4*1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
+                ctx, output.get_shape(), 4 * 1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
         });
 
         return result.reshape(output_shape);
@@ -341,7 +353,7 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
             [&](auto output, auto input1, auto input2) {
                 auto op2 = op;
                 pointwise(output, input1, input2)(
-                    ctx, output.get_shape(), 4*1024, [op2](auto& z, auto x, auto y) {
+                    ctx, output.get_shape(), 4 * 1024, [op2](auto& z, auto x, auto y) {
                         z = op2.apply()(x, y);
                     });
             });

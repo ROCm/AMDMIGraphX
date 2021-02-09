@@ -19,6 +19,7 @@ add_library(migraphx_cpu
     reorder.cpp
     softmax.cpp
     sub.cpp
+    write_literals.cpp
     gemm.cpp
     target.cpp
     lowering.cpp

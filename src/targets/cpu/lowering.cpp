@@ -280,29 +280,6 @@ struct cpu_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
-struct cpu_literal
-{
-    argument data;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.data, "data"));
-    }
-
-    std::string name() const { return "cpu::literal"; }
-
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
-
-    friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
-    {
-        os << x.name();
-        return os;
-    }
-};
-
 struct cpu_apply
 {
     module* modl;
@@ -419,11 +396,7 @@ struct cpu_apply
         }
         for(auto it : iterator_for(*modl))
         {
-            if(it->name() == "@literal")
-            {
-                apply_literal(it);
-            }
-            else if(it->name() == "pooling")
+                if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
@@ -432,11 +405,6 @@ struct cpu_apply
                 apply_map.at(it->name())(it);
             }
         }
-    }
-
-    instruction_ref apply_literal(instruction_ref ins) const
-    {
-        return modl->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
     }
 
     instruction_ref apply_pow(instruction_ref ins)

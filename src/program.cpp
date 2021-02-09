@@ -513,6 +513,35 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
     }
 }
 
+const module* program::get_module(const std::string& name) const
+{
+    assert(contains(impl->modules, name));
+    return &impl->modules.at(name);
+}
+
+module* program::create_module(const std::string& name)
+{
+    if(contains(impl->modules, name))
+    {
+        MIGRAPHX_THROW("CREATE_MODULE: module " + name + " already exists");
+    }
+
+    impl->modules[name] = module(name);
+    return &impl->modules.at(name);
+}
+
+void program::remove_module(const std::string& name)
+{
+    assert(contains(impl->modules, name));
+    impl->modules.erase(name);
+}
+
+module* program::get_module(const std::string& name)
+{
+    assert(contains(impl->modules, name));
+    return &impl->modules[name];
+}
+
 module* program::get_main_module() { return &impl->modules.at("main"); }
 
 const module* program::get_main_module() const { return &impl->modules.at("main"); }
@@ -531,12 +560,8 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    for(auto& mp : p.impl->modules)
-    {
-        os << "Module " << mp.first << ": " << std::endl;
-        os << mp.second;
-        os << std::endl;
-    }
+    auto* mm = p.get_main_module();
+    os << *mm << std::endl;
 
     return os;
 }

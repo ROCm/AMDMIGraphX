@@ -96,11 +96,45 @@ TEST_CASE(module_name)
     m3 = m1;
     EXPECT(m3.name() == "name");
 }
+
 TEST_CASE(module_name_main)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     EXPECT(mm->name() == "main");
+}
+
+TEST_CASE(program_module_assign)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {2, 3}};
+    auto x = mm->add_parameter("x", sd);
+
+    std::vector<float> one(sd.elements(), 1);
+    std::vector<float> two(sd.elements(), 2);
+
+    auto* then_smod = p.create_module("then_smod");
+    then_smod->set_parent_module(mm);
+    auto l1 = then_smod->add_literal(migraphx::literal{sd, one});
+    auto r1 = then_smod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_smod->add_return({r1});
+
+    auto* else_smod = p.create_module("else_smod");
+    else_smod->set_parent_module(mm);
+    auto l2 = else_smod->add_literal(migraphx::literal{sd, two});
+    auto r2 = else_smod->add_instruction(migraphx::make_op("mul"), x, l2);
+    else_smod->add_return({r2});
+
+    migraphx::shape s_cond{migraphx::shape::bool_type, {1}};
+    auto cond = mm->add_parameter("cond", s_cond);
+    auto ret = mm->add_instruction(migraphx::make_op("iff", {{"then_sub_graph", "then_smod"}, {"else_sub_graph",
+                "else_smod"}}), {cond}, {then_smod, else_smod});
+    mm->add_return({ret});
+
+    migraphx::program p1 = p;
+    
+    EXPECT(p == p1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

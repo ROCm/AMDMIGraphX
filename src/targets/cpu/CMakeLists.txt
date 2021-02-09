@@ -9,12 +9,14 @@ add_library(migraphx_cpu
     deconvolution.cpp
     dnnl.cpp
     eltwise.cpp
+    erf.cpp
     logsoftmax.cpp
     lrn.cpp
     pooling.cpp
     reduction.cpp
     reorder.cpp
     softmax.cpp
+    sub.cpp
     gemm.cpp
     target.cpp
     lowering.cpp

@@ -397,6 +397,8 @@ struct cpu_apply
         extend_op("dot", "dnnl::dot");
         extend_op("lrn", "dnnl::lrn");
         extend_op("contiguous", "dnnl::reorder");
+        extend_op("sub", "cpu::sub");
+        extend_op("erf", "cpu::erf");
 
         extend_op("im2col", "cpu::im2col", false);
         extend_op("leaky_relu", "cpu::leaky_relu", false);

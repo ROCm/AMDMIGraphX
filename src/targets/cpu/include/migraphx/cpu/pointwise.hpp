@@ -21,17 +21,17 @@ struct multi_index
         s.multi_copy(i, index, index + max_size);
     }
 
-    std::size_t size() const { return n; }
+    constexpr std::size_t size() const { return n; }
 
-    std::size_t* begin() { return index; }
-    const std::size_t* begin() const { return index; }
+    constexpr std::size_t* begin() { return index; }
+    constexpr const std::size_t* begin() const { return index; }
 
-    std::size_t* end() { return index + size(); }
-    const std::size_t* end() const { return index + size(); }
+    constexpr std::size_t* end() { return index + size(); }
+    constexpr const std::size_t* end() const { return index + size(); }
 
     std::size_t offset(const shape& s) const { return s.index(begin(), end()); }
 
-    void carry()
+    constexpr void carry()
     {
         std::size_t overflow = 0;
         for(std::ptrdiff_t i = size() - 1; i > 0; i--)
@@ -50,19 +50,19 @@ struct multi_index
         index[0] += overflow;
     }
 
-    void increment(std::size_t i)
+    constexpr void increment(std::size_t i)
     {
         index[size() - 1] += i;
         carry();
     }
 
-    multi_index& operator+=(std::size_t i)
+    constexpr multi_index& operator+=(std::size_t i)
     {
         increment(i);
         return *this;
     }
 
-    multi_index& operator++()
+    constexpr multi_index& operator++()
     {
         increment(1);
         return *this;
@@ -107,11 +107,15 @@ struct reduce_dims_base
 template <class T, std::size_t N>
 struct vec
 {
+    using array_type = std::array<T, N>;
+    using vector_type = T __attribute__((vector_size(N*sizeof(T))));
     union
     {
-        std::array<T, N> array;
-        T __attribute__((vector_size(N))) vector;
+        array_type array;
+        vector_type vector;
     };
+
+    static_assert(sizeof(array_type) == sizeof(vector_type), "Not the same size");
 };
 
 template <class T>
@@ -135,6 +139,8 @@ constexpr std::size_t vec_size()
 template <class F, class V, class... Vs, MIGRAPHX_REQUIRES((vec_size<V>() > 0))>
 void vec_apply(F f, V& v, Vs... vs)
 {
+    assert(all_of({vec_size<Vs>()...}, [&](auto n) { return n == vec_size<V>(); }));
+    assert(vec_size<V>() == v.array.size());
     for(std::size_t i = 0; i < vec_size<V>(); i++)
         f(v.array[i], vs.vector[i]...);
 }
@@ -166,11 +172,13 @@ shape vectorize(const shape& s)
     {
         auto n = find_packed_len(s);
         assert(n != -1);
+        assert((lens[n] % N) == 0);
         lens[n] /= N;
         return {s.type(), lens, s.strides()};
     }
     else
     {
+        assert((lens.back() % N) == 0);
         lens.back() /= N;
         return {s.type(), lens};
     }

@@ -31,9 +31,9 @@ struct cpu_gather : auto_register_op<cpu_gather>
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
         std::size_t nelements = output_shape.elements();
-        auto lens               = args[0].get_shape().lens();
-        auto axis_dim_size      = lens[op.axis];
-        lens[op.axis]              = args[1].get_shape().elements();
+        auto lens             = args[0].get_shape().lens();
+        auto axis_dim_size    = lens[op.axis];
+        lens[op.axis]         = args[1].get_shape().elements();
         shape out_comp{output_shape.type(), lens};
 
         visit_all(args.back(), args[0])([&](auto output, auto input) {
@@ -46,7 +46,7 @@ struct cpu_gather : auto_register_op<cpu_gather>
                         auto idx      = out_comp.multi(i);
                         auto in_index = indices_ptr[idx[op.axis]];
                         in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
-                        idx[op.axis]     = in_index;
+                        idx[op.axis]  = in_index;
                         output_ptr[i] = input(idx.begin(), idx.end());
                     }
                 });

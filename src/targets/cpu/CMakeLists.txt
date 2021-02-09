@@ -2,8 +2,8 @@
 include(CheckCXXCompilerFlag)
 
 add_library(migraphx_cpu
-    allocation_model.cpp
     allocate.cpp
+    allocation_model.cpp
     binary.cpp
     concat.cpp
     convolution.cpp
@@ -13,17 +13,17 @@ add_library(migraphx_cpu
     eltwise.cpp
     erf.cpp
     gather.cpp
+    gemm.cpp
     logsoftmax.cpp
+    lowering.cpp
     lrn.cpp
     pooling.cpp
     reduction.cpp
     reorder.cpp
     softmax.cpp
     sub.cpp
-    write_literals.cpp
-    gemm.cpp
     target.cpp
-    lowering.cpp
+    write_literals.cpp
 )
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})

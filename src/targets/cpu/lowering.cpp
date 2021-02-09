@@ -367,16 +367,16 @@ struct cpu_apply
                               {"reduce_sum", "reduction_sum"},
                           });
 
-        extend_op("softmax", "dnnl::softmax");
-        extend_op("logsoftmax", "dnnl::logsoftmax");
+        extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
         extend_op("deconvolution", "dnnl::deconvolution");
         extend_op("dot", "dnnl::dot");
-        extend_op("lrn", "dnnl::lrn");
-        extend_op("contiguous", "dnnl::reorder");
-        extend_op("sub", "cpu::sub");
         extend_op("erf", "cpu::erf");
         extend_op("gather", "cpu::gather");
+        extend_op("logsoftmax", "dnnl::logsoftmax");
+        extend_op("lrn", "dnnl::lrn");
+        extend_op("softmax", "dnnl::softmax");
+        extend_op("sub", "cpu::sub");
 
         extend_op("im2col", "cpu::im2col", false);
         extend_op("leaky_relu", "cpu::leaky_relu", false);

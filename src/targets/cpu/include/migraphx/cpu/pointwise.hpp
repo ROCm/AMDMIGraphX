@@ -48,6 +48,9 @@ struct multi_index
                 overflow += 1;
             }
             index[i] = z;
+            // Exit if there is no overflow
+            if (overflow == 0)
+                return;
         }
         index[0] += overflow;
     }

@@ -778,7 +778,7 @@ std::unordered_set<module_ref> module::get_parent_modules() const
     for(auto ins : iterator_for(*this))
     {
         auto& module_args = ins->module_inputs();
-        for (auto& mod : module_args)
+        for(auto& mod : module_args)
         {
             parent_modules.insert(mod);
         }
@@ -786,7 +786,6 @@ std::unordered_set<module_ref> module::get_parent_modules() const
 
     return parent_modules;
 }
-
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 

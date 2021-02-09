@@ -154,7 +154,6 @@ struct module
                 const std::unordered_map<module_ref, module_ref>& mod_map);
 
     private:
-
     std::unordered_set<module_ref> get_parent_modules() const;
 
     std::unique_ptr<module_impl> impl;

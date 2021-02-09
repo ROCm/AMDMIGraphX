@@ -306,7 +306,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
-    if (contains(impl->instructions, src))
+    if(contains(impl->instructions, src))
     {
         impl->instructions.splice(dst, impl->instructions, src);
     }
@@ -509,17 +509,18 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
                        ins->inputs().end(),
                        std::back_inserter(inputs),
                        [&](auto i) { return names.at(i); });
-        node["inputs"] = inputs;
+        node["inputs"]   = inputs;
         auto module_args = ins->module_inputs();
-        if (not module_args.empty())
+        if(not module_args.empty())
         {
             std::vector<std::string> module_inputs;
-            std::transform(module_args.begin(), module_args.end(), std::back_inserter(module_inputs), [&](auto mod) {
-                return mod->name();
-            });
+            std::transform(module_args.begin(),
+                           module_args.end(),
+                           std::back_inserter(module_inputs),
+                           [&](auto mod) { return mod->name(); });
             node["module_inputs"] = module_inputs;
 
-            for (auto& smod : module_args)
+            for(auto& smod : module_args)
             {
                 smod->to_value(v, names);
             }
@@ -534,7 +535,9 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
     return result;
 }
 
-void module::from_value(const value& v, std::unordered_map<std::string, instruction_ref>& instructions, const std::unordered_map<std::string, module_ref>& map_mods)
+void module::from_value(const value& v,
+                        std::unordered_map<std::string, instruction_ref>& instructions,
+                        const std::unordered_map<std::string, module_ref>& map_mods)
 {
     auto& module_val = v.at(name());
     for(const value& node : module_val.at("nodes"))
@@ -562,14 +565,14 @@ void module::from_value(const value& v, std::unordered_map<std::string, instruct
                            [&](const value& i) { return instructions[i.to<std::string>()]; });
 
             std::vector<module_ref> module_inputs;
-            if (node.contains("module_inputs"))
+            if(node.contains("module_inputs"))
             {
                 std::transform(node.at("module_inputs").begin(),
-                            node.at("module_inputs").end(),
-                            std::back_inserter(module_inputs),
-                            [&](const value& i) { return map_mods.at(i.to<std::string>()); });
+                               node.at("module_inputs").end(),
+                               std::back_inserter(module_inputs),
+                               [&](const value& i) { return map_mods.at(i.to<std::string>()); });
 
-                for (auto& smod : module_inputs)
+                for(auto& smod : module_inputs)
                 {
                     smod->from_value(v, instructions, map_mods);
                 }
@@ -579,7 +582,7 @@ void module::from_value(const value& v, std::unordered_map<std::string, instruct
             {
                 output = this->add_return(inputs);
             }
-            else if (module_inputs.empty())
+            else if(module_inputs.empty())
             {
                 output = this->add_instruction(op, inputs);
             }

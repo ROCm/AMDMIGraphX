@@ -301,7 +301,7 @@ value program::to_value() const
         result["context"] = this->impl->ctx.to_value();
 
     value module_vals = value::object{};
-    auto* mm = get_main_module();
+    auto* mm          = get_main_module();
     mm->to_value(module_vals, {});
     result["modules"] = module_vals;
 
@@ -328,15 +328,15 @@ void program::from_value(const value& v)
     std::unordered_map<std::string, module_ref> map_mods;
     for(const auto& vv : module_vals)
     {
-        const auto& key = vv.get_key();
-        auto val        = vv.without_key();
+        const auto& key    = vv.get_key();
+        auto val           = vv.without_key();
         impl->modules[key] = {key};
-        map_mods[key] = &impl->modules[key];
+        map_mods[key]      = &impl->modules[key];
     }
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto mm_val = module_vals.at("main");
-    auto *mm = get_main_module();
+    auto* mm    = get_main_module();
     mm->from_value(module_vals, map_insts, map_mods);
 
     this->finalize();

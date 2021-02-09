@@ -49,7 +49,7 @@ struct multi_index
             }
             index[i] = z;
             // Exit if there is no overflow
-            if (overflow == 0)
+            if(overflow == 0)
                 return;
         }
         index[0] += overflow;

@@ -302,9 +302,8 @@ template <class... Ts>
 auto pointwise(Ts... ts)
 {
     return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) mutable {
-        auto_vectorize(base_shape, ts...)([&](auto bs, auto... xs) {
-            pointwise_apply(xs...)(ctx, bs, min_grain, f);
-        });
+        auto_vectorize(base_shape, ts...)(
+            [&](auto bs, auto... xs) { pointwise_apply(xs...)(ctx, bs, min_grain, f); });
     };
 }
 

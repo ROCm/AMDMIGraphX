@@ -125,9 +125,9 @@ dnnl::memory to_dnnl_memory(const argument& a)
 const std::unordered_map<std::string, dnnl::algorithm>& dnnl_algo_map()
 {
     static const std::unordered_map<std::string, dnnl::algorithm> m = {
-#define MIGRAPHX_DNNL_ALGO_VISITOR(x) {#x, dnnl::algorithm::x},
-        MIGRAPHX_VISIT_DNNL_ALGO(MIGRAPHX_DNNL_ALGO_VISITOR)
-#undef MIGRAPHX_DNNL_ALGO_VISITOR
+#define MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR(x) {#x, dnnl::algorithm::x},
+        MIGRAPHX_VISIT_DNNL_ALGO(MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR)
+#undef MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR
     };
     return m;
 }

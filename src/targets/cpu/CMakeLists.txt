@@ -1,4 +1,6 @@
 
+include(CheckCXXCompilerFlag)
+
 add_library(migraphx_cpu
     allocation_model.cpp
     allocate.cpp
@@ -30,6 +32,7 @@ find_package(dnnl REQUIRED)
 rocm_clang_tidy_check(migraphx_cpu)
 target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)
 target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
+
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
 # Add library path to rpath to workaround issues with our broken packages

@@ -40,6 +40,8 @@ struct multi_index
             // Reset overflow
             overflow = 0;
             // Compute overflow using while loop instead of mod
+            // overflow = z / dims[i];
+            // z = z % dims[i];
             while(z >= dims[i])
             {
                 z -= dims[i];
@@ -321,7 +323,7 @@ struct cpu_unary : reduce_dims_base, auto_register_op<cpu_unary<Op>>
         visit_all(result, get_arg(args, 0))([&](auto output, auto input) {
             auto op2 = op;
             pointwise(output, input)(
-                ctx, output.get_shape(), 4 * 1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
+                ctx, output.get_shape(), 1024, [op2](auto& y, auto x) { y = op2.apply()(x); });
         });
 
         return result.reshape(output_shape);
@@ -361,7 +363,7 @@ struct cpu_binary : reduce_dims_base, auto_register_op<cpu_binary<Op>>
             [&](auto output, auto input1, auto input2) {
                 auto op2 = op;
                 pointwise(output, input1, input2)(
-                    ctx, output.get_shape(), 4 * 1024, [op2](auto& z, auto x, auto y) {
+                    ctx, output.get_shape(), 1024, [op2](auto& z, auto x, auto y) {
                         z = op2.apply()(x, y);
                     });
             });

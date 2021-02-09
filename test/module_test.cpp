@@ -115,13 +115,11 @@ TEST_CASE(program_module_assign)
     std::vector<float> two(sd.elements(), 2);
 
     auto* then_smod = p.create_module("then_smod");
-    then_smod->set_parent_module(mm);
     auto l1 = then_smod->add_literal(migraphx::literal{sd, one});
     auto r1 = then_smod->add_instruction(migraphx::make_op("add"), x, l1);
     then_smod->add_return({r1});
 
     auto* else_smod = p.create_module("else_smod");
-    else_smod->set_parent_module(mm);
     auto l2 = else_smod->add_literal(migraphx::literal{sd, two});
     auto r2 = else_smod->add_instruction(migraphx::make_op("mul"), x, l2);
     else_smod->add_return({r2});

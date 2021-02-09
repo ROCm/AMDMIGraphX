@@ -129,9 +129,7 @@ void module::assign(const module& m,
             {
                 for(auto mdl : module_args)
                 {
-                    auto prt_mdl        = mdl->get_parent_module();
                     module_ref copy_mdl = mod_map.at(mdl);
-                    copy_mdl->set_parent_module(mod_map.at(prt_mdl));
                     copy_mdl->assign(*mdl, ins_map, mod_map);
                 }
 
@@ -320,26 +318,6 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-// module_ref module::create_sub_module(const std::string& name)
-// {
-//     this->impl->sub_modules.push_back(module(name));
-//     module_ref sub_mdl = &this->impl->sub_modules.back();
-//     sub_mdl->set_parent_module(this);
-
-//     return sub_mdl;
-// }
-
-// std::vector<module_ref> module::get_sub_modules() const
-// {
-//     std::vector<module_ref> sub_modules(this->impl->sub_modules.size());
-//     std::transform(this->impl->sub_modules.begin(),
-//                    this->impl->sub_modules.end(),
-//                    sub_modules.begin(),
-//                    [](auto& mdl) { return &mdl; });
-
-//     return sub_modules;
-// }
-
 instruction_ref module::add_literal(literal l)
 {
     impl->instructions.emplace_front(std::move(l));
@@ -452,18 +430,10 @@ bool module::has_instruction(instruction_ref ins) const
         return true;
     }
 
-    module_ref mdl = this->parent_mdl;
-    while(mdl != nullptr)
-    {
-        if(mdl->has_instruction(ins))
-        {
-            return true;
-        }
-
-        mdl = mdl->parent_mdl;
-    }
-
-    return false;
+    auto parent_modules = get_parent_modules();
+    return std::any_of(parent_modules.begin(), parent_modules.end(), [&](auto mod) {
+        return mod->has_instruction(ins);
+    });
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }
@@ -801,6 +771,22 @@ module& module::sort()
     assert(this->validate() == this->end());
     return *this;
 }
+
+std::unordered_set<module_ref> module::get_parent_modules() const
+{
+    std::unordered_set<module_ref> parent_modules;
+    for(auto ins : iterator_for(*this))
+    {
+        auto& module_args = ins->module_inputs();
+        for (auto& mod : module_args)
+        {
+            parent_modules.insert(mod);
+        }
+    }
+
+    return parent_modules;
+}
+
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 

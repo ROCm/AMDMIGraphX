@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
 #include <list>
+#include <unordered_set>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
 #include <migraphx/literal.hpp>
@@ -92,9 +93,6 @@ struct module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
-    // module_ref create_sub_module(const std::string& name);
-    // std::vector<module_ref> get_sub_modules() const;
-
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
     {
@@ -147,9 +145,6 @@ struct module
 
     module& sort();
 
-    module_ref get_parent_module() const { return parent_mdl; }
-    void set_parent_module(module_ref mdl) { parent_mdl = mdl; }
-
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }
@@ -159,8 +154,10 @@ struct module
                 const std::unordered_map<module_ref, module_ref>& mod_map);
 
     private:
+
+    std::unordered_set<module_ref> get_parent_modules() const;
+
     std::unique_ptr<module_impl> impl;
-    module_ref parent_mdl = nullptr;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

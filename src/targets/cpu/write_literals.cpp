@@ -34,7 +34,7 @@ void write_literals::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if (ins->name() != "@literal")
+        if(ins->name() != "@literal")
             continue;
         m.replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
     }
@@ -43,4 +43,3 @@ void write_literals::apply(module& m) const
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

@@ -396,7 +396,7 @@ struct cpu_apply
         }
         for(auto it : iterator_for(*modl))
         {
-                if(it->name() == "pooling")
+            if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }

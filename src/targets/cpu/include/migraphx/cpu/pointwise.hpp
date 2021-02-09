@@ -271,31 +271,39 @@ bool is_standard_offset(const X& x, const Xs&... xs)
 }
 
 template <class... Ts>
+auto pointwise_apply(Ts... ts)
+{
+    return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) mutable {
+        if(is_standard_offset(ts.get_shape()...))
+        {
+            ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
+                for(auto i = start; i < end; i++)
+                {
+                    vec_apply(f, ts.data()[i]...);
+                }
+            });
+        }
+        else
+        {
+            assert(base_shape.lens().size() <= 6);
+            ctx.bulk_execute(base_shape.elements(), min_grain, [=](auto start, auto end) mutable {
+                multi_index mi(base_shape, start);
+                for(auto i = start; i < end; i++)
+                {
+                    vec_apply(f, ts.data()[mi.offset(ts.get_shape())]...);
+                    ++mi;
+                }
+            });
+        }
+    };
+}
+
+template <class... Ts>
 auto pointwise(Ts... ts)
 {
     return [=](context& ctx, const shape& base_shape, std::size_t min_grain, auto f) mutable {
         auto_vectorize(base_shape, ts...)([&](auto bs, auto... xs) {
-            if(is_standard_offset(xs.get_shape()...))
-            {
-                ctx.bulk_execute(bs.elements(), min_grain, [=](auto start, auto end) mutable {
-                    for(auto i = start; i < end; i++)
-                    {
-                        vec_apply(f, xs.data()[i]...);
-                    }
-                });
-            }
-            else
-            {
-                assert(bs.lens().size() <= 6);
-                ctx.bulk_execute(bs.elements(), min_grain, [=](auto start, auto end) mutable {
-                    multi_index mi(bs, start);
-                    for(auto i = start; i < end; i++)
-                    {
-                        vec_apply(f, xs.data()[mi.offset(xs.get_shape())]...);
-                        ++mi;
-                    }
-                });
-            }
+            pointwise_apply(xs...)(ctx, bs, min_grain, f);
         });
     };
 }

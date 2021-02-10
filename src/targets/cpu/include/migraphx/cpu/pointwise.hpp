@@ -113,7 +113,7 @@ template <class T, std::size_t N>
 struct vec
 {
     using array_type  = std::array<T, N>;
-    using vector_type = T __attribute__((vector_size(N * sizeof(T))));
+    using vector_type __attribute__((vector_size(N * sizeof(T)))) = T;
     union
     {
         array_type array;

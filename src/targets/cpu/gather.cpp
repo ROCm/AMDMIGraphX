@@ -22,8 +22,7 @@ struct cpu_gather : auto_register_op<cpu_gather>
         // Compensate for allocation
         inputs.pop_back();
         check_shapes(inputs, *this).standard();
-        auto r = migraphx::compute_shape(op, inputs);
-        return r;
+        return migraphx::compute_shape(op, inputs);
     }
 
     argument

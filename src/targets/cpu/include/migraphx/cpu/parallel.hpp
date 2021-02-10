@@ -43,6 +43,7 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
             work += grainsize;
             return result;
         });
+        // cppcheck-suppress unsignedLessThanZero
         assert(work >= n);
     }
 }

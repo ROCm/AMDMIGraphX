@@ -181,12 +181,9 @@ shape vectorize(const shape& s)
         lens[n] /= N;
         return {s.type(), lens, s.strides()};
     }
-    else
-    {
-        assert((lens.back() % N) == 0);
-        lens.back() /= N;
-        return {s.type(), lens};
-    }
+    assert((lens.back() % N) == 0);
+    lens.back() /= N;
+    return {s.type(), lens};
 }
 
 template <std::size_t N, class T>

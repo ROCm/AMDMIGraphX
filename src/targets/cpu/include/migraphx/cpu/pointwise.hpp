@@ -83,9 +83,9 @@ struct multi_index
 
     private:
     static const std::size_t max_size = 5;
-    std::size_t index[max_size] = {};
-    std::size_t dims[max_size] = {};
-    std::size_t n = 0;
+    std::size_t index[max_size]       = {};
+    std::size_t dims[max_size]        = {};
+    std::size_t n                     = 0;
 };
 
 struct reduce_dims_base

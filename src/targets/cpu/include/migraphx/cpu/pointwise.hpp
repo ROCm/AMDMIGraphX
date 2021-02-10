@@ -14,6 +14,8 @@ namespace cpu {
 
 struct multi_index
 {
+    constexpr multi_index() = default;
+
     multi_index(const shape& s, std::size_t i) : n(s.lens().size())
     {
         assert(n < max_size);
@@ -81,9 +83,9 @@ struct multi_index
 
     private:
     static const std::size_t max_size = 5;
-    std::size_t index[max_size];
-    std::size_t dims[max_size];
-    std::size_t n;
+    std::size_t index[max_size] = {};
+    std::size_t dims[max_size] = {};
+    std::size_t n = 0;
 };
 
 struct reduce_dims_base

@@ -112,7 +112,7 @@ struct reduce_dims_base
 template <class T, std::size_t N>
 struct vec
 {
-    using array_type  = std::array<T, N>;
+    using array_type                                              = std::array<T, N>;
     using vector_type __attribute__((vector_size(N * sizeof(T)))) = T;
     union
     {

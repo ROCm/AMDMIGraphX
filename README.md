@@ -100,7 +100,7 @@ dependencies, then all dependencies are installed at default locations, and MIGr
 * In ROCm3.3:
 
 ```
-CXX=/opt/rocm/llvm/bin/clang++ cmake ..
+CXX=/opt/rocm/bin/hcc cmake ..
 ```
 
 * In ROCm3.7 or later releases:
@@ -140,7 +140,7 @@ make -j$(nproc) check
 MIGraphX libs can be installed as:
 
 ```
-make install
+sudo make install
 ```
 
 ### Building the documentation

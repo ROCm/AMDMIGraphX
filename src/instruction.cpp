@@ -221,6 +221,38 @@ void instruction::finalize(context& ctx)
         this->op.finalize(ctx, this->get_shape(), to_shapes(this->inputs()));
 }
 
+void instruction::print(std::ostream& os,
+                              instruction_ref ins,
+                              const std::unordered_map<instruction_ref, std::string>& names)
+{
+    os << names.at(ins) << " = ";
+
+    os << ins->get_operator();
+
+    if(ins->name() == "@literal")
+    {
+        if(ins->get_literal().get_shape().elements() > 10)
+            os << "{ ... }";
+        else
+            os << "{" << ins->get_literal() << "}";
+    }
+
+    if(!ins->inputs().empty())
+    {
+        char delim = '(';
+        for(auto&& arg : ins->inputs())
+        {
+            os << delim << names.at(arg);
+            delim = ',';
+        }
+        os << ")";
+    }
+
+    // skip return instruction shape
+    if(ins->name() != "@return")
+        os << " -> " << ins->get_shape();
+}
+
 static void debug_name(std::ostream& os, const instruction& ins)
 {
     if(ins.name() == "@literal")

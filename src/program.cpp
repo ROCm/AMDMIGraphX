@@ -418,9 +418,9 @@ void program::debug_print(instruction_ref ins) const
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if(std::none_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& it) {
-                return it.second.has_instruction(ins);
-            }))
+    else if(std::none_of(this->impl->modules.begin(),
+                         this->impl->modules.end(),
+                         [&](const auto& it) { return it.second.has_instruction(ins); }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;

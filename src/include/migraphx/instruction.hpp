@@ -90,8 +90,8 @@ struct instruction
     void debug_print() const;
 
     static void print(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names);
+                      instruction_ref ins,
+                      const std::unordered_map<instruction_ref, std::string>& names);
 
     private:
     // internal

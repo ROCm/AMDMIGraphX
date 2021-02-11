@@ -222,8 +222,8 @@ void instruction::finalize(context& ctx)
 }
 
 void instruction::print(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
+                        instruction_ref ins,
+                        const std::unordered_map<instruction_ref, std::string>& names)
 {
     os << names.at(ins) << " = ";
 

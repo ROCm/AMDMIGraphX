@@ -26,16 +26,14 @@ struct parse_if : op_parser<parse_if>
                 "PARSE_IF: current implementation requires condition input to be constant!");
         }
 
-        std::vector<bool> vec_conds;
-        cond_arg.visit([&](auto s) { vec_conds.assign(s.begin(), s.end()); });
-        if(vec_conds.size() != 1)
+        if(cond_arg.get_shape().elements() != 1)
         {
             MIGRAPHX_THROW("PARSE_IF: condition input can have only one element!");
         }
 
         auto* mod = info.mod;
         // then branch
-        if(vec_conds.front())
+        if(cond_arg.at<bool>())
         {
             const auto& then_graph = info.attributes.at("then_branch").g();
             parser.parse_graph(mod, then_graph);

@@ -183,7 +183,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<instruction_ref> args)
 {
     // assert(std::all_of(
-    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); })
+    //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     shape r     = compute_shape(op, args);
@@ -207,7 +208,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<module_ref> module_args)
 {
     // assert(std::all_of(
-    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); })
+    //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shapes = compute_shape(module_args[0]);
@@ -223,7 +225,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     // assert(std::all_of(
-    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); })
+    //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
 
@@ -239,7 +242,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<module_ref> module_args) const
 {
     // assert(std::all_of(
-    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); })
+    //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shapes = compute_shape(module_args[0]);
@@ -539,10 +543,10 @@ void module::from_value(const value& v,
                         const std::unordered_map<std::string, module_ref>& map_mods)
 {
     const auto& name = this->name();
-    auto it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+    auto it          = std::find_if(v.begin(), v.end(), [&](auto& mv) {
         return mv.at("name").template to<std::string>() == name;
     });
-    if (it == v.end())
+    if(it == v.end())
     {
         return;
     }

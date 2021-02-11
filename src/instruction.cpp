@@ -3,7 +3,6 @@
 #include <migraphx/erase.hpp>
 #include <migraphx/module.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -210,7 +209,8 @@ void instruction::replace(operation o,
 }
 
 // void
-// module::replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const std::unordered_map<module_ref, module_ref>& map_mods)
+// module::replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const
+// std::unordered_map<module_ref, module_ref>& map_mods)
 // {
 
 // }

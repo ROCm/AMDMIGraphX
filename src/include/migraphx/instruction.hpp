@@ -82,7 +82,8 @@ struct instruction
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
     // static void
-    // replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const std::unordered_map<module_ref, module_ref>& map_mods);
+    // replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const
+    // std::unordered_map<module_ref, module_ref>& map_mods);
 
     static void replace(instruction_ref ins,
                         operation o,

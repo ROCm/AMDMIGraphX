@@ -349,7 +349,7 @@ value program::to_value() const
 
     std::reverse(module_vals.begin(), module_vals.end());
 
-    if (not module_vals.empty())
+    if(not module_vals.empty())
     {
         result["modules"] = module_vals;
     }
@@ -377,14 +377,15 @@ void program::from_value(const value& v)
     std::unordered_map<std::string, module_ref> map_mods;
     for(const auto& vv : module_vals)
     {
-        const auto& name    = vv.at("name").to<std::string>();
-        if (name == "main") continue;
+        const auto& name = vv.at("name").to<std::string>();
+        if(name == "main")
+            continue;
         impl->modules.push_back({name});
-        map_mods[name]      = &impl->modules.back();
+        map_mods[name] = &impl->modules.back();
     }
 
     std::unordered_map<std::string, instruction_ref> map_insts;
-    auto* mm    = get_main_module();
+    auto* mm = get_main_module();
     mm->from_value(module_vals, map_insts, map_mods);
 
     this->finalize();
@@ -567,8 +568,9 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 
 const module* program::get_module(const std::string& name) const
 {
-    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if (it == impl->modules.end())
+    auto it = std::find_if(
+        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if(it == impl->modules.end())
     {
         return nullptr;
     }
@@ -584,8 +586,9 @@ module* program::create_module(const std::string& name)
 
 void program::remove_module(const std::string& name)
 {
-    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if (it == impl->modules.end())
+    auto it = std::find_if(
+        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if(it == impl->modules.end())
     {
         impl->modules.erase(it);
     }
@@ -593,8 +596,9 @@ void program::remove_module(const std::string& name)
 
 module* program::get_module(const std::string& name)
 {
-    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if (it == impl->modules.end())
+    auto it = std::find_if(
+        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if(it == impl->modules.end())
     {
         return nullptr;
     }
@@ -602,27 +606,21 @@ module* program::get_module(const std::string& name)
     return &(*it);
 }
 
-module* program::get_main_module() 
-{
-    return get_module("main");
-}
+module* program::get_main_module() { return get_module("main"); }
 
-const module* program::get_main_module() const 
-{ 
-    return get_module("main"); 
-}
+const module* program::get_main_module() const { return get_module("main"); }
 
 program& program::sort()
 {
     std::cout << "size = " << this->impl->modules.size() << std::endl;
     for(auto& mod : this->impl->modules)
     {
-std::cout << "prog_sort1, name = " << mod.name() << std::endl;
+        std::cout << "prog_sort1, name = " << mod.name() << std::endl;
         mod.sort();
-std::cout << "prog_sort2" << std::endl;
+        std::cout << "prog_sort2" << std::endl;
     }
 
-std::cout << "prog_sort3" << std::endl;
+    std::cout << "prog_sort3" << std::endl;
 
     return *this;
 }

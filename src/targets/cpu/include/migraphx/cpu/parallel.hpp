@@ -10,8 +10,6 @@
 #include <omp.h>
 #endif
 
-#include <iostream>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {

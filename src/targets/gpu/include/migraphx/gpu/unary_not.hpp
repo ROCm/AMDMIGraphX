@@ -8,7 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct hip_logical_and : binary_device<hip_logical_and, device::logical_and>
+struct hip_unary_not : binary_device<hip_unary_not, device::unary_not>
 {
 };
 

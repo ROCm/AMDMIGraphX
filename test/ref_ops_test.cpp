@@ -1840,17 +1840,36 @@ TEST_CASE(logical_and_test)
 
 TEST_CASE(not_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int32_type, {4}};
-    auto l1 = mm->add_literal(migraphx::literal{s, {0, 8, 1, -32}});
-    mm->add_instruction(migraphx::make_op("not"), l1);
-    p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
-    std::vector<char> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<char> gold = {1, 0, 0, 0};
-    EXPECT(migraphx::verify_range(results_vector, gold));
+    //int32
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int32_type, {4}};
+        auto l1 = mm->add_literal(migraphx::literal{s, {0, 8, 1, -32}});
+        mm->add_instruction(migraphx::make_op("not"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<char> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<char> gold = {1, 0, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    //bool
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::bool_type, {4}};
+        auto l1 = mm->add_literal(migraphx::literal{s, {0, 0, 1, 1}});
+        mm->add_instruction(migraphx::make_op("not"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<char> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<char> gold = {1, 1, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
 }
 
 TEST_CASE(logical_or_test)

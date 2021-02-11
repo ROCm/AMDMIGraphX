@@ -2022,6 +2022,15 @@ def not_test():
     return ([node], [x], [y])
 
 @onnx_test
+def not_bool_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [4])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4])
+
+    node = onnx.helper.make_node('Not', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])    
+
+@onnx_test
 def no_pad_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 2])

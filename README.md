@@ -3,8 +3,8 @@
 AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
 installing binaries directly or building from source code.
 
-Note that all the following instruction are based on that ROCm has been installed correctly. ROCm installation
-instruction are explained in the [ROCm installation
+Note that all the following instructions are based on that ROCm has been installed successfully. ROCm installation
+instructions are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
 ## Installing from binaries
@@ -12,7 +12,7 @@ With ROCm installed correctly, MIGraphX binaries can be installed with the follo
 ```
 sudo apt update && sudo apt install -y migraphx
 ```
-then head files and libs are located at ```/opt/rocm/include``` and ```/opt/rocm/lib```, respectively, which can be
+then the head files and libs are located at ```/opt/rocm/include``` and ```/opt/rocm/lib```, respectively, which can be
 included and linked by adding the corresponding folders to the Makefile.
 
 ## Building from source
@@ -34,8 +34,8 @@ requirement files ```dev-requirements.txt``` and ```requirements.txt```.
 * [ONNX 1.7.0](https://github.com/onnx/onnx) and [Pytest](https://github.com/pytest-dev/pytest) for running the ONN backend
   tests 
 
-Note: 1) we have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our current implementation. 
-ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```. Updates to support ONNX version 1.8.0 will come soon. 2)
+Note: 1) We have to use ONNX version 1.7.0 since changes in ONNX 1.8.0 is incompatible with our current implementation. 
+ONNX 1.7.0 can be installed as ```pip3 install onnx==1.7.0```, and updates to support ONNX version 1.8.0 will come soon. 2)
 MIOpen and rocBLAS can be installed as ```sudo apt update && sudo apt install -y miopen-hip rocblas```.
 
 ### Installing the dependencies
@@ -71,9 +71,13 @@ rbuild develop -d depend -B build --cxx=/opt/rocm/llvm/clang++
 This builds dependencies in the folder "depend".
 
 Note that if rocBLAS and MIOpen are installed with the command ```sudo apt install -y rocblas miopen-hip``` as mentioned
-above, we can comment out the two lines "ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06" and
-"ROCmSoftwarePlatform/MIOpen@2.4.0" in the file `requirements.txt` (adding a '#' character at the start of each line).
-Also note that for ROCm3.7 and later release, Ubuntu 18.04 and later release is needed. Upgrapde to Ubuntu 18.04 should be
+above, we can comment out the two lines 
+```
+ROCmSoftwarePlatform/rocBLAS@abd98a2b48b29326ebaef471630786a548622c06
+ROCmSoftwarePlatform/MIOpen@2.4.0
+```
+in the file `requirements.txt` (adding a '#' character at the start of each line).
+Also note that for ROCm3.7 and later release, Ubuntu 18.04 or later releases are needed. Upgrapde to Ubuntu 18.04 can be
 done as:
 
 ```
@@ -102,7 +106,7 @@ CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 * In ROCm3.7 or later releases:
 
 ```
-CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=/some/dir ..
+CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
 
 If the above rbuild command was used to build and install the dependencies, then all dependencies are in the folder
@@ -171,10 +175,19 @@ Also, githooks can be installed to format the code per-commit:
 
 ## Using docker
 
-The easiest way to setup the development environment is to use docker. You can build the top-level docker file:
+The easiest way to setup the development environment is to use docker. Docker files for different versions of ROCm are
+provided. ```hcc.docker``` is for ROCm3.3, and ```hip-clang.docker``` is for ROCm3.7.
 
-    docker build -t migraphx .
+With the docker files, you can build an docker image as:
+
+    docker build -t migraphx -f hcc.docker (or hip-clang.docker) .
 
 Then to enter the developement environment use `docker run`:
 
     docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx
+
+In the docker container, all the required dependencies are installed, then users can either install MIGraphX
+binaries or build from the source code following the steps with the dependencies installed using the script
+[buiild_prereqs.sh](./tools/build_prereqs.sh). In the docker container, all dependencies are installed at 
+default location, and there is no need to set the ```CMAKE_PREFIX_PATH``` when configuring the cmake.
+

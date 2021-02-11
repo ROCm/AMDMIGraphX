@@ -71,10 +71,8 @@ TEST_CASE(add_bcast_test)
     auto l0 = mm->add_parameter("0", s0);
     auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 1}});
     auto l2 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l0);
-    auto l3 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l1);
-    mm->add_instruction(migraphx::make_op("add"), l2, l3);
+    mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("add_bcast_test.pb", false);
 
     EXPECT(p == prog);
@@ -542,6 +540,23 @@ TEST_CASE(pack_test_nhwc)
     mm->add_instruction(migraphx::make_op("concat", {{"axis", static_cast<int>(nchw_axis)}}),
                         unsqueezed_args);
     auto prog = optimize_tf("pack_test_nhwc.pb", true);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(pad_test)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 4}});
+    std::vector<int> pad_literals{1, 1, 2, 2};
+    std::vector<int> pads{1, 2, 1, 2};
+    mm->add_literal(migraphx::shape{migraphx::shape::int32_type, {2, 2}}, pad_literals);
+
+    mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), l0);
+    auto prog = optimize_tf("pad_test.pb", false);
 
     EXPECT(p == prog);
 }

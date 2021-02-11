@@ -25,7 +25,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program_impl
 {
     // A map is used to keep references to modules of the program
-    std::map<std::string, module> modules;
+    // all the modules are store in the depth-first order
+    std::list<module> modules;
     context ctx;
     std::string target_name;
 };
@@ -62,7 +63,7 @@ static void print_instruction(std::ostream& os,
         os << " -> " << ins->get_shape();
 }
 
-program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {"main"}; }
+program::program() : impl(std::make_unique<program_impl>()) { impl->modules.push_back({"main"}); }
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -76,6 +77,47 @@ program& program::operator=(program p)
     std::swap(p.impl, this->impl);
     return *this;
 }
+
+// void program::assign(const program &p)
+// {
+//     if(!impl)
+//     {
+//         impl = std::make_unique<program_impl>();
+//     }
+//     else if(!impl->modules.empty())
+//     {
+//         impl->modules.clear();
+//     }
+
+//     impl->ctx         = p.impl->ctx;
+//     impl->target_name = p.impl->target_name;
+
+//     // Copy the modules using its copy contructor
+//     impl->modules = p.impl->modules;
+
+//     // Build a map from old module to new module
+//     std::unordered_map<module_ref, module_ref> mod_map;
+//     std::transform(
+//         impl->modules.begin(), impl->modules.end(), p.impl->modules.begin(),
+//         std::inserter(mod_map, mod_map.begin()),
+//         [](auto &&x, auto &&y) { return std::make_pair(&x.second, &y.second); });
+//     // Build a map from old ins to new ins
+//     std::unordered_map<instruction_ref, instruction_ref> ins_map;
+//     for (auto &&pp : mod_map)
+//     {
+//         auto old_ins = iterator_for(pp.first);
+//         auto new_ins = iterator_for(pp.second);
+//         std::transform(old_ins.begin(), old_ins.end(), new_ins.begin(),
+//                     std::inserter(ins_map, ins_map.begin()),
+//                     [](auto x, auto y) { return std::make_pair(x, y); });
+//     }
+//     // Update all references from all modules
+//     for (auto &&mp : impl->modules)
+//     {
+//         for (auto ins : iterator_for(mp.second))
+//         ins->replace_refs(mod_map, ins_map);
+//     }
+// }
 
 void program::assign(const program& p)
 {
@@ -91,14 +133,15 @@ void program::assign(const program& p)
     impl->target_name = p.impl->target_name;
     std::unordered_map<module_ref, module_ref> map_mods;
     std::unordered_map<instruction_ref, instruction_ref> map_insts;
-    for(auto& mod_pair : p.impl->modules)
+    for(auto& smod : p.impl->modules)
     {
-        auto& name                          = mod_pair.first;
-        impl->modules[name]                 = {name};
-        map_mods[&p.impl->modules.at(name)] = &impl->modules.at(name);
+        const auto& name = smod.name();
+        impl->modules.push_back({name});
+        map_mods[&smod] = &impl->modules.back();
     }
 
-    impl->modules.at("main").assign(p.impl->modules.at("main"), map_insts, map_mods);
+    auto* mm = get_main_module();
+    mm->assign(*p.get_main_module(), map_insts, map_mods);
 }
 
 shape program::get_parameter_shape(std::string name) const
@@ -300,10 +343,16 @@ value program::to_value() const
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
-    value module_vals = value::object{};
+    value module_vals = value::array{};
     auto* mm          = get_main_module();
     mm->to_value(module_vals, {});
-    result["modules"] = module_vals;
+
+    std::reverse(module_vals.begin(), module_vals.end());
+
+    if (not module_vals.empty())
+    {
+        result["modules"] = module_vals;
+    }
 
     return result;
 }
@@ -328,14 +377,13 @@ void program::from_value(const value& v)
     std::unordered_map<std::string, module_ref> map_mods;
     for(const auto& vv : module_vals)
     {
-        const auto& key    = vv.get_key();
-        auto val           = vv.without_key();
-        impl->modules[key] = {key};
-        map_mods[key]      = &impl->modules[key];
+        const auto& name    = vv.at("name").to<std::string>();
+        if (name == "main") continue;
+        impl->modules.push_back({name});
+        map_mods[name]      = &impl->modules.back();
     }
 
     std::unordered_map<std::string, instruction_ref> map_insts;
-    auto mm_val = module_vals.at("main");
     auto* mm    = get_main_module();
     mm->from_value(module_vals, map_insts, map_mods);
 
@@ -455,15 +503,15 @@ void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
-    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
-           return (it.second.end() == ins);
+    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto mod) {
+           return (mod.end() == ins);
        }))
     {
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if(not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto it) {
-                return it.second.has_instruction(ins);
+    else if(not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto mod) {
+                return mod.has_instruction(ins);
             }))
     {
         std::cout << "Instruction not part of program" << std::endl;
@@ -483,10 +531,10 @@ void program::debug_print(instruction_ref ins) const
 void program::print(std::unordered_map<instruction_ref, std::string>& names,
                     const std::function<void(instruction_ref)>& print_func) const
 {
-    for(const auto& mdl : this->impl->modules)
+    for(const auto& mod : this->impl->modules)
     {
-        std::cout << mdl.first << ":" << std::endl;
-        mdl.second.print(names, print_func);
+        std::cout << mod.name() << ":" << std::endl;
+        mod.print(names, print_func);
     }
 }
 
@@ -498,7 +546,6 @@ void program::print_graph(std::ostream& os, bool brief) const
 
 void program::print_cpp(std::ostream& os) const
 {
-    os << "migraphx::program p;" << std::endl;
     const auto* mm = this->get_main_module();
     mm->print_cpp(os);
 }
@@ -511,52 +558,71 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const
 {
-    for(auto& modl : this->impl->modules)
+    for(auto& mod : this->impl->modules)
     {
-        std::cout << modl.first << ":" << std::endl;
-        modl.second.annotate(os, a);
+        std::cout << mod.name() << ":" << std::endl;
+        mod.annotate(os, a);
     }
 }
 
 const module* program::get_module(const std::string& name) const
 {
-    assert(contains(impl->modules, name));
-    return &impl->modules.at(name);
+    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if (it == impl->modules.end())
+    {
+        return nullptr;
+    }
+
+    return &(*it);
 }
 
 module* program::create_module(const std::string& name)
 {
-    if(contains(impl->modules, name))
-    {
-        MIGRAPHX_THROW("CREATE_MODULE: module " + name + " already exists");
-    }
-
-    impl->modules[name] = module(name);
-    return &impl->modules.at(name);
+    impl->modules.push_back({name});
+    return &impl->modules.back();
 }
 
 void program::remove_module(const std::string& name)
 {
-    assert(contains(impl->modules, name));
-    impl->modules.erase(name);
+    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if (it == impl->modules.end())
+    {
+        impl->modules.erase(it);
+    }
 }
 
 module* program::get_module(const std::string& name)
 {
-    assert(contains(impl->modules, name));
-    return &impl->modules[name];
+    auto it = std::find_if(impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if (it == impl->modules.end())
+    {
+        return nullptr;
+    }
+
+    return &(*it);
 }
 
-module* program::get_main_module() { return &impl->modules.at("main"); }
+module* program::get_main_module() 
+{
+    return get_module("main");
+}
 
-const module* program::get_main_module() const { return &impl->modules.at("main"); }
+const module* program::get_main_module() const 
+{ 
+    return get_module("main"); 
+}
 
 program& program::sort()
 {
-    for(auto& modl : this->impl->modules)
+    std::cout << "size = " << this->impl->modules.size() << std::endl;
+    for(auto& mod : this->impl->modules)
     {
-        modl.second.sort();
+std::cout << "prog_sort1, name = " << mod.name() << std::endl;
+        mod.sort();
+std::cout << "prog_sort2" << std::endl;
     }
+
+std::cout << "prog_sort3" << std::endl;
 
     return *this;
 }

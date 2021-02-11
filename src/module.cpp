@@ -131,16 +131,17 @@ void module::assign(const module& m,
                 {
                     module_ref copy_mdl = mod_map.at(mdl);
                     copy_mdl->assign(*mdl, ins_map, mod_map);
+                    copy_module_args.push_back(copy_mdl);
                 }
 
-                copy_module_args.resize(module_args.size());
-                assert(std::all_of(module_args.begin(), module_args.end(), [&](auto i) {
-                    return mod_map.count(i) > 0;
-                }));
-                std::transform(module_args.begin(),
-                               module_args.end(),
-                               copy_module_args.begin(),
-                               [&](auto i) { return mod_map.at(i); });
+                // copy_module_args.resize(module_args.size());
+                // assert(std::all_of(module_args.begin(), module_args.end(), [&](auto i) {
+                //     return mod_map.count(i) > 0;
+                // }));
+                // std::transform(module_args.begin(),
+                //                module_args.end(),
+                //                copy_module_args.begin(),
+                //                [&](auto i) { return mod_map.at(i); });
             }
 
             // retrieve its mapped input
@@ -181,9 +182,9 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
+    // assert(std::all_of(
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     shape r     = compute_shape(op, args);
     auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
@@ -205,9 +206,9 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<instruction_ref> args,
                                            std::vector<module_ref> module_args)
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
+    // assert(std::all_of(
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shapes = compute_shape(module_args[0]);
     auto result     = impl->instructions.insert(
@@ -221,9 +222,9 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
+    // assert(std::all_of(
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
@@ -237,9 +238,9 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args) const
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
+    // assert(std::all_of(
+    //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
+    //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shapes = compute_shape(module_args[0]);
     instruction::replace(ins, op, out_shapes[0], std::move(args), std::move(module_args));
@@ -493,6 +494,7 @@ void module::finalize(context& ctx)
 value module::to_value(value& v, std::unordered_map<instruction_ref, std::string> names) const
 {
     value result;
+
     value nodes;
     result["name"] = name();
     this->print(names, [&](auto ins) {
@@ -519,7 +521,6 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
                            std::back_inserter(module_inputs),
                            [&](auto mod) { return mod->name(); });
             node["module_inputs"] = module_inputs;
-
             for(auto& smod : module_args)
             {
                 smod->to_value(v, names);
@@ -529,9 +530,7 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
         nodes.push_back(node);
     });
     result["nodes"] = nodes;
-
-    v[name()] = result;
-
+    v.push_back(result);
     return result;
 }
 
@@ -539,7 +538,16 @@ void module::from_value(const value& v,
                         std::unordered_map<std::string, instruction_ref>& instructions,
                         const std::unordered_map<std::string, module_ref>& map_mods)
 {
-    auto& module_val = v.at(name());
+    const auto& name = this->name();
+    auto it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+        return mv.at("name").template to<std::string>() == name;
+    });
+    if (it == v.end())
+    {
+        return;
+    }
+
+    auto& module_val = *it;
     for(const value& node : module_val.at("nodes"))
     {
         instruction_ref output;
@@ -652,10 +660,10 @@ void module::print(std::unordered_map<instruction_ref, std::string>& names,
         }
         names.emplace(ins, var_name);
 
-        assert(std::all_of(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           [&](auto arg) { return this->has_instruction(arg); }) &&
-               "DEBUG_PRINT: Instruction not found");
+        // assert(std::all_of(ins->inputs().begin(),
+        //                    ins->inputs().end(),
+        //                    [&](auto arg) { return this->has_instruction(arg); }) &&
+        //        "DEBUG_PRINT: Instruction not found");
 
         print_func(ins);
     }
@@ -807,7 +815,9 @@ module& module::sort()
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
         for(auto child : ins->inputs())
+        {
             self(child);
+        }
     })(std::prev(this->end()));
     assert(this->validate() == this->end());
     return *this;

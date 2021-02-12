@@ -207,7 +207,7 @@ struct handle_base
 /**
  * @brief Describe shape of tensor
  * @details A shape consists of a data type, lengths of multi-dimension tensor, and strides
- * 
+ *
  */
 struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {

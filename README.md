@@ -44,7 +44,7 @@ You can manually download and installing the above dependencies one by one. For 
 script [install_prereqs.sh](./tools/install_prereqs.sh) that can automatically install all the above dependencies with
 the command 
 
-```./tools/install_prereqs.sh```.
+```./tools/install_prereqs.sh```
 
 (Note: By default, all dependencies are installed at the default location `/usr/local` 
 and are accessible by all users. For the default location, `sudo` is required to run the script.
@@ -58,8 +58,8 @@ With the above dependencies installed, we can build source as:
 
 
 ```
-mkdir build; 
-cd build;
+mkdir build
+cd build
 ```
 
 2) Configure the cmake. If the dependencies are installed at the default location `/usr/local`, the command is:
@@ -94,8 +94,8 @@ build MIGraphX. rbuild can be installed as (sudo may be needed.):
 ```
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
-and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`
-we also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-cmake) as `sudo apt install -y rocm-cmake`.
+and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`.
+We also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-cmake) as `sudo apt install -y rocm-cmake`.
 
 Then MIGraphX can be built as:
 
@@ -152,7 +152,8 @@ Then to enter the developement environment use `docker run`:
 
     docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx
 
-In the docker container, all the required dependencies are already installed, then users can just following the step in
+In the docker container, all the required dependencies are already installed, so users can just following the steps in
 the above
-[section](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs).
+[section](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
+to build MIGraphX source.
 

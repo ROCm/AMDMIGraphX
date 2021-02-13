@@ -92,11 +92,13 @@ void program::assign(const program& p)
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
 
+    std::vector<const module*> vec_mods = p.get_module_prefix_order();
+
     // Copy the modules using its copy contructor
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for(auto& mod : p.impl->modules)
+    for(auto& mod : vec_mods)
     {
-        impl->modules.push_back(module(mod, ins_map));
+        impl->modules.push_back(module(*mod, ins_map));
     }
 
     // Build a map from old module to new module
@@ -114,31 +116,6 @@ void program::assign(const program& p)
             ins->replace_module_ref(mod_map);
     }
 }
-
-// void program::assign(const program& p)
-// {
-//     if(!impl)
-//     {
-//         impl = std::make_unique<program_impl>();
-//     }
-//     else if(!impl->modules.empty())
-//     {
-//         impl->modules.clear();
-//     }
-//     impl->ctx         = p.impl->ctx;
-//     impl->target_name = p.impl->target_name;
-//     std::unordered_map<module_ref, module_ref> map_mods;
-//     std::unordered_map<instruction_ref, instruction_ref> map_insts;
-//     for(auto& smod : p.impl->modules)
-//     {
-//         const auto& name = smod.name();
-//         impl->modules.push_back({name});
-//         map_mods[&smod] = &impl->modules.back();
-//     }
-
-//     auto* mm = get_main_module();
-//     mm->assign(*p.get_main_module(), map_insts, map_mods);
-// }
 
 shape program::get_parameter_shape(std::string name) const
 {
@@ -606,10 +583,10 @@ module* program::get_main_module() { return get_module("main"); }
 
 const module* program::get_main_module() const { return get_module("main"); }
 
-std::vector<module_ref> program::get_module_prefix_order()
+std::vector<const module*> program::get_module_prefix_order() const
 {
-    module_ref mm = get_main_module();
-    std::vector<module_ref> vec_modules;
+    const module* mm = get_main_module();
+    std::vector<const module* > vec_modules;
     vec_modules.push_back(mm);
     auto sub_modules = mm->get_sub_module_prefix_order();
     vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());

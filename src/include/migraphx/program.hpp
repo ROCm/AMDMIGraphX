@@ -97,7 +97,7 @@ struct program
     module* get_main_module();
     const module* get_main_module() const;
 
-    std::vector<module_ref> get_module_prefix_order();
+    std::vector<const module*> get_module_prefix_order() const;
 
     private:
     void assign(const program& p);

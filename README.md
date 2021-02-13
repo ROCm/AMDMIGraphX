@@ -152,8 +152,8 @@ Then to enter the developement environment use `docker run`:
 
     docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /data --group-add video -it migraphx
 
-In the docker container, all the required dependencies are already installed, so users can just `cd /code/AMDMIGraphX`
-folder and follow the steps in the above [Build MIGraphX source and install
+In the docker container, all the required dependencies are already installed, so users can just go to the folder 
+`/code/AMDMIGraphX` and follow the steps in the above [Build MIGraphX source and install
 libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
 section to build MIGraphX source.
 

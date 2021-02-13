@@ -18,6 +18,7 @@
 #include <migraphx/gpu/device/add_tanh.hpp>
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
+#include <migraphx/match/layernorm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
@@ -297,37 +298,10 @@ void move_standard_front(std::vector<instruction_ref>& args)
 
 struct find_layernorm
 {
-    template <class... Ts>
-    static auto multibroadcast_op(Ts... xs)
+    auto matcher() const
     {
-        return match::name("multibroadcast")(match::arg(0)(xs...));
+        return match::layernorm([](const std::string& name) { return "gpu::" + name; });
     }
-
-    static auto x_minus_mean()
-    {
-        return match::name("gpu::sub")(
-            match::arg(0)(match::any().bind("x")),
-            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean"))));
-    }
-
-    static auto variance()
-    {
-        return match::name("gpu::reduce_mean")(match::arg(0)(
-            match::name("gpu::pow")(match::arg(0)(x_minus_mean()),
-                                    match::arg(1)(multibroadcast_op(match::has_value(2.0f))))));
-    }
-
-    static auto layernorm_onnx()
-    {
-        return match::name("gpu::div")(
-            match::arg(0)(x_minus_mean()),
-
-            match::arg(1)(multibroadcast_op(
-                match::name("gpu::sqrt")(match::arg(0)(match::name("gpu::add")(match::either_arg(
-                    0, 1)(variance(), multibroadcast_op(match::has_value(1e-12f)))))))));
-    }
-
-    auto matcher() const { return layernorm_onnx(); }
 
     void apply(module& p, match::matcher_result r) const
     {

@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MATCH_GELU_ERF_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/matcher.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,7 +45,7 @@ auto gelu_erf(F f)
     return detail::gelu_erf_matcher<F>{f}.matcher();
 }
 
-auto gelu_erf()
+inline auto gelu_erf()
 {
     return gelu_erf([](auto x) { return x; });
 }

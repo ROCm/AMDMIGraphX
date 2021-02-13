@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_MATCH_LAYERNORM_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/matcher.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,7 +53,7 @@ auto layernorm(F f)
     return detail::layernorm_matcher<F>{f}.matcher();
 }
 
-auto layernorm()
+inline auto layernorm()
 {
     return layernorm([](auto x) { return x; });
 }

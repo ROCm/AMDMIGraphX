@@ -156,6 +156,5 @@ In the docker container, all the required dependencies are already installed, so
 the above
 [Build MIGraphX source and install
 libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
-section.
-to build MIGraphX source.
+section to build MIGraphX source.
 

@@ -147,4 +147,4 @@ Then to enter the developement environment use `docker run`:
     docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/data -w /data --group-add video -it migraphx
 
 In the docker container, all the required dependencies are already installed, then users can just following the steps in 
-[Building MIGraphX source and install libs].
+[#building-migraphx-source-and-install-libs].

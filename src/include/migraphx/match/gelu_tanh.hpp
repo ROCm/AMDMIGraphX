@@ -16,7 +16,7 @@ struct gelu_tanh_matcher
     auto pow_fn() const
     {
         return match::name(f("pow"))(match::used_once(),
-                                       match::arg(1)(match::args(match::has_value(3.0f))));
+                                     match::arg(1)(match::args(match::has_value(3.0f))));
     }
 
     auto tanh_fn() const
@@ -25,9 +25,8 @@ struct gelu_tanh_matcher
             match::used_once(),
             match::arg(0)(match::name(f("mul"))(match::either_arg(0, 1)(
                 match::args(match::has_value(sqrt(M_2_PI), 1e-3)),
-                match::name(f("add"))(
-                    match::any_arg(0, 1)(match::name(f("mul"))(match::either_arg(0, 1)(
-                        match::args(match::has_value(0.044715f)), pow_fn()))))))));
+                match::name(f("add"))(match::any_arg(0, 1)(match::name(f("mul"))(match::either_arg(
+                    0, 1)(match::args(match::has_value(0.044715f)), pow_fn()))))))));
     }
 
     auto matcher() const

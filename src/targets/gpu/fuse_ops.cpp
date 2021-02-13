@@ -377,10 +377,7 @@ struct find_gelu_new
 {
     bool fast_math = true;
 
-    auto matcher() const
-    {
-        return match::gelu_tanh(&to_gpu_name);
-    }
+    auto matcher() const { return match::gelu_tanh(&to_gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {

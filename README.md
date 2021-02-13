@@ -37,7 +37,7 @@ requirement files `dev-requirements.txt` and `requirements.txt`.
 
 In this approach, we need to install the dependencies, configure the cmake, and then build the source.
 
-* Installing the dependencies
+##### Installing the dependencies
 
 You can manually download and installing the above dependencies one by one. For convience, we provide a shell 
 script [install_prereqs.sh](./tools/install_prereqs.sh) that can automatically install all the above dependencies with
@@ -47,7 +47,7 @@ the command './tools/install_prereqs.sh`.
 the system and are accessible by all users. For the default location, `sudo` is required to run the script.
 You can also specify a location at which the dependencies are installed with `./tools/install_prereqs.sh $your_loc`.)
 
-* Building MIGraphX source and install libs
+##### Building MIGraphX source and install libs
 
 With the above dependencies installed, we can build source as:
 First create a build directory:

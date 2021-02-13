@@ -297,17 +297,11 @@ void move_standard_front(std::vector<instruction_ref>& args)
         std::swap(*it, args.front());
 }
 
-std::string to_gpu_name(const std::string& name)
-{
-    return "gpu::" + name;
-}
+std::string to_gpu_name(const std::string& name) { return "gpu::" + name; }
 
 struct find_layernorm
 {
-    auto matcher() const
-    {
-        return match::layernorm(&to_gpu_name);
-    }
+    auto matcher() const { return match::layernorm(&to_gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {
@@ -346,10 +340,7 @@ struct find_triadd_layernorm
 
 struct find_gelu
 {
-    auto matcher() const
-    {
-        return match::gelu_erf(&to_gpu_name);
-    }
+    auto matcher() const { return match::gelu_erf(&to_gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {

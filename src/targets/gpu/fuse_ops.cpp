@@ -20,6 +20,7 @@
 #include <migraphx/gpu/device/add.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
@@ -376,31 +377,9 @@ struct find_gelu_new
 {
     bool fast_math = true;
 
-    static auto pow_fn()
-    {
-        return match::name("gpu::pow")(match::used_once(),
-                                       match::arg(1)(match::args(match::has_value(3.0f))));
-    }
-
-    static auto tanh_fn()
-    {
-        return match::name("gpu::tanh")(
-            match::used_once(),
-            match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                match::args(match::has_value(sqrt(M_2_PI), 1e-3)),
-                match::name("gpu::add")(
-                    match::any_arg(0, 1)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                        match::args(match::has_value(0.044715f)), pow_fn()))))))));
-    }
-
     auto matcher() const
     {
-        return match::name("gpu::mul")(
-            match::used_once(),
-            match::either_arg(0, 1)(
-                match::any().bind("x"),
-                match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
-                    match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));
+        return match::gelu_tanh(&to_gpu_name);
     }
 
     void apply(module& p, match::matcher_result r) const

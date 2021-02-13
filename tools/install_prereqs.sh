@@ -19,7 +19,7 @@ REQ_FILE_DIR=""
 if [ "$#" -ge 2 ]; then
   PREFIX=$1
   REQ_FILE_DIR=$2
-elif [ "$#" -eq 2]; then
+elif [ "$#" -eq 1]; then
   PREFIX=$1
 fi
 

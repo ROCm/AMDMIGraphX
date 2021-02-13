@@ -78,48 +78,7 @@ program& program::operator=(program p)
     return *this;
 }
 
-// void program::assign(const program &p)
-// {
-//     if(!impl)
-//     {
-//         impl = std::make_unique<program_impl>();
-//     }
-//     else if(!impl->modules.empty())
-//     {
-//         impl->modules.clear();
-//     }
-
-//     impl->ctx         = p.impl->ctx;
-//     impl->target_name = p.impl->target_name;
-
-//     // Copy the modules using its copy contructor
-//     impl->modules = p.impl->modules;
-
-//     // Build a map from old module to new module
-//     std::unordered_map<module_ref, module_ref> mod_map;
-//     std::transform(
-//         impl->modules.begin(), impl->modules.end(), p.impl->modules.begin(),
-//         std::inserter(mod_map, mod_map.begin()),
-//         [](auto &&x, auto &&y) { return std::make_pair(&x.second, &y.second); });
-//     // Build a map from old ins to new ins
-//     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-//     for (auto &&pp : mod_map)
-//     {
-//         auto old_ins = iterator_for(pp.first);
-//         auto new_ins = iterator_for(pp.second);
-//         std::transform(old_ins.begin(), old_ins.end(), new_ins.begin(),
-//                     std::inserter(ins_map, ins_map.begin()),
-//                     [](auto x, auto y) { return std::make_pair(x, y); });
-//     }
-//     // Update all references from all modules
-//     for (auto &&mp : impl->modules)
-//     {
-//         for (auto ins : iterator_for(mp.second))
-//         ins->replace_refs(mod_map, ins_map);
-//     }
-// }
-
-void program::assign(const program& p)
+void program::assign(const program &p)
 {
     if(!impl)
     {
@@ -129,20 +88,56 @@ void program::assign(const program& p)
     {
         impl->modules.clear();
     }
+
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
-    std::unordered_map<module_ref, module_ref> map_mods;
-    std::unordered_map<instruction_ref, instruction_ref> map_insts;
-    for(auto& smod : p.impl->modules)
+    
+    // Copy the modules using its copy contructor
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for (auto& mod : p.impl->modules)
     {
-        const auto& name = smod.name();
-        impl->modules.push_back({name});
-        map_mods[&smod] = &impl->modules.back();
+        impl->modules.push_back(module(mod, ins_map));
     }
 
-    auto* mm = get_main_module();
-    mm->assign(*p.get_main_module(), map_insts, map_mods);
+    // Build a map from old module to new module
+    std::unordered_map<module_ref, module_ref> mod_map;
+    std::transform(
+        impl->modules.begin(), impl->modules.end(), p.impl->modules.begin(),
+        std::inserter(mod_map, mod_map.begin()),
+        [](auto &&x, auto &&y) { return std::make_pair(&y, &x); });
+
+    // Update all references from all modules
+    for (auto &&mp : impl->modules)
+    {
+        for (auto ins : iterator_for(mp))
+            ins->replace_module_ref(mod_map);
+    }
 }
+
+// void program::assign(const program& p)
+// {
+//     if(!impl)
+//     {
+//         impl = std::make_unique<program_impl>();
+//     }
+//     else if(!impl->modules.empty())
+//     {
+//         impl->modules.clear();
+//     }
+//     impl->ctx         = p.impl->ctx;
+//     impl->target_name = p.impl->target_name;
+//     std::unordered_map<module_ref, module_ref> map_mods;
+//     std::unordered_map<instruction_ref, instruction_ref> map_insts;
+//     for(auto& smod : p.impl->modules)
+//     {
+//         const auto& name = smod.name();
+//         impl->modules.push_back({name});
+//         map_mods[&smod] = &impl->modules.back();
+//     }
+
+//     auto* mm = get_main_module();
+//     mm->assign(*p.get_main_module(), map_insts, map_mods);
+// }
 
 shape program::get_parameter_shape(std::string name) const
 {
@@ -610,17 +605,23 @@ module* program::get_main_module() { return get_module("main"); }
 
 const module* program::get_main_module() const { return get_module("main"); }
 
+std::vector<module_ref> program::get_module_prefix_order() 
+{
+    module_ref mm = get_main_module();
+    std::vector<module_ref> vec_modules;
+    vec_modules.push_back(mm);
+    auto sub_modules = mm->get_sub_module_prefix_order();
+    vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());
+
+    return vec_modules;
+}
+
 program& program::sort()
 {
-    std::cout << "size = " << this->impl->modules.size() << std::endl;
     for(auto& mod : this->impl->modules)
     {
-        std::cout << "prog_sort1, name = " << mod.name() << std::endl;
         mod.sort();
-        std::cout << "prog_sort2" << std::endl;
     }
-
-    std::cout << "prog_sort3" << std::endl;
 
     return *this;
 }

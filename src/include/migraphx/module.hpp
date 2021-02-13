@@ -39,6 +39,8 @@ struct module
     // copy constructor
     module(const module&);
 
+    module(const module&, std::unordered_map<instruction_ref, instruction_ref>&);
+
     // copy assignment operator
     module& operator=(module);
 
@@ -145,17 +147,24 @@ struct module
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
+    std::vector<module_ref> get_sub_module_prefix_order() const;
+
     module& sort();
 
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }
 
+
+    private:
+
     void assign(const module& m,
                 std::unordered_map<instruction_ref, instruction_ref> ins_map,
                 const std::unordered_map<module_ref, module_ref>& mod_map);
+                
+    void assign(const module& m,
+                std::unordered_map<instruction_ref, instruction_ref>& ins_map);
 
-    private:
     std::unordered_set<module_ref> get_parent_modules() const;
 
     std::unique_ptr<module_impl> impl;

@@ -74,6 +74,8 @@ struct instruction
         migraphx::erase(output, ins);
     }
 
+    void replace_module_ref(const std::unordered_map<module_ref, module_ref>& map_mods);
+
     static void backreference(instruction_ref ref);
 
     static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);
@@ -81,9 +83,6 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-    // static void
-    // replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const
-    // std::unordered_map<module_ref, module_ref>& map_mods);
 
     static void replace(instruction_ref ins,
                         operation o,

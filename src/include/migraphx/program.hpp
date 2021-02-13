@@ -97,6 +97,8 @@ struct program
     module* get_main_module();
     const module* get_main_module() const;
 
+    std::vector<module_ref> get_module_prefix_order();
+
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;

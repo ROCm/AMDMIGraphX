@@ -586,7 +586,7 @@ const module* program::get_main_module() const { return get_module("main"); }
 std::vector<const module*> program::get_module_prefix_order() const
 {
     const module* mm = get_main_module();
-    std::vector<const module* > vec_modules;
+    std::vector<const module*> vec_modules;
     vec_modules.push_back(mm);
     auto sub_modules = mm->get_sub_module_prefix_order();
     vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());

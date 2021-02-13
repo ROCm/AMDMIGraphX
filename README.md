@@ -154,6 +154,8 @@ Then to enter the developement environment use `docker run`:
 
 In the docker container, all the required dependencies are already installed, so users can just following the steps in
 the above
-[section](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
+[Build MIGraphX source and install
+libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
+section.
 to build MIGraphX source.
 

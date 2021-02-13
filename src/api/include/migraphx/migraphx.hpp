@@ -194,11 +194,14 @@ struct handle_base
     std::shared_ptr<T> m_handle;
 };
 
+#ifdef DOXYGEN
+#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
+#else
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)     \
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
                 migraphx_##name##_destroy>
-
+#endif
 // NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, )
 // NOLINTNEXTLINE

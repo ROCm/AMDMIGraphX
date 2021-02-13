@@ -14,6 +14,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     build-essential \
     clang-format-5.0 \
     cmake \
+    sudo \
     curl \
     doxygen \
     g++-5 \
@@ -70,16 +71,8 @@ RUN chmod +x /download_models.sh && /download_models.sh && rm /download_models.s
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-# Manually ignore rocm dependencies
-RUN cget -p $PREFIX ignore \
-    RadeonOpenCompute/clang-ocl \
-    ROCm-Developer-Tools/HIP \
-    ROCmSoftwarePlatform/MIOpen \
-    ROCmSoftwarePlatform/MIOpenGEMM \
-    ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
-RUN cget -p $PREFIX install -f dev-requirements.txt
-RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
+COPY ./tools/install_prereqs.sh /
+RUN chmod +x /install_prereqs.sh && /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
@@ -100,8 +93,6 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
-
-ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1

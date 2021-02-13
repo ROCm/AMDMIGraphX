@@ -17,12 +17,13 @@ included and linked by adding the corresponding folders to the Makefile.
 
 ## Building from source
 
-There are two ways to build the MIGraphX sources. One is installing the dependencies through a script, then using 
+There are two ways to build the MIGraphX sources. One is installing the dependencies, then using 
 cmake to build the source. The other is using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
-In the following, we will first list the dependencies required to build MIGraphX source code, then describe each of the above approaches.
+In the following, we will first list the dependencies required to build MIGraphX source code, then describe each of the
+two approaches.
 
 ### List of dependencies
-The following is a list of dependencies required to build MIGraphX from source code. This list is also available in the
+The following is a list of dependencies required to build MIGraphX source. This list is also available in the
 requirement files `dev-requirements.txt` and `requirements.txt`.
 
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
@@ -41,16 +42,19 @@ In this approach, we need to install the dependencies, configure the cmake, and 
 
 You can manually download and installing the above dependencies one by one. For convience, we provide a shell 
 script [install_prereqs.sh](./tools/install_prereqs.sh) that can automatically install all the above dependencies with
-the command './tools/install_prereqs.sh`.
+the command 
 
-(Note: By default, all dependencies are installed at the default locations `/usr/local` in
-the system and are accessible by all users. For the default location, `sudo` is required to run the script.
+```./tools/install_prereqs.sh```.
+
+(Note: By default, all dependencies are installed at the default location `/usr/local` 
+and are accessible by all users. For the default location, `sudo` is required to run the script.
 You can also specify a location at which the dependencies are installed with `./tools/install_prereqs.sh $your_loc`.)
 
 ##### Building MIGraphX source and install libs
 
 With the above dependencies installed, we can build source as:
-First create a build directory:
+
+1) First create a build directory:
 
 
 ```
@@ -58,18 +62,20 @@ mkdir build;
 cd build;
 ```
 
-Next, configure the cmake. If the dependencies are installed at the default location `/usr/local`, the command is:
+2) Configure the cmake. If the dependencies are installed at the default location `/usr/local`, the command is:
 
 ```
 CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 ```
-Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure the cmake. Then we can build MIGraphX source code as:
+Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure the cmake. 
+
+3) Build MIGraphX source code
 
 ```
 make -j$(nproc)
 ```
 
-and correctness can be verified as:
+Correctness can be verified as:
 
 ```
 make -j$(nproc) check

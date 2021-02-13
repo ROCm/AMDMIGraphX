@@ -155,15 +155,12 @@ struct module
     friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return !(x == y); }
 
-
     private:
-
     void assign(const module& m,
                 std::unordered_map<instruction_ref, instruction_ref> ins_map,
                 const std::unordered_map<module_ref, module_ref>& mod_map);
-                
-    void assign(const module& m,
-                std::unordered_map<instruction_ref, instruction_ref>& ins_map);
+
+    void assign(const module& m, std::unordered_map<instruction_ref, instruction_ref>& ins_map);
 
     std::unordered_set<module_ref> get_parent_modules() const;
 

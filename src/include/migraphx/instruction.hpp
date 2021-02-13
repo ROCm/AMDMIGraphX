@@ -83,7 +83,6 @@ struct instruction
     static void
     replace(instruction_ref ins, operation o, const shape& r, std::vector<instruction_ref> args);
 
-
     static void replace(instruction_ref ins,
                         operation o,
                         const shape& r,

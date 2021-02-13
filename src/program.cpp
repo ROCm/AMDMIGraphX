@@ -78,7 +78,7 @@ program& program::operator=(program p)
     return *this;
 }
 
-void program::assign(const program &p)
+void program::assign(const program& p)
 {
     if(!impl)
     {
@@ -91,25 +91,26 @@ void program::assign(const program &p)
 
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
-    
+
     // Copy the modules using its copy contructor
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for (auto& mod : p.impl->modules)
+    for(auto& mod : p.impl->modules)
     {
         impl->modules.push_back(module(mod, ins_map));
     }
 
     // Build a map from old module to new module
     std::unordered_map<module_ref, module_ref> mod_map;
-    std::transform(
-        impl->modules.begin(), impl->modules.end(), p.impl->modules.begin(),
-        std::inserter(mod_map, mod_map.begin()),
-        [](auto &&x, auto &&y) { return std::make_pair(&y, &x); });
+    std::transform(impl->modules.begin(),
+                   impl->modules.end(),
+                   p.impl->modules.begin(),
+                   std::inserter(mod_map, mod_map.begin()),
+                   [](auto&& x, auto&& y) { return std::make_pair(&y, &x); });
 
     // Update all references from all modules
-    for (auto &&mp : impl->modules)
+    for(auto&& mp : impl->modules)
     {
-        for (auto ins : iterator_for(mp))
+        for(auto ins : iterator_for(mp))
             ins->replace_module_ref(mod_map);
     }
 }
@@ -605,7 +606,7 @@ module* program::get_main_module() { return get_module("main"); }
 
 const module* program::get_main_module() const { return get_module("main"); }
 
-std::vector<module_ref> program::get_module_prefix_order() 
+std::vector<module_ref> program::get_module_prefix_order()
 {
     module_ref mm = get_main_module();
     std::vector<module_ref> vec_modules;

@@ -211,10 +211,10 @@ void instruction::replace(operation o,
 
 void instruction::replace_module_ref(const std::unordered_map<module_ref, module_ref>& map_mods)
 {
-    if (module_args.empty())
+    if(module_args.empty())
         return;
 
-    for (auto& mod : module_args)
+    for(auto& mod : module_args)
     {
         assert(contains(map_mods, mod));
         mod = map_mods.at(mod);

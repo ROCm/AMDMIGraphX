@@ -71,7 +71,7 @@ module::module(module&&) noexcept = default;
 module::~module() noexcept        = default;
 
 // copy constructor
-module::module(const module& m) 
+module::module(const module& m)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_insts;
     assign(m, map_insts);
@@ -91,8 +91,7 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
-void module::assign(const module& m,
-                    std::unordered_map<instruction_ref, instruction_ref>& ins_map)
+void module::assign(const module& m, std::unordered_map<instruction_ref, instruction_ref>& ins_map)
 {
     // clean the current module
     if(!impl)
@@ -622,7 +621,7 @@ void module::from_value(const value& v,
                         std::unordered_map<std::string, instruction_ref>& instructions,
                         const std::unordered_map<std::string, module_ref>& map_mods)
 {
-    auto it          = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+    auto it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
         return mv.at("name").template to<std::string>() == this->name();
     });
     if(it == v.end())
@@ -900,7 +899,7 @@ std::vector<module_ref> module::get_sub_module_prefix_order() const
     this->print(names, [&](auto ins) {
         auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
-        for (auto& smod : mod_args)
+        for(auto& smod : mod_args)
         {
             auto sub_mods = smod->get_sub_module_prefix_order();
             vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());

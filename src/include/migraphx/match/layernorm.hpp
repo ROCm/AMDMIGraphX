@@ -16,31 +16,31 @@ struct layernorm_matcher
     template <class... Ts>
     static auto multibroadcast_op(Ts... xs)
     {
-        return match::name("multibroadcast")(match::arg(0)(xs...));
+        return name("multibroadcast")(arg(0)(xs...));
     }
 
     auto x_minus_mean() const
     {
-        return match::name(f("sub"))(
-            match::arg(0)(match::any().bind("x")),
-            match::arg(1)(multibroadcast_op(match::name(f("reduce_mean")))));
+        return name(f("sub"))(
+            arg(0)(any().bind("x")),
+            arg(1)(multibroadcast_op(name(f("reduce_mean")))));
     }
 
     auto variance() const
     {
-        return match::name(f("reduce_mean"))(match::arg(0)(
-            match::name(f("pow"))(match::arg(0)(x_minus_mean()),
-                                  match::arg(1)(multibroadcast_op(match::has_value(2.0f))))));
+        return name(f("reduce_mean"))(arg(0)(
+            name(f("pow"))(arg(0)(x_minus_mean()),
+                                  arg(1)(multibroadcast_op(has_value(2.0f))))));
     }
 
     auto layernorm_onnx() const
     {
-        return match::name(f("div"))(
-            match::arg(0)(x_minus_mean()),
+        return name(f("div"))(
+            arg(0)(x_minus_mean()),
 
-            match::arg(1)(multibroadcast_op(
-                match::name(f("sqrt"))(match::arg(0)(match::name(f("add"))(match::either_arg(0, 1)(
-                    variance(), multibroadcast_op(match::has_value(1e-12f)))))))));
+            arg(1)(multibroadcast_op(
+                name(f("sqrt"))(arg(0)(name(f("add"))(either_arg(0, 1)(
+                    variance(), multibroadcast_op(has_value(1e-12f)))))))));
     }
 
     auto matcher() const { return layernorm_onnx(); }

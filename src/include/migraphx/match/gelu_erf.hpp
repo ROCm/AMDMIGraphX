@@ -15,26 +15,26 @@ struct gelu_erf_matcher
     F f;
     auto erf_fn() const
     {
-        return match::name(f("erf"))(
-            match::used_once(),
-            match::arg(0)(match::used_once(),
-                          match::name(f("mul"))(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2, 1e-3)).bind("x"),
-                              match::has_value(M_SQRT1_2, 1e-3)))));
+        return name(f("erf"))(
+            used_once(),
+            arg(0)(used_once(),
+                          name(f("mul"))(either_arg(0, 1)(
+                              none_of(has_value(M_SQRT1_2, 1e-3)).bind("x"),
+                              has_value(M_SQRT1_2, 1e-3)))));
     }
 
     auto add_erf() const
     {
-        return match::name(f("add"))(
-            match::used_once(),
-            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
+        return name(f("add"))(
+            used_once(),
+            either_arg(0, 1)(erf_fn(), args(has_value(1.0f))));
     }
 
-    auto one_half() const { return match::args(match::has_value(0.5f)); }
+    auto one_half() const { return args(has_value(0.5f)); }
 
     auto matcher() const
     {
-        return match::unordered_tree(f("mul"), one_half(), add_erf(), match::any());
+        return unordered_tree(f("mul"), one_half(), add_erf(), any());
     }
 };
 } // namespace detail

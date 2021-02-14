@@ -13,30 +13,24 @@ template <class F>
 struct gelu_tanh_matcher
 {
     F f;
-    auto pow_fn() const
-    {
-        return name(f("pow"))(used_once(),
-                                     arg(1)(args(has_value(3.0f))));
-    }
+    auto pow_fn() const { return name(f("pow"))(used_once(), arg(1)(args(has_value(3.0f)))); }
 
     auto tanh_fn() const
     {
-        return name(f("tanh"))(
-            used_once(),
-            arg(0)(name(f("mul"))(either_arg(0, 1)(
-                args(has_value(sqrt(M_2_PI), 1e-3)),
-                name(f("add"))(any_arg(0, 1)(name(f("mul"))(either_arg(
-                    0, 1)(args(has_value(0.044715f)), pow_fn()))))))));
+        return name(f("tanh"))(used_once(),
+                               arg(0)(name(f("mul"))(either_arg(0, 1)(
+                                   args(has_value(sqrt(M_2_PI), 1e-3)),
+                                   name(f("add"))(any_arg(0, 1)(name(f("mul"))(either_arg(0, 1)(
+                                       args(has_value(0.044715f)), pow_fn()))))))));
     }
 
     auto matcher() const
     {
         return name(f("mul"))(
             used_once(),
-            either_arg(0, 1)(
-                any().bind("x"),
-                name(f("add"))(any_arg(0, 1)(name(f("mul"))(
-                    either_arg(0, 1)(args(has_value(0.5f)), tanh_fn()))))));
+            either_arg(0, 1)(any().bind("x"),
+                             name(f("add"))(any_arg(0, 1)(name(f("mul"))(
+                                 either_arg(0, 1)(args(has_value(0.5f)), tanh_fn()))))));
     }
 };
 } // namespace detail

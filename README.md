@@ -54,7 +54,7 @@ You can also specify a location at which the dependencies are installed with `./
 
 With the above dependencies installed, we can build source as:
 
-1) First create a build directory:
+1) Go to the project folder and create a build directory:
 
 
 ```
@@ -100,7 +100,7 @@ We also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-c
 Then MIGraphX can be built as:
 
 ```
-rbuild build -d depend -B build --cxx=/opt/rocm/llvm/clang++
+rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
 ```
 
 Note that for ROCm3.7 and later release, Ubuntu 18.04 or later releases are needed. Upgrapde to Ubuntu 18.04 can be

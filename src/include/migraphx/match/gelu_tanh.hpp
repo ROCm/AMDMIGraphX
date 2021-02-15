@@ -13,15 +13,15 @@ template <class F>
 struct gelu_tanh_matcher
 {
     F f;
-    auto pow_fn() const { return f("pow")(used_once(), arg(1)(args(has_value(3.0f)))); }
+    auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0f))); }
 
     auto tanh_fn() const
     {
         return f("tanh")(
             used_once(),
-            arg(0)(f("mul")(either_arg(0, 1)(args(has_value(sqrt(M_2_PI), 1e-3)),
+            arg(0)(f("mul")(either_arg(0, 1)(has_value(sqrt(M_2_PI), 1e-3),
                                              f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
-                                                 args(has_value(0.044715f)), pow_fn()))))))));
+                                                 has_value(0.044715f), pow_fn()))))))));
     }
 
     auto matcher() const
@@ -29,7 +29,7 @@ struct gelu_tanh_matcher
         return f("mul")(used_once(),
                         either_arg(0, 1)(any().bind("x"),
                                          f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
-                                             args(has_value(0.5f)), tanh_fn()))))));
+                                             has_value(0.5f), tanh_fn()))))));
     }
 };
 } // namespace detail

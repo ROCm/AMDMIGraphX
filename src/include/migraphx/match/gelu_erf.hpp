@@ -24,10 +24,10 @@ struct gelu_erf_matcher
 
     auto add_erf() const
     {
-        return f("add")(used_once(), either_arg(0, 1)(erf_fn(), args(has_value(1.0f))));
+        return f("add")(used_once(), either_arg(0, 1)(erf_fn(), has_value(1.0f)));
     }
 
-    auto one_half() const { return args(has_value(0.5f)); }
+    auto one_half() const { return has_value(0.5f); }
 
     auto matcher() const { return unordered_tree(f("mul"), one_half(), add_erf(), any()); }
 };

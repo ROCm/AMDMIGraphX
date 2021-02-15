@@ -258,6 +258,25 @@ void find_matches(module& p, Ms&&... ms)
     }
 }
 
+template <class M, class F>
+struct find_generic_match
+{
+    M m;
+    F f;
+    M matcher() const { return m; }
+
+    void apply(module& mod, const matcher_result& mr) const
+    {
+        f(mod, mr);
+    }
+};
+
+template <class M, class F>
+find_generic_match<M, F> make_match_finder(M m, F f)
+{
+    return {m, f};
+}
+
 template <class M>
 struct find_skip
 {
@@ -453,6 +472,22 @@ MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref in
 }
 
 template <class... Ms>
+auto skip(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<instruction_ref>([&](auto self, auto ins) {
+            if(ins->inputs().size() == 1 and ctx.matched(m, ins))
+            {
+                auto next = ins->inputs().front();
+                return self(next);
+            }
+            return ins;
+        })(start);
+    });
+}
+
+template <class... Ms>
 auto skip_output(Ms... ms)
 {
     auto m = any_of(ms...);
@@ -620,10 +655,16 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
+template<class... Ms>
+auto skip_broadcasts(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous"))(ms...);
+}
+
 template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) {
+    return skip_broadcasts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")
             return false;
         auto l = ins->get_literal();
@@ -636,7 +677,7 @@ inline auto has_value(T x, float tolerance = 1e-6)
                 b = true;
         });
         return b;
-    });
+    }));
 }
 
 inline auto has_attribute(const std::string& name)

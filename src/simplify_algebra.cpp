@@ -11,6 +11,11 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
+#include <migraphx/op/reduce_max.hpp>
+#include <migraphx/op/reduce_mean.hpp>
+#include <migraphx/op/reduce_min.hpp>
+#include <migraphx/op/reduce_prod.hpp>
+#include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/transpose.hpp>
@@ -439,6 +444,39 @@ struct find_splits
         return groups;
     }
 
+    std::vector<int64_t> get_reduce_axes(instruction_ref ins) const
+    {
+        assert(contains(ins->name(), "reduce"));
+        std::vector<int64_t> axes;
+        if (ins->name() == "reduce_max")
+        {
+            auto op = any_cast<op::reduce_max>(ins->get_operator());
+            axes = op.axes;
+        }
+        else if (ins->name() == "reduce_mean")
+        {
+            auto op = any_cast<op::reduce_mean>(ins->get_operator());
+            axes = op.axes;
+        }
+        else if (ins->name() == "reduce_min")
+        {
+            auto op = any_cast<op::reduce_min>(ins->get_operator());
+            axes = op.axes;
+        }
+        else if (ins->name() == "reduce_prod")
+        {
+            auto op = any_cast<op::reduce_prod>(ins->get_operator());
+            axes = op.axes;
+        }
+        else if (ins->name() == "reduce_sum")
+        {
+            auto op = any_cast<op::reduce_sum>(ins->get_operator());
+            axes = op.axes;
+        }
+
+        return axes;
+    }
+
     void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -452,6 +490,22 @@ struct find_splits
             auto op    = start->get_operator();
             if(op.name() == "slice")
                 continue;
+
+            if (contains(op.name(), "reduce"))
+            {
+                auto split_front = splits.front();
+                auto slc = any_cast<op::slice>(split_front->get_operator());
+                auto slc_axes = slc.axes;
+
+                auto reduce_axes = get_reduce_axes(start);
+                // axes of slice and reduce op cannot have overlap
+                if (std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                    return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) != reduce_axes.end());
+                }))
+                {
+                    continue;
+                }
+            }
 
             // Make sure there is no duplicates
             assert(std::none_of(

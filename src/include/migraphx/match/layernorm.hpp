@@ -21,23 +21,21 @@ struct layernorm_matcher
 
     auto x_minus_mean() const
     {
-        return f("sub")(arg(0)(any().bind("x")),
-                              arg(1)(multibroadcast_op(f("reduce_mean"))));
+        return f("sub")(arg(0)(any().bind("x")), arg(1)(multibroadcast_op(f("reduce_mean"))));
     }
 
     auto variance() const
     {
-        return f("reduce_mean")(arg(0)(
-            f("pow")(arg(0)(x_minus_mean()), arg(1)(multibroadcast_op(has_value(2.0f))))));
+        return f("reduce_mean")(
+            arg(0)(f("pow")(arg(0)(x_minus_mean()), arg(1)(multibroadcast_op(has_value(2.0f))))));
     }
 
     auto layernorm_onnx() const
     {
-        return f("div")(
-            arg(0)(x_minus_mean()),
+        return f("div")(arg(0)(x_minus_mean()),
 
-            arg(1)(multibroadcast_op(f("sqrt")(arg(0)(f("add")(
-                either_arg(0, 1)(variance(), multibroadcast_op(has_value(1e-12f)))))))));
+                        arg(1)(multibroadcast_op(f("sqrt")(arg(0)(f("add")(either_arg(0, 1)(
+                            variance(), multibroadcast_op(has_value(1e-12f)))))))));
     }
 
     auto matcher() const { return layernorm_onnx(); }

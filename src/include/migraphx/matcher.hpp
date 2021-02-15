@@ -542,8 +542,10 @@ inline auto any_arg(std::size_t i, std::size_t j)
 }
 
 template <std::size_t N, class M>
-std::size_t
-tree_leafs_impl(matcher_context& ctx, std::array<instruction_ref, N>& leafs, M m, instruction_ref ins)
+std::size_t tree_leafs_impl(matcher_context& ctx,
+                            std::array<instruction_ref, N>& leafs,
+                            M m,
+                            instruction_ref ins)
 {
     std::size_t idx = 0;
     fix([&](auto self, auto i) {

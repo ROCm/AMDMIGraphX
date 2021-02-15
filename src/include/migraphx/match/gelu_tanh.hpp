@@ -17,20 +17,19 @@ struct gelu_tanh_matcher
 
     auto tanh_fn() const
     {
-        return f("tanh")(used_once(),
-                               arg(0)(f("mul")(either_arg(0, 1)(
-                                   args(has_value(sqrt(M_2_PI), 1e-3)),
-                                   f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
-                                       args(has_value(0.044715f)), pow_fn()))))))));
+        return f("tanh")(
+            used_once(),
+            arg(0)(f("mul")(either_arg(0, 1)(args(has_value(sqrt(M_2_PI), 1e-3)),
+                                             f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
+                                                 args(has_value(0.044715f)), pow_fn()))))))));
     }
 
     auto matcher() const
     {
-        return f("mul")(
-            used_once(),
-            either_arg(0, 1)(any().bind("x"),
-                             f("add")(any_arg(0, 1)(f("mul")(
-                                 either_arg(0, 1)(args(has_value(0.5f)), tanh_fn()))))));
+        return f("mul")(used_once(),
+                        either_arg(0, 1)(any().bind("x"),
+                                         f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
+                                             args(has_value(0.5f)), tanh_fn()))))));
     }
 };
 } // namespace detail

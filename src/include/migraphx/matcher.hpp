@@ -265,10 +265,7 @@ struct find_generic_match
     F f;
     M matcher() const { return m; }
 
-    void apply(module& mod, const matcher_result& mr) const
-    {
-        f(mod, mr);
-    }
+    void apply(module& mod, const matcher_result& mr) const { f(mod, mr); }
 };
 
 template <class M, class F>
@@ -655,7 +652,7 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
-template<class... Ms>
+template <class... Ms>
 auto skip_broadcasts(Ms... ms)
 {
     return skip(name("broadcast", "multibroadcast", "contiguous"))(ms...);

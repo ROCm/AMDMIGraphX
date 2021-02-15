@@ -340,15 +340,16 @@ struct cpu_apply
         }
     }
 
-    template<class M>
+    template <class M>
     auto fuse_match(M matcher, const operation& op, std::vector<std::string> bind_inputs)
     {
         return match::make_match_finder(matcher, [=](auto&, const auto& r) {
             auto ins = r.result;
             std::vector<instruction_ref> inputs;
-            std::transform(bind_inputs.begin(), bind_inputs.end(), std::back_inserter(inputs), [&](const auto& s) {
-                return r.instructions.at(s);
-            });
+            std::transform(bind_inputs.begin(),
+                           bind_inputs.end(),
+                           std::back_inserter(inputs),
+                           [&](const auto& s) { return r.instructions.at(s); });
             inputs.push_back(insert_allocation(ins, ins->get_shape()));
             modl->replace_instruction(ins, op, inputs);
         });
@@ -407,11 +408,14 @@ struct cpu_apply
     {
         init();
         // Apply fusion matchers first
-        match::find_matches(*modl, 
-            fuse_match(match::gelu_erf(), make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_erf"}}), {"x"}),
-            fuse_match(match::gelu_tanh(), make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_tanh"}}), {"x"}),
-            fuse_match(match::layernorm(), make_op("dnnl::layernorm"), {"x"})
-        );
+        match::find_matches(*modl,
+                            fuse_match(match::gelu_erf(),
+                                       make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_erf"}}),
+                                       {"x"}),
+                            fuse_match(match::gelu_tanh(),
+                                       make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_tanh"}}),
+                                       {"x"}),
+                            fuse_match(match::layernorm(), make_op("dnnl::layernorm"), {"x"}));
         // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {

@@ -28,8 +28,8 @@ struct gelu_tanh_matcher
     {
         return f("mul")(used_once(),
                         either_arg(0, 1)(any().bind("x"),
-                                         f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
-                                             has_value(0.5f), tanh_fn()))))));
+                                         f("add")(any_arg(0, 1)(f("mul")(
+                                             either_arg(0, 1)(has_value(0.5f), tanh_fn()))))));
     }
 };
 } // namespace detail

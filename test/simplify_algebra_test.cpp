@@ -923,8 +923,6 @@ TEST_CASE(simplify_split_reduce1)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b = migraphx::op::broadcast{1, {3, 1, 4}};
-
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -944,7 +942,6 @@ TEST_CASE(simplify_split_reduce1)
 
     migraphx::module m2;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
         auto input = m2.add_parameter("input", s);
         auto rmin  = m2.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), input);
         auto rmax  = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), input);
@@ -977,8 +974,6 @@ TEST_CASE(simplify_split_reduce2)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b = migraphx::op::broadcast{1, {3, 1, 4}};
-
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
@@ -1006,7 +1001,6 @@ TEST_CASE(simplify_split_add_relu_reshape)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
-        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
         auto r     = migraphx::op::reshape{{3, 4}};
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(

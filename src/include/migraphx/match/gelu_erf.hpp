@@ -15,16 +15,16 @@ struct gelu_erf_matcher
     F f;
     auto erf_fn() const
     {
-        return name(f("erf"))(
+        return f("erf")(
             used_once(),
             arg(0)(used_once(),
-                   name(f("mul"))(either_arg(0, 1)(none_of(has_value(M_SQRT1_2, 1e-3)).bind("x"),
+                   f("mul")(either_arg(0, 1)(none_of(has_value(M_SQRT1_2, 1e-3)).bind("x"),
                                                    has_value(M_SQRT1_2, 1e-3)))));
     }
 
     auto add_erf() const
     {
-        return name(f("add"))(used_once(), either_arg(0, 1)(erf_fn(), args(has_value(1.0f))));
+        return f("add")(used_once(), either_arg(0, 1)(erf_fn(), args(has_value(1.0f))));
     }
 
     auto one_half() const { return args(has_value(0.5f)); }
@@ -41,7 +41,7 @@ auto gelu_erf(F f)
 
 inline auto gelu_erf()
 {
-    return gelu_erf([](auto x) { return x; });
+    return gelu_erf([](auto x) { return name(x); });
 }
 
 } // namespace match

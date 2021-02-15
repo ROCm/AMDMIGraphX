@@ -541,15 +541,15 @@ inline auto any_arg(std::size_t i, std::size_t j)
     return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
 }
 
-template <std::size_t N>
+template <std::size_t N, class M>
 std::size_t
-tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, instruction_ref ins)
+tree_leafs_impl(matcher_context& ctx, std::array<instruction_ref, N>& leafs, M m, instruction_ref ins)
 {
     std::size_t idx = 0;
     fix([&](auto self, auto i) {
         if(idx == leafs.size())
             return;
-        if(i->name() == s and i->inputs().size() >= 2)
+        if(ctx.matched(m, i) and i->inputs().size() >= 2)
         {
             self(i->inputs()[0]);
             self(i->inputs()[1]);
@@ -561,13 +561,13 @@ tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, ins
     return idx;
 }
 
-template <class... Ms>
-auto tree(std::string s, Ms... ms)
+template <class M, class... Ms>
+auto tree(M main_op, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
-        std::size_t idx = tree_leafs_impl(leafs, s, ins);
+        std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
         if(idx != leafs.size())
             return ctx.not_found();
         // Use explicit captures to workaround ICE on gcc
@@ -580,13 +580,13 @@ auto tree(std::string s, Ms... ms)
     });
 }
 
-template <class... Ms>
-auto unordered_tree(std::string s, Ms... ms)
+template <class M, class... Ms>
+auto unordered_tree(M main_op, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
-        std::size_t idx = tree_leafs_impl(leafs, s, ins);
+        std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
         if(idx != leafs.size())
             return ctx.not_found();
         // Use explicit captures to workaround ICE on gcc

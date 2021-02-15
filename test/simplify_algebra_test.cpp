@@ -987,12 +987,12 @@ TEST_CASE(simplify_split_reduce2)
 
         auto rx = m1.add_instruction(migraphx::make_op("relu"), x);
 
-        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 1}}}), x);
-        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 1}}}), x);
-        auto rmax1 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 1}}}), rx);
-        auto rmin1 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 1}}}), rx);
-        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 1}}}), y);
-        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), y);
+        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), x);
+        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
+        auto rmax1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), rx);
+        auto rmin1 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), rx);
+        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), y);
+        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), y);
         m1.add_return({rmax0, rmin0, rmax1, rmin1, rmax2, rmin2});
     }
 

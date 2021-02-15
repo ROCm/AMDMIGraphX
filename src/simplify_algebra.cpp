@@ -448,30 +448,30 @@ struct find_splits
     {
         assert(contains(ins->name(), "reduce"));
         std::vector<int64_t> axes;
-        if (ins->name() == "reduce_max")
+        if(ins->name() == "reduce_max")
         {
             auto op = any_cast<op::reduce_max>(ins->get_operator());
-            axes = op.axes;
+            axes    = op.axes;
         }
-        else if (ins->name() == "reduce_mean")
+        else if(ins->name() == "reduce_mean")
         {
             auto op = any_cast<op::reduce_mean>(ins->get_operator());
-            axes = op.axes;
+            axes    = op.axes;
         }
-        else if (ins->name() == "reduce_min")
+        else if(ins->name() == "reduce_min")
         {
             auto op = any_cast<op::reduce_min>(ins->get_operator());
-            axes = op.axes;
+            axes    = op.axes;
         }
-        else if (ins->name() == "reduce_prod")
+        else if(ins->name() == "reduce_prod")
         {
             auto op = any_cast<op::reduce_prod>(ins->get_operator());
-            axes = op.axes;
+            axes    = op.axes;
         }
-        else if (ins->name() == "reduce_sum")
+        else if(ins->name() == "reduce_sum")
         {
             auto op = any_cast<op::reduce_sum>(ins->get_operator());
-            axes = op.axes;
+            axes    = op.axes;
         }
 
         return axes;
@@ -491,17 +491,18 @@ struct find_splits
             if(op.name() == "slice")
                 continue;
 
-            if (contains(op.name(), "reduce"))
+            if(contains(op.name(), "reduce"))
             {
                 auto split_front = splits.front();
-                auto slc = any_cast<op::slice>(split_front->get_operator());
-                auto slc_axes = slc.axes;
+                auto slc         = any_cast<op::slice>(split_front->get_operator());
+                auto slc_axes    = slc.axes;
 
                 auto reduce_axes = get_reduce_axes(start);
                 // axes of slice and reduce op cannot have overlap
-                if (std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
-                    return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) != reduce_axes.end());
-                }))
+                if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                       return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
+                               reduce_axes.end());
+                   }))
                 {
                     continue;
                 }

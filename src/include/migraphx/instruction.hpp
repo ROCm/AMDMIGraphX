@@ -77,8 +77,6 @@ struct instruction
     void replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
                       const std::unordered_map<module_ref, module_ref>& map_mods);
 
-    void replace_module_ref(const std::unordered_map<module_ref, module_ref>& map_mods);
-
     static void backreference(instruction_ref ref);
 
     static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);

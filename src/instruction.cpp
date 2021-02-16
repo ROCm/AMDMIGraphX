@@ -209,18 +209,6 @@ void instruction::replace(operation o,
     replace(std::move(args), std::move(mdl_args));
 }
 
-void instruction::replace_module_ref(const std::unordered_map<module_ref, module_ref>& map_mods)
-{
-    if(module_args.empty())
-        return;
-
-    for(auto& mod : module_args)
-    {
-        assert(contains(map_mods, mod));
-        mod = map_mods.at(mod);
-    }
-}
-
 void instruction::replace_refs(
     const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
     const std::unordered_map<module_ref, module_ref>& map_mods)

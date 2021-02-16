@@ -44,7 +44,7 @@ int main() {}
 )__migraphx__";
 
 // NOLINTNEXTLINE
-const std::string pointwise_increment = R"__migraphx__(
+const std::string simple_pointwise_increment = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <args.hpp>
 
@@ -142,7 +142,7 @@ TEST_CASE(compile_code_object_hip)
     options.inputs = {input, input};
     options.output = input;
 
-    auto co = migraphx::gpu::compile_hip_code_object(pointwise_increment, options);
+    auto co = migraphx::gpu::compile_hip_code_object(simple_pointwise_increment, options);
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

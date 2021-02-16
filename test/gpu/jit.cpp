@@ -137,8 +137,8 @@ TEST_CASE(compile_code_object_hip)
 {
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
-    options.global = 256*1024;
-    options.local = 1024;
+    options.global = 256 * 1024;
+    options.local  = 1024;
     options.inputs = {input, input};
     options.output = input;
 
@@ -157,7 +157,6 @@ TEST_CASE(compile_code_object_hip)
     auto result = migraphx::gpu::from_gpu(p.eval({}).front());
 
     EXPECT(result == output_literal.get_argument());
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

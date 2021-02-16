@@ -221,9 +221,11 @@ void instruction::replace_module_ref(const std::unordered_map<module_ref, module
     }
 }
 
-void instruction::replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const std::unordered_map<module_ref, module_ref>& map_mods)
+void instruction::replace_refs(
+    const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
+    const std::unordered_map<module_ref, module_ref>& map_mods)
 {
-    for (auto& arg : arguments)
+    for(auto& arg : arguments)
     {
         if(contains(map_insts, arg))
         {

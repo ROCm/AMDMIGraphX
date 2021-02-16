@@ -91,7 +91,7 @@ void program::assign(const program& p)
 
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
-    impl->modules = p.impl->modules;
+    impl->modules     = p.impl->modules;
 
     // build a map from old ins to new ins
     // Build a map from old module to new module
@@ -103,14 +103,16 @@ void program::assign(const program& p)
                    [](auto&& x, auto&& y) { return std::make_pair(&y, &x); });
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for (auto &&pp : mod_map)
+    for(auto&& pp : mod_map)
     {
         auto old_ins = iterator_for(*pp.first);
         auto new_ins = iterator_for(*pp.second);
-        std::transform(old_ins.begin(), old_ins.end(), new_ins.begin(),
-                    std::inserter(ins_map, ins_map.begin()),
-                    [](auto x, auto y) { return std::make_pair(x, y); });
-    }    
+        std::transform(old_ins.begin(),
+                       old_ins.end(),
+                       new_ins.begin(),
+                       std::inserter(ins_map, ins_map.begin()),
+                       [](auto x, auto y) { return std::make_pair(x, y); });
+    }
 
     // Update all references from all modules
     for(auto&& mp : impl->modules)

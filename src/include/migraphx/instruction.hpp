@@ -74,7 +74,8 @@ struct instruction
         migraphx::erase(output, ins);
     }
 
-    void replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const std::unordered_map<module_ref, module_ref>& map_mods);
+    void replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
+                      const std::unordered_map<module_ref, module_ref>& map_mods);
 
     void replace_module_ref(const std::unordered_map<module_ref, module_ref>& map_mods);
 

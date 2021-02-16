@@ -73,8 +73,8 @@ module::~module() noexcept        = default;
 // copy constructor
 module::module(const module& m)
 {
-    std::unordered_map<instruction_ref, instruction_ref> map_insts;
-    assign(m, map_insts);
+    // std::unordered_map<instruction_ref, instruction_ref> map_insts;
+    assign(m);
 }
 
 module::module(const module& m, std::unordered_map<instruction_ref, instruction_ref>& map_insts)
@@ -91,6 +91,73 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
+void module::assign(const module& m)
+{
+    // clean the current module
+    if(!impl)
+    {
+        impl = std::make_unique<module_impl>();
+    }
+    else if(!impl->instructions.empty())
+    {
+        impl->instructions.clear();
+    }
+    impl->input_names = m.impl->input_names;
+    impl->name        = m.impl->name;
+
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(auto ins : iterator_for(m))
+    {
+        instruction_ref copy_ins{};
+        if(ins->name() == "@literal")
+        {
+            auto l   = ins->get_literal();
+            copy_ins = impl->instructions.insert(impl->instructions.end(), instruction{l});
+        }
+        else if(ins->name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto s      = ins->get_shape();
+            copy_ins    = impl->instructions.insert(impl->instructions.end(),
+                                                 {builtin::param{name}, std::move(s), {}});
+        }
+        else if(ins->name() == "@outline")
+        {
+            auto s = ins->get_shape();
+            copy_ins =
+                impl->instructions.insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
+        }
+        else
+        {
+            // if there are sub_module inputs, need to make a copy of the submodule
+            auto module_args = ins->module_inputs();
+            // retrieve its mapped input
+            auto inputs = ins->inputs();
+            std::vector<instruction_ref> copy_inputs(inputs.size());
+            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
+                return contains(ins_map, i) ? ins_map[i] : i;
+            });
+            if(ins->name() == "@return")
+            {
+                copy_ins = add_return(copy_inputs);
+            }
+            else
+            {
+                if(module_args.empty())
+                {
+                    copy_ins = add_instruction(ins->get_operator(), copy_inputs);
+                }
+                else
+                {
+                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
+                }
+            }
+        }
+
+        ins_map[ins] = copy_ins;
+    }
+}
+
 void module::assign(const module& m, std::unordered_map<instruction_ref, instruction_ref>& ins_map)
 {
     // clean the current module
@@ -105,7 +172,6 @@ void module::assign(const module& m, std::unordered_map<instruction_ref, instruc
     impl->input_names = m.impl->input_names;
     impl->name        = m.impl->name;
 
-    std::unordered_map<module_ref, module_ref> sub_module_map;
     for(auto ins : iterator_for(m))
     {
         instruction_ref copy_ins{};

@@ -221,6 +221,26 @@ void instruction::replace_module_ref(const std::unordered_map<module_ref, module
     }
 }
 
+void instruction::replace_refs(const std::unordered_map<instruction_ref, instruction_ref>& map_insts, const std::unordered_map<module_ref, module_ref>& map_mods)
+{
+    for (auto& arg : arguments)
+    {
+        if(contains(map_insts, arg))
+        {
+            arg = map_insts.at(arg);
+        }
+    }
+
+    if(module_args.empty())
+        return;
+
+    for(auto& mod : module_args)
+    {
+        assert(contains(map_mods, mod));
+        mod = map_mods.at(mod);
+    }
+}
+
 void instruction::replace(std::vector<instruction_ref> args)
 {
     clear_arguments();

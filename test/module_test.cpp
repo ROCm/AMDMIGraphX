@@ -138,4 +138,20 @@ TEST_CASE(program_module_assign)
     EXPECT(p == p1);
 }
 
+TEST_CASE(submodule_copy)
+{
+    migraphx::module mm("main");
+    auto x = mm.add_parameter("x", {migraphx::shape::int64_type});
+
+    migraphx::module sm("sub");
+    sm.add_instruction(migraphx::make_op("sin"), x);
+
+    mm.add_instruction(migraphx::make_op("iff"), {x}, {&sm, &sm});
+
+    auto mm2 = mm;
+
+    // EXPECT(mm == mm2);
+    EXPECT(mm.get_sub_module_prefix_order() == mm2.get_sub_module_prefix_order());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

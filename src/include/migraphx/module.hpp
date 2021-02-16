@@ -162,6 +162,8 @@ struct module
 
     void assign(const module& m, std::unordered_map<instruction_ref, instruction_ref>& ins_map);
 
+    void assign(const module& m);
+
     std::unordered_set<module_ref> get_parent_modules() const;
 
     std::unique_ptr<module_impl> impl;

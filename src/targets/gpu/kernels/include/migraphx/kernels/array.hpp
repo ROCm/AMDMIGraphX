@@ -7,34 +7,34 @@
 namespace migraphx {
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                    \
-    constexpr array& operator op(const array& x)                           \
-    {                                                                                              \
-        for(index_int i = 0; i < N; i++)                                                           \
-            d[i] op x[i];                                                                          \
-        return *this;                                                                              \
-    }                                                                                              \
-    constexpr array& operator op(const T& x)                                   \
-    {                                                                                              \
-        for(index_int i = 0; i < N; i++)                                                           \
-            d[i] op x;                                                                             \
-        return *this;                                                                              \
-    }                                                                                              \
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                               \
+    constexpr array& operator op(const array& x)                              \
+    {                                                                         \
+        for(index_int i = 0; i < N; i++)                                      \
+            d[i] op x[i];                                                     \
+        return *this;                                                         \
+    }                                                                         \
+    constexpr array& operator op(const T& x)                                  \
+    {                                                                         \
+        for(index_int i = 0; i < N; i++)                                      \
+            d[i] op x;                                                        \
+        return *this;                                                         \
+    }                                                                         \
     friend constexpr array operator binary_op(const array& x, const array& y) \
-    {                                                                                              \
-        auto z = x;                                                                             \
-        return z op y;                                                                             \
-    }                                                                                              \
-    friend constexpr array operator binary_op(const array& x, const T& y)         \
-    {                                                                                              \
-        auto z = x;                                                                             \
-        return z op y;                                                                             \
-    }                                                                                              \
-    friend constexpr array operator binary_op(const T& x, const array& y)         \
-    {                                                                                              \
-        for(index_int i = 0; i < N; i++)                                                           \
-            y[i] = x op y[i];                                                                             \
-        return y;                                                                              \
+    {                                                                         \
+        auto z = x;                                                           \
+        return z op y;                                                        \
+    }                                                                         \
+    friend constexpr array operator binary_op(const array& x, const T& y)     \
+    {                                                                         \
+        auto z = x;                                                           \
+        return z op y;                                                        \
+    }                                                                         \
+    friend constexpr array operator binary_op(const T& x, const array& y)     \
+    {                                                                         \
+        for(index_int i = 0; i < N; i++)                                      \
+            y[i] = x op y[i];                                                 \
+        return y;                                                             \
     }
 
 template <class T, index_int N>
@@ -108,10 +108,7 @@ struct array
         return true;
     }
 
-    friend constexpr bool operator!=(const array& x, const array& y)
-    {
-        return !(x == y);
-    }
+    friend constexpr bool operator!=(const array& x, const array& y) { return !(x == y); }
     // This uses the product order rather than lexical order
     friend constexpr bool operator<(const array& x, const array& y)
     {
@@ -122,18 +119,9 @@ struct array
         }
         return true;
     }
-    friend constexpr bool operator>(const array& x, const array& y)
-    {
-        return y < x;
-    }
-    friend constexpr bool operator<=(const array& x, const array& y)
-    {
-        return (x < y) or (x == y);
-    }
-    friend constexpr bool operator>=(const array& x, const array& y)
-    {
-        return (y < x) or (x == y);
-    }
+    friend constexpr bool operator>(const array& x, const array& y) { return y < x; }
+    friend constexpr bool operator<=(const array& x, const array& y) { return (x < y) or (x == y); }
+    friend constexpr bool operator>=(const array& x, const array& y) { return (y < x) or (x == y); }
 
     constexpr array carry(array result) const
     {
@@ -156,16 +144,14 @@ struct array
     }
 };
 
-template<class T, T... xs>
+template <class T, T... xs>
 struct integral_const_array : array<T, sizeof...(xs)>
 {
     using base_array = array<T, sizeof...(xs)>;
-    constexpr integral_const_array() : base_array({xs...})
-    {
-    }
+    constexpr integral_const_array() : base_array({xs...}) {}
 };
 
-template<index_int... Ns>
+template <index_int... Ns>
 using index_ints = integral_const_array<index_int, Ns...>;
 
 } // namespace migraphx

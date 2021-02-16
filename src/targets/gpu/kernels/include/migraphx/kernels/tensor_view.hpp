@@ -5,7 +5,7 @@
 
 namespace migraphx {
 
-template<class T, class Shape>
+template <class T, class Shape>
 struct tensor_view
 {
     constexpr Shape get_shape() const { return Shape{}; }
@@ -25,7 +25,7 @@ struct tensor_view
     T* x;
 };
 
-template<class T, class Shape>
+template <class T, class Shape>
 constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)
 {
     return {x};

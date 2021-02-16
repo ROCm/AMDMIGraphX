@@ -9,40 +9,29 @@ namespace migraphx {
 template <class Lens, class Strides>
 struct shape
 {
-    using index_array                  = typename Lens::base_array; 
-    Lens lens                   = {};
-    Strides strides                = {};
+    using index_array = typename Lens::base_array;
+    Lens lens         = {};
+    Strides strides   = {};
 
     constexpr shape() = default;
 
-    constexpr shape(Lens l, Strides s)
-    :lens(l), strides(s)
-    {}
+    constexpr shape(Lens l, Strides s) : lens(l), strides(s) {}
 
     constexpr index_int elements() const { return lens.product(); }
 
-    constexpr index_int element_space() const
-    {
-        return strides.dot(lens - 1);
-    }
+    constexpr index_int element_space() const { return strides.dot(lens - 1); }
 
-    constexpr bool packed() const
-    {
-        return elements() == element_space();
-    }
-    constexpr bool broadcasted() const
-    {
-        return strides.product() == 0;
-    }
+    constexpr bool packed() const { return elements() == element_space(); }
+    constexpr bool broadcasted() const { return strides.product() == 0; }
     constexpr bool transposed() const
     {
-        if (broadcasted())
+        if(broadcasted())
         {
             index_array s;
             index_int j = 0;
             for(index_int i = 0; i < s.size(); i++)
             {
-                if (strides[i] != 0)
+                if(strides[i] != 0)
                 {
                     s[j] = strides[i];
                     j++;
@@ -56,10 +45,7 @@ struct shape
         }
     }
 
-    constexpr bool standard() const
-    {
-        return packed() and not transposed();
-    }
+    constexpr bool standard() const { return packed() and not transposed(); }
 
     constexpr index_int index(index_array x) const { return x.dot(strides); }
 
@@ -101,14 +87,14 @@ struct shape
         for(std::ptrdiff_t is = result.size() - 1; is > 0; is--)
         {
             result[is] = tidx % lens[is];
-            tidx = tidx / lens[is];
+            tidx       = tidx / lens[is];
         }
         result[0] = tidx;
         return result;
     }
 };
 
-template<class Lens, class Strides>
+template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
     return {lens, strides};

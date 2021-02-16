@@ -5,8 +5,10 @@
 
 namespace migraphx {
 
-template<std::size_t N>
-struct arg {};
+template <std::size_t N>
+struct arg
+{
+};
 
 template <std::size_t...>
 struct seq
@@ -36,18 +38,16 @@ struct gens<1> : seq<0>
 {
 };
 
-template<class F, std::size_t... Ns, class... Ts>
+template <class F, std::size_t... Ns, class... Ts>
 __device__ auto make_tensors_impl(F f, seq<Ns...>, Ts*... xs)
 {
     f(make_tensor(arg<Ns>{}, xs)...);
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ auto make_tensors(Ts*... xs)
 {
-    return [=](auto f) {
-        make_tensors_impl(f, gens<sizeof...(Ts)>{}, xs...);
-    };
+    return [=](auto f) { make_tensors_impl(f, gens<sizeof...(Ts)>{}, xs...); };
 }
 
 } // namespace migraphx

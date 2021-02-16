@@ -17,7 +17,8 @@ std::string get_arch_name(rank<0>, const hipDeviceProp_t& props)
     return "gfx" + std::to_string(props.gcnArch);
 }
 
-auto get_arch_name(rank<1>, const hipDeviceProp_t& props) -> decltype(std::string(props.gcnArchName))
+auto get_arch_name(rank<1>, const hipDeviceProp_t& props)
+    -> decltype(std::string(props.gcnArchName))
 {
     return std::string(props.gcnArchName);
 }
@@ -40,7 +41,7 @@ std::string get_device_name()
     return get_arch_name(rank<1>{}, props);
 }
 
-template<class T>
+template <class T>
 std::string generate_index_ints(const std::vector<T>& v)
 {
     return "index_ints<" + to_string_range(v) + ">{}";
@@ -50,7 +51,8 @@ std::string generate_cpp_type(shape::type_t t)
 {
     switch(t)
     {
-#define MIGRAPHX_GPU_GENERATE_TYPE_STRING(x, t) case shape::x: return #t;
+#define MIGRAPHX_GPU_GENERATE_TYPE_STRING(x, t) \
+    case shape::x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GPU_GENERATE_TYPE_STRING)
     }
     MIGRAPHX_THROW("Invalid type");
@@ -58,7 +60,8 @@ std::string generate_cpp_type(shape::type_t t)
 
 std::string generate_make_shape(const shape& s)
 {
-    return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) + ")";
+    return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) +
+           ")";
 }
 
 std::string generate_make_tensor(std::size_t n, const shape& s)
@@ -75,7 +78,7 @@ std::string generate_make_tensor(std::size_t n, const shape& s)
 std::string generate_args_hpp(const std::vector<shape>& inputs)
 {
     std::string inner;
-    for(std::size_t i = 0;i<inputs.size();i++)
+    for(std::size_t i = 0; i < inputs.size(); i++)
     {
         inner += generate_make_tensor(i, inputs[i]);
     }
@@ -99,20 +102,30 @@ __content__
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
     std::vector<src_file> srcs;
-    std::transform(migraphx_kernels().begin(), migraphx_kernels().end(), std::back_inserter(srcs), [](auto&& p) {
-        auto&& name = p.first;
-        auto&& c = p.second;
-        auto path = fs::path{"migraphx"} / "kernels" / name;
-        return src_file{path, c};
-    });
-    srcs.push_back(src_file{fs::path{"main.cpp"}, std::make_pair(content.data(), content.data()+content.size())});
+    std::transform(migraphx_kernels().begin(),
+                   migraphx_kernels().end(),
+                   std::back_inserter(srcs),
+                   [](auto&& p) {
+                       auto&& name = p.first;
+                       auto&& c    = p.second;
+                       auto path   = fs::path{"migraphx"} / "kernels" / name;
+                       return src_file{path, c};
+                   });
+    srcs.push_back(src_file{fs::path{"main.cpp"},
+                            std::make_pair(content.data(), content.data() + content.size())});
     auto args_hpp = generate_args_hpp(options.inputs);
-    srcs.push_back(src_file{fs::path{"args.hpp"}, std::make_pair(args_hpp.data(), args_hpp.data()+args_hpp.size())});
+    srcs.push_back(src_file{fs::path{"args.hpp"},
+                            std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
     options.params += " -I.";
     auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
-    if (cos.size() != 1)
+    if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
-    return code_object_op{value::binary{cos.front()}, options.kernel_name, options.global, options.local, options.inputs, options.output};
+    return code_object_op{value::binary{cos.front()},
+                          options.kernel_name,
+                          options.global,
+                          options.local,
+                          options.inputs,
+                          options.output};
 }
 
 } // namespace gpu

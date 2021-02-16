@@ -30,38 +30,6 @@ struct module_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-static void print_instruction(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
-{
-    os << names.at(ins) << " = ";
-
-    os << ins->get_operator();
-
-    if(ins->name() == "@literal")
-    {
-        if(ins->get_literal().get_shape().elements() > 10)
-            os << "{ ... }";
-        else
-            os << "{" << ins->get_literal() << "}";
-    }
-
-    if(!ins->inputs().empty())
-    {
-        char delim = '(';
-        for(auto&& arg : ins->inputs())
-        {
-            os << delim << names.at(arg);
-            delim = ',';
-        }
-        os << ")";
-    }
-
-    // skip return instruction shape
-    if(ins->name() != "@return")
-        os << " -> " << ins->get_shape();
-}
-
 module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
@@ -601,7 +569,7 @@ void module::debug_print(instruction_ref ins,
     this->print(names, [&](auto x) {
         if(x == ins)
         {
-            print_instruction(std::cout, x, names);
+            instruction::print(std::cout, x, names);
             std::cout << std::endl;
         }
     });
@@ -782,7 +750,7 @@ void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) 
 {
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins) {
-        print_instruction(os, ins, names);
+	instruction::print(os, ins, names);
         a(ins);
         os << std::endl;
     });
@@ -841,7 +809,7 @@ static void print_module(std::ostream& os,
 {
     std::unordered_set<module_ref> sub_mods;
     m.print(names, [&](auto ins) {
-        print_instruction(os, ins, names);
+        instruction::print(os, ins, names);
         os << std::endl;
         auto& mod_args = ins->module_inputs();
         for(auto& smod : mod_args)

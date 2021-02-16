@@ -31,38 +31,6 @@ struct program_impl
     std::string target_name;
 };
 
-static void print_instruction(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
-{
-    os << names.at(ins) << " = ";
-
-    os << ins->get_operator();
-
-    if(ins->name() == "@literal")
-    {
-        if(ins->get_literal().get_shape().elements() > 10)
-            os << "{ ... }";
-        else
-            os << "{" << ins->get_literal() << "}";
-    }
-
-    if(!ins->inputs().empty())
-    {
-        char delim = '(';
-        for(auto&& arg : ins->inputs())
-        {
-            os << delim << names.at(arg);
-            delim = ',';
-        }
-        os << ")";
-    }
-
-    // skip return instruction shape
-    if(ins->name() != "@return")
-        os << " -> " << ins->get_shape();
-}
-
 program::program() : impl(std::make_unique<program_impl>()) { impl->modules.push_back({"main"}); }
 
 program::program(program&&) noexcept = default;
@@ -439,7 +407,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins) {
-        print_instruction(std::cout, ins, names);
+	instruction::print(std::cout, ins, names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -482,15 +450,15 @@ void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
-    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto mod) {
-           return (mod.end() == ins);
+    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& it) {
+           return (it.end() == ins);
        }))
     {
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if(not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](auto mod) {
-                return mod.has_instruction(ins);
+    else if(not std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& it) {
+                return it.has_instruction(ins);
             }))
     {
         std::cout << "Instruction not part of program" << std::endl;
@@ -501,7 +469,7 @@ void program::debug_print(instruction_ref ins) const
     this->print(names, [&](auto x) {
         if(x == ins)
         {
-            print_instruction(std::cout, x, names);
+            instruction::print(std::cout, x, names);
             std::cout << std::endl;
         }
     });

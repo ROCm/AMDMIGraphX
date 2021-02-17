@@ -281,7 +281,7 @@ std::vector<argument> program::eval(parameter_map params) const
 
 const int program_file_version = 4;
 
-value program::to_value() const
+value program::to_value1() const
 {
     value result;
     result["version"] = program_file_version;
@@ -299,6 +299,96 @@ value program::to_value() const
     result["modules"] = module_vals;
 
     return result;
+}
+
+value program::to_value() const
+{
+    value result;
+    result["version"] = program_file_version;
+    result["target"]  = this->impl->target_name;
+    if(not this->impl->target_name.empty())
+        result["context"] = this->impl->ctx.to_value();
+
+    value module_vals = value::array{};
+    std::unordered_map<instruction_ref, std::string> names;
+    for (auto& mod : this->impl->modules)
+    {
+
+        value mod_val;
+        value nodes;
+        mod_val["name"] = mod.name();
+        names = mod.print([&](auto ins, auto ins_names) {
+            value node;
+            node["output"]     = ins_names.at(ins);
+            node["name"]       = ins->name();
+            node["shape"]      = migraphx::to_value(ins->get_shape());
+            node["normalized"] = ins->is_normalized();
+            if(ins->name() == "@literal")
+                node["literal"] = migraphx::to_value(ins->get_literal());
+            node["operator"] = ins->get_operator().to_value();
+            std::vector<std::string> inputs;
+            std::transform(ins->inputs().begin(),
+                        ins->inputs().end(),
+                        std::back_inserter(inputs),
+                        [&](auto i) { return ins_names.at(i); });
+            node["inputs"]   = inputs;
+            auto module_args = ins->module_inputs();
+            if(not module_args.empty())
+            {
+                std::vector<std::string> module_inputs;
+                std::transform(module_args.begin(),
+                            module_args.end(),
+                            std::back_inserter(module_inputs),
+                            [&](auto mod_ref) { return mod_ref->name(); });
+                node["module_inputs"] = module_inputs;
+            }
+
+            nodes.push_back(node);
+        }, names);
+        mod_val["nodes"] = nodes;
+
+        module_vals.push_back(mod_val);
+    }
+
+    result["modules"] = module_vals;
+
+    return result;
+}
+
+
+
+void program::from_value1(const value& v)
+{
+    auto version = v.at("version").to<int>();
+    if(version != program_file_version)
+    {
+        MIGRAPHX_THROW("Warning: Program version mismatch");
+    }
+
+    this->impl->target_name = v.at("target").to<std::string>();
+    if(not this->impl->target_name.empty())
+    {
+        target t        = make_target(this->impl->target_name);
+        this->impl->ctx = t.get_context();
+        this->impl->ctx.from_value(v.at("context"));
+    }
+
+    auto module_vals = v.at("modules");
+    std::unordered_map<std::string, module_ref> map_mods;
+    for(const auto& vv : module_vals)
+    {
+        const auto& name = vv.at("name").to<std::string>();
+        if(name == "main")
+            continue;
+        impl->modules.push_back({name});
+        map_mods[name] = &impl->modules.back();
+    }
+
+    std::unordered_map<std::string, instruction_ref> map_insts;
+    auto* mm = get_main_module();
+    mm->from_value(module_vals, map_insts, map_mods);
+
+    this->finalize();
 }
 
 void program::from_value(const value& v)

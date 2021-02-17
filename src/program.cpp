@@ -388,7 +388,6 @@ void program::from_value1(const value& v)
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
     this->mod_from_val(mm, module_vals, map_insts, map_mods);
-    // mm->from_value(module_vals, map_insts, map_mods);
 
     this->finalize();
 }
@@ -489,7 +488,7 @@ void program::from_value(const value& v)
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
-    mm->from_value(module_vals, map_insts, map_mods);
+    this->mod_from_val(mm, module_vals, map_insts, map_mods);
 
     this->finalize();
 }

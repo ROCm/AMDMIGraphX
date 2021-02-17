@@ -438,13 +438,13 @@ void module::finalize(context& ctx)
                   << std::endl;
 }
 
-value module::to_value(value& v, std::unordered_map<instruction_ref, std::string> names) const
+value module::to_value(std::unordered_map<instruction_ref, std::string>& names) const
 {
     value result;
 
     value nodes;
     result["name"] = name();
-    this->print([&](auto ins, auto ins_names) {
+    names = this->print([&](auto ins, auto ins_names) {
         value node;
         node["output"]     = ins_names.at(ins);
         node["name"]       = ins->name();
@@ -468,17 +468,19 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
                            std::back_inserter(module_inputs),
                            [&](auto mod) { return mod->name(); });
             node["module_inputs"] = module_inputs;
-            for(auto& smod : module_args)
-            {
-                smod->to_value(v, ins_names);
-            }
         }
 
         nodes.push_back(node);
     }, names);
     result["nodes"] = nodes;
-    v.push_back(result);
+
     return result;
+}
+
+value module::to_value() const
+{
+    std::unordered_map<instruction_ref, std::string> ins_names;
+    return this->to_value(ins_names);
 }
 
 void module::from_value(const value& v,

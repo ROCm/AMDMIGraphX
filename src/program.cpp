@@ -290,15 +290,13 @@ value program::to_value() const
         result["context"] = this->impl->ctx.to_value();
 
     value module_vals = value::array{};
-    auto* mm          = get_main_module();
-    mm->to_value(module_vals, {});
-
-    std::reverse(module_vals.begin(), module_vals.end());
-
-    if(not module_vals.empty())
+    std::unordered_map<instruction_ref, std::string> ins_names;
+    for (auto& mod : this->impl->modules)
     {
-        result["modules"] = module_vals;
+        module_vals.push_back(mod.to_value(ins_names));
     }
+
+    result["modules"] = module_vals;
 
     return result;
 }

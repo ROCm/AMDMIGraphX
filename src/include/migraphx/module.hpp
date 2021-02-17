@@ -129,7 +129,9 @@ struct module
 
     void finalize(context& ctx);
 
-    value to_value(value& v, std::unordered_map<instruction_ref, std::string> names) const;
+    value to_value(std::unordered_map<instruction_ref, std::string>& names) const;
+    value to_value() const;
+    
     void from_value(const value& v,
                     std::unordered_map<std::string, instruction_ref>& instructions,
                     const std::unordered_map<std::string, module_ref>& map_mods = {});

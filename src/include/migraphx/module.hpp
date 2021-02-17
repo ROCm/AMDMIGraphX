@@ -139,12 +139,10 @@ struct module
     void debug_print(instruction_ref ins,
                      std::unordered_map<instruction_ref, std::string>& names) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
-    void print(std::unordered_map<instruction_ref, std::string>& names,
-               const std::function<void(instruction_ref)>& print_func) const;
 
     std::unordered_map<instruction_ref, std::string> 
         print(const std::function<void(instruction_ref)>&
-              print_func, std::unordered_map<instruction_ref, std::string> names) const;
+              print_func, std::unordered_map<instruction_ref, std::string>& names) const;
 
     std::unordered_map<instruction_ref, std::string> 
         print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&

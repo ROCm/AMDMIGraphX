@@ -444,7 +444,7 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
 
     value nodes;
     result["name"] = name();
-    this->print(names, [&](auto ins) {
+    this->print([&](auto ins) {
         value node;
         node["output"]     = names.at(ins);
         node["name"]       = ins->name();
@@ -475,7 +475,7 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
         }
 
         nodes.push_back(node);
-    });
+    }, names);
     result["nodes"] = nodes;
     v.push_back(result);
     return result;
@@ -566,13 +566,13 @@ void module::debug_print(instruction_ref ins,
         return;
     }
     std::stringstream ss;
-    this->print(names, [&](auto x) {
+    this->print([&](auto x) {
         if(x == ins)
         {
             instruction::print(std::cout, x, names);
             std::cout << std::endl;
         }
-    });
+    }, names);
 }
 
 void module::debug_print(instruction_ref ins) const
@@ -588,39 +588,11 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
-void module::print(std::unordered_map<instruction_ref, std::string>& names,
-                   const std::function<void(instruction_ref)>& print_func) const
-{
-    int count = 0;
-    for(auto ins : iterator_for(*this))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = "@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
-
-        // assert(std::all_of(ins->inputs().begin(),
-        //                    ins->inputs().end(),
-        //                    [&](auto arg) { return this->has_instruction(arg); }) &&
-        //        "DEBUG_PRINT: Instruction not found");
-
-        print_func(ins);
-    }
-}
-
 std::unordered_map<instruction_ref, std::string> module::print(const std::function<
                    void(instruction_ref)>& print_func,
-                   std::unordered_map<instruction_ref, std::string> names) const
+                   std::unordered_map<instruction_ref, std::string>& names) const
 {
     int count = 0;
-
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -859,15 +831,15 @@ static void print_module(std::ostream& os,
                          const module& m,
                          std::unordered_map<instruction_ref, std::string> names)
 {
-    std::unordered_set<module_ref> sub_mods;
+    // std::unordered_set<module_ref> sub_mods;
     m.print([&](auto ins) {
         instruction::print(os, ins, names);
         os << std::endl;
-        auto& mod_args = ins->module_inputs();
-        for(auto& smod : mod_args)
-        {
-            sub_mods.insert(smod);
-        }
+        // auto& mod_args = ins->module_inputs();
+        // for(auto& smod : mod_args)
+        // {
+        //     sub_mods.insert(smod);
+        // }
     }, names);
     os << std::endl;
 }

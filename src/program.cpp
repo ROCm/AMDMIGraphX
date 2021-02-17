@@ -481,7 +481,7 @@ void program::print(std::unordered_map<instruction_ref, std::string>& names,
     for(const auto& mod : this->impl->modules)
     {
         std::cout << mod.name() << ":" << std::endl;
-        mod.print(names, print_func);
+        mod.print(print_func, names);
     }
 }
 

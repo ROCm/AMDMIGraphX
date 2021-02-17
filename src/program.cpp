@@ -9,6 +9,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -386,10 +387,78 @@ void program::from_value1(const value& v)
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
-    mm->from_value(module_vals, map_insts, map_mods);
+    this->mod_from_val(mm, module_vals, map_insts, map_mods);
+    // mm->from_value(module_vals, map_insts, map_mods);
 
     this->finalize();
 }
+
+void program::mod_from_val(module_ref mod, const value& v,
+                        std::unordered_map<std::string, instruction_ref>& instructions,
+                        const std::unordered_map<std::string, module_ref>& map_mods) const
+{
+    auto it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+        return mv.at("name").template to<std::string>() == mod->name();
+    });
+    assert(it != v.end());
+
+    auto& module_val = *it;
+    for(const value& node : module_val.at("nodes"))
+    {
+        instruction_ref output;
+        auto name       = node.at("name").to<std::string>();
+        auto fields     = node.at("operator");
+        auto normalized = node.at("normalized").to<bool>();
+        if(name == "@param")
+        {
+            output = mod->add_parameter(fields["parameter"].to<std::string>(),
+                                         migraphx::from_value<shape>(node.at("shape")));
+        }
+        else if(name == "@literal")
+        {
+            output = mod->add_literal(migraphx::from_value<literal>(node.at("literal")));
+        }
+        else
+        {
+            auto op = make_op(name, fields);
+            std::vector<instruction_ref> inputs;
+            std::transform(node.at("inputs").begin(),
+                           node.at("inputs").end(),
+                           std::back_inserter(inputs),
+                           [&](const value& i) { return instructions[i.to<std::string>()]; });
+
+            std::vector<module_ref> module_inputs;
+            if(node.contains("module_inputs"))
+            {
+                std::transform(node.at("module_inputs").begin(),
+                               node.at("module_inputs").end(),
+                               std::back_inserter(module_inputs),
+                               [&](const value& i) { return map_mods.at(i.to<std::string>()); });
+
+                for(auto& smod : module_inputs)
+                {
+                    this->mod_from_val(smod, v, instructions, map_mods);
+                }
+            }
+
+            if(name == "@return")
+            {
+                output = mod->add_return(inputs);
+            }
+            else if(module_inputs.empty())
+            {
+                output = mod->add_instruction(op, inputs);
+            }
+            else
+            {
+                output = mod->add_instruction(op, inputs, module_inputs);
+            }
+        }
+        output->set_normalized(normalized);
+        instructions[node.at("output").to<std::string>()] = output;
+    }
+}
+
 
 void program::from_value(const value& v)
 {

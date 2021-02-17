@@ -406,8 +406,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
     std::unordered_map<instruction_ref, std::string> names;
-    this->print(names, [&](auto ins) {
-	instruction::print(std::cout, ins, names);
+    this->print(names, [&](auto ins, auto ins_names) {
+    	instruction::print(std::cout, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -466,17 +466,17 @@ void program::debug_print(instruction_ref ins) const
     }
 
     std::stringstream ss;
-    this->print(names, [&](auto x) {
+    this->print(names, [&](auto x, auto ins_names) {
         if(x == ins)
         {
-            instruction::print(std::cout, x, names);
+            instruction::print(std::cout, x, ins_names);
             std::cout << std::endl;
         }
     });
 }
 
 void program::print(std::unordered_map<instruction_ref, std::string>& names,
-                    const std::function<void(instruction_ref)>& print_func) const
+                    const std::function<void(instruction_ref, std::unordered_map<instruction_ref, std::string>)>& print_func) const
 {
     for(const auto& mod : this->impl->modules)
     {

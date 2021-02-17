@@ -444,9 +444,9 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
 
     value nodes;
     result["name"] = name();
-    this->print([&](auto ins) {
+    this->print([&](auto ins, auto ins_names) {
         value node;
-        node["output"]     = names.at(ins);
+        node["output"]     = ins_names.at(ins);
         node["name"]       = ins->name();
         node["shape"]      = migraphx::to_value(ins->get_shape());
         node["normalized"] = ins->is_normalized();
@@ -457,7 +457,7 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
         std::transform(ins->inputs().begin(),
                        ins->inputs().end(),
                        std::back_inserter(inputs),
-                       [&](auto i) { return names.at(i); });
+                       [&](auto i) { return ins_names.at(i); });
         node["inputs"]   = inputs;
         auto module_args = ins->module_inputs();
         if(not module_args.empty())
@@ -470,7 +470,7 @@ value module::to_value(value& v, std::unordered_map<instruction_ref, std::string
             node["module_inputs"] = module_inputs;
             for(auto& smod : module_args)
             {
-                smod->to_value(v, names);
+                smod->to_value(v, ins_names);
             }
         }
 
@@ -566,10 +566,10 @@ void module::debug_print(instruction_ref ins,
         return;
     }
     std::stringstream ss;
-    this->print([&](auto x) {
+    this->print([&](auto x, auto ins_names) {
         if(x == ins)
         {
-            instruction::print(std::cout, x, names);
+            instruction::print(std::cout, x, ins_names);
             std::cout << std::endl;
         }
     }, names);
@@ -589,37 +589,11 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
 }
 
 std::unordered_map<instruction_ref, std::string> module::print(const std::function<
-                   void(instruction_ref)>& print_func,
-                   std::unordered_map<instruction_ref, std::string>& names) const
-{
-    int count = 0;
-    for(auto ins : iterator_for(*this))
-    {
-        std::string var_name;
-        if(ins->name() == "@param")
-        {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
-        }
-        else
-        {
-            var_name = this->name() + ":@" + std::to_string(count);
-            count++;
-        }
-        names.emplace(ins, var_name);
-
-        print_func(ins);
-    }
-
-    return names;
-}
-
-std::unordered_map<instruction_ref, std::string> module::print(const std::function<
                    void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
                        print_func,
                    std::unordered_map<instruction_ref, std::string> names = {}) const
 {
     int count = 0;
-
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -646,28 +620,27 @@ static std::string enclose_name(const std::string& name)
 
 void module::print_graph(std::ostream& os, bool brief) const
 {
-    std::unordered_map<instruction_ref, std::string> names;
     os << "digraph {" << std::endl;
     os << "\trankdir=LR;" << std::endl;
-    this->print([&](auto ins) {
+    this->print([&](auto ins, auto ins_names) {
         std::string label;
         if(brief)
             label = ins->name();
         else
             label = to_string(ins->get_operator());
-        os << "\t" << enclose_name(names.at(ins)) << "[label=" << enclose_name(label) << "]";
+        os << "\t" << enclose_name(ins_names.at(ins)) << "[label=" << enclose_name(label) << "]";
         os << ";" << std::endl;
         if(!ins->inputs().empty())
         {
             for(auto&& arg : ins->inputs())
             {
-                os << "\t" << enclose_name(names.at(arg)) << " -> " << enclose_name(names.at(ins));
+                os << "\t" << enclose_name(ins_names.at(arg)) << " -> " << enclose_name(ins_names.at(ins));
                 if(not brief)
                     os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
                 os << ";" << std::endl;
             }
         }
-    }, names);
+    });
     os << "}" << std::endl;
 }
 
@@ -725,15 +698,14 @@ void module::print_cpp(std::ostream& os) const
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    std::unordered_map<instruction_ref, std::string> names;
-    this->print([&](auto ins) {
-        auto op = cpp_op_var(names.at(ins), ins);
+    this->print([&](auto ins, auto ins_names) {
+        auto op = cpp_op_var(ins_names.at(ins), ins);
         if(ins->name().front() != '@')
         {
             os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
             print_op_attributes(os, op, ins->get_operator());
         }
-        os << "auto " << cpp_var_name(names.at(ins)) << " = ";
+        os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
         if(ins->name() == "@literal")
         {
             os << "p.add_literal(";
@@ -763,28 +735,26 @@ void module::print_cpp(std::ostream& os) const
             os << "p.add_instruction(" << op;
             for(auto input : ins->inputs())
             {
-                os << ", " << cpp_var_name(names.at(input));
+                os << ", " << cpp_var_name(ins_names.at(input));
             }
             os << ");" << std::endl;
         }
-    }, names);
+    });
 }
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
-    std::unordered_map<instruction_ref, std::string> names;
-    this->print([&](auto ins) {
-	instruction::print(os, ins, names);
+    this->print([&](auto ins, auto ins_names) {
+    	instruction::print(os, ins, ins_names);
         a(ins);
         os << std::endl;
-    }, names);
+    });
 }
 
 std::vector<module_ref> module::get_sub_module_prefix_order() const
 {
     std::vector<module_ref> vec_modules;
-    std::unordered_map<instruction_ref, std::string> names;
-    this->print([&](auto ins) {
+    this->print([&](auto ins, auto) {
         auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
         for(auto& smod : mod_args)
@@ -792,7 +762,7 @@ std::vector<module_ref> module::get_sub_module_prefix_order() const
             auto sub_mods = smod->get_sub_module_prefix_order();
             vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
         }
-    }, names);
+    });
 
     return vec_modules;
 }
@@ -829,24 +799,19 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 
 static void print_module(std::ostream& os,
                          const module& m,
-                         std::unordered_map<instruction_ref, std::string> names)
+                         std::unordered_map<instruction_ref, std::string> names = {})
 {
     // std::unordered_set<module_ref> sub_mods;
-    m.print([&](auto ins) {
-        instruction::print(os, ins, names);
+    m.print([&](auto ins, auto ins_names) {
+        instruction::print(os, ins, ins_names);
         os << std::endl;
-        // auto& mod_args = ins->module_inputs();
-        // for(auto& smod : mod_args)
-        // {
-        //     sub_mods.insert(smod);
-        // }
     }, names);
     os << std::endl;
 }
 
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    print_module(os, m, {});
+    print_module(os, m);
     return os;
 }
 

@@ -321,6 +321,18 @@ void instruction::print(std::ostream& os,
         os << ")";
     }
 
+    // print module inputs
+    if(!ins->module_inputs().empty())
+    {
+        char delim = '[';
+        for (auto&& mod_arg : ins->module_inputs())
+        {
+            os << delim << mod_arg->name();
+            delim = ',';
+        }
+        os << "]";
+    }
+
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();

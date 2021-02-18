@@ -444,6 +444,31 @@ struct find_splits
         return groups;
     }
 
+    bool is_fusable(instruction_ref start, instruction_ref split_front) const
+    {
+        auto op    = start->get_operator();
+        if(contains(op.name(), "reduce"))
+        {
+            auto slc         = any_cast<op::slice>(split_front->get_operator());
+            auto slc_axes    = slc.axes;
+            auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
+            // axes of slice and reduce op cannot have overlap
+            if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                   return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
+                           reduce_axes.end());
+               }))
+            {
+                return false;
+            }
+        }
+        else if (not op.attributes().contains("pointwise"))
+        {
+            return false;
+        }
+
+    	return true;
+    }
+
     void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -451,29 +476,13 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
+            
         for(const auto& group : get_split_groups(splits))
         {
             auto start = group.front();
+            auto split_front = splits.front();
             auto op    = start->get_operator();
-            if(op.name() == "slice")
-                continue;
-
-            if(contains(op.name(), "reduce"))
-            {
-                auto split_front = splits.front();
-                auto slc         = any_cast<op::slice>(split_front->get_operator());
-                auto slc_axes    = slc.axes;
-                auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
-                // axes of slice and reduce op cannot have overlap
-                if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
-                       return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
-                               reduce_axes.end());
-                   }))
-                {
-                    continue;
-                }
-            }
-            else if (not op.attributes().contains("pointwise"))
+            if(op.name() == "slice" or (not is_fusable(start, split_front)))
             {
                 continue;
             }

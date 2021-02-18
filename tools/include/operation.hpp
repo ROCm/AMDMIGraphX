@@ -400,10 +400,16 @@ inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
     return op.compute_shape(inputs);
 }
 
-template <class T>
-shape compute_shape(const T& op, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+inline
+shape compute_shape(const operation& op, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
 {
-    return detail::compute_shape_op(op, inputs, mods);
+    return op.compute_shape(inputs, mods);
+}
+
+template <class T>
+shape compute_shape(const T& x, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+{
+    return detail::compute_shape_op(x, inputs, mods);
 }
 
 template <class T>

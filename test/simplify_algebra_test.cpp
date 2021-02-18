@@ -926,17 +926,21 @@ TEST_CASE(simplify_split_reduce0)
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto y     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
 
         auto one   = m1.add_literal(1);
         auto two   = m1.add_literal(2);
 
-        auto rx = m1.add_instruction(migraphx::make_op("relu"), x);
-        auto arx = m1.add_instruction(migraphx::make_op("contiguous"), rx);
-        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
-        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto arx = m1.add_instruction(migraphx::make_op("contiguous"), x);
+        auto ary = m1.add_instruction(migraphx::make_op("contiguous"), y);
+        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), x);
+        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
         auto rmax1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), arx, one);
-        auto rmin1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), arx, two);
-        m1.add_return({rmax0, rmin0, rmax1, rmin1});
+        auto rmin1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), ary, two);
+        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), y);
+        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), y);
+        m1.add_return({rmax0, rmin0, rmax1, rmin1, rmax2, rmin2});
     }
 
     migraphx::module m2 = m1;

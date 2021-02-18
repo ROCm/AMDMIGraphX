@@ -1,9 +1,6 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_UNARY_NOT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_UNARY_NOT_HPP
-
-#include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/gpu/device/unary_not.hpp>
+#include <migraphx/gpu/device/nary.hpp>
+#include <migraphx/type_traits.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,11 +9,14 @@ namespace device {
 
 void unary_not(hipStream_t stream,
                  const argument& result,
-                 const argument& arg);
+                 const argument& arg
+                 )
+{
+    nary(stream, result, arg)(
+        [](auto x) __device__ { return not x; });
+}
 
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

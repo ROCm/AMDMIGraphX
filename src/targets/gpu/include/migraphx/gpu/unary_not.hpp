@@ -8,8 +8,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct hip_unary_not : binary_device<hip_unary_not, device::unary_not>
+struct hip_unary_not : unary_device<hip_unary_not, device::unary_not>
 {
+    std::string name() const { return "gpu::not"; }
 };
 
 } // namespace gpu

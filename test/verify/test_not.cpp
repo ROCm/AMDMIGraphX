@@ -4,7 +4,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_and : verify_program<test_and>
+struct test_not : verify_program<test_not>
 {
     migraphx::program create_program() const
     {

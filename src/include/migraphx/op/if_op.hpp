@@ -6,6 +6,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/module.hpp>
 #include <cmath>
 #include <utility>
 
@@ -17,7 +18,11 @@ struct if_op
 {
     std::string name() const { return "if_op"; }
 
-    shape compute_shape(std::vector<shape> inputs) const { return inputs[0]; }
+    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const 
+    { 
+        auto mod_shapes = mods[0]->get_output_shapes();
+        return mod_shapes[0]; 
+    }
 };
 
 } // namespace op

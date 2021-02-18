@@ -408,9 +408,16 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
     return shapes;
 }
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
+shape compute_shape(const operation& op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& mods)
 {
-    return op.compute_shape(to_shapes(args));
+    if (mods.empty())
+    {
+        return op.compute_shape(to_shapes(args));
+    }
+    else
+    {
+        return op.compute_shape(to_shapes(args), mods);
+    }
 }
 
 std::vector<shape> compute_shape(module_ref mdl)

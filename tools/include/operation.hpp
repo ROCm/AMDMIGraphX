@@ -109,6 +109,27 @@ shape normalize_compute_shape_op(T&& x, std::vector<shape> inputs)
 }
 
 template <class T>
+auto compute_shape_op(
+    rank<1>, T& x, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+    -> decltype(x.compute_shape(inputs, mods))
+{
+    return x.compute_shape(inputs, mods);
+}
+
+template <class T>
+shape compute_shape_op(rank<0>, T& x, const std::vector<shape>&, const std::vector<module_ref>&)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Shape not computable: " + name);
+}
+
+template <class T>
+shape compute_shape_op(T& x, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+{
+    return compute_shape_op(rank<1>{}, x, inputs, mods);
+}
+
+template <class T>
 auto compute_op(rank<2>,
                 const T& x,
                 context& ctx,
@@ -320,6 +341,12 @@ void from_value_op(T& x, const value& v)
              input   = 'const std::vector<shape>&',
              const   = True,
              default = 'detail::normalize_compute_shape_op'),
+     virtual('compute_shape',
+             returns = 'shape',
+             input   = 'const std::vector<shape>&',
+             mod_args   = 'const std::vector<module_ref>&',
+             const   = True,
+             default = 'detail::compute_shape_op'),
      virtual('compute',
              returns = 'argument',
              ctx     = 'context&',
@@ -371,6 +398,12 @@ inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
     -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
+}
+
+template <class T>
+shape compute_shape(const T& op, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+{
+    return detail::compute_shape_op(op, inputs, mods);
 }
 
 template <class T>

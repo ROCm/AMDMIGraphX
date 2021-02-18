@@ -316,7 +316,7 @@ void instruction::print(std::ostream& os,
         for(auto&& arg : ins->inputs())
         {
             os << delim << names.at(arg);
-            delim = ',';
+            delim = ', ';
         }
         os << ")";
     }
@@ -324,11 +324,11 @@ void instruction::print(std::ostream& os,
     // print module inputs
     if(!ins->module_inputs().empty())
     {
-        char delim = '[';
+        std::string delim = ", [";
         for (auto&& mod_arg : ins->module_inputs())
         {
             os << delim << mod_arg->name();
-            delim = ',';
+            delim = ",";
         }
         os << "]";
     }

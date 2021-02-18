@@ -681,8 +681,17 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    auto* mm = p.get_main_module();
-    os << *mm << std::endl;
+    auto vec_modules = p.get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    for (auto& mod : vec_modules)
+    {
+        os << "module: \"" << mod->name() << "\"" << std::endl;
+        names = mod->print([&](auto ins, auto ins_names) {
+            instruction::print(os, ins, ins_names);
+            os << std::endl;
+        }, names);
+        os << std::endl;
+    }
 
     return os;
 }

@@ -685,21 +685,13 @@ std::unordered_set<module_ref> module::get_parent_modules() const
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
-static void print_module(std::ostream& os,
-                         const module& m,
-                         std::unordered_map<instruction_ref, std::string> names = {})
+std::ostream& operator<<(std::ostream& os, const module& m)
 {
-    // std::unordered_set<module_ref> sub_mods;
     m.print([&](auto ins, auto ins_names) {
         instruction::print(os, ins, ins_names);
         os << std::endl;
-    }, names);
-    os << std::endl;
-}
+    });
 
-std::ostream& operator<<(std::ostream& os, const module& m)
-{
-    print_module(os, m);
     return os;
 }
 

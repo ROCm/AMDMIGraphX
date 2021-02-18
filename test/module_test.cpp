@@ -127,7 +127,7 @@ TEST_CASE(program_module_assign)
     migraphx::shape s_cond{migraphx::shape::bool_type, {1}};
     auto cond = mm->add_parameter("cond", s_cond);
     auto ret  = mm->add_instruction(
-        migraphx::make_op("iff",
+        migraphx::make_op("if_op",
                           {{"then_sub_graph", "then_smod"}, {"else_sub_graph", "else_smod"}}),
         {cond},
         {then_smod, else_smod});
@@ -146,7 +146,7 @@ TEST_CASE(submodule_copy)
     migraphx::module sm("sub");
     sm.add_instruction(migraphx::make_op("sin"), x);
 
-    mm.add_instruction(migraphx::make_op("iff"), {x}, {&sm, &sm});
+    mm.add_instruction(migraphx::make_op("if_op"), {x}, {&sm, &sm});
 
     auto mm2 = mm;
 

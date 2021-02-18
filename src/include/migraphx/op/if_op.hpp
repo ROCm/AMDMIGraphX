@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_IFF_HPP
-#define MIGRAPHX_GUARD_OPERATORS_IFF_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_IF_OP_HPP
+#define MIGRAPHX_GUARD_OPERATORS_IF_OP_HPP
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
@@ -13,7 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct iff
+struct if_op
 {
     std::string then_sub_graph;
     std::string else_sub_graph;
@@ -25,7 +25,7 @@ struct iff
                     f(self.else_sub_graph, "else_sub_graph"));
     }
 
-    std::string name() const { return "iff"; }
+    std::string name() const { return "if_op"; }
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs[0]; }
 };

@@ -411,7 +411,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](pointwise()))));
+            match::name("slice")(match::any_of[match::outputs()](pointwise(), match::name_contains("reduce")))));
     }
 
     static std::vector<std::vector<instruction_ref>>
@@ -444,39 +444,6 @@ struct find_splits
         return groups;
     }
 
-    std::vector<int64_t> get_reduce_axes(instruction_ref ins) const
-    {
-        assert(contains(ins->name(), "reduce"));
-        std::vector<int64_t> axes;
-        if(ins->name() == "reduce_max")
-        {
-            auto op = any_cast<op::reduce_max>(ins->get_operator());
-            axes    = op.axes;
-        }
-        else if(ins->name() == "reduce_mean")
-        {
-            auto op = any_cast<op::reduce_mean>(ins->get_operator());
-            axes    = op.axes;
-        }
-        else if(ins->name() == "reduce_min")
-        {
-            auto op = any_cast<op::reduce_min>(ins->get_operator());
-            axes    = op.axes;
-        }
-        else if(ins->name() == "reduce_prod")
-        {
-            auto op = any_cast<op::reduce_prod>(ins->get_operator());
-            axes    = op.axes;
-        }
-        else if(ins->name() == "reduce_sum")
-        {
-            auto op = any_cast<op::reduce_sum>(ins->get_operator());
-            axes    = op.axes;
-        }
-
-        return axes;
-    }
-
     void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -496,8 +463,7 @@ struct find_splits
                 auto split_front = splits.front();
                 auto slc         = any_cast<op::slice>(split_front->get_operator());
                 auto slc_axes    = slc.axes;
-
-                auto reduce_axes = get_reduce_axes(start);
+                auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
                 // axes of slice and reduce op cannot have overlap
                 if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
                        return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
@@ -506,6 +472,10 @@ struct find_splits
                 {
                     continue;
                 }
+            }
+            else if (not op.attributes().contains("pointwise"))
+            {
+                continue;
             }
 
             // Make sure there is no duplicates

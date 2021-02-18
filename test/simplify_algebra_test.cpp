@@ -918,6 +918,32 @@ TEST_CASE(simplify_split_add_relu)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(simplify_split_reduce0)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto x     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+
+        auto one   = m1.add_literal(1);
+        auto two   = m1.add_literal(2);
+
+        auto rx = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto arx = m1.add_instruction(migraphx::make_op("contiguous"), rx);
+        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto rmax1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), arx, one);
+        auto rmin1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), arx, two);
+        m1.add_return({rmax0, rmin0, rmax1, rmin1});
+    }
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_split_reduce1)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
@@ -929,43 +955,31 @@ TEST_CASE(simplify_split_reduce1)
         auto y = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
 
-        auto rx = m1.add_instruction(migraphx::make_op("relu"), x);
-
-        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), x);
-        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), x);
-        auto rmax1 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), rx);
-        auto rmin1 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), rx);
-        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), y);
-        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), y);
-        m1.add_return({rmax0, rmin0, rmax1, rmin1, rmax2, rmin2});
+        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
+        auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), y);
+        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), y);
+        m1.add_return({rmax0, rmin0, rmax2, rmin2});
     }
 
     migraphx::module m2;
     {
         auto input = m2.add_parameter("input", s);
-        auto rmin  = m2.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), input);
-        auto rmax  = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), input);
-        auto slc   = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
-        auto rx = m2.add_instruction(migraphx::make_op("relu"), slc);
 
-        auto slc10 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmax);
-        auto slc00 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmin);
-
-        auto rmax1 = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0, 2}}}), rx);
-        auto rmin1 = m2.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0, 2}}}), rx);
-
-        auto slc11 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmax);
-        auto slc01 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmin);
-
-        m2.add_return({slc10, slc00, rmax1, rmin1, slc11, slc01});
+        auto rmn = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), input);
+        auto slc0     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmn);
+        auto rmx = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
+        auto slc1     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmx);
+        auto slc2     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmn);
+        auto slc3     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmx);
+        m2.add_return({slc3, slc2, slc1, slc0});
     }
-    run_pass(m1);
 
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -979,19 +993,30 @@ TEST_CASE(simplify_split_reduce2)
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto y = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
-
-        auto rx = m1.add_instruction(migraphx::make_op("relu"), x);
-
-        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), x);
+        auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), x);
         auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
-        auto rmax1 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), rx);
-        auto rmin1 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), rx);
-        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), y);
-        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), y);
-        m1.add_return({rmax0, rmin0, rmax1, rmin1, rmax2, rmin2});
+        auto rmax2 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), y);
+        auto rmin2 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), y);
+        m1.add_return({rmax0, rmin0, rmax2, rmin2});
     }
 
-    migraphx::module m2 = m1;
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto x     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto rmn1 = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
+        auto y = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto rmn2 = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), y);
+        auto rms = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
+        auto slc0     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rms);
+        auto slc1     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rms);
+        m2.add_return({slc1, rmn2, slc0, rmn1});
+    }
+
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
@@ -1001,6 +1026,7 @@ TEST_CASE(simplify_split_add_relu_reshape)
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
     migraphx::module m1;
     {
+        auto b     = migraphx::op::broadcast{1, {3, 1, 4}};
         auto r     = migraphx::op::reshape{{3, 4}};
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(

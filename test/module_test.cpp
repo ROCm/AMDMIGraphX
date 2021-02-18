@@ -150,8 +150,8 @@ TEST_CASE(submodule_copy)
 
     auto mm2 = mm;
 
-    // EXPECT(mm == mm2);
-    EXPECT(mm.get_sub_module_prefix_order() == mm2.get_sub_module_prefix_order());
+    EXPECT(mm == mm2);
+    EXPECT(mm.get_sub_modules() == mm2.get_sub_modules());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

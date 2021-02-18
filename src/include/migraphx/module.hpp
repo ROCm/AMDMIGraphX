@@ -144,7 +144,7 @@ struct module
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
-    std::vector<module_ref> get_sub_module_prefix_order() const;
+    std::vector<module_ref> get_sub_modules() const;
 
     module& sort();
 

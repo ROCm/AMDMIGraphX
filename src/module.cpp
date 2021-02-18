@@ -639,7 +639,7 @@ void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) 
     });
 }
 
-std::vector<module_ref> module::get_sub_module_prefix_order() const
+std::vector<module_ref> module::get_sub_modules() const
 {
     std::vector<module_ref> vec_modules;
     this->print([&](auto ins, auto) {
@@ -647,7 +647,7 @@ std::vector<module_ref> module::get_sub_module_prefix_order() const
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
         for(auto& smod : mod_args)
         {
-            auto sub_mods = smod->get_sub_module_prefix_order();
+            auto sub_mods = smod->get_sub_modules();
             vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
         }
     });

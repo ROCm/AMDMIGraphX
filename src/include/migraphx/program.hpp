@@ -97,7 +97,7 @@ struct program
     module* get_main_module();
     const module* get_main_module() const;
 
-    std::vector<const module*> get_module_prefix_order() const;
+    std::vector<const module*> get_modules() const;
 
     private:
     void mod_from_val(module_ref mod, const value& v,

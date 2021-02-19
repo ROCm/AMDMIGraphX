@@ -11,11 +11,6 @@
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/recip.hpp>
-#include <migraphx/op/reduce_max.hpp>
-#include <migraphx/op/reduce_mean.hpp>
-#include <migraphx/op/reduce_min.hpp>
-#include <migraphx/op/reduce_prod.hpp>
-#include <migraphx/op/reduce_sum.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/transpose.hpp>

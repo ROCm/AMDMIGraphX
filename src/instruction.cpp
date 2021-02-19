@@ -51,7 +51,7 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape() { replace(compute_shape(op, arguments)); }
+void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
 
 void instruction::clear_arguments()
 {
@@ -96,15 +96,16 @@ bool instruction::valid() const
     {
         try
         {
-            if(module_args.empty())
-            {
-                computed = compute_shape(op, arguments);
-            }
-            else
-            {
-                auto out_shapes = compute_shape(module_args[0]);
-                computed        = out_shapes[0];
-            }
+            computed = compute_shape(op, arguments, module_args);
+            // if(module_args.empty())
+            // {
+            //     computed = compute_shape(op, arguments);
+            // }
+            // else
+            // {
+            //     auto out_shapes = compute_shape(module_args[0]);
+            //     computed        = out_shapes[0];
+            // }
         }
         catch(migraphx::exception&)
         {
@@ -408,6 +409,11 @@ std::vector<shape> to_shapes(const std::vector<instruction_ref>& args)
     return shapes;
 }
 
+shape compute_shape(const operation& op, const std::vector<instruction_ref>& args)
+{
+    return op.compute_shape(to_shapes(args));
+}
+
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& mods)
 {
     if (mods.empty())
@@ -419,12 +425,5 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
         return op.compute_shape(to_shapes(args), mods);
     }
 }
-
-std::vector<shape> compute_shape(module_ref mdl)
-{
-    auto out_shapes = mdl->get_output_shapes();
-    return out_shapes;
-}
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

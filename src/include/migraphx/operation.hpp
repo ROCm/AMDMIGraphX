@@ -108,14 +108,6 @@ shape normalize_compute_shape_op(T&& x, std::vector<shape> inputs)
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 
-// template <class T>
-// shape normalize_compute_shape_op(T&& x, std::vector<shape> inputs, std::vector<module_ref>
-// mod_args)
-// {
-//    dependent_type<operation, T> y = x;
-//    normalize_attributes(y, inputs[0].lens());
-//    return any_cast<T>(y).normalize_compute_shape(inputs, mod_args);
-// }
 template <class T>
 auto normalize_compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))

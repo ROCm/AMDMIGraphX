@@ -155,9 +155,9 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
-    auto out_shapes = compute_shape(module_args[0]);
+    auto out_shape = compute_shape(op, args, module_args);
     auto result     = impl->instructions.insert(
-        ins, {op, out_shapes[0], std::move(args), std::move(module_args)});
+        ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -189,8 +189,8 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     //            &&
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
-    auto out_shapes = compute_shape(module_args[0]);
-    instruction::replace(ins, op, out_shapes[0], std::move(args), std::move(module_args));
+    auto out_shape = compute_shape(op, args, module_args);
+    instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     assert(ins->valid(begin()));
     return ins;
 }

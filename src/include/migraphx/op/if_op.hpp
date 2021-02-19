@@ -18,10 +18,10 @@ struct if_op
 {
     std::string name() const { return "if_op"; }
 
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const 
+    shape compute_shape(std::vector<shape>, std::vector<module_ref> mods) const 
     { 
-        auto mod_shapes = mods[0]->get_output_shapes();
-        return mod_shapes[0]; 
+        auto out_shapes = mods[0]->get_output_shapes();
+        return out_shapes[0]; 
     }
 };
 

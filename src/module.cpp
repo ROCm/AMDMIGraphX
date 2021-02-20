@@ -441,7 +441,7 @@ void module::finalize(context& ctx)
 void module::debug_print() const { std::cout << *this << std::endl; }
 
 void module::debug_print(instruction_ref ins,
-                         std::unordered_map<instruction_ref, std::string>& names) const
+                         const std::unordered_map<instruction_ref, std::string>& names) const
 {
     if(ins == this->end())
     {

@@ -23,7 +23,7 @@ struct if_op
         return inputs[0];
     }
 
-    shape compute_shape(std::vector<shape>, std::vector<module_ref> mods) const 
+    shape compute_shape(const std::vector<shape>&, std::vector<module_ref> mods) const 
     { 
         auto out_shapes = mods[0]->get_output_shapes();
         return out_shapes[0]; 

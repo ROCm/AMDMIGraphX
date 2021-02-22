@@ -13,7 +13,7 @@ With ROCm installed correctly, MIGraphX binaries can be installed on Ubuntu with
 ```
 sudo apt update && sudo apt install -y migraphx
 ```
-then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the rocm versoin.
+then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the rocm version.
 
 ## Building from source
 
@@ -38,16 +38,22 @@ The following is a list of prerequisites required to build MIGraphX source.
 
 #### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
-In this approach, we need to install the [rbuild](https://github.com/RadeonOpenCompute/rbuild) first, then use it to
-build MIGraphX. rbuild can be installed as (sudo may be needed):
+In this approach, we build the [rbuild](https://github.com/RadeonOpenCompute/rbuild) build tool to
+build MIGraphX. The specific steps are as follows:
+
+1) Install rocm-cmake, pip3, rocblas, and miopen-hip with the command
+
+```
+sudo apt update && sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
+```
+
+2) Install [rbuild](https://github.com/RadeonOpenCompute/rbuild)
+
 ```
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
-and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`.
-We also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-cmake), rocblas, and miopen-hip as 
-`sudo apt install -y rocm-cmake rocblas miopen-hip`.
 
-Then MIGraphX can be built as:
+3) Build MIGraphX source code
 
 ```
 rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
@@ -64,11 +70,14 @@ In this approach, we need to install the prerequisites, configure the cmake, and
 
 For convenience, the prerequisites can be built automatically with rbuild as:
 
-```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```
-then all the prerequisites are in the folder `depend`. 
+```
+rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++
+```
+
+then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
 
 If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
-like in the docker file by calling ```./tools/install_prereqs.sh.```
+like in the docker file by calling `./tools/install_prereqs.sh`.
 
 (Note: By default, all prerequisites are installed at the default location `/usr/local` 
 and are accessible by all users. For the default location, `sudo` is required to run the script.

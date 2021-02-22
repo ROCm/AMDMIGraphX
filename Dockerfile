@@ -14,7 +14,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     build-essential \
     clang-format-5.0 \
     cmake \
-    sudo \
     curl \
     doxygen \
     g++-5 \
@@ -66,13 +65,13 @@ RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
-RUN chmod +x /download_models.sh && /download_models.sh && rm /download_models.sh
+RUN /download_models.sh && rm /download_models.sh
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 COPY ./tools/install_prereqs.sh /
-RUN chmod +x /install_prereqs.sh && /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

@@ -640,6 +640,40 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
+struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
+{
+    tf_options() { this->make_handle(&migraphx_tf_options_create); }
+
+    tf_options(migraphx_tf_options* p, own) { this->set_handle(p, own{}); }
+
+    void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
+    {
+        call(&migraphx_tf_options_set_input_parameter_shape,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dim.data(),
+             dim.size());
+    }
+
+    void set_default_dim_value(unsigned int value)
+    {
+        call(&migraphx_tf_options_set_default_dim_value, this->get_handle_ptr(), value);
+    }
+};
+
+inline program parse_tf(const char* filename, const migraphx::tf_options& options)
+{
+    return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
+                   own{});
+}
+
+inline program parse_tf(const char* filename)
+{
+    migraphx::tf_options options;
+    return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
+                   own{});
+}
+
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {
     quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }

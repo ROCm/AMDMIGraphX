@@ -83,6 +83,9 @@ typedef const struct migraphx_operation* const_migraphx_operation_t;
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
+typedef struct migraphx_tf_options* migraphx_tf_options_t;
+typedef const struct migraphx_tf_options* const_migraphx_tf_options_t;
+
 typedef struct migraphx_quantize_op_names* migraphx_quantize_op_names_t;
 typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_names_t;
 
@@ -236,6 +239,9 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            const void* data,
                                            size_t size,
                                            migraphx_onnx_options_t options);
+
+migraphx_status
+migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options_t options);
 
 migraphx_status migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 

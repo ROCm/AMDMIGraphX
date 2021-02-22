@@ -3,6 +3,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/tf.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -301,6 +302,16 @@ struct migraphx_onnx_options
     {
     }
     migraphx::onnx_options object;
+};
+
+extern "C" struct migraphx_tf_options;
+struct migraphx_tf_options
+{
+    template <class... Ts>
+    migraphx_tf_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::tf_options object;
 };
 
 extern "C" struct migraphx_quantize_op_names;
@@ -836,6 +847,16 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         *out = allocate<migraphx_program_t>(
             migraphx::parse_onnx_buffer((data), (size), (options->object)));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options_t options)
+{
+    return migraphx::try_([&] {
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        *out = allocate<migraphx_program_t>(migraphx::parse_tf((name), (options->object)));
     });
 }
 

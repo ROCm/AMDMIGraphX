@@ -14,6 +14,7 @@ endfunction()
 add_api_test(ref test_cpu.cpp)
 add_api_test(save_load test_save_load.cpp)
 add_api_test(op test_op_construct.cpp)
+add_api_test(parser test_parser.cpp)
 if(MIGRAPHX_ENABLE_GPU)
 add_api_test(gpu test_gpu.cpp)
 # GPU-based tests

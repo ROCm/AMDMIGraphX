@@ -130,6 +130,7 @@ foreach(ONNX_TEST ${ONNX_TESTS})
 endforeach()
 
 # tf test
+set(TEST_TF_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tf)
 add_executable(test_tf tf/tf_test.cpp)
 rocm_clang_tidy_check(test_tf)
 target_link_libraries(test_tf migraphx_tf migraphx_ref)

@@ -3,8 +3,8 @@
 AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
 installing binaries directly or building from source code.
 
-In the following, instruction on how to build and install MIGraphX libs are described with Ubuntu as the OS. 
-instructions for other Linux OSes will come later. Note that all the following instructions are based 
+In the following, instruction of how to build and install MIGraphX are described with Ubuntu as the OS
+(Instructions of installations on other Linux OSes will come later). Note that all the following instructions are based 
 on that ROCm has been installed successfully. ROCm installation instructions are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
@@ -18,13 +18,13 @@ then the header files and libs are installed under `/opt/rocm-<version>`, where 
 ## Building from source
 
 There are two ways to build the MIGraphX sources. One is using the ROCm build tool 
-[rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the dependencies and
-build the libs with just one command. The other is installing the dependencies, then using 
-cmake to build the source. In the following, we will first list the dependencies required to 
+[rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
+build the libs with just one command. The other is installing the prerequisites, then using 
+cmake to build the source. In the following, we will first list the prerequisites required to 
 build MIGraphX source code, then describe each of the two approaches.
 
 ### List of prerequisites
-The following is a list of dependencies required to build MIGraphX source. 
+The following is a list of prerequisites required to build MIGraphX source. 
 
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
@@ -58,24 +58,24 @@ Upgrapde to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://githu
 
 #### Use cmake to build MIGraphX
 
-In this approach, we need to install the dependencies, configure the cmake, and then build the source.
+In this approach, we need to install the prerequisites, configure the cmake, and then build the source.
 
-##### Installing the dependencies
+##### Installing the prerequisites
 
-For convenience, the dependencies can be built automatically with rbuild as:
-```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```, all the dependencies are in the 
+For convenience, the prerequisites can be built automatically with rbuild as:
+```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```, all the prerequisites are in the 
 folder `depend`. 
 
-If you have sudo access, as an alternative to the rbuild command, you can install the dependencies just 
+If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
 like in the docker file by calling ```./tools/install_prereqs.sh.```
 
-(Note: By default, all dependencies are installed at the default location `/usr/local` 
+(Note: By default, all prerequisites are installed at the default location `/usr/local` 
 and are accessible by all users. For the default location, `sudo` is required to run the script.
-You can also specify a location at which the dependencies are installed with `./tools/install_prereqs.sh $your_loc`.)
+You can also specify a location at which the prerequisites are installed with `./tools/install_prereqs.sh $your_loc`.)
 
 ##### Building MIGraphX source and install libs
 
-With the above dependencies installed, we can build source as:
+With the above prerequisites installed, we can build source as:
 
 1) Go to the project folder and create a build directory:
 
@@ -85,7 +85,7 @@ mkdir build
 cd build
 ```
 
-2) Configure the cmake. If the dependencies are installed at the default location `/usr/local`, the command is:
+2) Configure the cmake. If the prerequisites are installed at the default location `/usr/local`, the command is:
 
 ```
 CXX=/opt/rocm/llvm/bin/clang++ cmake ..
@@ -159,7 +159,7 @@ Then to enter the developement environment use `docker run`:
 
     docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /code/AMDMIGraphX --group-add video -it migraphx
 
-In the docker container, all the required dependencies are already installed, so users can just go to the folder 
+In the docker container, all the required prerequisites are already installed, so users can just go to the folder 
 `/code/AMDMIGraphX` and follow the steps in the above [Build MIGraphX source and install
 libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
 section to build MIGraphX source.

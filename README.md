@@ -38,7 +38,7 @@ The following is a list of prerequisites required to build MIGraphX source.
 
 #### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
-In this approach, we build the [rbuild](https://github.com/RadeonOpenCompute/rbuild) build tool to
+In this approach, we use the [rbuild](https://github.com/RadeonOpenCompute/rbuild) build tool to
 build MIGraphX. The specific steps are as follows:
 
 1) Install rocm-cmake, pip3, rocblas, and miopen-hip with the command
@@ -47,7 +47,7 @@ build MIGraphX. The specific steps are as follows:
 sudo apt update && sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
 ```
 
-2) Install [rbuild](https://github.com/RadeonOpenCompute/rbuild)
+2) Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required here.)
 
 ```
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -58,6 +58,8 @@ pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 ```
 rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
 ```
+
+then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
 
 Note that for ROCm3.7 and later releases, Ubuntu 18.04 or later releases are needed. 
 Upgrapde to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Upgrade-to-Ubuntu-18.04-for-ROCM3.7-or-later-releases)
@@ -74,7 +76,8 @@ For convenience, the prerequisites can be built automatically with rbuild as:
 rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++
 ```
 
-then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
+then all the prerequisites are in the folder `depend`, and they can be used in the `cmake` configuration
+as `-DCMAKE_PREFIX_PATH=depend`.
 
 If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
 like in the docker file by calling `./tools/install_prereqs.sh`.
@@ -127,7 +130,7 @@ installation location and then do
 find_package(migraphx)
 target_link_libraries(myApp migraphx::migraphx_c)
 ```
-where myApp is the cmake target in your project.
+Where myApp is the cmake target in your project.
 
 
 ### Building the documentation

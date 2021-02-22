@@ -2,8 +2,8 @@
 #
 # Build MIGraphX prerequisites for docker container
 
-#install pip3
-sudo apt update && sudo apt install -y python3-pip
+#install pip3 and rocm-cmake
+sudo apt update && sudo apt install -y python3-pip rocm-cmake
 
 # install onnx package for unit tests
 pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
@@ -36,6 +36,4 @@ cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
 cget -p $PREFIX install -f ${REQ_FILE_DIR}dev-requirements.txt
 cget -p $PREFIX install oneapi-src/oneDNN@v1.7
 
-# add the /usr/local/lib to link folder
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PREFIX/lib
 

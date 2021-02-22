@@ -3,28 +3,28 @@
 AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
 installing binaries directly or building from source code.
 
-Note that all the following instructions are based on that ROCm has been installed successfully. ROCm installation
-instructions are explained in the [ROCm installation
+In the following, instruction on how to build and install MIGraphX libs are described with Ubuntu as the OS. 
+instructions for other Linux OSes will come later. Note that all the following instructions are based 
+on that ROCm has been installed successfully. ROCm installation instructions are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
 ## Installing from binaries
-With ROCm installed correctly, MIGraphX binaries can be installed with the following command:
+With ROCm installed correctly, MIGraphX binaries can be installed on Ubuntu with the following command:
 ```
 sudo apt update && sudo apt install -y migraphx
 ```
-then the head files and libs are located at `/opt/rocm/include` and `/opt/rocm/lib`, respectively, which can be
-included and linked by adding the corresponding folders to the Makefile.
+then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the rocm versoin.
 
 ## Building from source
 
-There are two ways to build the MIGraphX sources. One is installing the dependencies, then using 
-cmake to build the source. The other is using the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
-In the following, we will first list the dependencies required to build MIGraphX source code, then describe each of the
-two approaches.
+There are two ways to build the MIGraphX sources. One is using the ROCm build tool 
+[rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the dependencies and
+build the libs with just one command. The other is installing the dependencies, then using 
+cmake to build the source. In the following, we will first list the dependencies required to 
+build MIGraphX source code, then describe each of the two approaches.
 
-### List of dependencies
-The following is a list of dependencies required to build MIGraphX source. This list is also available in the
-requirement files `dev-requirements.txt` and `requirements.txt`.
+### List of prerequisites
+The following is a list of dependencies required to build MIGraphX source. 
 
 * [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
@@ -33,6 +33,28 @@ requirement files `dev-requirements.txt` and `requirements.txt`.
 * [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
 * [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
 * [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
+* [JSON](https://github.com/nlohmann/json) - for model serialization to json string format
+* [MessagePack](https://msgpack.org/index.html) - for model serialization to binary format
+
+#### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+
+In this approach, we need to install the [rbuild](https://github.com/RadeonOpenCompute/rbuild) first, then use it to
+build MIGraphX. rbuild can be installed as (sudo may be needed):
+```
+pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+```
+and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`.
+We also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-cmake), rocblas, and miopen-hip as 
+`sudo apt install -y rocm-cmake rocblas miopen-hip`.
+
+Then MIGraphX can be built as:
+
+```
+rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
+```
+
+Note that for ROCm3.7 and later releases, Ubuntu 18.04 or later releases are needed. 
+Upgrapde to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Upgrade-to-Ubuntu-18.04-for-ROCM3.7-or-later-releases)
 
 #### Use cmake to build MIGraphX
 
@@ -40,11 +62,12 @@ In this approach, we need to install the dependencies, configure the cmake, and 
 
 ##### Installing the dependencies
 
-You can manually download and installing the above dependencies one by one. For convience, we provide a shell 
-script [install_prereqs.sh](./tools/install_prereqs.sh) that can automatically install all the above dependencies with
-the command 
+For convenience, the dependencies can be built automatically with rbuild as:
+```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```, all the dependencies are in the 
+folder `depend`. 
 
-```./tools/install_prereqs.sh```
+If you have sudo access, as an alternative to the rbuild command, you can install the dependencies just 
+like in the docker file by calling ```./tools/install_prereqs.sh.```
 
 (Note: By default, all dependencies are installed at the default location `/usr/local` 
 and are accessible by all users. For the default location, `sudo` is required to run the script.
@@ -87,29 +110,13 @@ MIGraphX libs can be installed as:
 make install
 ```
 
-#### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
-
-In this approach, we need to install the [rbuild](https://github.com/RadeonOpenCompute/rbuild) first, then use it to
-build MIGraphX. rbuild can be installed as (sudo may be needed.):
+### Calling MIGraphX APIs
+To use MIGraphX's C/C++ API in your cmake project, then set `CMAKE_PREFIX_PATH` to your rocm installation and then do 
 ```
-pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+find_package(migraphx)
+target_link_libraries(myApp migraphx::migraphx_c)
 ```
-and pip3 can be installed as `sudo apt update && sudo apt install -y python3-pip`.
-We also need to install [rocm-cmake](https://github.com/RadeonOpenCompute/rocm-cmake) as `sudo apt install -y rocm-cmake`.
-
-Then MIGraphX can be built as:
-
-```
-rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
-```
-
-Note that for ROCm3.7 and later release, Ubuntu 18.04 or later releases are needed. Upgrapde to Ubuntu 18.04 can be
-done as:
-
-```
-sudo apt update
-sudo apt install linux-headers-4.18.0-25-generic linux-image-4.18.0-25-generic  linux-modules-4.18.0-25-generic linux-modules-extra-4.18.0-25-generic -y
-```
+where myApp is the cmake target in your project.
 
 
 ### Building the documentation
@@ -144,7 +151,7 @@ Also, githooks can be installed to format the code per-commit:
 
 ## Using docker
 
-The easiest way to setup the development environment is to use docker. With the docker file, you can build an docker image as:
+The easiest way to setup the development environment is to use docker. With the docker file, you can build a docker image as:
 
     docker build -t migraphx .
 

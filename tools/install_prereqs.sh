@@ -3,7 +3,7 @@
 # Build MIGraphX prerequisites for docker container
 
 #install pip3 and rocm-cmake
-sudo apt update && sudo apt install -y python3-pip rocm-cmake
+apt update && apt install -y python3-pip rocm-cmake
 
 # install onnx package for unit tests
 pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
@@ -12,7 +12,7 @@ pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 # rocblas and miopen
-sudo apt update && apt install -y rocblas miopen-hip 
+apt update && apt install -y rocblas miopen-hip 
 
 PREFIX=/usr/local
 REQ_FILE_DIR=""

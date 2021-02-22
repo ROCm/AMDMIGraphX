@@ -3,8 +3,8 @@
 AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
 installing binaries directly or building from source code.
 
-In the following, instruction of how to build and install MIGraphX are described with Ubuntu as the OS
-(Instructions of installations on other Linux OSes will come later). Note that all the following instructions are based 
+In the following, instructions of how to build and install MIGraphX are described with Ubuntu as the OS
+(Instructions of installation on other Linux OSes will come later). Note that all the following instructions are based 
 on that ROCm has been installed successfully. ROCm installation instructions are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
@@ -63,8 +63,9 @@ In this approach, we need to install the prerequisites, configure the cmake, and
 ##### Installing the prerequisites
 
 For convenience, the prerequisites can be built automatically with rbuild as:
-```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```, all the prerequisites are in the 
-folder `depend`. 
+
+```rbuild build -d depend --cxx=/opt/rocm/llvm/bin/clang++```
+then all the prerequisites are in the folder `depend`. 
 
 If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
 like in the docker file by calling ```./tools/install_prereqs.sh.```
@@ -111,7 +112,8 @@ make install
 ```
 
 ### Calling MIGraphX APIs
-To use MIGraphX's C/C++ API in your cmake project, then set `CMAKE_PREFIX_PATH` to your rocm installation and then do 
+To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_PATH` to the MIGraphX
+installation location and then do 
 ```
 find_package(migraphx)
 target_link_libraries(myApp migraphx::migraphx_c)

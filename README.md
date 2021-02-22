@@ -128,7 +128,7 @@ To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_
 installation location and then do 
 ```
 find_package(migraphx)
-target_link_libraries(myApp migraphx::migraphx_c)
+target_link_libraries(myApp migraphx::c)
 ```
 Where myApp is the cmake target in your project.
 

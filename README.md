@@ -72,7 +72,7 @@ to add the folder to `PATH` or add the option `--prefix /usr/local` in the pip3 
 
 #### Use cmake to build MIGraphX
 
-In this approach, we need to install the prerequisites, configure the cmake, and then build the source.
+If using this approach, we need to install the prerequisites, configure the cmake, and then build the source.
 
 ##### Installing the prerequisites
 

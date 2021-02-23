@@ -21,9 +21,9 @@ There are three ways to build the MIGraphX sources. The first is using the ROCm 
 [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
 build the libs with just one command. The second is installing the prerequisites, then using 
 cmake to build the source, and the last approach is using a docker image to set up the development
-environments, then building the MIGraphX sources inside a docker container. In the following, 
+environment, then building the MIGraphX sources inside a docker container. In the following, 
 we will first list the prerequisites required to build MIGraphX source code, then describe 
-each of the two approaches.
+each of the three approaches.
 
 ### List of prerequisites
 The following is a list of prerequisites required to build MIGraphX source. 
@@ -92,7 +92,7 @@ You can also specify a location at which the prerequisites are installed with `.
 
 With the above prerequisites installed, we can build source as:
 
-1) Go to the project folder and create a build directory:
+1) Go to the project folder and create a `build` directory:
 
 
 ```
@@ -147,7 +147,7 @@ installation location and then do
 find_package(migraphx)
 target_link_libraries(myApp migraphx::c)
 ```
-Where myApp is the cmake target in your project.
+Where `myApp` is the cmake target in your project.
 
 
 ### Building the documentation

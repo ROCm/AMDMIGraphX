@@ -64,7 +64,7 @@ rbuild build -d depend -B build --cxx=/opt/rocm/llvm/bin/clang++
 then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
 
 Note that for ROCm3.7 and later releases, Ubuntu 18.04 or later releases are needed. 
-Upgrapde to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Upgrade-to-Ubuntu-18.04-for-ROCM3.7-or-later-releases)
+Upgrade to Ubuntu 18.04 is available at [Upgrade Ubuntu to 18.04](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/wiki/Upgrade-to-Ubuntu-18.04-for-ROCM3.7-or-later-releases)
 
 Also note that you may meet the error of `rbuild: command not found`. It is because rbuild is installed 
 at `$HOME/.local/bin`, which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` 

@@ -17,11 +17,13 @@ then the header files and libs are installed under `/opt/rocm-<version>`, where 
 
 ## Building from source
 
-There are two ways to build the MIGraphX sources. One is using the ROCm build tool 
+There are three ways to build the MIGraphX sources. The first is using the ROCm build tool 
 [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
-build the libs with just one command. The other is installing the prerequisites, then using 
-cmake to build the source. In the following, we will first list the prerequisites required to 
-build MIGraphX source code, then describe each of the two approaches.
+build the libs with just one command. The second is installing the prerequisites, then using 
+cmake to build the source, and the last approach is using a docker image to set up the development
+environments, then building the MIGraphX sources inside a docker container. In the following, 
+we will first list the prerequisites required to build MIGraphX source code, then describe 
+each of the two approaches.
 
 ### List of prerequisites
 The following is a list of prerequisites required to build MIGraphX source. 
@@ -123,6 +125,21 @@ MIGraphX libs can be installed as:
 make install
 ```
 
+#### Using docker
+
+The easiest way to setup the development environment is to use docker. With the docker file, you can build a docker image as:
+
+    docker build -t migraphx .
+
+Then to enter the developement environment use `docker run`:
+
+    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /code/AMDMIGraphX --group-add video -it migraphx
+
+In the docker container, all the required prerequisites are already installed, so users can just go to the folder 
+`/code/AMDMIGraphX` and follow the steps in the above [Build MIGraphX source and install
+libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
+section to build MIGraphX source.
+
 ### Calling MIGraphX APIs
 To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_PATH` to the MIGraphX
 installation location and then do 
@@ -162,19 +179,4 @@ Also, githooks can be installed to format the code per-commit:
 ```
 ./.githooks/install
 ```
-
-## Using docker
-
-The easiest way to setup the development environment is to use docker. With the docker file, you can build a docker image as:
-
-    docker build -t migraphx .
-
-Then to enter the developement environment use `docker run`:
-
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /code/AMDMIGraphX --group-add video -it migraphx
-
-In the docker container, all the required prerequisites are already installed, so users can just go to the folder 
-`/code/AMDMIGraphX` and follow the steps in the above [Build MIGraphX source and install
-libs](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/refine_readme#building-migraphx-source-and-install-libs)
-section to build MIGraphX source.
 

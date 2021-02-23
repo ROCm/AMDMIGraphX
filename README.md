@@ -4,7 +4,7 @@ AMD MIGraphX is AMD's graph inference engine that accelerates machine learning m
 installing binaries directly or building from source code.
 
 In the following, instructions of how to build and install MIGraphX are described with Ubuntu as the OS
-(Instructions of installation on other Linux OSes will come later). Note that all the following instructions are based 
+(Instructions of installation on other Linux OSes will come later). Note that all the following instructions assume 
 on that ROCm has been installed successfully. ROCm installation instructions are explained in the [ROCm installation
 guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 

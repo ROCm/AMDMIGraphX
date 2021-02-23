@@ -131,7 +131,7 @@ make install
 
 #### Using docker
 
-The easiest way to setup the development environment is to use docker. With the docker file, you can build a docker image as:
+The easiest way to setup the development environment is to use docker. With the dockerfile, you can build a docker image as:
 
     docker build -t migraphx .
 

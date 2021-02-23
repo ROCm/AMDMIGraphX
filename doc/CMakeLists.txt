@@ -14,6 +14,9 @@ add_doxygen_doc(
         ${PROJECT_SOURCE_DIR}/src/include
         ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
         ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+    EXCLUDE_PATTERNS
+        ${PROJECT_SOURCE_DIR}/src/targets/gpu/kernels
+        ${PROJECT_SOURCE_DIR}/src/targets/gpu/device
     SEARCH_INCLUDES YES
     MACRO_EXPANSION YES
     RECURSIVE YES
@@ -35,10 +38,6 @@ add_doxygen_doc(
     FULL_PATH_NAMES YES
     PREDEFINED DOXYGEN
 )
-add_custom_target(remove_inline_ns 
-    sed -i "s/MIGRAPHX_INLINE_NS:://g" *.xml 
-    WORKING_DIRECTORY ${DOXYGEN_OUTPUT}/xml)
-add_dependencies(remove_inline_ns doxygen)
 
 include(SphinxDoc)
 add_sphinx_doc(src 
@@ -47,7 +46,7 @@ add_sphinx_doc(src
     VARS 
         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
         breathe_default_project=proj
-    DEPENDS doxygen remove_inline_ns
+    DEPENDS doxygen
 )
 
 find_package(LATEX)

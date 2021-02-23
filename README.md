@@ -13,7 +13,7 @@ With ROCm installed correctly, MIGraphX binaries can be installed on Ubuntu with
 ```
 sudo apt update && sudo apt install -y migraphx
 ```
-then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the rocm version.
+then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the ROCm version.
 
 ## Building from source
 

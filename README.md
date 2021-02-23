@@ -1,6 +1,6 @@
 # AMD MIGraphX
 
-AMD MIGraphX is AMD's graph inference engine to accelerate model inference on AMD GPUs. AMD MIGraphX can be used by
+AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. AMD MIGraphX can be used by
 installing binaries directly or building from source code.
 
 In the following, instructions of how to build and install MIGraphX are described with Ubuntu as the OS
@@ -183,4 +183,3 @@ Also, githooks can be installed to format the code per-commit:
 ```
 ./.githooks/install
 ```
-

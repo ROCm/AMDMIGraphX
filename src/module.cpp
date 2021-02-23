@@ -425,7 +425,7 @@ void module::finalize(context& ctx)
     for(auto ins : iterator_for(*this))
     {
         ins->finalize(ctx);
-        for(auto& smod : ins->module_inputs())
+        for(const auto& smod : ins->module_inputs())
         {
             smod->finalize(ctx);
         }
@@ -644,9 +644,9 @@ std::vector<module_ref> module::get_sub_modules() const
     std::vector<module_ref> vec_modules;
     for(auto ins : iterator_for(*this))
     {
-        auto& mod_args = ins->module_inputs();
+        const auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
-        for(auto& smod : mod_args)
+        for(const auto& smod : mod_args)
         {
             auto sub_mods = smod->get_sub_modules();
             vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());

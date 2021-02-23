@@ -84,7 +84,7 @@ as `-DCMAKE_PREFIX_PATH=depend`.
 If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
 like in the docker file by calling `./tools/install_prereqs.sh`.
 
-(Note: By default, all prerequisites are installed at the default location `/usr/local` 
+(Note that this script is for Ubuntu. By default, all prerequisites are installed at the default location `/usr/local` 
 and are accessible by all users. For the default location, `sudo` is required to run the script.
 You can also specify a location at which the prerequisites are installed with `./tools/install_prereqs.sh $your_loc`.)
 

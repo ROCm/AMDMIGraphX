@@ -382,7 +382,7 @@ bool module::has_instruction(instruction_ref ins) const
         return true;
     }
 
-    auto parent_modules = get_parent_modules();
+    auto parent_modules = get_sub_modules();
     return std::any_of(parent_modules.begin(), parent_modules.end(), [&](auto mod) {
         return mod->has_instruction(ins);
     });
@@ -479,7 +479,7 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
 std::unordered_map<instruction_ref, std::string> module::print(const std::function<
                    void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
                        print_func,
-                   std::unordered_map<instruction_ref, std::string> names = {}) const
+                   std::unordered_map<instruction_ref, std::string> names) const
 {
     int count = 0;
     for(auto ins : iterator_for(*this))
@@ -642,7 +642,8 @@ void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) 
 std::vector<module_ref> module::get_sub_modules() const
 {
     std::vector<module_ref> vec_modules;
-    this->print([&](auto ins, auto) {
+    for(auto ins : iterator_for(*this))
+    {
         auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
         for(auto& smod : mod_args)
@@ -650,7 +651,7 @@ std::vector<module_ref> module::get_sub_modules() const
             auto sub_mods = smod->get_sub_modules();
             vec_modules.insert(vec_modules.end(), sub_mods.begin(), sub_mods.end());
         }
-    });
+    }
 
     return vec_modules;
 }
@@ -666,21 +667,6 @@ module& module::sort()
     })(std::prev(this->end()));
     assert(this->validate() == this->end());
     return *this;
-}
-
-std::unordered_set<module_ref> module::get_parent_modules() const
-{
-    std::unordered_set<module_ref> parent_modules;
-    for(auto ins : iterator_for(*this))
-    {
-        auto& module_args = ins->module_inputs();
-        for(auto& mod : module_args)
-        {
-            parent_modules.insert(mod);
-        }
-    }
-
-    return parent_modules;
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

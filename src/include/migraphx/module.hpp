@@ -7,7 +7,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/builtin.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
@@ -38,8 +38,6 @@ struct module
 
     // copy constructor
     module(const module&);
-
-    module(const module&, std::unordered_map<instruction_ref, instruction_ref>&);
 
     // copy assignment operator
     module& operator=(module);
@@ -137,7 +135,7 @@ struct module
 
     std::unordered_map<instruction_ref, std::string> 
         print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
-              print_func, std::unordered_map<instruction_ref, std::string> names) const;
+              print_func, std::unordered_map<instruction_ref, std::string> names = {}) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
@@ -154,8 +152,6 @@ struct module
 
     private:
     void assign(const module& m);
-
-    std::unordered_set<module_ref> get_parent_modules() const;
 
     std::unique_ptr<module_impl> impl;
 };

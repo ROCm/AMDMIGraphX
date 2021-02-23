@@ -316,7 +316,8 @@ void instruction::print(std::ostream& os,
         char delim = '(';
         for(auto&& arg : ins->inputs())
         {
-            os << delim << names.at(arg);
+            std::string arg_name = contains(names, arg) ? names.at(arg) : "?";
+            os << delim << arg_name;
             delim = ',';
         }
         os << ")";

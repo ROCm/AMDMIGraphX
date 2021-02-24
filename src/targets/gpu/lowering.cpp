@@ -407,16 +407,14 @@ struct miopen_apply
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
-            auto op  = any_cast<op::if_op>(ins->get_operator());
+            auto op                             = any_cast<op::if_op>(ins->get_operator());
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             std::vector<module_ref> mod_args = ins->module_inputs();
 
-            return mod->replace_instruction(ins, op,
-                                            inputs,
-                                            mod_args);
+            return mod->replace_instruction(ins, op, inputs, mod_args);
         });
     }
 };

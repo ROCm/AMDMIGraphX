@@ -897,7 +897,11 @@ struct ref_if
     }
 
     std::string name() const { return "ref::if"; }
-    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mod_args) const { return op.compute_shape(inputs, mod_args); }
+    shape compute_shape(const std::vector<shape>& inputs,
+                        const std::vector<module_ref>& mod_args) const
+    {
+        return op.compute_shape(inputs, mod_args);
+    }
 
     argument compute(
         const std::vector<argument>& args,

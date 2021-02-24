@@ -156,8 +156,8 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     //        "Argument is not an exisiting instruction");
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    auto result     = impl->instructions.insert(
-        ins, {op, out_shape, std::move(args), std::move(module_args)});
+    auto result =
+        impl->instructions.insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -454,13 +454,15 @@ void module::debug_print(instruction_ref ins,
         return;
     }
     std::stringstream ss;
-    this->print([&](auto x, auto ins_names) {
-        if(x == ins)
-        {
-            instruction::print(std::cout, x, ins_names);
-            std::cout << std::endl;
-        }
-    }, names);
+    this->print(
+        [&](auto x, auto ins_names) {
+            if(x == ins)
+            {
+                instruction::print(std::cout, x, ins_names);
+                std::cout << std::endl;
+            }
+        },
+        names);
 }
 
 void module::debug_print(instruction_ref ins) const
@@ -476,10 +478,10 @@ void module::debug_print(const std::vector<instruction_ref>& inss) const
     std::cout << std::endl;
 }
 
-std::unordered_map<instruction_ref, std::string> module::print(const std::function<
-                   void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
-                       print_func,
-                   std::unordered_map<instruction_ref, std::string> names) const
+std::unordered_map<instruction_ref, std::string> module::print(
+    const std::function<void(instruction_ref,
+                             const std::unordered_map<instruction_ref, std::string>&)>& print_func,
+    std::unordered_map<instruction_ref, std::string> names) const
 {
     int count = 0;
     for(auto ins : iterator_for(*this))
@@ -522,7 +524,8 @@ void module::print_graph(std::ostream& os, bool brief) const
         {
             for(auto&& arg : ins->inputs())
             {
-                os << "\t" << enclose_name(ins_names.at(arg)) << " -> " << enclose_name(ins_names.at(ins));
+                os << "\t" << enclose_name(ins_names.at(arg)) << " -> "
+                   << enclose_name(ins_names.at(ins));
                 if(not brief)
                     os << "[label=" << enclose_name(to_string(ins->get_shape())) << "]";
                 os << ";" << std::endl;
@@ -633,7 +636,7 @@ void module::print_cpp(std::ostream& os) const
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
     this->print([&](auto ins, auto ins_names) {
-    	instruction::print(os, ins, ins_names);
+        instruction::print(os, ins, ins_names);
         a(ins);
         os << std::endl;
     });

@@ -48,7 +48,7 @@ namespace gpu {
 
 struct miopen_apply
 {
-    module* prog         = nullptr;
+    module* mod         = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
@@ -70,7 +70,7 @@ struct miopen_apply
 
     void create_output_names()
     {
-        this->last = instruction::get_output_alias(std::prev(prog->end()));
+        this->last = instruction::get_output_alias(std::prev(mod->end()));
         if(this->last->name() == "@return")
         {
             const auto& prog_outputs = last->inputs();
@@ -91,7 +91,7 @@ struct miopen_apply
 
     void init()
     {
-        assert(prog != nullptr);
+        assert(mod != nullptr);
         assert(pass != nullptr);
 
         create_output_names();
@@ -174,19 +174,19 @@ struct miopen_apply
         if(not pass->offload_copy)
             return;
 
-        for(auto ins : iterator_for(*prog))
+        for(auto ins : iterator_for(*mod))
         {
             if(ins->name() != "@param")
                 continue;
 
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
-            auto c   = prog->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
-            prog->replace_instruction(ins, c);
+            auto c   = mod->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
+            mod->replace_instruction(ins, c);
         }
 
         // return instruction
-        auto ret = std::prev(prog->end());
+        auto ret = std::prev(mod->end());
         if(ret->name() == "@return")
         {
             const auto& inputs = ret->inputs();
@@ -195,21 +195,21 @@ struct miopen_apply
             // output with copy output
             for(const auto& in : inputs)
             {
-                auto p_output = prog->insert_instruction(ret, hip_copy_from_gpu{}, in);
+                auto p_output = mod->insert_instruction(ret, hip_copy_from_gpu{}, in);
                 instruction::replace_argument(ret, in, p_output);
             }
         }
         // else branch to handle legacy program without the return instruction
         else
         {
-            prog->add_instruction(hip_copy_from_gpu{}, ret);
+            mod->add_instruction(hip_copy_from_gpu{}, ret);
         }
     }
 
     void apply()
     {
         init();
-        for(auto it = prog->begin(); it != prog->end(); it++)
+        for(auto it = mod->begin(); it != mod->end(); it++)
         {
             auto s = it->get_shape();
             if(apply_map.count(it->name()) > 0)
@@ -226,21 +226,21 @@ struct miopen_apply
         // Instruction's output is an input of the ret instruction
         if(pass->offload_copy)
         {
-            auto result = prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
+            auto result = mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;
         }
 
         auto ins_alias = instruction::get_output_alias(ins);
         if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
         {
-            return prog->add_parameter(prog_output_names[ins_alias], s);
+            return mod->add_parameter(prog_output_names[ins_alias], s);
         }
         else if(ins == last and tag.empty())
         {
-            return prog->add_parameter("output", s);
+            return mod->add_parameter("output", s);
         }
 
-        return prog->insert_instruction(ins, hip_allocate{s, std::move(tag)});
+        return mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
     }
 
     void add_convolution_op()
@@ -254,7 +254,7 @@ struct miopen_apply
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(
+            return mod->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
         });
     }
@@ -270,7 +270,7 @@ struct miopen_apply
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(
+            return mod->replace_instruction(
                 ins, conv, ins->inputs().at(0), ins->inputs().at(1), workspace, output);
         });
     }
@@ -294,7 +294,7 @@ struct miopen_apply
                 if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
                     auto output   = insert_allocation(ins, ins->get_shape());
-                    auto copy_out = prog->insert_instruction(ins, hip_copy{}, refs.back(), output);
+                    auto copy_out = mod->insert_instruction(ins, hip_copy{}, refs.back(), output);
                     refs.back()   = copy_out;
                     refs.push_back(copy_out);
                 }
@@ -304,7 +304,7 @@ struct miopen_apply
                 }
             }
 
-            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
+            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
         });
     }
 
@@ -319,7 +319,7 @@ struct miopen_apply
             auto workspace = insert_allocation(ins, ws, "workspace");
             auto output    = insert_allocation(ins, ins->get_shape());
 
-            return prog->replace_instruction(ins, conv, args[0], args[1], workspace, output);
+            return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
 
@@ -332,7 +332,7 @@ struct miopen_apply
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, make_op(gpu_name), refs);
+            return mod->replace_instruction(ins, make_op(gpu_name), refs);
         });
     }
 
@@ -346,7 +346,7 @@ struct miopen_apply
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return prog->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
+            return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
         });
     }
 
@@ -374,9 +374,9 @@ struct miopen_apply
             std::transform(ins->inputs().begin() + 1,
                            ins->inputs().end(),
                            std::back_inserter(reshapes),
-                           [&](auto i) { return prog->insert_instruction(ins, reshape_op, i); });
+                           [&](auto i) { return mod->insert_instruction(ins, reshape_op, i); });
 
-            return prog->replace_instruction(ins,
+            return mod->replace_instruction(ins,
                                              miopen_batch_norm_inference{op},
                                              input,
                                              reshapes[0],
@@ -394,15 +394,15 @@ struct miopen_apply
         apply_map.emplace("neg", [=](instruction_ref ins) {
             auto s = ins->get_shape();
             std::vector<float> zeros(s.elements(), 0.0f);
-            auto l0     = prog->add_literal(literal(s, zeros));
+            auto l0     = mod->add_literal(literal(s, zeros));
             auto output = insert_allocation(ins, s);
-            return prog->replace_instruction(
+            return mod->replace_instruction(
                 ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
         });
     }
 };
 
-void lowering::apply(module& p) const { miopen_apply{&p, this}.apply(); }
+void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

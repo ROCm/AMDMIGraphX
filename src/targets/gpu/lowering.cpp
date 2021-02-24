@@ -48,7 +48,7 @@ namespace gpu {
 
 struct miopen_apply
 {
-    module* mod         = nullptr;
+    module* mod          = nullptr;
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
@@ -377,13 +377,13 @@ struct miopen_apply
                            [&](auto i) { return mod->insert_instruction(ins, reshape_op, i); });
 
             return mod->replace_instruction(ins,
-                                             miopen_batch_norm_inference{op},
-                                             input,
-                                             reshapes[0],
-                                             reshapes[1],
-                                             reshapes[2],
-                                             reshapes[3],
-                                             output);
+                                            miopen_batch_norm_inference{op},
+                                            input,
+                                            reshapes[0],
+                                            reshapes[1],
+                                            reshapes[2],
+                                            reshapes[3],
+                                            output);
 
         });
     }

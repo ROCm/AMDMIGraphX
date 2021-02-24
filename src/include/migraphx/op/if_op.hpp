@@ -16,7 +16,7 @@ namespace op {
 
 struct if_op
 {
-    std::string name() const { return "if_op"; }
+    std::string name() const { return "if"; }
 
     shape compute_shape(const std::vector<shape>&, std::vector<module_ref> mods) const 
     { 

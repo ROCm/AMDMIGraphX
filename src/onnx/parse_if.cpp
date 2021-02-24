@@ -30,11 +30,11 @@ struct parse_if : op_parser<parse_if>
         // cond is not constant, need to create sub_modules
         if(cond_arg.empty())
         {
-            std::string then_name  = info.name + "_if";
-            module_ref then_mdl = parser.prog.create_module(then_name);
+            std::string then_name = info.name + "_if";
+            module_ref then_mdl   = parser.prog.create_module(then_name);
 
-            std::string else_name  = info.name + "_else";
-            module_ref else_mdl = parser.prog.create_module(else_name);
+            std::string else_name = info.name + "_else";
+            module_ref else_mdl   = parser.prog.create_module(else_name);
 
             // parse the then sub_graph
             parser.parse_graph(then_mdl, then_graph);

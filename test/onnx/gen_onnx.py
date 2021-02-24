@@ -2024,6 +2024,7 @@ def min_test():
 
     return ([node], [a, b, c], [y])
 
+
 @onnx_test
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
@@ -2032,6 +2033,7 @@ def neg_test():
     node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def not_test():
@@ -2042,6 +2044,7 @@ def not_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def not_bool_test():
     x = helper.make_tensor_value_info('0', TensorProto.BOOL, [4])
@@ -2049,7 +2052,8 @@ def not_bool_test():
 
     node = onnx.helper.make_node('Not', inputs=['0'], outputs=['1'])
 
-    return ([node], [x], [y])    
+    return ([node], [x], [y])
+
 
 @onnx_test
 def no_pad_test():

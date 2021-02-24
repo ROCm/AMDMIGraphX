@@ -44,7 +44,7 @@ struct mean
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
     {
-        return static_cast<T>(x / item_num);
+        return x / static_cast<T>(item_num);
     }
 };
 

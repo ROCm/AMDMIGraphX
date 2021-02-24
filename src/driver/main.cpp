@@ -119,7 +119,7 @@ struct loader
         std::string name = "";
         for(auto&& x : output_names_info)
         {
-            
+
             {
                 output_node_names.push_back(value_parser<std::string>::apply(x));
             }
@@ -133,7 +133,7 @@ struct loader
         program p;
         if(model.empty())
         {
-            auto map_input_dims = parse_param_dims(param_dims);
+            auto map_input_dims    = parse_param_dims(param_dims);
             auto output_node_names = parse_output_names(output_names);
             if(file_type.empty())
             {

@@ -20,9 +20,10 @@ migraphx::program
 parse_tf(const std::string& name,
          bool is_nhwc,
          const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {},
-         const std::vector<std::string>& output_node_names = {})
+         const std::vector<std::string>& output_node_names                           = {})
 {
-    return migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1, dim_params, output_node_names});
+    return migraphx::parse_tf(name,
+                              migraphx::tf_options{is_nhwc, 1, dim_params, output_node_names});
 }
 
 migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
@@ -34,7 +35,7 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
                              {migraphx::simplify_reshapes{},
                               migraphx::dead_code_elimination{},
                               migraphx::eliminate_identity{}});
-    
+
     // remove the last return instruction
     auto last_ins = std::prev(mm->end());
     if(last_ins->name() == "@return")
@@ -94,7 +95,7 @@ TEST_CASE(argmax_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 5, 6, 7}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
     auto ins = mm->add_instruction(migraphx::make_op("argmax", {{"axis", 2}}), l0);
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
     mm->add_return({l1});
     auto prog = parse_tf("argmax_test.pb", false, {{"0", {4, 5, 6, 7}}});
 
@@ -109,7 +110,7 @@ TEST_CASE(argmin_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {2}});
     auto ins = mm->add_instruction(migraphx::make_op("argmin", {{"axis", 2}}), l0);
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), ins);
     mm->add_return({l1});
     auto prog = parse_tf("argmin_test.pb", false);
 

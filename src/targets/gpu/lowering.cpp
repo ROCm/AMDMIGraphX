@@ -9,6 +9,7 @@
 #include <migraphx/op/deconvolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -167,6 +168,7 @@ struct miopen_apply
         add_quant_convolution_op();
         add_batch_norm_inference_op();
         add_neg_op();
+        add_if_op();
     }
 
     void copy_params()
@@ -398,6 +400,23 @@ struct miopen_apply
             auto output = insert_allocation(ins, s);
             return mod->replace_instruction(
                 ins, make_op("gpu::sub"), l0, ins->inputs().front(), output);
+        });
+    }
+
+    // replace the if operator with gpu_if operator
+    void add_if_op()
+    {
+        apply_map.emplace("if", [=](instruction_ref ins) {
+            auto op  = any_cast<op::if_op>(ins->get_operator());
+            auto s                              = ins->get_shape();
+            auto output                         = insert_allocation(ins, s);
+            std::vector<instruction_ref> inputs = ins->inputs();
+            inputs.push_back(output);
+            std::vector<module_ref> mod_args = ins->module_inputs();
+
+            return mod->replace_instruction(ins, op,
+                                            inputs,
+                                            mod_args);
         });
     }
 };

@@ -10,6 +10,7 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>
@@ -885,9 +886,40 @@ struct ref_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(ref_rnn_var_sl_last_output)
 
+struct ref_if
+{
+    op::if_op op;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::reflect(self.op, f);
+    }
+
+    std::string name() const { return "ref::if"; }
+    shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mod_args) const { return op.compute_shape(inputs, mod_args); }
+
+    argument compute(
+        const std::vector<argument>& args,
+        const std::vector<module_ref>& modules,
+        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
+            run) const
+    {
+        argument result;
+        bool cond                    = args[0].implicit();
+        std::vector<argument> inputs = args;
+        inputs.erase(inputs.begin());
+        module_ref mdl = cond ? modules[0] : modules[1];
+        auto results   = run(mdl, inputs);
+
+        return results[0];
+    }
+};
+MIGRAPHX_REGISTER_OP(ref_if);
+
 struct ref_apply
 {
-    module* modl;
+    module* mod;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
     template <class T>
@@ -922,12 +954,13 @@ struct ref_apply
         apply_map["softmax"]    = extend_op<ref_softmax<op::softmax>, op::softmax>();
         apply_map["rnn_var_sl_last_output"] =
             extend_op<ref_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
+        apply_map["if"] = extend_op<ref_if, op::if_op>();
     }
 
     void apply()
     {
         init();
-        for(auto it : iterator_for(*modl))
+        for(auto it : iterator_for(*mod))
         {
             if(it->name() == "pooling")
             {
@@ -946,29 +979,29 @@ struct ref_apply
 
     void apply_ref_op(instruction_ref ins) const
     {
-        modl->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
+        mod->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        modl->replace_instruction(ins, T{}, ins->inputs());
+        mod->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->get_operator());
-        modl->replace_instruction(ins, T{op}, ins->inputs());
+        mod->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")
-            modl->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
+            mod->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            modl->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
+            mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

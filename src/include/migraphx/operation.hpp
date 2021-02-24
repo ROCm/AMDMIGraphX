@@ -237,6 +237,33 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
     return compute_op(rank<2>{}, x, output_shape, input);
 }
 
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(input, module_args, f))
+{
+    return x.compute(input, module_args, f);
+}
+
+template <class T, class F>
+argument
+    compute_op(rank<0>, const T& x, const std::vector<argument>&, const std::vector<module_ref>&, F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    const std::vector<argument>& input,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<1>{}, x, input, module_args, f);
+}
+
 template <class T>
 auto is_context_free_op(rank<1>,
                         const T& x,
@@ -350,9 +377,11 @@ void from_value_op(T& x, const value& v)
  *      shape compute_shape(const std::vector<shape>& inputs,const std::vector<module_ref>&
  * mod_args) const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
  * input) const; argument compute(const shape& output,const std::vector<argument>& input)
- * const; value to_value() const; void from_value(const value& v) ; value attributes() const;
- *     friend std::ostream & operator<<(std::ostream & os,const operation & op) ;
- *     friend bool operator==(const operation & x,const operation & y) ;
+ * const; argument compute(const std::vector<argument>& input,const std::vector<module_ref>&
+ * module_args,std::function<std::vector<argument>(module_ref& mdl, const
+ * std::vector<argument>& inputs)> run) const; value to_value() const; void from_value(const value&
+ * v) ; value attributes() const; friend std::ostream & operator<<(std::ostream & os,const
+ * operation & op) ; friend bool operator==(const operation & x,const operation & y) ;
  * };
  *
  */
@@ -481,6 +510,16 @@ struct operation
         return (*this).private_detail_te_get_handle().compute(output, input);
     }
 
+    argument compute(
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
+            run) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(input, module_args, std::move(run));
+    }
+
     value to_value() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -537,11 +576,16 @@ struct operation
         virtual argument
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
-        virtual value to_value() const                                                          = 0;
-        virtual void from_value(const value& v)                                                 = 0;
-        virtual value attributes() const                                                        = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const                       = 0;
-        virtual bool operator==(const operation& y) const                                       = 0;
+        virtual argument
+        compute(const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref& mdl, const std::vector<argument>& inputs)> run) const = 0;
+        virtual value to_value() const                                                = 0;
+        virtual void from_value(const value& v)                                       = 0;
+        virtual value attributes() const                                              = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const             = 0;
+        virtual bool operator==(const operation& y) const                             = 0;
     };
 
     template <class T>
@@ -698,6 +742,30 @@ struct operation
     }
 
     template <class T>
+    static auto private_detail_te_default_compute(
+        char,
+        T&& private_detail_te_self,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
+            run) -> decltype(private_detail_te_self.compute(input, module_args, std::move(run)))
+    {
+        return private_detail_te_self.compute(input, module_args, std::move(run));
+    }
+
+    template <class T>
+    static argument private_detail_te_default_compute(
+        float,
+        T&& private_detail_te_self,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
+            run)
+    {
+        return detail::compute_op(private_detail_te_self, input, module_args, std::move(run));
+    }
+
+    template <class T>
     static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.to_value())
     {
@@ -827,6 +895,17 @@ struct operation
 
             return private_detail_te_default_compute(
                 char(0), private_detail_te_value, output, input);
+        }
+
+        argument
+        compute(const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref& mdl, const std::vector<argument>& inputs)> run) const override
+        {
+
+            return private_detail_te_default_compute(
+                char(0), private_detail_te_value, input, module_args, std::move(run));
         }
 
         value to_value() const override

@@ -83,7 +83,7 @@ struct module
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
                                         std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args) const;
+                                        std::vector<module_ref> module_args);
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 

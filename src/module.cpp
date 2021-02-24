@@ -182,7 +182,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args) const
+                                            std::vector<module_ref> module_args)
 {
     // assert(std::all_of(
     //            args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); })

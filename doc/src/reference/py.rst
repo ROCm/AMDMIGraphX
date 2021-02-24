@@ -111,7 +111,7 @@ argument
 
 
 target
---------
+------
 
 .. py:class:: target()
 
@@ -131,7 +131,7 @@ program
 
 .. py:class:: program()
 
-    Represents the computation graph to compiled and run.
+    Represents the computation graph to be compiled and run.
 
 .. py:method:: clone()
 
@@ -206,7 +206,7 @@ parse_onnx
     :rtype: program
 
 parse_tf
-----------
+--------
 
 .. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1)
 

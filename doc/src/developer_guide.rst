@@ -5,4 +5,11 @@ Developer Guide
    :maxdepth: 2
    :caption: Contents:
 
+   overview
+   dev/data
+   dev/operators
+   dev/program
+   dev/targets
+   dev/quantization
+   dev/pass
    dev/matchers

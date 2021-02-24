@@ -30,6 +30,12 @@ MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
 
+template <class T>
+using accumulator_type =
+    std::conditional_t<is_floating_point<T>{},
+                       double,
+                       std::conditional_t<is_signed<T>{}, std::int64_t, std::uint64_t>>;
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

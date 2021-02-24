@@ -46,54 +46,6 @@ struct slice
 
     std::string name() const { return "slice"; }
 
-    void tune_attributes(std::vector<int64_t>& tuned_axes,
-                         std::vector<int64_t>& tuned_starts,
-                         std::vector<int64_t>& tuned_ends,
-                         const std::vector<std::size_t>& lens) const
-    {
-        // tune axes
-        int64_t n_rank = static_cast<int64_t>(lens.size());
-        if(!std::all_of(tuned_axes.begin(), tuned_axes.end(), [=](auto i) {
-               return (i < n_rank and i >= -n_rank);
-           }))
-        {
-            MIGRAPHX_THROW("SLICE: input axis " + to_string_range(tuned_axes) + " out of range");
-        }
-        std::transform(tuned_axes.begin(), tuned_axes.end(), tuned_axes.begin(), [=](auto i) {
-            return (i < 0) ? (i + n_rank) : i;
-        });
-
-        std::vector<int64_t> axis_lens(tuned_axes.size());
-        std::transform(tuned_axes.begin(), tuned_axes.end(), axis_lens.begin(), [&](auto axis) {
-            return lens[axis];
-        });
-
-        // tune starts
-        std::transform(tuned_starts.begin(),
-                       tuned_starts.end(),
-                       axis_lens.begin(),
-                       tuned_starts.begin(),
-                       [=](auto i, auto dim) {
-                           i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
-                           return (i < 0) ? (i + dim) : i;
-                       });
-
-        // tune ends
-        std::transform(tuned_ends.begin(),
-                       tuned_ends.end(),
-                       axis_lens.begin(),
-                       tuned_ends.begin(),
-                       [=](auto i, auto dim) {
-                           i = (i < -dim) ? -dim : ((i > dim) ? dim : i);
-                           return (i < 0) ? (i + dim) : i;
-                       });
-
-        if(!(tuned_ends >= tuned_starts))
-        {
-            MIGRAPHX_THROW("SLICE: starts and ends does not match");
-        }
-    }
-
     auto fix_index(const std::vector<std::size_t>& lens, std::size_t axis, int64_t index) const
     {
         int64_t r = std::min(index, static_cast<int64_t>(lens[axis]));
@@ -104,27 +56,22 @@ struct slice
 
     auto compute_offset(const shape& s) const
     {
-        std::vector<int64_t> tuned_axes      = axes;
-        std::vector<int64_t> tuned_starts    = starts;
-        std::vector<int64_t> tuned_ends      = ends;
-        const std::vector<std::size_t>& lens = s.lens();
-        tune_attributes(tuned_axes, tuned_starts, tuned_ends, lens);
-
+        const std::vector<std::size_t>& lens    = s.lens();
         const std::vector<std::size_t>& strides = s.strides();
         auto offset                             = 0;
-        if(!tuned_axes.empty())
+        if(!axes.empty())
         {
-            for(std::size_t i = 0; i < tuned_axes.size(); i++)
+            for(std::size_t i = 0; i < axes.size(); i++)
             {
-                auto axis = tuned_axes[i];
-                offset += fix_index(lens, axis, tuned_starts[i]) * strides[axis];
+                auto axis = axes[i];
+                offset += fix_index(lens, axis, starts[i]) * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += fix_index(lens, axis, tuned_starts[axis]) * strides[axis];
+                offset += fix_index(lens, axis, starts[axis]) * strides[axis];
             }
         }
         return offset;

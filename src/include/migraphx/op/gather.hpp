@@ -70,7 +70,7 @@ struct gather
                 {
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
-                    output[0]     = data[indices.front()];
+                    output[0]     = data[in_index];
                 }
                 else
                 {

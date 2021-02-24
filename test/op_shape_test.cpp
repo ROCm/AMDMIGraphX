@@ -21,7 +21,7 @@ void expect_shape(const migraphx::shape& expected, const migraphx::operation& op
     mm->add_instruction(op, args);
     if(p.get_output_shapes().back() != expected)
     {
-        std::cout << "FAILED: Incorrect shape for " << op.name() << ": ";
+        std::cout << "FAILED: Incorrect shape for " << op << ": ";
         std::cout << expected << " != " << p.get_output_shapes().back() << std::endl;
         for(auto&& s : shapes)
             std::cout << "    " << s << std::endl;
@@ -933,12 +933,6 @@ TEST_CASE(quant_dot_2args)
                      migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}),
                      s_m1,
                      s_m2);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::int8_type, {2, 3}};
-        migraphx::shape s_m2{migraphx::shape::int8_type, {3, 8}};
-        throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
     }
 
     {

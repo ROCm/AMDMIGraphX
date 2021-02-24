@@ -340,12 +340,12 @@ void program::mod_from_val(module_ref mod, const value& v,
                         std::unordered_map<std::string, instruction_ref>& instructions,
                         const std::unordered_map<std::string, module_ref>& map_mods) const
 {
-    auto it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+    const auto* it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
         return mv.at("name").template to<std::string>() == mod->name();
     });
     assert(it != v.end());
 
-    auto& module_val = *it;
+    const auto& module_val = *it;
     for(const value& node : module_val.at("nodes"))
     {
         instruction_ref output;

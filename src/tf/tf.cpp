@@ -20,6 +20,7 @@ program parse_tf(const std::string& name, const tf_options& options)
     parser.is_nhwc        = options.is_nhwc;
     parser.batch_size     = options.batch_size;
     parser.map_input_dims = options.map_input_dims;
+    parser.output_node_names = options.output_node_names;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed

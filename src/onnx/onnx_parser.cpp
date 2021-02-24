@@ -143,6 +143,14 @@ onnx_parser::node_info::add_instruction(const operation& op,
     return mod->add_instruction(op, args);
 }
 
+instruction_ref
+onnx_parser::node_info::add_instruction(const operation& op,
+                                        const std::vector<instruction_ref>& args,
+                                        const std::vector<module_ref>& mods) const
+{
+    return mod->add_instruction(op, args, mods);
+}
+
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
 {
     return mod->add_literal(std::move(l));

@@ -36,7 +36,6 @@ program parse_tf(const std::string& name, const tf_options& options)
 #else
     parser.parse_from(input);
 #endif
-    parser.to_nchw(std::prev(parser.mm->end()));
     return std::move(parser.prog);
 }
 

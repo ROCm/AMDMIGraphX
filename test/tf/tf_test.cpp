@@ -38,10 +38,11 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
 
     // remove the last return instruction
     auto last_ins = std::prev(mm->end());
-    if(last_ins->name() == "@return")
-    {
-        mm->remove_instruction(last_ins);
-    }
+    if(last_ins != mm->end())
+        if(last_ins->name() == "@return")
+        {
+            mm->remove_instruction(last_ins);
+        }
     return prog;
 }
 
@@ -766,8 +767,8 @@ TEST_CASE(split_test)
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 20}}, {"ends", {5, 30}}}), l0);
     mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4});
     auto prog = parse_tf("split_test.pb", false);
 
     EXPECT(p == prog);
@@ -781,8 +782,8 @@ TEST_CASE(split_test_one_output)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
     mm->add_literal(1); // num_splits
     mm->add_literal(1); // split axis
-    mm->add_instruction(migraphx::make_op("identity"), l0);
-
+    auto l1 = mm->add_instruction(migraphx::make_op("identity"), l0);
+    mm->add_return({l1});
     auto prog = parse_tf("split_test_one_output.pb", false);
 
     EXPECT(p == prog);
@@ -808,8 +809,8 @@ TEST_CASE(split_test_vector_as_input)
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 19}}, {"ends", {5, 30}}}), l0);
     mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4});
     auto prog = parse_tf("split_test_vector_as_input.pb", false);
 
     EXPECT(p == prog);
@@ -895,7 +896,8 @@ TEST_CASE(stridedslice_masks_test)
 
     auto l1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
     auto l2 = mm->add_instruction(op, l1);
-    mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 3, 1, 2}}}), l2);
+    auto l3 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 3, 1, 2}}}), l2);
+    mm->add_return({l3});
     auto prog = parse_tf("stridedslice_masks_test.pb", true);
 
     EXPECT(p == prog);
@@ -908,7 +910,8 @@ TEST_CASE(sub_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
     auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::make_op("sub"), l0, l1);
+    auto l2  = mm->add_instruction(migraphx::make_op("sub"), l0, l1);
+    mm->add_return({l2});
     auto prog = parse_tf("sub_test.pb", false);
 
     EXPECT(p == prog);
@@ -919,10 +922,10 @@ TEST_CASE(tanh_test)
     migraphx::program p;
 
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 2, 3}});
-    mm->add_instruction(migraphx::make_op("sub"), l0, l1);
-    auto prog = parse_tf("sub_test.pb", false);
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto l1  = mm->add_instruction(migraphx::make_op("tanh"), l0);
+    mm->add_return({l1});
+    auto prog = parse_tf("tanh_test.pb", false);
 
     EXPECT(p == prog);
 }

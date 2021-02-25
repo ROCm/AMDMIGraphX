@@ -559,7 +559,7 @@ void program::debug_print(instruction_ref ins) const
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if(not std::any_of(this->impl->modules.begin(),
+    else if(std::none_of(this->impl->modules.begin(),
                             this->impl->modules.end(),
                             [&](const auto& it) { return it.has_instruction(ins); }))
     {
@@ -638,7 +638,7 @@ void program::remove_module(const std::string& name)
 {
     auto it = std::find_if(
         impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if(it == impl->modules.end())
+    if(it != impl->modules.end())
     {
         impl->modules.erase(it);
     }

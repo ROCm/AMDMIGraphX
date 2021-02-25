@@ -15,7 +15,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& mods);
+shape compute_shape(const operation& op,
+                    const std::vector<instruction_ref>& args,
+                    const std::vector<module_ref>& mods);
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 
 struct instruction

@@ -72,8 +72,8 @@ bool instruction::valid(instruction_ref start, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
-               bool ret = self != i->outputs().end();
-               if (check_order)
+               bool ret  = self != i->outputs().end();
+               if(check_order)
                {
                    ret = ret and (std::distance(start, i) < std::distance(start, *self));
                }
@@ -323,7 +323,7 @@ void instruction::print(std::ostream& os,
     if(!ins->module_inputs().empty())
     {
         std::string delim = ", [";
-        for (auto&& mod_arg : ins->module_inputs())
+        for(auto&& mod_arg : ins->module_inputs())
         {
             os << delim << mod_arg->name();
             delim = ", ";
@@ -411,9 +411,11 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
     return op.compute_shape(to_shapes(args));
 }
 
-shape compute_shape(const operation& op, const std::vector<instruction_ref>& args, const std::vector<module_ref>& mods)
+shape compute_shape(const operation& op,
+                    const std::vector<instruction_ref>& args,
+                    const std::vector<module_ref>& mods)
 {
-    if (mods.empty())
+    if(mods.empty())
     {
         return op.compute_shape(to_shapes(args));
     }

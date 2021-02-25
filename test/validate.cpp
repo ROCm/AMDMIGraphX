@@ -17,16 +17,16 @@ TEST_CASE(simple_test)
     EXPECT(result.back() != migraphx::literal{4});
 }
 
-// TEST_CASE(out_of_order)
-// {
-//     migraphx::program p;
-//     auto* mm = p.get_main_module();
-//     auto one = mm->add_literal(1);
-//     auto two = mm->add_literal(2);
-//     auto ins = mm->add_instruction(sum_op{}, one, two);
-//     mm->move_instruction(two, mm->end());
-//     EXPECT(bool{p.validate() == ins});
-// }
+TEST_CASE(out_of_order)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto ins = mm->add_instruction(sum_op{}, one, two);
+    mm->move_instruction(two, mm->end());
+    EXPECT(bool{p.validate() == ins});
+}
 
 TEST_CASE(incomplete_args)
 {

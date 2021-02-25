@@ -12,6 +12,13 @@ void auto_contiguous::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
+        // apply to sub_modules
+        const auto& mod_inputs = ins->module_inputs();
+        for (const auto& mod : mod_inputs)
+        {
+            this->apply(*mod);
+        }
+
         shape s = ins->get_shape();
         if(not s.standard() and s.elements() != 0)
         {

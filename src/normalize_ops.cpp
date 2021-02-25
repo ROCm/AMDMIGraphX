@@ -16,6 +16,13 @@ void normalize_ops::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
+        // apply to sub_modules
+        const auto& mod_inputs = ins->module_inputs();
+        for (const auto& mod : mod_inputs)
+        {
+            this->apply(*mod);
+        }
+
         auto inputs = ins->inputs();
         if(inputs.empty())
             continue;

@@ -289,12 +289,11 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     auto last_ins = std::prev(mm->end());
     if(last_ins != mm->end())
     {
-        last_ins = to_nchw(last_ins);
         // Needs to add a ret instruction at the end of
         // the program
         if(output_node_names.empty())
         {
-            mm->add_return({last_ins});
+            mm->add_return({to_nchw(last_ins)});
         }
         else
         {
@@ -302,7 +301,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
             std::transform(output_node_names.begin(),
                            output_node_names.end(),
                            std::back_inserter(output_ins),
-                           [&](auto output_name) { return instructions[output_name]; });
+                           [&](auto output_name) { return to_nchw(instructions[output_name]); });
             mm->add_return(output_ins);
         }
     }

@@ -560,8 +560,8 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
     else if(std::none_of(this->impl->modules.begin(),
-                            this->impl->modules.end(),
-                            [&](const auto& it) { return it.has_instruction(ins); }))
+                         this->impl->modules.end(),
+                         [&](const auto& it) { return it.has_instruction(ins); }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;

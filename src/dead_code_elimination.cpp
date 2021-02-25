@@ -36,7 +36,7 @@ void dead_code_elimination::apply(module& p) const
     {
         // apply to sub_modules
         const auto& mod_inputs = ins->module_inputs();
-        for (const auto& mod : mod_inputs)
+        for(const auto& mod : mod_inputs)
         {
             this->apply(*mod);
         }

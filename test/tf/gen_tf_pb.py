@@ -206,7 +206,10 @@ def conv_add_test(g1):
                                  dtype=tf.float32,
                                  shape=(3, 3, 3, 32),
                                  name='1')
-        conv = tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
         tf.add(conv, conv, name='add1')
 
 
@@ -237,7 +240,10 @@ def conv_relu_test(g1):
                                  dtype=tf.float32,
                                  shape=(3, 3, 3, 32),
                                  name='1')
-        conv = tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
         tf.nn.relu(conv, name='relu1')
 
 
@@ -251,7 +257,10 @@ def conv_relu6_test(g1):
                                  dtype=tf.float32,
                                  shape=(3, 3, 3, 32),
                                  name='1')
-        conv = tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
         tf.nn.relu6(conv, name='relu1')
 
 

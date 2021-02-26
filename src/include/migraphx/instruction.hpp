@@ -136,7 +136,7 @@ struct instruction
     void replace_argument(instruction_ref old, instruction_ref new_ins);
 
     // internal
-    void replace_mod_argument(module_ref old, module_ref new_ins);
+    void replace_mod_argument(module_ref old, module_ref new_mod);
 
     void replace(const shape& r);
 

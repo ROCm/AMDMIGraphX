@@ -218,8 +218,8 @@ void instruction::replace_refs(
     const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
     const std::unordered_map<module_ref, module_ref>& map_mods)
 {
-    auto& args = ins->inputs();
-    for(auto& arg : args)
+    const auto& args = ins->inputs();
+    for(const auto& arg : args)
     {
         if(contains(map_insts, arg))
         {
@@ -227,11 +227,11 @@ void instruction::replace_refs(
         }
     }
 
-    auto& module_args = ins->module_inputs();
+    const auto& module_args = ins->module_inputs();
     if(module_args.empty())
         return;
 
-    for(auto& mod : module_args)
+    for(const auto& mod : module_args)
     {
         if(contains(map_mods, mod))
         {

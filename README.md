@@ -25,11 +25,11 @@ build the libs with just one command.
 
 * [Use cmake](#use-cmake-to-build-migraphx)
     
-    This approach uses a script to install the prerequisites, then use cmake to build the source, 
+    This approach uses a script to install the prerequisites, then use cmake to build the source.
       
 * [Use docker](#use-docker)
     
-    This approach  use a docker image to set up the development environment, then build the MIGraphX sources inside a docker container. 
+    This approach builds a docker image with all prerequisites installed, then build the MIGraphX sources inside a docker container. 
 
 In the following, we will first list the prerequisites required to build MIGraphX source code, then describe 
 each of the three approaches.

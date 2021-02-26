@@ -117,13 +117,10 @@ struct loader
     {
         std::vector<std::string> output_node_names;
         std::string name = "";
-        for(auto&& x : output_names_info)
-        {
-
-            {
-                output_node_names.push_back(value_parser<std::string>::apply(x));
-            }
-        }
+        std::transform(output_names_info.begin(),
+                       output_names_info.end(),
+                       std::back_inserter(output_node_names),
+                       [&](auto x) { return value_parser<std::string>::apply(x); });
 
         return output_node_names;
     }

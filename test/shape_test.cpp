@@ -386,4 +386,22 @@ TEST_CASE(test_serialize)
     EXPECT(s3 != s4);
 }
 
+TEST_CASE(test_with_lens1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {1, 2}};
+    auto s2 = s1.with_lens({4, 3});
+    EXPECT(s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {4, 3}, {1, 4}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
+    auto s2 = s1.with_lens({3, 4});
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {3, 4}};
+    EXPECT(s2 == s3);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

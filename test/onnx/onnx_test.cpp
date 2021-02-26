@@ -1684,6 +1684,7 @@ TEST_CASE(logical_or_test)
     EXPECT(p == prog);
 }
 
+
 TEST_CASE(logical_xor_bcast_test)
 {
     migraphx::program p;
@@ -1981,6 +1982,32 @@ TEST_CASE(nonzero_int_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_bool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_bool_test.onnx");
+
     EXPECT(p == prog);
 }
 

@@ -9,6 +9,7 @@ namespace tf {
 
 struct parse_generic_op : op_parser<parse_generic_op>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const
     {
         return {{"All", "identity"},

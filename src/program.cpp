@@ -87,7 +87,7 @@ void program::assign(const program& p)
     for(auto&& mp : impl->modules)
     {
         for(auto ins : iterator_for(mp))
-            ins->replace_refs(ins_map, mod_map);
+            instruction::replace_refs(ins, ins_map, mod_map);
     }
 }
 
@@ -146,7 +146,6 @@ void program::compile(const target& t, compile_options options)
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
     auto* modl = get_main_module();
-    // std::cout << "compiling module: " << modl->name() << std::endl;
     assert(modl->validate() == modl->end());
     run_passes(*modl, passes, options.trace);
     auto invalid = this->validate();
@@ -294,7 +293,6 @@ value program::to_value() const
     std::unordered_map<instruction_ref, std::string> names;
     for(auto& mod : this->impl->modules)
     {
-
         value mod_val;
         value nodes;
         mod_val["name"] = mod.name();
@@ -312,7 +310,10 @@ value program::to_value() const
                 std::transform(ins->inputs().begin(),
                                ins->inputs().end(),
                                std::back_inserter(inputs),
-                               [&](auto i) { return ins_names.at(i); });
+                               [&](auto i) { 
+                                   assert(contains(ins_names, i));
+                                   return ins_names.at(i); 
+                                });
                 node["inputs"]   = inputs;
                 auto module_args = ins->module_inputs();
                 if(not module_args.empty())
@@ -355,6 +356,7 @@ void program::mod_from_val(module_ref mod,
         auto name       = node.at("name").to<std::string>();
         auto fields     = node.at("operator");
         auto normalized = node.at("normalized").to<bool>();
+
         if(name == "@param")
         {
             output = mod->add_parameter(fields["parameter"].to<std::string>(),
@@ -371,7 +373,11 @@ void program::mod_from_val(module_ref mod,
             std::transform(node.at("inputs").begin(),
                            node.at("inputs").end(),
                            std::back_inserter(inputs),
-                           [&](const value& i) { return instructions[i.to<std::string>()]; });
+                           [&](const value& i) { 
+                               auto i_name = i.to<std::string>();
+                               assert(contains(instructions, i_name));
+                               return instructions.at(i_name); 
+                            });
 
             std::vector<module_ref> module_inputs;
             if(node.contains("module_inputs"))

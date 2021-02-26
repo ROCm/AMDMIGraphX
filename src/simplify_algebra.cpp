@@ -46,6 +46,11 @@ auto pointwise(Ms... ms)
                                              ms...);
 }
 
+auto reduction()
+{
+    return match::name_contains("reduce");
+}
+
 struct find_mul_conv
 {
     auto matcher() const
@@ -406,7 +411,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](pointwise(), match::name_contains("reduce")))));
+            match::name("slice")(match::any_of[match::outputs()](pointwise(), reduction()))));
     }
 
     static std::vector<std::vector<instruction_ref>>
@@ -477,7 +482,7 @@ struct find_splits
             auto start = group.front();
             auto split_front = splits.front();
             auto op    = start->get_operator();
-            if(op.name() == "slice" or (not is_fusable(start, split_front)))
+            if(not is_fusable(start, split_front))
             {
                 continue;
             }

@@ -630,8 +630,8 @@ const module* program::get_module(const std::string& name) const
 
 module* program::create_module(const std::string& name)
 {
-    impl->modules.push_back({name});
-    return &impl->modules.back();
+    auto it = impl->modules.insert(impl->modules.end(), {name});
+    return &(*it);
 }
 
 void program::remove_module(const std::string& name)

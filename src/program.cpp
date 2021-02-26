@@ -339,10 +339,10 @@ value program::to_value() const
     return result;
 }
 
-void program::mod_from_val(module_ref mod,
+static void mod_from_val(module_ref mod,
                            const value& v,
                            std::unordered_map<std::string, instruction_ref>& instructions,
-                           const std::unordered_map<std::string, module_ref>& map_mods) const
+                           const std::unordered_map<std::string, module_ref>& map_mods)
 {
     const auto* it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
         return mv.at("name").template to<std::string>() == mod->name();
@@ -389,7 +389,7 @@ void program::mod_from_val(module_ref mod,
 
                 for(auto& smod : module_inputs)
                 {
-                    this->mod_from_val(smod, v, instructions, map_mods);
+                    mod_from_val(smod, v, instructions, map_mods);
                 }
             }
 
@@ -440,7 +440,7 @@ void program::from_value(const value& v)
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
-    this->mod_from_val(mm, module_vals, map_insts, map_mods);
+    mod_from_val(mm, module_vals, map_insts, map_mods);
 
     this->finalize();
 }

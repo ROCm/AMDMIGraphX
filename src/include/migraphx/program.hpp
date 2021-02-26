@@ -100,9 +100,6 @@ struct program
     std::vector<const module*> get_modules() const;
 
     private:
-    void mod_from_val(module_ref mod, const value& v,
-                        std::unordered_map<std::string, instruction_ref>& instructions,
-                        const std::unordered_map<std::string, module_ref>& map_mods) const;
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
 };

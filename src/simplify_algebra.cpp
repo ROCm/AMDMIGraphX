@@ -46,10 +46,7 @@ auto pointwise(Ms... ms)
                                              ms...);
 }
 
-auto reduction()
-{
-    return match::name_contains("reduce");
-}
+auto reduction() { return match::name_contains("reduce"); }
 
 struct find_mul_conv
 {
@@ -446,7 +443,7 @@ struct find_splits
 
     bool is_fusable(instruction_ref start, instruction_ref split_front) const
     {
-        auto op    = start->get_operator();
+        auto op = start->get_operator();
         if(contains(op.name(), "reduce"))
         {
             auto slc         = any_cast<op::slice>(split_front->get_operator());
@@ -461,12 +458,12 @@ struct find_splits
                 return false;
             }
         }
-        else if (not op.attributes().contains("pointwise"))
+        else if(not op.attributes().contains("pointwise"))
         {
             return false;
         }
 
-    	return true;
+        return true;
     }
 
     void apply(module& p, const match::matcher_result& r) const
@@ -476,12 +473,12 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
-            
+
         for(const auto& group : get_split_groups(splits))
         {
-            auto start = group.front();
+            auto start       = group.front();
             auto split_front = splits.front();
-            auto op    = start->get_operator();
+            auto op          = start->get_operator();
             if(not is_fusable(start, split_front))
             {
                 continue;

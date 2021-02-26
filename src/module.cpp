@@ -30,38 +30,6 @@ struct module_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-static void print_instruction(std::ostream& os,
-                              instruction_ref ins,
-                              const std::unordered_map<instruction_ref, std::string>& names)
-{
-    os << names.at(ins) << " = ";
-
-    os << ins->get_operator();
-
-    if(ins->name() == "@literal")
-    {
-        if(ins->get_literal().get_shape().elements() > 10)
-            os << "{ ... }";
-        else
-            os << "{" << ins->get_literal() << "}";
-    }
-
-    if(!ins->inputs().empty())
-    {
-        char delim = '(';
-        for(auto&& arg : ins->inputs())
-        {
-            os << delim << names.at(arg);
-            delim = ',';
-        }
-        os << ")";
-    }
-
-    // skip return instruction shape
-    if(ins->name() != "@return")
-        os << " -> " << ins->get_shape();
-}
-
 module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
@@ -481,7 +449,7 @@ void module::debug_print(instruction_ref ins) const
     this->print([&](auto x, const auto& names) {
         if(x == ins)
         {
-            print_instruction(std::cout, x, names);
+            instruction::print(std::cout, x, names);
             std::cout << std::endl;
         }
     });
@@ -655,7 +623,7 @@ void module::print_cpp(std::ostream& os) const
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {
     this->print([&](auto ins, const auto& names) {
-        print_instruction(os, ins, names);
+        instruction::print(os, ins, names);
         a(ins);
         os << std::endl;
     });
@@ -677,7 +645,7 @@ bool operator==(const module& x, const module& y) { return to_string(x) == to_st
 std::ostream& operator<<(std::ostream& os, const module& m)
 {
     m.print([&](auto ins, const auto& names) {
-        print_instruction(os, ins, names);
+        instruction::print(os, ins, names);
         os << std::endl;
     });
     return os;

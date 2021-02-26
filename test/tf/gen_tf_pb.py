@@ -356,6 +356,16 @@ def mul_test(g1):
 
 
 @tf_test
+def multi_output_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        tf.nn.relu(g1_input, 'relu')
+        tf.tanh(g1_input, 'tanh')
+
+
+@tf_test
 def noop_test(g1):
     with g1.as_default():
         tf.raw_ops.NoOp(name='noop1')
@@ -645,6 +655,7 @@ if __name__ == '__main__':
     mean_test()
     mean_test_nhwc()
     mul_test()
+    multi_output_test()
     noop_test()
     onehot_test()
     pack_test()

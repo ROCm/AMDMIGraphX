@@ -69,7 +69,7 @@ struct loader
 
         ap(output_names,
            {"--output-names"},
-           ap.help("Names of node output (format: \"name_1, name_2, name_n\")"),
+           ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));

@@ -651,7 +651,7 @@ module& module::sort()
         this->move_instruction(ins, this->begin());
         for(auto child : ins->inputs())
         {
-            if (!contains(this->impl->instructions, child))
+            if(!contains(this->impl->instructions, child))
             {
                 continue;
             }

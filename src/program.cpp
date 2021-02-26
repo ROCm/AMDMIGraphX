@@ -310,10 +310,10 @@ value program::to_value() const
                 std::transform(ins->inputs().begin(),
                                ins->inputs().end(),
                                std::back_inserter(inputs),
-                               [&](auto i) { 
+                               [&](auto i) {
                                    assert(contains(ins_names, i));
-                                   return ins_names.at(i); 
-                                });
+                                   return ins_names.at(i);
+                               });
                 node["inputs"]   = inputs;
                 auto module_args = ins->module_inputs();
                 if(not module_args.empty())
@@ -373,11 +373,11 @@ void program::mod_from_val(module_ref mod,
             std::transform(node.at("inputs").begin(),
                            node.at("inputs").end(),
                            std::back_inserter(inputs),
-                           [&](const value& i) { 
+                           [&](const value& i) {
                                auto i_name = i.to<std::string>();
                                assert(contains(instructions, i_name));
-                               return instructions.at(i_name); 
-                            });
+                               return instructions.at(i_name);
+                           });
 
             std::vector<module_ref> module_inputs;
             if(node.contains("module_inputs"))

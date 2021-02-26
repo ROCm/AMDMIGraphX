@@ -108,7 +108,8 @@ bool instruction::valid() const
         }
     }
 
-    return (result == computed) && std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
+    return (result == computed) &&
+           std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });
 }
@@ -168,9 +169,7 @@ void instruction::replace_argument(instruction_ref ins,
     ins->recompute_shape();
 }
 
-void instruction::replace_mod_argument(instruction_ref ins,
-                                   module_ref old,
-                                   module_ref new_mod)
+void instruction::replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod)
 {
     ins->replace_mod_argument(old, new_mod);
     backreference(ins);
@@ -214,7 +213,8 @@ void instruction::replace(operation o,
     replace(std::move(args), std::move(mdl_args));
 }
 
-void instruction::replace_refs(instruction_ref ins,
+void instruction::replace_refs(
+    instruction_ref ins,
     const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
     const std::unordered_map<module_ref, module_ref>& map_mods)
 {
@@ -233,7 +233,7 @@ void instruction::replace_refs(instruction_ref ins,
 
     for(auto& mod : module_args)
     {
-        if (contains(map_mods, mod))
+        if(contains(map_mods, mod))
         {
             instruction::replace_mod_argument(ins, mod, map_mods.at(mod));
         }
@@ -265,7 +265,6 @@ void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
     assert(std::any_of(module_args.begin(), module_args.end(), [&](auto i) { return i == old; }));
     std::replace(module_args.begin(), module_args.end(), old, new_mod);
 }
-
 
 bool instruction::can_eval() const
 {

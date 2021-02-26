@@ -17,12 +17,23 @@ then the header files and libs are installed under `/opt/rocm-<version>`, where 
 
 ## Building from source
 
-There are three ways to build the MIGraphX sources. The first is using the ROCm build tool 
-[rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
-build the libs with just one command. The second is installing the prerequisites, then using 
-cmake to build the source, and the last approach is using a docker image to set up the development
-environment, then building the MIGraphX sources inside a docker container. In the following, 
-we will first list the prerequisites required to build MIGraphX source code, then describe 
+There are three ways to build the MIGraphX sources. 
+* [Use the ROCm build tool](#use-the-rocm-build-tool)
+
+    This approach uses [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
+build the libs with just one command. 
+
+* [Use cmake](#use-cmake-to-build-migraphx)
+    
+This approach uses a script to install the prerequisites, then use 
+cmake to build the source, 
+      
+* [Use docker](#use-docker)
+
+    This approach  use a docker image to set up the development
+environment, then build the MIGraphX sources inside a docker container. 
+
+In the following, we will first list the prerequisites required to build MIGraphX source code, then describe 
 each of the three approaches.
 
 ### List of prerequisites
@@ -129,7 +140,7 @@ MIGraphX libs can be installed as:
 make install
 ```
 
-#### Using docker
+#### Use docker
 
 The easiest way to setup the development environment is to use docker. With the dockerfile, you can build a docker image as:
 

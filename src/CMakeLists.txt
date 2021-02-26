@@ -146,6 +146,7 @@ register_migraphx_ops(
     tanh
     tan
     transpose
+    unary_not
     undefined
     unknown
     unsqueeze

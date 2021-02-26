@@ -23,8 +23,6 @@ template struct test_logsoftmax<0, migraphx::shape::float_type>;
 template struct test_logsoftmax<1, migraphx::shape::float_type>;
 template struct test_logsoftmax<2, migraphx::shape::float_type>;
 template struct test_logsoftmax<3, migraphx::shape::float_type>;
-template struct test_logsoftmax<1, migraphx::shape::double_type>;
-template struct test_logsoftmax<3, migraphx::shape::double_type>;
 template struct test_logsoftmax<1, migraphx::shape::half_type>;
 template struct test_logsoftmax<0, migraphx::shape::half_type>;
 template struct test_logsoftmax<2, migraphx::shape::half_type>;

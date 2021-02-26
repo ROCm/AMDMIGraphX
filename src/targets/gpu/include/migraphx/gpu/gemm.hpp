@@ -43,6 +43,15 @@ struct rocblas_gemm
         batch_not_transposed(inputs[0].strides());
         batch_not_transposed(inputs[1].strides());
 
+        std::size_t kdim = inputs[0].lens().size() - 1;
+        // k be multiple of 4
+        if(op.name() == "quant_dot" && (inputs[0].lens()[kdim] % 4) != 0)
+        {
+            MIGRAPHX_THROW("GPU_GEMM: size of A {" + to_string_range(inputs[0].lens()) +
+                           "} and B {" + to_string_range(inputs[1].lens()) +
+                           "} must be multiple of 4 for int8 type");
+        }
+
         return op.compute_shape(in_shapes);
     }
 

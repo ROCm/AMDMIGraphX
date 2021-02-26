@@ -65,21 +65,13 @@ RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
-RUN chmod +x /download_models.sh && /download_models.sh && rm /download_models.sh
+RUN /download_models.sh && rm /download_models.sh
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-# Manually ignore rocm dependencies
-RUN cget -p $PREFIX ignore \
-    RadeonOpenCompute/clang-ocl \
-    ROCm-Developer-Tools/HIP \
-    ROCmSoftwarePlatform/MIOpen \
-    ROCmSoftwarePlatform/MIOpenGEMM \
-    ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
-RUN cget -p $PREFIX install -f dev-requirements.txt
-RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
+COPY ./tools/install_prereqs.sh /
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
@@ -90,7 +82,7 @@ RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
-ARG ONNXRUNTIME_COMMIT=417929b049829c44bcd59c0d0eae7ae6c71ab111
+ARG ONNXRUNTIME_COMMIT=24f1bd6156cf5968bbc76dfb0e801a9b9c56b9fc
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
     cd onnxruntime && \
     git checkout ${ONNXRUNTIME_COMMIT} && \
@@ -100,9 +92,9 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
-
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+

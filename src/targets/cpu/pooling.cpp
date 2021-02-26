@@ -123,7 +123,6 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 template struct cpu_pooling<avg_pool>;
 template struct cpu_pooling<max_pool>;
 
-#if USE_DNNL
 struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC}; }
@@ -141,7 +140,6 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
                 to_dnnl_dims(op.padding)};
     }
 };
-#endif
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

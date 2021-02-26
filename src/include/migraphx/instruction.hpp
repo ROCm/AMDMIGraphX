@@ -41,7 +41,7 @@ struct instruction
 
     friend bool operator==(const instruction& i, instruction_ref ref);
 
-    bool valid(instruction_ref start, bool check_order = true) const;
+    bool valid(instruction_ref start, bool check_order = false) const;
 
     bool valid() const;
 

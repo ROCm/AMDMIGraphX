@@ -559,9 +559,9 @@ void program::debug_print(instruction_ref ins) const
         std::cout << "End instruction" << std::endl;
         return;
     }
-    else if(not std::any_of(this->impl->modules.begin(),
-                            this->impl->modules.end(),
-                            [&](const auto& it) { return it.has_instruction(ins); }))
+    else if(std::none_of(this->impl->modules.begin(),
+                         this->impl->modules.end(),
+                         [&](const auto& it) { return it.has_instruction(ins); }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;
@@ -630,15 +630,15 @@ const module* program::get_module(const std::string& name) const
 
 module* program::create_module(const std::string& name)
 {
-    impl->modules.push_back({name});
-    return &impl->modules.back();
+    auto it = impl->modules.insert(impl->modules.end(), {name});
+    return &(*it);
 }
 
 void program::remove_module(const std::string& name)
 {
     auto it = std::find_if(
         impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if(it == impl->modules.end())
+    if(it != impl->modules.end())
     {
         impl->modules.erase(it);
     }

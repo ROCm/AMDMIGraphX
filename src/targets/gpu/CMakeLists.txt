@@ -106,6 +106,7 @@ add_library(migraphx_gpu
     argmin.cpp
     batch_norm_inference.cpp
     clip.cpp
+    code_object_op.cpp
     compile_hip.cpp
     concat.cpp
     convert.cpp

@@ -298,10 +298,11 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         else
         {
             std::vector<instruction_ref> output_ins;
-            std::transform(output_node_names.begin(),
-                           output_node_names.end(),
-                           std::back_inserter(output_ins),
-                           [&](auto output_name) { return to_nchw(instructions[output_name]); });
+            std::transform(
+                output_node_names.begin(),
+                output_node_names.end(),
+                std::back_inserter(output_ins),
+                [&](auto output_name) { return this->to_nchw(instructions[output_name]); });
             mm->add_return(output_ins);
         }
     }

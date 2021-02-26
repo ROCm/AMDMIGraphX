@@ -107,9 +107,12 @@ else()
         else()
             list(APPEND CMAKE_COMPILER_WARNINGS
                 -Wno-missing-field-initializers
+                -Wno-maybe-uninitialized
                 # -Wno-deprecated-declarations
             )
         endif()
-        add_definitions(${CMAKE_COMPILER_WARNINGS})
+        foreach(COMPILER_WARNING ${CMAKE_COMPILER_WARNINGS})
+            add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
+        endforeach()
     endforeach()
 endif ()

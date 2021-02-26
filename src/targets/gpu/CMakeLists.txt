@@ -104,6 +104,7 @@ add_library(migraphx_gpu
     allocation_model.cpp
     argmax.cpp
     argmin.cpp
+    code_object_op.cpp
     eliminate_workspace.cpp
     fuse_ops.cpp
     hip.cpp

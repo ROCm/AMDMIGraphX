@@ -286,9 +286,30 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     {
         this->parse_node(p.first);
     }
-
-    // Needs to add a ret instruction at the end of
-    // the program
+    auto last_ins = std::prev(mm->end());
+    if(last_ins != mm->end())
+    {
+        // Needs to add a ret instruction at the end of
+        // the program
+        if(output_node_names.empty())
+        {
+            mm->add_return({to_nchw(last_ins)});
+        }
+        else
+        {
+            std::vector<instruction_ref> output_ins;
+            std::transform(output_node_names.begin(),
+                           output_node_names.end(),
+                           std::back_inserter(output_ins),
+                           [&](auto output_name) {
+                               if(not contains(instructions, output_name))
+                                   MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
+                                                  " not found in graph!");
+                               return this->to_nchw(instructions[output_name]);
+                           });
+            mm->add_return(output_ins);
+        }
+    }
 }
 
 void tf_parser::parse_node(const std::string& name)

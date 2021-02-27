@@ -17,9 +17,10 @@ program parse_tf(const std::string& name, const tf_options& options)
 {
     std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf::tf_parser parser;
-    parser.is_nhwc        = options.is_nhwc;
-    parser.batch_size     = options.batch_size;
-    parser.map_input_dims = options.map_input_dims;
+    parser.is_nhwc           = options.is_nhwc;
+    parser.batch_size        = options.batch_size;
+    parser.map_input_dims    = options.map_input_dims;
+    parser.output_node_names = options.output_node_names;
 
 #ifndef NDEBUG
     // Log the program when it can't be parsed
@@ -35,7 +36,6 @@ program parse_tf(const std::string& name, const tf_options& options)
 #else
     parser.parse_from(input);
 #endif
-    parser.to_nchw(std::prev(parser.mm->end()));
     return std::move(parser.prog);
 }
 

@@ -1840,7 +1840,7 @@ TEST_CASE(logical_and_test)
 
 TEST_CASE(not_test)
 {
-    //int32
+    // int32
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -1855,7 +1855,7 @@ TEST_CASE(not_test)
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 
-    //bool
+    // bool
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -1869,7 +1869,6 @@ TEST_CASE(not_test)
         std::vector<char> gold = {1, 1, 0, 0};
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
-
 }
 
 TEST_CASE(logical_or_test)

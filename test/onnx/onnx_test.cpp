@@ -1684,7 +1684,6 @@ TEST_CASE(logical_or_test)
     EXPECT(p == prog);
 }
 
-
 TEST_CASE(logical_xor_bcast_test)
 {
     migraphx::program p;

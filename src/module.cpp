@@ -238,11 +238,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
-    if(contains(impl->instructions, src))
-    {
-        impl->instructions.splice(dst, impl->instructions, src);
-    }
-
+    impl->instructions.splice(dst, impl->instructions, src);
     return src;
 }
 
@@ -655,6 +651,10 @@ module& module::sort()
         this->move_instruction(ins, this->begin());
         for(auto child : ins->inputs())
         {
+            if(!contains(this->impl->instructions, child))
+            {
+                continue;
+            }
             self(child);
         }
     })(std::prev(this->end()));

@@ -100,9 +100,8 @@ TEST_CASE(program_with_module)
     mm->add_return({ret});
 
     migraphx::program p1 = p;
-
-    auto v  = p.to_value();
-    auto v1 = p1.to_value();
+    auto v               = p.to_value();
+    auto v1              = p1.to_value();
 
     EXPECT(v == v1);
 

@@ -75,6 +75,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/unary_not.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -201,6 +202,7 @@ register_migraphx_gpu_ops(hip_
     sub
     tanh
     tan
+    unary_not
 )
 register_migraphx_gpu_ops(miopen_
     abs

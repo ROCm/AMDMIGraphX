@@ -45,6 +45,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Squeeze", "squeeze"},
                 {"Tan", "tan"},
                 {"Tanh", "tanh"},
+                {"Not", "not"},
                 {"Unsqueeze", "unsqueeze"}};
     }
 

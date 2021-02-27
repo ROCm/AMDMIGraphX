@@ -73,7 +73,9 @@ struct program
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
-               const std::function<void(instruction_ref, std::unordered_map<instruction_ref, std::string>)>& print_func) const;
+               const std::function<void(instruction_ref,
+                                        std::unordered_map<instruction_ref, std::string>)>&
+                   print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;
@@ -100,9 +102,6 @@ struct program
     std::vector<const module*> get_modules() const;
 
     private:
-    void mod_from_val(module_ref mod, const value& v,
-                        std::unordered_map<std::string, instruction_ref>& instructions,
-                        const std::unordered_map<std::string, module_ref>& map_mods) const;
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
 };

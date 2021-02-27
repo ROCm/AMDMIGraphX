@@ -9,6 +9,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -23,8 +24,6 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
-
-using module_ref = module*;
 
 /**
  * @brief Stores the instruction stream

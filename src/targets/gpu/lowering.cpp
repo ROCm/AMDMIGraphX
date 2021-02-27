@@ -37,6 +37,7 @@
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/unary_not.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -122,6 +123,7 @@ struct miopen_apply
         add_generic_op("max");
         add_generic_op("min");
         add_generic_op("mul");
+        add_generic_op("not");
         add_generic_op("pow");
         add_generic_op("prelu");
         add_generic_op("recip");
@@ -137,6 +139,7 @@ struct miopen_apply
         add_generic_op("sub");
         add_generic_op("tan");
         add_generic_op("tanh");
+
 
         add_extend_op("abs");
         add_extend_op("argmax");

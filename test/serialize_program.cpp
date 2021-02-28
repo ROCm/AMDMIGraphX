@@ -102,13 +102,18 @@ TEST_CASE(program_with_module)
     migraphx::program p1 = p;
     auto v               = p.to_value();
     auto v1              = p1.to_value();
-
     EXPECT(v == v1);
+
+    std::stringstream ss;
+    p.print_cpp(ss);
+    std::stringstream ss1;
+    p1.print_cpp(ss1);
+    EXPECT(ss.str() == ss1.str());
 
     migraphx::program p2;
     p2.from_value(v);
-
     EXPECT(p1.sort() == p2.sort());
+
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

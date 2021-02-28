@@ -489,6 +489,11 @@ std::unordered_map<instruction_ref, std::string> module::print(
     return names;
 }
 
+void module::print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const
+{
+    this->print(print_func, {});
+}
+
 static std::string enclose_name(const std::string& name)
 {
     return '"' + replace_string(name, "\"", "\\\"") + '"';
@@ -570,12 +575,13 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
-void module::print_cpp(std::ostream& os) const
+std::unordered_map<instruction_ref, std::string> 
+module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const
 {
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    this->print([&](auto ins, auto ins_names) {
+    names = this->print([&](auto ins, auto ins_names) {
         auto op = cpp_op_var(ins_names.at(ins), ins);
         if(ins->name().front() != '@')
         {
@@ -616,7 +622,14 @@ void module::print_cpp(std::ostream& os) const
             }
             os << ");" << std::endl;
         }
-    });
+    }, names);
+
+    return names;
+}
+
+void module::print_cpp(std::ostream& os) const
+{
+    this->print_cpp(os, {});
 }
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const

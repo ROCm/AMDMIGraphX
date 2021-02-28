@@ -603,8 +603,14 @@ void program::print_graph(std::ostream& os, bool brief) const
 
 void program::print_cpp(std::ostream& os) const
 {
-    const auto* mm = this->get_main_module();
-    mm->print_cpp(os);
+    auto vec_modules = this->get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    for(auto& mod : vec_modules)
+    {
+        os << "module: \"" << mod->name() << "\"" << std::endl;
+        names = mod->print_cpp(os, names);
+        os << std::endl;
+    }
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
@@ -638,16 +644,6 @@ module* program::create_module(const std::string& name)
 {
     auto it = impl->modules.insert(impl->modules.end(), {name});
     return &(*it);
-}
-
-void program::remove_module(const std::string& name)
-{
-    auto it = std::find_if(
-        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
-    if(it != impl->modules.end())
-    {
-        impl->modules.erase(it);
-    }
 }
 
 module* program::get_module(const std::string& name)

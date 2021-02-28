@@ -160,15 +160,15 @@ TEST_CASE(program_module_replace)
 
         migraphx::instruction_ref ret{};
 
-        if (use_if)
+        if(use_if)
         {
-            ret  = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_smod, else_smod});
+            ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_smod, else_smod});
         }
         else
         {
-            ret  = mm->add_instruction(mod_pass_op{}, {cond}, {then_smod, else_smod});            
+            ret = mm->add_instruction(mod_pass_op{}, {cond}, {then_smod, else_smod});
         }
-        
+
         mm->add_return({ret});
 
         return p;
@@ -178,15 +178,14 @@ TEST_CASE(program_module_replace)
     migraphx::program p2 = create_program(true);
     EXPECT(p1 != p2);
 
-    auto* m1 = p1.get_main_module();
-    auto ins_pass = std::prev(std::prev(m1->end()));
-    const auto& inputs = ins_pass->inputs();
+    auto* m1               = p1.get_main_module();
+    auto ins_pass          = std::prev(std::prev(m1->end()));
+    const auto& inputs     = ins_pass->inputs();
     const auto& mod_inputs = ins_pass->module_inputs();
     m1->replace_instruction(ins_pass, migraphx::make_op("if"), inputs, mod_inputs);
 
     EXPECT(p1 == p2);
 }
-
 
 TEST_CASE(submodule_copy)
 {

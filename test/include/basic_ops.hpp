@@ -87,11 +87,12 @@ struct mod_pass_op
 {
     std::string name() const { return "mod_pass"; }
 
-    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs, std::vector<migraphx::module_ref> mods) const
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs,
+                                  std::vector<migraphx::module_ref> mods) const
     {
-        if (mods.empty() and inputs.empty())
+        if(mods.empty() and inputs.empty())
             return {};
-        else if (not mods.empty())
+        else if(not mods.empty())
         {
             auto out_shapes = mods[0]->get_output_shapes();
             return out_shapes[0];
@@ -99,7 +100,7 @@ struct mod_pass_op
         else
         {
             return inputs.front();
-        }        
+        }
     }
 
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }

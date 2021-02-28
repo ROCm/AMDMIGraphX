@@ -134,6 +134,60 @@ TEST_CASE(program_module_assign)
     EXPECT(p == p1);
 }
 
+TEST_CASE(program_module_replace)
+{
+    auto create_program = [](bool use_if) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {2, 3}};
+        auto x = mm->add_parameter("x", sd);
+
+        std::vector<float> one(sd.elements(), 1);
+        std::vector<float> two(sd.elements(), 2);
+
+        auto* then_smod = p.create_module("then_smod");
+        auto l1         = then_smod->add_literal(migraphx::literal{sd, one});
+        auto r1         = then_smod->add_instruction(migraphx::make_op("add"), x, l1);
+        then_smod->add_return({r1});
+
+        auto* else_smod = p.create_module("else_smod");
+        auto l2         = else_smod->add_literal(migraphx::literal{sd, two});
+        auto r2         = else_smod->add_instruction(migraphx::make_op("mul"), x, l2);
+        else_smod->add_return({r2});
+
+        migraphx::shape s_cond{migraphx::shape::bool_type, {1}};
+        auto cond = mm->add_parameter("cond", s_cond);
+
+        migraphx::instruction_ref ret{};
+
+        if (use_if)
+        {
+            ret  = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_smod, else_smod});
+        }
+        else
+        {
+            ret  = mm->add_instruction(mod_pass_op{}, {cond}, {then_smod, else_smod});            
+        }
+        
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    migraphx::program p1 = create_program(false);
+    migraphx::program p2 = create_program(true);
+    EXPECT(p1 != p2);
+
+    auto* m1 = p1.get_main_module();
+    auto ins_pass = std::prev(std::prev(m1->end()));
+    const auto& inputs = ins_pass->inputs();
+    const auto& mod_inputs = ins_pass->module_inputs();
+    m1->replace_instruction(ins_pass, migraphx::make_op("if"), inputs, mod_inputs);
+
+    EXPECT(p1 == p2);
+}
+
+
 TEST_CASE(submodule_copy)
 {
     migraphx::module mm("main");

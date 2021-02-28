@@ -136,14 +136,14 @@ struct module
         const std::function<void(
             instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func,
         std::unordered_map<instruction_ref, std::string> names) const;
-    void print(const std::function<void(
-            instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const;
-
+    void print(const std::function<void(instruction_ref,
+                                        const std::unordered_map<instruction_ref, std::string>&)>&
+                   print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
 
     void print_cpp(std::ostream& os) const;
-    std::unordered_map<instruction_ref, std::string> 
+    std::unordered_map<instruction_ref, std::string>
     print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;

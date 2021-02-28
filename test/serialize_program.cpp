@@ -113,7 +113,6 @@ TEST_CASE(program_with_module)
     migraphx::program p2;
     p2.from_value(v);
     EXPECT(p1.sort() == p2.sort());
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

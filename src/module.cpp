@@ -489,7 +489,9 @@ std::unordered_map<instruction_ref, std::string> module::print(
     return names;
 }
 
-void module::print(const std::function<void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func) const
+void module::print(const std::function<
+                   void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
+                       print_func) const
 {
     this->print(print_func, {});
 }
@@ -575,62 +577,61 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
-std::unordered_map<instruction_ref, std::string> 
+std::unordered_map<instruction_ref, std::string>
 module::print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const
 {
     os << "migraphx::module p;" << std::endl;
     // cppcheck-suppress variableScope
     unsigned long seed = 0;
-    names = this->print([&](auto ins, auto ins_names) {
-        auto op = cpp_op_var(ins_names.at(ins), ins);
-        if(ins->name().front() != '@')
-        {
-            os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
-            print_op_attributes(os, op, ins->get_operator());
-        }
-        os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
-        if(ins->name() == "@literal")
-        {
-            os << "p.add_literal(";
-            bool use_abs = false;
-            ins->get_literal().visit([&](auto v) {
-                use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-            });
-            if(use_abs)
-                os << "migraphx::abs(";
-            os << "migraphx::generate_literal(";
-            print_cpp_shape(os, ins->get_shape());
-            os << ", " << seed << ")";
-            if(use_abs)
-                os << ")";
-            os << ");" << std::endl;
-            seed++;
-        }
-        else if(ins->name() == "@param")
-        {
-            std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
-            os << "p.add_parameter(" << enclose_name(name) << ",";
-            print_cpp_shape(os, ins->get_shape());
-            os << ");" << std::endl;
-        }
-        else
-        {
-            os << "p.add_instruction(" << op;
-            for(auto input : ins->inputs())
+    names              = this->print(
+        [&](auto ins, auto ins_names) {
+            auto op = cpp_op_var(ins_names.at(ins), ins);
+            if(ins->name().front() != '@')
             {
-                os << ", " << cpp_var_name(ins_names.at(input));
+                os << "migraphx::op::" << ins->name() << " " << op << ";" << std::endl;
+                print_op_attributes(os, op, ins->get_operator());
             }
-            os << ");" << std::endl;
-        }
-    }, names);
+            os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
+            if(ins->name() == "@literal")
+            {
+                os << "p.add_literal(";
+                bool use_abs = false;
+                ins->get_literal().visit([&](auto v) {
+                    use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                });
+                if(use_abs)
+                    os << "migraphx::abs(";
+                os << "migraphx::generate_literal(";
+                print_cpp_shape(os, ins->get_shape());
+                os << ", " << seed << ")";
+                if(use_abs)
+                    os << ")";
+                os << ");" << std::endl;
+                seed++;
+            }
+            else if(ins->name() == "@param")
+            {
+                std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                os << "p.add_parameter(" << enclose_name(name) << ",";
+                print_cpp_shape(os, ins->get_shape());
+                os << ");" << std::endl;
+            }
+            else
+            {
+                os << "p.add_instruction(" << op;
+                for(auto input : ins->inputs())
+                {
+                    os << ", " << cpp_var_name(ins_names.at(input));
+                }
+                os << ");" << std::endl;
+            }
+        },
+        names);
 
     return names;
 }
 
-void module::print_cpp(std::ostream& os) const
-{
-    this->print_cpp(os, {});
-}
+void module::print_cpp(std::ostream& os) const { this->print_cpp(os, {}); }
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
 {

@@ -782,9 +782,9 @@ TEST_CASE(split_test)
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 10}}, {"ends", {5, 20}}}), l0);
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 20}}, {"ends", {5, 30}}}), l0);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-    mm->add_return({l4});
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4, l5});
     auto prog = parse_tf("split_test.pb", false);
 
     EXPECT(p == prog);
@@ -824,9 +824,9 @@ TEST_CASE(split_test_vector_as_input)
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 4}}, {"ends", {5, 19}}}), l0);
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 19}}, {"ends", {5, 30}}}), l0);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-    mm->add_return({l4});
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4, l5});
     auto prog = parse_tf("split_test_vector_as_input.pb", false);
 
     EXPECT(p == prog);

@@ -45,7 +45,7 @@ struct module
 
     std::string name() const;
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {
         return add_instruction(op, {args...});
@@ -57,7 +57,7 @@ struct module
                                     std::vector<instruction_ref> args,
                                     std::vector<module_ref> module_args);
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
     {
         return insert_instruction(ins, op, {args...});
@@ -70,7 +70,7 @@ struct module
                                        std::vector<instruction_ref> args,
                                        std::vector<module_ref> module_args);
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
     {
         return replace_instruction(ins, op, {args...});
@@ -79,10 +79,10 @@ struct module
                                         const operation& op,
                                         std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
-    instruction_ref replace_ins(instruction_ref ins,
-                                const operation& op,
-                                std::vector<instruction_ref> args,
-                                std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
+    instruction_ref replace_instruction(instruction_ref ins,
+                                        const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 

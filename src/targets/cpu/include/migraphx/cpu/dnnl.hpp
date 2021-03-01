@@ -45,7 +45,7 @@ struct post_op
 {
     std::string name;
     float alpha = 0;
-    float beta = 0;
+    float beta  = 0;
 };
 
 template <class Derived, class Primitive>
@@ -104,11 +104,11 @@ struct dnnl_op : auto_register_op<Derived>
     shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
     std::vector<int> create_arg_map(std::size_t input_size) const
     {
-        const auto& self = static_cast<const Derived&>(*this);
-        auto npost_ops = get_extra_post_op_args();
+        const auto& self     = static_cast<const Derived&>(*this);
+        auto npost_ops       = get_extra_post_op_args();
         auto prim_input_size = input_size - npost_ops;
         auto m               = self.arg_map(prim_input_size);
-        for(std::size_t i = 0;i < npost_ops; i++)
+        for(std::size_t i = 0; i < npost_ops; i++)
         {
             m.push_back(get_binary_post_op_arg(i));
         }
@@ -120,7 +120,7 @@ struct dnnl_op : auto_register_op<Derived>
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
         result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
-        auto m = create_arg_map(inputs.size());
+        auto m               = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
@@ -128,19 +128,21 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return result;
     }
-    dnnl::primitive_attr get_primitive_attr(const std::unordered_map<int, dnnl::memory::desc>& m) const
+    dnnl::primitive_attr
+    get_primitive_attr(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         dnnl::primitive_attr result;
         dnnl::post_ops po;
         int binary_post_op_pos = 1;
-        for(auto&& op:post_ops)
+        for(auto&& op : post_ops)
         {
-            if (contains(op.name, "binary"))
+            if(contains(op.name, "binary"))
             {
-                po.append_binary(to_dnnl_algo(op.name), m.at(get_binary_post_op_arg(binary_post_op_pos)));
+                po.append_binary(to_dnnl_algo(op.name),
+                                 m.at(get_binary_post_op_arg(binary_post_op_pos)));
                 binary_post_op_pos++;
             }
-            if (contains(op.name, "eltwise"))
+            if(contains(op.name, "eltwise"))
                 po.append_eltwise(1.0f, to_dnnl_algo(op.name), op.alpha, op.beta);
         }
         result.set_post_ops(po);
@@ -156,7 +158,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         auto desc        = self.get_desc(m);
-        auto attr = get_primitive_attr(m);
+        auto attr        = get_primitive_attr(m);
         auto pd          = self.get_primitive_desc(desc, attr);
         return Primitive(pd);
     }
@@ -204,10 +206,10 @@ struct dnnl_op : auto_register_op<Derived>
             return args.back();
         };
     }
-    std::vector<shape> trim_post_op_inputs(const std::vector<shape> &inputs) const
+    std::vector<shape> trim_post_op_inputs(const std::vector<shape>& inputs) const
     {
-        auto prim_input_size = inputs.size()-this->get_extra_post_op_args();
-        return {inputs.begin(), inputs.begin()+prim_input_size};
+        auto prim_input_size = inputs.size() - this->get_extra_post_op_args();
+        return {inputs.begin(), inputs.begin() + prim_input_size};
     }
 };
 

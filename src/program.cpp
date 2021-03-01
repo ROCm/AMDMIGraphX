@@ -149,14 +149,14 @@ void program::compile(const target& t, compile_options options)
     assert(mm->validate() == mm->end());
     run_passes(*mm, passes, options.trace);
 
-    for (auto& mod : impl->modules)
+    for(auto& mod : impl->modules)
     {
         auto invalid = mod.validate();
         if(invalid != mod.end())
         {
             auto index = std::distance(mod.begin(), invalid);
             MIGRAPHX_THROW("Invalid module " + mod.name() + " from compilation at instruction " +
-                        std::to_string(index));
+                           std::to_string(index));
         }
         mod.finalize(this->impl->ctx);
     }

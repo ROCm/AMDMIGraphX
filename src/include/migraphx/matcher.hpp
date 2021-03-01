@@ -260,7 +260,7 @@ void find_matches(module& p, Ms&&... ms)
 
     // check sub modules for match outputs
     const auto& sub_mods = p.get_sub_modules();
-    for (auto& mod : sub_mods)
+    for(auto& mod : sub_mods)
     {
         find_matches(*mod, ms...);
     }

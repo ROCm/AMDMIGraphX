@@ -416,7 +416,7 @@ struct miopen_apply
             inputs.push_back(output);
             std::vector<module_ref> mod_args = ins->module_inputs();
 
-            return mod->replace_ins(ins, op, inputs, mod_args);
+            return mod->replace_instruction(ins, op, inputs, mod_args);
         });
     }
 };

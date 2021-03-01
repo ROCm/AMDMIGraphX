@@ -906,14 +906,12 @@ struct ref_if
     argument compute(const std::vector<argument>& args,
                      const std::vector<module_ref>& modules,
                      const std::function<std::vector<argument>(
-                         module_ref& mdl, const std::vector<argument>& inputs)>& run) const
+                         module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
     {
         argument result;
         bool cond                    = args[0].implicit();
-        std::vector<argument> inputs = args;
-        inputs.erase(inputs.begin());
         module_ref mdl = cond ? modules[0] : modules[1];
-        auto results   = run(mdl, inputs);
+        auto results   = run(mdl, {});
 
         return results[0];
     }

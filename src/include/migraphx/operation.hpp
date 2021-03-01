@@ -7,6 +7,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/normalize_attributes.hpp>
@@ -240,11 +241,11 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
 template <class T, class F>
 auto compute_op(rank<1>,
                 const T& x,
-                const std::vector<argument>& input,
+                const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(input, module_args, f))
+                F f) -> decltype(x.compute(inputs, module_args, f))
 {
-    return x.compute(input, module_args, f);
+    return x.compute(inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -257,11 +258,11 @@ argument
 
 template <class T, class F>
 argument compute_op(const T& x,
-                    const std::vector<argument>& input,
+                    const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, input, module_args, f);
+    return compute_op(rank<1>{}, x, inputs, module_args, f);
 }
 
 template <class T>
@@ -379,9 +380,10 @@ void from_value_op(T& x, const value& v)
  * input) const; argument compute(const shape& output,const std::vector<argument>& input)
  * const; argument compute(const std::vector<argument>& input,const std::vector<module_ref>&
  * module_args,std::function<std::vector<argument>(module_ref& mdl, const
- * std::vector<argument>& inputs)> run) const; value to_value() const; void from_value(const value&
- * v) ; value attributes() const; friend std::ostream & operator<<(std::ostream & os,const
- * operation & op) ; friend bool operator==(const operation & x,const operation & y) ;
+ * std::unordered_map<std::string, argument>& inputs)> run) const; value to_value() const; void
+ * from_value(const value& v) ; value attributes() const; friend std::ostream &
+ * operator<<(std::ostream & os,const operation & op) ; friend bool operator==(const operation &
+ * x,const operation & y) ;
  * };
  *
  */
@@ -513,8 +515,8 @@ struct operation
     argument compute(
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
-            run) const
+        std::function<std::vector<argument>(
+            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().compute(input, module_args, std::move(run));
@@ -580,12 +582,13 @@ struct operation
         compute(const std::vector<argument>& input,
                 const std::vector<module_ref>& module_args,
                 std::function<std::vector<argument>(
-                    module_ref& mdl, const std::vector<argument>& inputs)> run) const = 0;
-        virtual value to_value() const                                                = 0;
-        virtual void from_value(const value& v)                                       = 0;
-        virtual value attributes() const                                              = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const             = 0;
-        virtual bool operator==(const operation& y) const                             = 0;
+                    module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
+            const                                                         = 0;
+        virtual value to_value() const                                    = 0;
+        virtual void from_value(const value& v)                           = 0;
+        virtual value attributes() const                                  = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const = 0;
+        virtual bool operator==(const operation& y) const                 = 0;
     };
 
     template <class T>
@@ -747,8 +750,9 @@ struct operation
         T&& private_detail_te_self,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
-            run) -> decltype(private_detail_te_self.compute(input, module_args, std::move(run)))
+        std::function<std::vector<argument>(
+            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
+        -> decltype(private_detail_te_self.compute(input, module_args, std::move(run)))
     {
         return private_detail_te_self.compute(input, module_args, std::move(run));
     }
@@ -759,8 +763,8 @@ struct operation
         T&& private_detail_te_self,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
-            run)
+        std::function<std::vector<argument>(
+            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
     {
         return detail::compute_op(private_detail_te_self, input, module_args, std::move(run));
     }
@@ -901,7 +905,8 @@ struct operation
         compute(const std::vector<argument>& input,
                 const std::vector<module_ref>& module_args,
                 std::function<std::vector<argument>(
-                    module_ref& mdl, const std::vector<argument>& inputs)> run) const override
+                    module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
+            const override
         {
 
             return private_detail_te_default_compute(

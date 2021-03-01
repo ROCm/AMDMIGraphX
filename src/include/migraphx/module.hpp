@@ -79,10 +79,10 @@ struct module
                                         const operation& op,
                                         std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
 
-    instruction_ref replace_instruction(instruction_ref ins,
+    instruction_ref replace_ins(instruction_ref ins,
                                         const operation& op,
                                         std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args);
+                                        std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 

@@ -903,11 +903,10 @@ struct ref_if
         return op.compute_shape(inputs, mod_args);
     }
 
-    argument compute(
-        const std::vector<argument>& args,
-        const std::vector<module_ref>& modules,
-        const std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>&
-            run) const
+    argument compute(const std::vector<argument>& args,
+                     const std::vector<module_ref>& modules,
+                     const std::function<std::vector<argument>(
+                         module_ref& mdl, const std::vector<argument>& inputs)>& run) const
     {
         argument result;
         bool cond                    = args[0].implicit();

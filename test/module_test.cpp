@@ -182,7 +182,7 @@ TEST_CASE(program_module_replace)
     auto ins_pass          = std::prev(std::prev(m1->end()));
     const auto& inputs     = ins_pass->inputs();
     const auto& mod_inputs = ins_pass->module_inputs();
-    m1->replace_ins(ins_pass, migraphx::make_op("if"), inputs, mod_inputs);
+    m1->replace_instruction(ins_pass, migraphx::make_op("if"), inputs, mod_inputs);
 
     EXPECT(p1 == p2);
 }

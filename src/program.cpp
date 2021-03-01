@@ -184,7 +184,8 @@ std::vector<argument> generic_eval(const module* mod,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, mod, [&] { return ins->get_literal().get_argument(); }));
+            results.emplace(ins,
+                            trace(ins, mod, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
@@ -202,7 +203,9 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, mod, [&] { return argument{ins->get_shape(), nullptr}; }));
+            results.emplace(ins, trace(ins, mod, [&] {
+                                return argument{ins->get_shape(), nullptr};
+                            }));
         }
         else if(name == "@return")
         {
@@ -227,34 +230,37 @@ std::vector<argument> generic_eval(const module* mod,
                 });
 
             const auto& mod_args = ins->module_inputs();
-            if (not mod_args.empty())
+            if(not mod_args.empty())
             {
-                results.emplace(ins, trace(ins, mod, [&] {
-                                    return ins->get_operator().compute(
-                                        values,
-                                        mod_args,
-                                        [&](module_ref smod, const std::unordered_map<std::string, argument>& inputs) {
-                                            // wrap up parameters for sub_modules
-                                            const auto& param_names = smod->get_parameter_names();
-                                            parameter_map m;
-                                            for (auto& nm : param_names)
-                                            {
-                                                if (contains(inputs, nm))
-                                                {
-                                                    m[nm] = inputs.at(nm);
-                                                }
-                                                else if (contains(params, nm))
-                                                {
-                                                    m[nm] = params.at(nm);
-                                                }
-                                                else
-                                                {
-                                                    MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" + mod->name() + "\" not exist!");
-                                                }
-                                            }
-                                            return generic_eval(smod, ctx, m, results, trace);
-                                        });
-                                }));
+                results.emplace(
+                    ins, trace(ins, mod, [&] {
+                        return ins->get_operator().compute(
+                            values,
+                            mod_args,
+                            [&](module_ref smod,
+                                const std::unordered_map<std::string, argument>& inputs) {
+                                // wrap up parameters for sub_modules
+                                const auto& param_names = smod->get_parameter_names();
+                                parameter_map m;
+                                for(auto& nm : param_names)
+                                {
+                                    if(contains(inputs, nm))
+                                    {
+                                        m[nm] = inputs.at(nm);
+                                    }
+                                    else if(contains(params, nm))
+                                    {
+                                        m[nm] = params.at(nm);
+                                    }
+                                    else
+                                    {
+                                        MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" +
+                                                       mod->name() + "\" not exist!");
+                                    }
+                                }
+                                return generic_eval(smod, ctx, m, results, trace);
+                            });
+                    }));
             }
             else
             {
@@ -300,21 +306,23 @@ std::vector<argument> program::eval(parameter_map params) const
     if(trace_level > 0)
     {
         std::unordered_map<instruction_ref, std::string> names;
-        return generic_eval(*this, ctx, std::move(params), [&](auto& ins, const module* mod, auto f) {
-            ctx.finish();
-            std::cout << "Run instruction: ";
-            mod->debug_print(ins);
-            auto result = check_context(f);
-            ctx.finish();
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                std::cout << "Ouput: " << result << std::endl;
-            return result;
-        });
+        return generic_eval(
+            *this, ctx, std::move(params), [&](auto& ins, const module* mod, auto f) {
+                ctx.finish();
+                std::cout << "Run instruction: ";
+                mod->debug_print(ins);
+                auto result = check_context(f);
+                ctx.finish();
+                if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+                    std::cout << "Ouput: " << result << std::endl;
+                return result;
+            });
     }
     else
     {
-        return generic_eval(
-            *this, ctx, std::move(params), [&](auto&, const module*, auto f) { return check_context(f); });
+        return generic_eval(*this, ctx, std::move(params), [&](auto&, const module*, auto f) {
+            return check_context(f);
+        });
     }
 }
 

@@ -27,8 +27,8 @@ struct hip_if
     argument compute(
         const std::vector<argument>& args,
         const std::vector<module_ref>& mods,
-        std::function<std::vector<argument>(module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>&
-            run) const;
+        std::function<std::vector<argument>(
+            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const;
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;

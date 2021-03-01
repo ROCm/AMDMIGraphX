@@ -20,7 +20,7 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(2);
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         auto r  = s0;

@@ -22,7 +22,7 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{inputs, *this}.has(1).packed();
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1).packed();
         auto s = inputs.at(0);
         auto r = s;
         if(not s.packed())

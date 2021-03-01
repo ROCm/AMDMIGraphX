@@ -33,10 +33,10 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
         return {m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_DST)};
     }
 
-    auto get_primitive_desc(const desc& d) const
+    auto get_primitive_desc(const desc& d, const dnnl::primitive_attr& attr) const
     {
         auto& engine = get_dnnl_context().engine;
-        return dnnl::reorder::primitive_desc(engine, d.src, engine, d.dst);
+        return dnnl::reorder::primitive_desc(engine, d.src, engine, d.dst, attr);
     }
 };
 

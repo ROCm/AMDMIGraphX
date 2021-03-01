@@ -168,9 +168,9 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
-                                    const operation& op,
-                                    std::vector<instruction_ref> args,
-                                    std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                            const operation& op,
+                                            std::vector<instruction_ref> args,
+                                            std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
 {
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);

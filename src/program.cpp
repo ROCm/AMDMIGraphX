@@ -145,17 +145,21 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
-    auto* modl = get_main_module();
-    assert(modl->validate() == modl->end());
-    run_passes(*modl, passes, options.trace);
-    auto invalid = this->validate();
-    if(invalid != modl->end())
+    auto* mm = get_main_module();
+    assert(mm->validate() == mm->end());
+    run_passes(*mm, passes, options.trace);
+
+    for (auto& mod : impl->modules)
     {
-        auto index = std::distance(modl->begin(), invalid);
-        MIGRAPHX_THROW("Invalid module " + modl->name() + " from compilation at instruction " +
-                       std::to_string(index));
+        auto invalid = mod.validate();
+        if(invalid != mod.end())
+        {
+            auto index = std::distance(mod.begin(), invalid);
+            MIGRAPHX_THROW("Invalid module " + mod.name() + " from compilation at instruction " +
+                        std::to_string(index));
+        }
+        mod.finalize(this->impl->ctx);
     }
-    modl->finalize(this->impl->ctx);
 }
 
 void program::finalize()

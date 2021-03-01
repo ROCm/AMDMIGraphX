@@ -4,6 +4,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
@@ -255,6 +256,13 @@ void find_matches(module& p, Ms&&... ms)
     for(auto ins : iterator_for(p))
     {
         find_matches(p, ins, ms...);
+    }
+
+    // check sub modules for match outputs
+    const auto& sub_mods = p.get_sub_modules();
+    for (auto& mod : sub_mods)
+    {
+        find_matches(*mod, ms...);
     }
 }
 

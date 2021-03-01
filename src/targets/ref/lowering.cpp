@@ -906,7 +906,7 @@ struct ref_if
     argument compute(
         const std::vector<argument>& args,
         const std::vector<module_ref>& modules,
-        std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>
+        const std::function<std::vector<argument>(module_ref& mdl, const std::vector<argument>& inputs)>&
             run) const
     {
         argument result;

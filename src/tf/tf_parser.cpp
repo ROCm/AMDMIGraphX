@@ -326,7 +326,6 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     {
         this->parse_node(p.first);
     }
-
     auto last_ins = std::prev(mm->end());
     if(last_ins != mm->end())
     {

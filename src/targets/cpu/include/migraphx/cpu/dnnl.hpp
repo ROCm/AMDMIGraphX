@@ -21,46 +21,11 @@ struct dnnl_context
     dnnl_context() : engine(dnnl::engine::kind::cpu, 0), stream(engine) {}
 };
 
-inline dnnl_context& get_dnnl_context()
-{
-    static dnnl_context ctx{}; // NOLINT
-    return ctx;
-}
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wswitch-enum"
-#endif
-inline dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
-{
-    using dt = dnnl::memory::data_type;
-    using st = shape::type_t;
-    switch(t)
-    {
-    case st::half_type: return dt::f16;
-    case st::float_type: return dt::f32;
-    case st::int32_type: return dt::s32;
-    case st::int8_type: return dt::s8;
-    case st::uint8_type: return dt::u8;
-    default: MIGRAPHX_THROW("Unsupported data type");
-    }
-}
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+dnnl_context& get_dnnl_context();
 
-inline dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n)
-{
-    switch(n)
-    {
-    case 1: return dnnl::memory::format_tag::a;
-    case 2: return dnnl::memory::format_tag::ab;
-    case 3: return dnnl::memory::format_tag::abc;
-    case 4: return dnnl::memory::format_tag::abcd;
-    case 5: return dnnl::memory::format_tag::abcde;
-    case 6: return dnnl::memory::format_tag::abcdef;
-    default: MIGRAPHX_THROW("Unsupported tensor size: " + std::to_string(n));
-    }
-}
+dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t);
+
+dnnl::memory::format_tag to_dnnl_memory_format_tag(std::size_t n);
 
 template <class R>
 inline dnnl::memory::dims to_dnnl_dims(R&& r)
@@ -68,20 +33,13 @@ inline dnnl::memory::dims to_dnnl_dims(R&& r)
     return {r.begin(), r.end()};
 }
 
-inline dnnl::memory::desc to_dnnl_memory_desc(const shape& s)
-{
-    return {to_dnnl_dims(s.lens()), to_dnnl_memory_data_type(s.type()), to_dnnl_dims(s.strides())};
-}
+dnnl::memory::desc to_dnnl_memory_desc(const shape& s);
 
-inline dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a)
-{
-    return dnnl::memory(desc, get_dnnl_context().engine, a.data());
-}
+dnnl::memory to_dnnl_memory(const dnnl::memory::desc& desc, const argument& a);
 
-inline dnnl::memory to_dnnl_memory(const argument& a)
-{
-    return to_dnnl_memory(to_dnnl_memory_desc(a.get_shape()), a);
-}
+dnnl::memory to_dnnl_memory(const argument& a);
+
+dnnl::algorithm to_dnnl_algo(const std::string& name);
 
 template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
@@ -208,12 +166,16 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
         return migraphx::reflect(self.op, f);
     }
 
+    // dnnl has some issues with non-packed inputs
+    void required(const check_shapes& cs) const { cs.packed_or_broadcasted(); }
+
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
+        const auto& self = static_cast<const Derived&>(*this);
         // Compensate for allocation
         inputs.pop_back();
-        // check_shapes(inputs, *this).standard();
+        self.required(check_shapes(inputs, self));
         auto r = migraphx::compute_shape(op, inputs);
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));

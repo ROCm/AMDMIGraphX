@@ -15,6 +15,7 @@ struct module;
  */
 struct eliminate_contiguous
 {
+    std::string op_name;
     std::string name() const { return "eliminate_contiguous"; }
     void apply(module& p) const;
 };

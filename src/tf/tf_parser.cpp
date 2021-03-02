@@ -256,11 +256,10 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::v
 }
 
 static bool is_valid_op(const tensorflow::NodeDef& node) {
-    std::vector<std::string> ignored{"NoOp, Assert"};
+    std::vector<std::string> ignored{"NoOp", "Assert"};
     for(const auto& op: ignored)
     {
         const auto& name = get_name(node);
-        std::cout << name << std::endl;
         if (node.op() == op or contains(name, op))
             return false;
     }
@@ -323,36 +322,32 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     }
     for(auto&& p : nodes)
     {
-        std::cout << "NODE " << p.first << std::endl;
         this->parse_node(p.first);
-        std::cout << "DONE NODE " << p.first << std::endl;
     }
 
     auto last_ins = std::prev(mm->end());
-    // if(last_ins != mm->end())
-    // {
-    //     // Needs to add a ret instruction at the end of
-    //     // the program
-    //     if(output_node_names.empty())
-    //     {
-    //         output_node_names = find_outputs();
-    //         // mm->add_return({this->to_nchw(last_ins)});
-    //         // return;
-    //     }
+    if(last_ins != mm->end())
+    {
+        // Needs to add a ret instruction at the end of
+        // the program
+        if(output_node_names.empty())
+        {
+            output_node_names = find_outputs();
+        }
         
-    //     std::vector<instruction_ref> output_ins;
-    //     std::transform(output_node_names.begin(),
-    //                     output_node_names.end(),
-    //                     std::back_inserter(output_ins),
-    //                     [&](auto output_name) {
-    //                         if(not contains(instructions, output_name))
-    //                             MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
-    //                                             " not found in graph!");
-    //                         return this->to_nchw(instructions[output_name]);
-    //                     });
-    //     mm->add_return(output_ins);
+        std::vector<instruction_ref> output_ins;
+        std::transform(output_node_names.begin(),
+                        output_node_names.end(),
+                        std::back_inserter(output_ins),
+                        [&](auto output_name) {
+                            if(not contains(instructions, output_name))
+                                MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
+                                                " not found in graph!");
+                            return this->to_nchw(instructions[output_name]);
+                        });
+        mm->add_return(output_ins);
 
-    // }
+    }
 }
 
 void tf_parser::parse_node(const std::string& name)
@@ -398,9 +393,7 @@ void tf_parser::parse_node(const std::string& name)
         }
         else
         {
-            std::cout << args.size() << std::endl;
             result = ops[node.op()](*this, {get_attributes(node), node.op(), mm}, args);
-            std::cout << "done node " << name << std::endl;
         }
         assert(!result.empty());
         // First output has no ":" delimiter

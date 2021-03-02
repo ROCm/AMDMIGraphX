@@ -39,10 +39,12 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
     // remove the last return instruction
     auto last_ins = std::prev(mm->end());
     if(last_ins != mm->end())
+    {
         if(last_ins->name() == "@return")
         {
             mm->remove_instruction(last_ins);
         }
+    }
     return prog;
 }
 
@@ -641,6 +643,7 @@ TEST_CASE(pooling_test)
     max_pool_op.stride  = {2, 2};
     avg_pool_op.lengths = {2, 2};
     max_pool_op.lengths = {2, 2};
+    mm->add_instruction(avg_pool_op, l0);
     mm->add_instruction(max_pool_op, l0);
     auto prog = optimize_tf("pooling_test.pb", true);
 

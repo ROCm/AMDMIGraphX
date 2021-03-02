@@ -18,7 +18,7 @@ void write_literals::apply(module& p) const
     for(auto ins : iterator_for(p))
     {
         const auto& mod_inputs = ins->module_inputs();
-        for (const auto& mod : mod_inputs)
+        for(const auto& mod : mod_inputs)
         {
             this->apply(*mod);
         }

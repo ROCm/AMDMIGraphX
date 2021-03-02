@@ -15,11 +15,11 @@ void preallocate_param::apply(module& p) const
     for(auto ins : iterator_for(p))
     {
         const auto& mod_inputs = ins->module_inputs();
-        for (const auto& mod : mod_inputs)
+        for(const auto& mod : mod_inputs)
         {
             this->apply(*mod);
         }
-        
+
         if(ins->name() != "@param")
             continue;
         std::string id = any_cast<builtin::param>(ins->get_operator()).parameter;

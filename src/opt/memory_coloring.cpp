@@ -12,7 +12,7 @@ void memory_coloring::apply(module& p) const
         opt.run();
 
         auto offset_start = opt.required_bytes;
-        auto sub_mods  = p.get_sub_modules();
+        auto sub_mods     = p.get_sub_modules();
         if(!sub_mods.empty())
         {
             for(auto& smod : sub_mods)
@@ -20,7 +20,7 @@ void memory_coloring::apply(module& p) const
                 memory_coloring_impl opt1(smod, allocation_op, offset_start, verify);
                 opt1.run();
             }
-        }        
+        }
     }
 }
 

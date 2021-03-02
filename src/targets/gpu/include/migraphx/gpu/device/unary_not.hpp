@@ -10,9 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void unary_not(hipStream_t stream,
-                 const argument& result,
-                 const argument& arg);
+void unary_not(hipStream_t stream, const argument& result, const argument& arg);
 
 } // namespace device
 } // namespace gpu

@@ -19,7 +19,7 @@ argument hip_if::compute(
 {
     auto arg_cond  = migraphx::gpu::from_gpu(args[0]);
     auto cond      = arg_cond.at<bool>();
-    module_ref mdl = cond ? mods[1] : mods[0];
+    module_ref mdl = cond ? mods[0] : mods[1];
     auto results   = run(mdl, {});
     return results[0];
 }

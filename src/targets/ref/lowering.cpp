@@ -905,14 +905,13 @@ struct ref_if
 
     argument compute(
         const std::vector<argument>& args,
-        const std::vector<module_ref>& modules,
+        const std::vector<module_ref>& mods,
         const std::function<std::vector<argument>(
             module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
     {
-        argument result;
-        bool cond      = args[0].implicit();
-        module_ref mdl = cond ? modules[0] : modules[1];
-        auto results   = run(mdl, {});
+        bool cond      = args.front().at<bool>();
+        module_ref mod = cond ? mods[0] : mods[1];
+        auto results   = run(mod, {});
 
         return results[0];
     }
@@ -964,6 +963,16 @@ struct ref_apply
         init();
         for(auto it : iterator_for(*mod))
         {
+            // contains sub modules, apply to the submodule first
+            auto& sub_mods = it->module_inputs();
+            if(not sub_mods.empty())
+            {
+                for(auto smod : sub_mods)
+                {
+                    ref_apply{smod}.apply();
+                }
+            }
+
             if(it->name() == "pooling")
             {
                 apply_pooling(it);
@@ -994,7 +1003,15 @@ struct ref_apply
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->get_operator());
-        mod->replace_instruction(ins, T{op}, ins->inputs());
+        auto& mod_args = ins->module_inputs();
+        if (mod_args.empty())
+        {
+            mod->replace_instruction(ins, T{op}, ins->inputs());
+        }
+        else
+        {
+            mod->replace_instruction(ins, T{op}, ins->inputs(), mod_args);            
+        }
     }
 
     void apply_pooling(instruction_ref ins) const

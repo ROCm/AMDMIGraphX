@@ -215,6 +215,16 @@ struct miopen_apply
         init();
         for(auto it = mod->begin(); it != mod->end(); it++)
         {
+            // contains sub modules, apply to the submodule first
+            auto& sub_mods = it->module_inputs();
+            if(not sub_mods.empty())
+            {
+                for(auto smod : sub_mods)
+                {
+                    miopen_apply{smod, pass}.apply();
+                }
+            }
+
             auto s = it->get_shape();
             if(apply_map.count(it->name()) > 0)
             {
@@ -409,14 +419,13 @@ struct miopen_apply
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
-            auto op                             = any_cast<op::if_op>(ins->get_operator());
             auto s                              = ins->get_shape();
             auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
             inputs.push_back(output);
             std::vector<module_ref> mod_args = ins->module_inputs();
 
-            return mod->replace_instruction(ins, op, inputs, mod_args);
+            return mod->replace_instruction(ins, make_op("gpu::if"), inputs, mod_args);
         });
     }
 };

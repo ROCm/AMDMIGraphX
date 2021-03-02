@@ -175,7 +175,7 @@ std::vector<argument> generic_eval(const module* mod,
                                    std::unordered_map<instruction_ref, argument> results,
                                    F trace)
 {
-    assert(p.validate() == p.end());
+    assert(mod->validate() == mod->end());
     results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);

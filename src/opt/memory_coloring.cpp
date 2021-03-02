@@ -17,8 +17,11 @@ void memory_coloring::apply(module& p) const
         {
             for(auto& smod : sub_mods)
             {
+                std::cout << "offset_start = " << offset_start << std::endl;
                 memory_coloring_impl opt1(smod, allocation_op, offset_start, verify);
                 opt1.run();
+                offset_start = opt1.required_bytes;
+                std::cout << "required_bytes = " << offset_start << std::endl;
             }
         }
     }

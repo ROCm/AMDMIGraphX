@@ -133,7 +133,8 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    if(std::tie(x.result, x.op, x.arguments, x.module_args) != std::tie(y.result, y.op, y.arguments, y.module_args))
+    if(std::tie(x.result, x.op, x.arguments, x.module_args) !=
+       std::tie(y.result, y.op, y.arguments, y.module_args))
         return false;
     if(x.name() == "@literal")
         return x.lit == y.lit;

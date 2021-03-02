@@ -291,7 +291,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         else
         {
             std::string node_name = node.op_type() + "_" + std::to_string(node_index);
-            result = ops[node.op_type()](
+            result                = ops[node.op_type()](
                 *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
         ++node_index;

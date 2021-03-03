@@ -96,7 +96,7 @@ struct tf_parser
     void parse_node(const std::string& name);
     literal parse_tensor(const tensorflow::TensorProto& t) const;
     shape::type_t parse_type(tensorflow::DataType t) const;
-    std::vector<std::string> find_outputs();
+    std::vector<std::string> find_outputs() const;
 };
 
 std::vector<int64_t> get_axes_from_mask(size_t num_axes, uint32_t mask);

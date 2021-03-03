@@ -267,7 +267,7 @@ static bool is_valid_op(const tensorflow::NodeDef& node)
     return true;
 }
 
-std::vector<std::string> tf_parser::find_outputs()
+std::vector<std::string> tf_parser::find_outputs() const
 {
     std::unordered_set<std::string> inputs;
     for(auto&& p : nodes)

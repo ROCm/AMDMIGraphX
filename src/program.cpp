@@ -244,6 +244,7 @@ std::vector<argument> generic_eval(const module* mod,
                                 parameter_map m;
                                 for(auto& nm : param_names)
                                 {
+                                    std::cout << "nm = " << nm << std::endl;
                                     if(contains(inputs, nm))
                                     {
                                         m[nm] = inputs.at(nm);

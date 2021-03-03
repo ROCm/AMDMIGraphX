@@ -21,7 +21,10 @@ argument hip_if::compute(
     auto cond      = arg_cond.at<bool>();
     module_ref mdl = cond ? mods[0] : mods[1];
     auto results   = run(mdl, {});
-    return results[0];
+    context ctx{};
+    gpu_copy(ctx, results[0], args.back());
+
+    return args.back();
 }
 
 } // namespace gpu

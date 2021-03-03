@@ -2,6 +2,8 @@
 #include <migraphx/functional.hpp>
 #include <test.hpp>
 
+#include <numeric>
+
 struct empty_type
 {
 };
@@ -98,6 +100,17 @@ TEST_CASE(serialize_empty_struct)
     v["a"] = 1;
     EXPECT(v.size() == 1);
     EXPECT(v.at("a").to<int>() == 1);
+}
+
+TEST_CASE(from_value_binary)
+{
+    std::vector<std::uint8_t> data(10);
+    std::iota(data.begin(), data.end(), 0);
+
+    migraphx::value v = migraphx::value::binary{data};
+
+    auto out = migraphx::from_value<migraphx::value::binary>(v);
+    EXPECT(out == data);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

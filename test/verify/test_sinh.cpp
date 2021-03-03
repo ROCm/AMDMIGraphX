@@ -10,7 +10,7 @@ struct test_sinh : verify_program<test_sinh>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::double_type, {16}};
+        migraphx::shape s{migraphx::shape::float_type, {16}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("sinh"), x);
         return p;

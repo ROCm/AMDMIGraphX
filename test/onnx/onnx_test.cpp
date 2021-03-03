@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <migraphx/literal.hpp>
 #include <migraphx/operators.hpp>
@@ -1376,6 +1377,60 @@ TEST_CASE(group_conv_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(if_else_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {0}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    mm->add_literal(s, ones);
+    std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
+    auto l2                 = mm->add_literal(s, rand);
+
+    mm->add_parameter("x", s);
+    auto y = mm->add_parameter("y", s);
+
+    auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
+    mm->add_return({r});
+
+    std::ifstream ifs("if_else_test.onnx", std::ios::binary);
+    ifs.seekg(0, std::ios::end);
+    auto length = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    std::vector<char> onnx_buffer(length);
+    ifs.read(onnx_buffer.data(), length);
+    ifs.close();
+
+    auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_then_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sc{migraphx::shape::bool_type, {1}};
+    mm->add_literal(migraphx::literal(sc, {1}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> ones(s.elements(), 1.0f);
+    auto l1                 = mm->add_literal(s, ones);
+    std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
+    mm->add_literal(s, rand);
+
+    auto x = mm->add_parameter("x", s);
+    mm->add_parameter("y", s);
+
+    auto r = mm->add_instruction(migraphx::make_op("add"), x, l1);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("if_then_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(imagescaler_test)
 {
     migraphx::program p;
@@ -1628,6 +1683,7 @@ TEST_CASE(logical_or_test)
 
     EXPECT(p == prog);
 }
+
 
 TEST_CASE(logical_xor_bcast_test)
 {
@@ -1926,6 +1982,32 @@ TEST_CASE(nonzero_int_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_bool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_bool_test.onnx");
+
     EXPECT(p == prog);
 }
 

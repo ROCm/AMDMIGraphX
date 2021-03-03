@@ -74,6 +74,7 @@ add_library(migraphx_device
     device/tan.cpp
     device/tanh.cpp
     device/rnn_variable_seq_lens.cpp
+    device/unary_not.cpp
     device/equal.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -103,6 +104,7 @@ add_library(migraphx_gpu
     allocation_model.cpp
     argmax.cpp
     argmin.cpp
+    code_object_op.cpp
     eliminate_workspace.cpp
     fuse_ops.cpp
     hip.cpp
@@ -198,6 +200,7 @@ register_migraphx_gpu_ops(hip_
     sub
     tanh
     tan
+    unary_not
 )
 register_migraphx_gpu_ops(miopen_
     abs

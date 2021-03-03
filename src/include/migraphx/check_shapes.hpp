@@ -151,6 +151,13 @@ struct check_shapes
         return *this;
     }
 
+    const check_shapes& packed_or_broadcasted() const
+    {
+        if(!this->all_of([](const shape& s) { return s.packed() or s.broadcasted(); }))
+            MIGRAPHX_THROW(prefix() + "Shapes are not packed nor broadcasted");
+        return *this;
+    }
+
     const check_shapes& not_transposed() const
     {
         if(!this->all_of([](const shape& s) { return not s.transposed(); }))

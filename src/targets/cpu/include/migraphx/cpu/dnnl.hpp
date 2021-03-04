@@ -41,7 +41,7 @@ dnnl::memory to_dnnl_memory(const argument& a);
 
 dnnl::algorithm to_dnnl_algo(const std::string& name);
 
-struct post_op: reflect_equality<post_op>, reflect_stream<post_op>
+struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
 {
     std::string name;
     float alpha = 0;

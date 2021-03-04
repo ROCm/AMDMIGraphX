@@ -102,23 +102,17 @@ void reflect_each(T& x, F f)
     });
 }
 
-template<class T>
+template <class T>
 struct reflect_equality
 {
-    friend bool operator==(const T& x, const T& y)
-    {
-        return reflect_tie(x) == reflect_tie(y);
-    }
-    friend bool operator!=(const T& x, const T& y)
-    {
-        return !(x == y);
-    }
+    friend bool operator==(const T& x, const T& y) { return reflect_tie(x) == reflect_tie(y); }
+    friend bool operator!=(const T& x, const T& y) { return !(x == y); }
 };
 
-template<class T>
+template <class T>
 struct reflect_stream
 {
-    template<class Stream>
+    template <class Stream>
     friend Stream& operator<<(Stream& os, const T& x)
     {
         char d = '{';

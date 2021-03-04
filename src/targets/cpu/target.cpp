@@ -22,6 +22,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/cpu/write_literals.hpp>
 #include <migraphx/cpu/allocation_model.hpp>
 #include <migraphx/cpu/target.hpp>
 #include <migraphx/cpu/lowering.hpp>
@@ -38,7 +39,6 @@ std::string target::name() const { return "cpu"; }
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
-    unsupported_types.erase(shape::type_t::double_type);
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
             eliminate_data_type{unsupported_types, shape::type_t::float_type},
@@ -63,9 +63,11 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             propagate_constant{},
             dead_code_elimination{},
             lowering{},
-            eliminate_contiguous{},
+            eliminate_contiguous{"dnnl::reorder"},
             dead_code_elimination{},
             adjust_allocation{cpu_allocation_model{}},
+            dead_code_elimination{},
+            write_literals{},
             dead_code_elimination{},
             memory_coloring{"cpu::allocate"},
             dead_code_elimination{}};

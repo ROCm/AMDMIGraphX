@@ -77,9 +77,7 @@ void eliminate_contiguous::apply(module& p) const
         auto args = ins->inputs();
         for(auto arg : ins->inputs())
         {
-            // TODO: Pass in names for the operator in the constructor instead
-            // of using ends_with
-            if(ends_with(arg->name(), "contiguous"))
+            if(arg->name() == op_name)
             {
                 auto new_args = args;
                 auto prev     = arg->inputs().front();

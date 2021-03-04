@@ -707,9 +707,9 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
     void set_output_names(std::vector<std::string> names)
     {
         call(&migraphx_tf_options_set_output_names,
-            this->get_handle_ptr(),
-            names.data(),
-            names.size());
+             this->get_handle_ptr(),
+             names.data(),
+             names.size());
     }
 };
 

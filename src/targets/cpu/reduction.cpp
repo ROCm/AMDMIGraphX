@@ -12,7 +12,7 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.algo, "algo"), f(self.axes, "axes"));
+        return pack_join(self.reflect_base(self, f), pack(f(self.algo, "algo"), f(self.axes, "axes")));
     }
 
     std::string name() const { return "dnnl::reduction"; }

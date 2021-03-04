@@ -41,11 +41,16 @@ dnnl::memory to_dnnl_memory(const argument& a);
 
 dnnl::algorithm to_dnnl_algo(const std::string& name);
 
-struct post_op
+struct post_op: reflect_equality<post_op>, reflect_stream<post_op>
 {
     std::string name;
     float alpha = 0;
     float beta  = 0;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.name, "name"), f(self.alpha, "alpha"), f(self.beta, "beta"));
+    }
 };
 
 template <class Derived, class Primitive>
@@ -53,6 +58,18 @@ struct dnnl_op : auto_register_op<Derived>
 {
     std::vector<post_op> post_ops;
     std::function<argument(context& ctx, const std::vector<argument>& args)> execute;
+
+    template <class Self, class F>
+    static auto reflect_base(Self& self, F f)
+    {
+        return pack(f(self.post_ops, "post_ops"));
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return reflect_base(self, f);
+    }
 
     std::size_t get_extra_post_op_args() const
     {
@@ -221,7 +238,7 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::reflect(self.op, f);
+        return pack_join(self.reflect_base(self, f), migraphx::reflect(self.op, f));
     }
 
     // dnnl has some issues with non-packed inputs

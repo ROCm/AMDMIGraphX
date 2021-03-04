@@ -11,7 +11,7 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.algo, "algo"));
+        return pack_join(self.reflect_base(self, f), pack(f(self.algo, "algo")));
     }
 
     std::string name() const { return "dnnl::binary"; }

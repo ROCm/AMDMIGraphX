@@ -7,12 +7,6 @@ namespace cpu {
 
 struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
 {
-    template <class Self, class F>
-    static auto reflect(Self&, F)
-    {
-        return pack();
-    }
-
     std::string name() const { return "dnnl::reorder"; }
 
     shape adjust_shape(const shape& x, int) const { return x; }

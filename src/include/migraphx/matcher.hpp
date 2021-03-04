@@ -488,6 +488,12 @@ inline auto name(std::string s)
         [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
 }
 
+inline auto name_contains(const std::string& name)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return contains(ins->get_operator().name(), name); });
+}
+
 inline auto name(std::unordered_set<std::string> names)
 {
     return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
@@ -650,6 +656,7 @@ inline auto has_attribute(const std::string& name)
     return make_basic_pred_matcher(
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
+
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

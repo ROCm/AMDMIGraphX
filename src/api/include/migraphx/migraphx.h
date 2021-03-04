@@ -226,11 +226,23 @@ migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_optio
 
 migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
 
+migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
+
+migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options);
+
 migraphx_status migraphx_onnx_options_set_input_parameter_shape(
     migraphx_onnx_options_t onnx_options, const char* name, size_t* dims, size_t dims_size);
 
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);
+
+migraphx_status migraphx_tf_options_set_input_parameter_shape(
+    migraphx_tf_options_t tf_options, const char* name, size_t* dims, size_t dims_size);
+
+migraphx_status migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options,
+                                                            size_t value);
+
+migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_options_t tf_options, const char** names, size_t names_size);
 
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);

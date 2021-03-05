@@ -113,7 +113,6 @@ void gemm_impl(
 #else
                            0);
 #endif
-
         }
         else
         {

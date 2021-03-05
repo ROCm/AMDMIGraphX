@@ -215,6 +215,7 @@ static tf_parser::attribute_map get_attributes(const tensorflow::NodeDef& node)
     {
         result[attr.first] = attr.second;
     }
+
     return result;
 }
 
@@ -252,6 +253,45 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::v
     if(dims.empty() or (dims.size() == 1 and dims.front() == 1))
         return literal{{shape_type}, data};
     return literal{{shape_type, dims}, data};
+}
+
+static bool is_valid_op(const tensorflow::NodeDef& node)
+{
+    std::vector<std::string> ignored{"NoOp", "Assert"};
+    for(const auto& op : ignored)
+    {
+        const auto& name = get_name(node);
+        if(node.op() == op or contains(name, op))
+            return false;
+    }
+    return true;
+}
+
+std::vector<std::string> tf_parser::find_outputs() const
+{
+    std::unordered_set<std::string> inputs;
+    for(auto&& p : nodes)
+    {
+        auto&& node = p.second;
+        std::copy(node.input().begin(), node.input().end(), std::inserter(inputs, inputs.end()));
+    }
+    std::vector<std::string> outputs;
+    for(auto&& p : nodes)
+    {
+        const auto& name = p.first;
+        const auto& node = p.second;
+        if(not is_valid_op(node))
+            continue;
+        // control flow related, ignore this node
+        if(contains(name, "^"))
+            continue;
+        // literals are valid ops, but they are not outputs unless specified
+        if(node.op() == "Const")
+            continue;
+        if(inputs.count(name) == 0)
+            outputs.push_back(name);
+    }
+    return outputs;
 }
 
 void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
@@ -293,22 +333,20 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
         // the program
         if(output_node_names.empty())
         {
-            mm->add_return({to_nchw(last_ins)});
+            output_node_names = find_outputs();
         }
-        else
-        {
-            std::vector<instruction_ref> output_ins;
-            std::transform(output_node_names.begin(),
-                           output_node_names.end(),
-                           std::back_inserter(output_ins),
-                           [&](auto output_name) {
-                               if(not contains(instructions, output_name))
-                                   MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
-                                                  " not found in graph!");
-                               return this->to_nchw(instructions[output_name]);
-                           });
-            mm->add_return(output_ins);
-        }
+
+        std::vector<instruction_ref> output_ins;
+        std::transform(output_node_names.begin(),
+                       output_node_names.end(),
+                       std::back_inserter(output_ins),
+                       [&](auto output_name) {
+                           if(not contains(instructions, output_name))
+                               MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
+                                              " not found in graph!");
+                           return this->to_nchw(instructions[output_name]);
+                       });
+        mm->add_return(output_ins);
     }
 }
 
@@ -317,12 +355,9 @@ void tf_parser::parse_node(const std::string& name)
     if(instructions.count(name) == 0)
     {
         auto&& node = nodes.at(name);
-        // assert ops ignored
-        if(node.op() == "Assert" or contains(name, "Assert"))
+        if(not is_valid_op(node))
             return;
-        // noOps ignored
-        if(node.op() == "NoOp" or contains(name, "NoOp"))
-            return;
+
         std::vector<instruction_ref> args;
 
         for(auto&& input : node.input())
@@ -351,7 +386,6 @@ void tf_parser::parse_node(const std::string& name)
                 args.push_back(instructions.at(input));
             }
         }
-
         std::vector<instruction_ref> result;
         if(ops.count(node.op()) == 0)
         {
@@ -361,7 +395,6 @@ void tf_parser::parse_node(const std::string& name)
         {
             result = ops[node.op()](*this, {get_attributes(node), node.op(), mm}, args);
         }
-
         assert(!result.empty());
         // First output has no ":" delimiter
         instructions[name] = result.front();

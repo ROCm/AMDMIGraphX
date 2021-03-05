@@ -6,6 +6,10 @@ find_package(miopen)
 find_package(rocblas REQUIRED PATHS /opt/rocm)
 message(STATUS "Build with rocblas")
 
+# mlir-miopen
+find_package(mlir REQUIRED)
+message(STATUS "Build with mlir-miopen")
+
 if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
@@ -137,6 +141,11 @@ add_library(migraphx_gpu
     pack_int8_args.cpp
     pad.cpp
     pooling.cpp
+    clip.cpp
+    int8_gemm_pack.cpp
+    int8_conv_pack.cpp
+    mlir_conv.cpp
+    gemm_impl.cpp
     preallocate_param.cpp
     quant_convolution.cpp
     rnn_variable_seq_lens.cpp
@@ -148,6 +157,7 @@ add_library(migraphx_gpu
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
         register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
@@ -258,6 +268,12 @@ endif()
 
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
+
+if(HAS_MLIR_MIOPEN_SUPPORT)
+    target_include_directories(migraphx_gpu PRIVATE ${mlir_INCLUDE_DIRS})
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
+    target_link_libraries(migraphx_gpu PUBLIC ${mlir_LIBRARIES})
+endif()
 
 # Get flags needed to compile hip
 include(TargetFlags)

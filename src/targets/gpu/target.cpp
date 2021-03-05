@@ -26,6 +26,7 @@
 #include <migraphx/gpu/eliminate_workspace.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/preallocate_param.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -67,6 +68,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
+        target_mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},

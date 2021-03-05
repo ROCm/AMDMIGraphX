@@ -108,7 +108,12 @@ void gemm_impl(
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
                            rocblas_gemm_flags_pack_int8x4);
+#else
+                           0);
+#endif
+
         }
         else
         {
@@ -141,7 +146,11 @@ void gemm_impl(
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
                            rocblas_gemm_flags_pack_int8x4);
+#else
+                           0);
+#endif
         }
     });
 }

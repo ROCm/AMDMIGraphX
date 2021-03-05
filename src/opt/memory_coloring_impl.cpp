@@ -24,7 +24,7 @@ void memory_coloring_impl::run()
         }
 
         // rewrite happens after all modules are processed
-        if (p_mod->name() == "main")
+        if(p_mod->name() == "main")
             rewrite();
 
         if(enable_verify)
@@ -187,9 +187,8 @@ void memory_coloring_impl::build()
 void memory_coloring_impl::rewrite()
 {
     // scratch
-    if (p_mod->name() == "main")
+    if(p_mod->name() == "main")
     {
-
     }
 
     std::vector<std::size_t> dims;

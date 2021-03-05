@@ -7,6 +7,7 @@
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 

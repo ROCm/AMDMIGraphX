@@ -13,7 +13,7 @@ namespace gpu {
 struct mlir_conv
 {
     context* ctx;
-    std::string name() const { return "mlir::convolution"; }
+    std::string name() const { return "gpu::mlir_conv"; }
     void apply(module& p) const;
 };
 

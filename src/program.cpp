@@ -127,7 +127,7 @@ void program::compile(const target& t, compile_options options)
                            std::to_string(index));
         }
         auto dangling = modl.find_dangling_reference();
-        if (dangling != modl.end())
+        if(dangling != modl.end())
         {
             auto index = std::distance(modl.begin(), dangling);
             MIGRAPHX_THROW("Dangling reference in module " + mp.first + " from instruction " +

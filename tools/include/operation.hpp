@@ -264,7 +264,7 @@ void from_value_op(T& x, const value& v)
     return migraphx::from_value(v, x);
 }
 
-template<class T>
+template <class T>
 bool is_borrowed_op(const T&)
 {
     return false;

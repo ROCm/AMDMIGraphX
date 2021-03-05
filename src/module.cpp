@@ -361,7 +361,7 @@ instruction_ref module::validate() const
 bool is_borrowed(instruction_ref ins)
 {
     auto alias = instruction::get_output_alias(ins, true);
-    if (alias == ins)
+    if(alias == ins)
         return false;
     if(alias->get_operator().is_borrowed())
         return true;
@@ -373,23 +373,19 @@ bool is_param_alias(instruction_ref ins)
     return instruction::get_output_alias(ins)->name() == "@param";
 }
 
-bool is_dangling(instruction_ref ins)
-{
-    return not is_param_alias(ins) and is_borrowed(ins);
-}
+bool is_dangling(instruction_ref ins) { return not is_param_alias(ins) and is_borrowed(ins); }
 
 instruction_ref module::find_dangling_reference() const
 {
     auto last = std::prev(end());
     if(last->name() == "@return")
     {
-        auto dangling = std::find_if(last->inputs().begin(), last->inputs().end(), [](auto x) {
-            return is_dangling(x);
-        });
-        if (dangling != last->inputs().end())
+        auto dangling = std::find_if(
+            last->inputs().begin(), last->inputs().end(), [](auto x) { return is_dangling(x); });
+        if(dangling != last->inputs().end())
             return *dangling;
     }
-    else if (is_dangling(last))
+    else if(is_dangling(last))
     {
         return last;
     }

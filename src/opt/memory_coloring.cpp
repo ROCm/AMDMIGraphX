@@ -8,7 +8,7 @@ void memory_coloring::apply(module& p) const
 {
     if(!enabled(MIGRAPHX_DISABLE_MEMORY_COLORING{}))
     {
-        memory_coloring_impl opt(&p, allocation_op, 0, verify);
+        memory_coloring_impl opt(&p, allocation_op, verify);
         opt.run();
         // auto offset_start = opt.required_bytes;
         // auto sub_mods     = p.get_sub_modules();

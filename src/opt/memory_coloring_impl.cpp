@@ -22,7 +22,11 @@ void memory_coloring_impl::run()
             allocate(interval);
             alloc_queue.pop();
         }
-        rewrite();
+
+        // rewrite happens after all modules are processed
+        if (p_mod->name() == "main")
+            rewrite();
+
         if(enable_verify)
             verify();
     }
@@ -66,7 +70,7 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
         }
     }
 
-    std::size_t offset = start_offset;
+    std::size_t offset = 0;
     while(!conflict_queue.empty())
     {
         live_range* range       = conflict_queue.top();
@@ -182,6 +186,12 @@ void memory_coloring_impl::build()
 
 void memory_coloring_impl::rewrite()
 {
+    // scratch
+    if (p_mod->name() == "main")
+    {
+
+    }
+
     std::vector<std::size_t> dims;
     dims.push_back((required_bytes + sizeof(float) - 1) / sizeof(float));
     shape s                       = {shape::float_type, dims};

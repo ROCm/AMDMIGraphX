@@ -108,7 +108,7 @@ void gemm_impl(
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
-                           0);
+                           rocblas_gemm_flags_pack_int8x4);
         }
         else
         {
@@ -141,7 +141,7 @@ void gemm_impl(
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
-                           0);
+                           rocblas_gemm_flags_pack_int8x4);
         }
     });
 }

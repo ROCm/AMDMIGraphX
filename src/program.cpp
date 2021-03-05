@@ -148,7 +148,7 @@ void program::compile(const target& t, compile_options options)
     auto mods = this->get_modules();
     std::reverse(mods.begin(), mods.end());
 
-    for (const auto& mod : mods)
+    for(const auto& mod : mods)
     {
         assert(mod->validate() == mod->end());
         run_passes(*mod, passes, options.trace);
@@ -160,7 +160,7 @@ void program::compile(const target& t, compile_options options)
                            std::to_string(index));
         }
         mod->finalize(this->impl->ctx);
-    }    
+    }
 }
 
 void program::finalize()

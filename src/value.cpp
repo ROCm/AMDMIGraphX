@@ -204,7 +204,7 @@ const std::string& value::get_key() const { return key; }
 
 std::vector<value>* if_array_impl(const std::shared_ptr<value_base_impl>& x)
 {
-    if(!x)
+    if(x == nullptr)
         return nullptr;
     return x->if_array();
 }

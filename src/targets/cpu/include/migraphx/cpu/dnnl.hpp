@@ -43,13 +43,13 @@ dnnl::algorithm to_dnnl_algo(const std::string& name);
 
 struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
 {
-    std::string name;
+    std::string algo;
     float alpha = 0;
     float beta  = 0;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.name, "name"), f(self.alpha, "alpha"), f(self.beta, "beta"));
+        return pack(f(self.algo, "algo"), f(self.alpha, "alpha"), f(self.beta, "beta"));
     }
 };
 
@@ -74,13 +74,13 @@ struct dnnl_op : auto_register_op<Derived>
     std::size_t get_extra_post_op_args() const
     {
         return std::count_if(post_ops.begin(), post_ops.end(), [](const auto& po) {
-            return contains(po.name, "binary");
+            return contains(po.algo, "binary");
         });
     }
 
     static std::size_t get_binary_post_op_arg(std::size_t pos)
     {
-        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(pos) | DNNL_ARG_SRC_1;
+        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(pos) | DNNL_ARG_SRC_1; // NOLINT
     }
 
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
@@ -153,14 +153,14 @@ struct dnnl_op : auto_register_op<Derived>
         int binary_post_op_pos = 1;
         for(auto&& op : post_ops)
         {
-            if(contains(op.name, "binary"))
+            if(contains(op.algo, "binary"))
             {
-                po.append_binary(to_dnnl_algo(op.name),
+                po.append_binary(to_dnnl_algo(op.algo),
                                  m.at(get_binary_post_op_arg(binary_post_op_pos)));
                 binary_post_op_pos++;
             }
-            if(contains(op.name, "eltwise"))
-                po.append_eltwise(1.0f, to_dnnl_algo(op.name), op.alpha, op.beta);
+            if(contains(op.algo, "eltwise"))
+                po.append_eltwise(1.0f, to_dnnl_algo(op.algo), op.alpha, op.beta);
         }
         result.set_post_ops(po);
         return result;

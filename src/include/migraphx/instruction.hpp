@@ -15,6 +15,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 shape compute_shape(const operation& op, const std::vector<instruction_ref>& args);
 std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
+std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs);
 
 struct instruction
 {

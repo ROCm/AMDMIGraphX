@@ -264,6 +264,12 @@ void from_value_op(T& x, const value& v)
     return migraphx::from_value(v, x);
 }
 
+template<class T>
+bool is_borrowed_op(const T&)
+{
+    return false;
+}
+
 } // namespace detail
 
 <%
@@ -277,6 +283,7 @@ void from_value_op(T& x, const value& v)
              const   = True,
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
+     virtual('is_borrowed', returns = 'bool', const = True, default = 'detail::is_borrowed_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',

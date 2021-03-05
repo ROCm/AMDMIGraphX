@@ -22,6 +22,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/cpu/fuse_ops.hpp>
 #include <migraphx/cpu/write_literals.hpp>
 #include <migraphx/cpu/allocation_model.hpp>
 #include <migraphx/cpu/target.hpp>
@@ -66,6 +67,8 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             eliminate_contiguous{"dnnl::reorder"},
             dead_code_elimination{},
             adjust_allocation{cpu_allocation_model{}},
+            dead_code_elimination{},
+            fuse_ops{},
             dead_code_elimination{},
             write_literals{},
             dead_code_elimination{},

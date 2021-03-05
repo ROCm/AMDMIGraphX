@@ -14,7 +14,10 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        return inputs.back();
+        auto r = inputs.back();
+        // Call to get_primitive to make sure an algo is available
+        this->get_primitive(this->to_memory_desc(r, inputs));
+        return r;
     }
     // Custom desc class since its missing in dnnl
     struct desc

@@ -126,6 +126,13 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " +
                            std::to_string(index));
         }
+        auto dangling = modl.find_dangling_reference();
+        if (dangling != modl.end())
+        {
+            auto index = std::distance(modl.begin(), dangling);
+            MIGRAPHX_THROW("Dangling reference in module " + mp.first + " from instruction " +
+                           std::to_string(index));
+        }
         modl.finalize(this->impl->ctx);
     }
 }
@@ -202,7 +209,6 @@ std::vector<argument> generic_eval(const module& p,
         }
         assert(results.find(ins) != results.end());
     }
-
     return {results.at(std::prev(p.end()))};
 }
 

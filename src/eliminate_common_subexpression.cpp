@@ -17,13 +17,6 @@ void cse_range(module& p, Range&& r)
     std::unordered_set<instruction_ref> processed_ins;
     for(auto ins : r)
     {
-        // apply to sub_modules
-        const auto& mod_inputs = ins->module_inputs();
-        for(const auto& mod : mod_inputs)
-        {
-            cse_range(*mod, iterator_for(*mod));
-        }
-
         // Skip dead instructions
         if(ins->outputs().empty())
             continue;

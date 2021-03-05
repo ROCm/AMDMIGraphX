@@ -145,21 +145,22 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
-    auto* mm = get_main_module();
-    assert(mm->validate() == mm->end());
-    run_passes(*mm, passes, options.trace);
+    auto mods = this->get_modules();
+    std::reverse(mods.begin(), mods.end());
 
-    for(auto& mod : impl->modules)
+    for (const auto& mod : mods)
     {
-        auto invalid = mod.validate();
-        if(invalid != mod.end())
+        assert(mod->validate() == mod->end());
+        run_passes(*mod, passes, options.trace);
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
         {
-            auto index = std::distance(mod.begin(), invalid);
-            MIGRAPHX_THROW("Invalid module " + mod.name() + " from compilation at instruction " +
+            auto index = std::distance(mod->begin(), invalid);
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
                            std::to_string(index));
         }
-        mod.finalize(this->impl->ctx);
-    }
+        mod->finalize(this->impl->ctx);
+    }    
 }
 
 void program::finalize()
@@ -712,8 +713,19 @@ const module* program::get_main_module() const { return get_module("main"); }
 
 std::vector<const module*> program::get_modules() const
 {
-    const module* mm = get_main_module();
+    const module* mm = this->get_main_module();
     std::vector<const module*> vec_modules;
+    vec_modules.push_back(mm);
+    auto sub_modules = mm->get_sub_modules();
+    vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());
+
+    return vec_modules;
+}
+
+std::vector<module*> program::get_modules()
+{
+    module* mm = this->get_main_module();
+    std::vector<module*> vec_modules;
     vec_modules.push_back(mm);
     auto sub_modules = mm->get_sub_modules();
     vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());

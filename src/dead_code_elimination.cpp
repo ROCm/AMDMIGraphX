@@ -34,13 +34,6 @@ void dead_code_elimination::apply(module& p) const
     auto last = std::prev(p.end());
     for(auto ins : iterator_for(p))
     {
-        // apply to sub_modules
-        const auto& mod_inputs = ins->module_inputs();
-        for(const auto& mod : mod_inputs)
-        {
-            this->apply(*mod);
-        }
-
         // Skip the first instruction, since we always process the previous
         // instruction
         if(ins == p.begin())

@@ -963,16 +963,6 @@ struct ref_apply
         init();
         for(auto it : iterator_for(*mod))
         {
-            // contains sub modules, apply to the submodule first
-            auto& sub_mods = it->module_inputs();
-            if(not sub_mods.empty())
-            {
-                for(auto smod : sub_mods)
-                {
-                    ref_apply{smod}.apply();
-                }
-            }
-
             if(it->name() == "pooling")
             {
                 apply_pooling(it);

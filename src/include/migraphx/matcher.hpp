@@ -257,13 +257,6 @@ void find_matches(module& p, Ms&&... ms)
     {
         find_matches(p, ins, ms...);
     }
-
-    // check sub modules for match outputs
-    const auto& sub_mods = p.get_sub_modules();
-    for(auto& mod : sub_mods)
-    {
-        find_matches(*mod, ms...);
-    }
 }
 
 template <class M>

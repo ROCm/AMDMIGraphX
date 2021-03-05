@@ -34,13 +34,6 @@ void rewrite_rnn::apply(module& prog) const
 {
     for(auto ins : iterator_for(prog))
     {
-        // apply to sub_modules
-        const auto& mod_inputs = ins->module_inputs();
-        for(const auto& mod : mod_inputs)
-        {
-            this->apply(*mod);
-        }
-
         if(ins->name() == "rnn")
         {
             apply_vanilla_rnn(prog, ins);

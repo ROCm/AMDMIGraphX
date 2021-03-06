@@ -351,11 +351,11 @@ struct value
             v(null);
             return;
         }
-#define MIGRAPHX_VALUE_GENERATE_CASE_VALUE(vt, cpp_type)                          \
-    case vt##_type:                                                         \
-    {                                                                       \
-            v(this->get_##vt());                                            \
-        return;                                                             \
+#define MIGRAPHX_VALUE_GENERATE_CASE_VALUE(vt, cpp_type) \
+    case vt##_type:                                      \
+    {                                                    \
+        v(this->get_##vt());                             \
+        return;                                          \
     }
             MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE)
             MIGRAPHX_VALUE_GENERATE_CASE(array, )
@@ -375,7 +375,7 @@ struct value
     template <class To>
     To value_or(const To& default_value) const
     {
-        if (this->is_null())
+        if(this->is_null())
             return default_value;
         return to<To>();
     }

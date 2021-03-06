@@ -73,8 +73,8 @@ struct memory_coloring_impl
         instr2_live.clear();
         live_ranges.clear();
         conflict_table.clear();
-        num_of_lives     = 0;
-        max_value_number = -1;
+        num_of_lives       = 0;
+        max_value_number   = -1;
         required_bytes     = 0;
         earliest_end_point = -1;
         latest_end_point   = -1;

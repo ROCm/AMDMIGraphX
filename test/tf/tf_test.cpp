@@ -39,10 +39,12 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
     // remove the last return instruction
     auto last_ins = std::prev(mm->end());
     if(last_ins != mm->end())
+    {
         if(last_ins->name() == "@return")
         {
             mm->remove_instruction(last_ins);
         }
+    }
     return prog;
 }
 
@@ -641,6 +643,7 @@ TEST_CASE(pooling_test)
     max_pool_op.stride  = {2, 2};
     avg_pool_op.lengths = {2, 2};
     max_pool_op.lengths = {2, 2};
+    mm->add_instruction(avg_pool_op, l0);
     mm->add_instruction(max_pool_op, l0);
     auto prog = optimize_tf("pooling_test.pb", true);
 
@@ -782,9 +785,9 @@ TEST_CASE(split_test)
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 10}}, {"ends", {5, 20}}}), l0);
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 20}}, {"ends", {5, 30}}}), l0);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-    mm->add_return({l4});
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4, l5});
     auto prog = parse_tf("split_test.pb", false);
 
     EXPECT(p == prog);
@@ -824,9 +827,9 @@ TEST_CASE(split_test_vector_as_input)
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 4}}, {"ends", {5, 19}}}), l0);
     auto l3 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 19}}, {"ends", {5, 30}}}), l0);
-    mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
-    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
-    mm->add_return({l4});
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4, l5});
     auto prog = parse_tf("split_test_vector_as_input.pb", false);
 
     EXPECT(p == prog);

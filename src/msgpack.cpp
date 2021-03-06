@@ -120,7 +120,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 for(auto&& x : v)
                 {
                     o.pack(x.get_key());
-                    o.pack(x.without_key());
+                    o.pack(x);
                 }
             }
             else
@@ -135,7 +135,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
         template <class Stream>
         packer<Stream>& operator()(msgpack::packer<Stream>& o, const migraphx::value& v) const
         {
-            v.visit([&](auto&& x) { this->write(o, x); });
+            v.visit_value([&](auto&& x) { this->write(o, x); });
             return o;
         }
     };

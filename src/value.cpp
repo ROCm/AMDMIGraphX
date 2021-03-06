@@ -409,8 +409,8 @@ template <class F>
 bool compare(const value& x, const value& y, F f)
 {
     bool result = false;
-    x.visit([&](auto&& a) {
-        y.visit([&](auto&& b) {
+    x.visit_value([&](auto&& a) {
+        y.visit_value([&](auto&& b) {
             result = compare_common_impl(rank<1>{}, f, x.get_key(), a, y.get_key(), b);
         });
     });
@@ -436,6 +436,8 @@ bool operator<=(const value& x, const value& y) { return x == y or x < y; }
 bool operator>(const value& x, const value& y) { return y < x; }
 bool operator>=(const value& x, const value& y) { return x == y or x > y; }
 
+void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
+
 template <class T>
 void print_value(std::ostream& os, const T& x)
 {
@@ -450,7 +452,6 @@ void print_value(std::ostream& os, const std::pair<T, U>& x)
     print_value(os, x.second);
 }
 
-void print_value(std::ostream& os, const std::nullptr_t&) { os << "null"; }
 void print_value(std::ostream& os, const std::vector<value>& x)
 {
     os << "{";

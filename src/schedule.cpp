@@ -114,7 +114,7 @@ struct stream_info
             assert(ins != p.end());
             if(contains(partitions, ins))
                 return;
-            if (not p.has_instruction(ins))
+            if(not p.has_instruction(ins))
                 return;
             // assert(p.has_instruction(ins));
             // Add an entry so we know the instruction was visited

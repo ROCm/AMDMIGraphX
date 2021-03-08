@@ -684,12 +684,14 @@ inline program parse_onnx_buffer(const std::string& buffer)
         own{});
 }
 
+/// Options for parsing tf options
 struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 {
     tf_options() { this->make_handle(&migraphx_tf_options_create); }
 
     tf_options(migraphx_tf_options* p, own) { this->set_handle(p, own{}); }
 
+    /// Make tf parser treat an inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
     {
         call(&migraphx_tf_options_set_input_parameter_shape,
@@ -699,11 +701,13 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
              dim.size());
     }
 
+    /// When there is a dimension parameter than use this default value
     void set_default_dim_value(unsigned int value)
     {
         call(&migraphx_tf_options_set_default_dim_value, this->get_handle_ptr(), value);
     }
 
+    /// Set output node names to return specific outputs from graph
     void set_output_names(std::vector<const char*> names)
     {
         call(&migraphx_tf_options_set_output_names,
@@ -713,12 +717,14 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
     }
 };
 
+/// Parse a tf file into a migraphx program
 inline program parse_tf(const char* filename, const migraphx::tf_options& options)
 {
     return program(make<migraphx_program>(&migraphx_parse_tf, filename, options.get_handle_ptr()),
                    own{});
 }
 
+/// Parse a tf file into a migraphx program
 inline program parse_tf(const char* filename)
 {
     migraphx::tf_options options;

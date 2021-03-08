@@ -1292,6 +1292,21 @@ def less_bool_test():
 
     return ([node1, node2], [x1, x2], [y])
 
+@onnx_test
+def lessorequal_test():
+    
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'LessOrEqual',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x1, x2], [y])
+
 
 @onnx_test
 def erf_test():

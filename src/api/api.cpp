@@ -105,9 +105,9 @@ void set_input_parameter_shape(tf_options& options, const char* name, std::vecto
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
-void set_output_names(tf_options& options, std::vector<std::string> names)
+void set_output_names(tf_options& options, std::vector<const char*> names)
 {
-    options.output_node_names = std::move(names);
+    options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
 template <class Value>
@@ -884,7 +884,7 @@ extern "C" migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_opti
         if(names == nullptr and names_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter names: Null pointer");
         migraphx::set_output_names((tf_options->object),
-                                   (std::vector<std::string>(names, names + names_size)));
+                                   (std::vector<const char*>(names, names + names_size)));
     });
 }
 

@@ -148,12 +148,12 @@ TEST_CASE(instance_norm_3d_test)
 
 TEST_CASE(lessorequal_test)
 {
-    migraphx::program p = migraphx::parse_onnx("lessorequal.onnx");
+    migraphx::program p = migraphx::parse_onnx("lessorequal_test.onnx");
     p.compile(migraphx::ref::target{});
 
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    std::vector<float> data1 = { 0.25, 0.75, 0.9375, 0.4375, 0.6875, 0.5625, -0.875, 0.1875, -0.125, 0.5, -0.9375, -0.0625};
-    std::vector<float> data2 = { 0.25, 0.74, 0.94, 0.4375, 0.5, 0.5625, -0.875, 0.2, -0.2, 0.5, -0.933, -0.0625};
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data1 = { 0.25, 0.75, 0.9375};
+    std::vector<float> data2 = { 0.25, 0.74, 0.9411};
 
     migraphx::parameter_map pp;
     pp["x1"]    = migraphx::argument(s, data1.data());
@@ -163,7 +163,7 @@ TEST_CASE(lessorequal_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {1,0,1,1,0,1,1,1,0,1,1,1};
+    std::vector<float> gold = {1,0,1};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

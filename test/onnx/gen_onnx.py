@@ -1295,9 +1295,9 @@ def less_bool_test():
 @onnx_test
 def lessorequal_test():
     
-    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
-    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node(
         'LessOrEqual',

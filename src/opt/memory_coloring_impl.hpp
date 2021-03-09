@@ -99,7 +99,7 @@ struct memory_coloring_impl
     static bool is_param(const instruction_ref ins) { return ins->name() == "@param"; }
     static bool is_output_param(const instruction_ref ins)
     {
-        if (not is_param(ins))
+        if(not is_param(ins))
             return false;
 
         auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;

@@ -30,7 +30,10 @@ operation merge_post_ops(const operation& op, const operation& post_op)
 
 struct find_post_ops
 {
-    auto matcher() const { return match::name("dnnl::eltwise", "dnnl::binary")(match::arg(0)(has_post_ops())); }
+    auto matcher() const
+    {
+        return match::name("dnnl::eltwise", "dnnl::binary")(match::arg(0)(has_post_ops()));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -41,7 +44,7 @@ struct find_post_ops
         auto op       = merge_post_ops(x, ins->get_operator());
         auto inputs   = x_ins->inputs();
         inputs.back() = ins->inputs().back();
-        if (ins->name() == "dnnl::binary")
+        if(ins->name() == "dnnl::binary")
             inputs.insert(std::prev(inputs.end()), ins->inputs().at(1));
         auto new_shape = try_compute_shape(op, to_shapes(inputs));
         if(new_shape.empty() or new_shape.front() != ins->get_shape())
@@ -52,7 +55,7 @@ struct find_post_ops
 
 void fuse_ops::apply(module& m) const
 {
-    for(std::size_t i = 0;i < 4;i++)
+    for(std::size_t i = 0; i < 4; i++)
     {
         match::find_matches(m, find_post_ops{});
         dead_code_elimination{}.apply(m);

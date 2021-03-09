@@ -91,10 +91,7 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
-void set_default_dim_value(tf_options& options, size_t value)
-{
-    options.batch_size = value;
-}
+void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
 
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
@@ -103,9 +100,7 @@ void set_input_parameter_shape(onnx_options& options,
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
 
-void set_input_parameter_shape(tf_options& options,
-                               const char* name,
-                               std::vector<std::size_t> dims)
+void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
 }
@@ -912,7 +907,7 @@ extern "C" migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_opti
         if(names == nullptr and names_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter names: Null pointer");
         migraphx::set_output_names((tf_options->object),
-                                        (std::vector<const char*>(names, names + names_size)));
+                                   (std::vector<const char*>(names, names + names_size)));
     });
 }
 

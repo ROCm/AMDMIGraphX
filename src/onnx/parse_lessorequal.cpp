@@ -13,7 +13,7 @@ struct parse_lessorequal : op_parser<parse_lessorequal>
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto int_res = info.add_instruction(make_op("greater"), args[0], args[1]);

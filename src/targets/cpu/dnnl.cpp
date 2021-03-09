@@ -139,6 +139,23 @@ dnnl::algorithm to_dnnl_algo(const std::string& name)
     return dnnl_algo_map().at(name);
 }
 
+const std::unordered_map<dnnl::algorithm, std::string>& dnnl_algo_string_map()
+{
+    static const std::unordered_map<dnnl::algorithm, std::string> m = {
+#define MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR(x) {dnnl::algorithm::x, #x},
+        MIGRAPHX_VISIT_DNNL_ALGO(MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR)
+#undef MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR
+    };
+    return m;
+}
+
+std::string to_string(const dnnl::algorithm& algo)
+{
+    if(dnnl_algo_string_map().count(algo) == 0)
+        return "unknown_" + std::to_string(static_cast<int>(algo));
+    return dnnl_algo_string_map().at(algo);
+}
+
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

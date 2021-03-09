@@ -3,6 +3,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -27,30 +28,9 @@ operation merge_post_ops(const operation& op, const operation& post_op)
     return make_op(op.name(), v);
 }
 
-struct find_eltwise
+struct find_post_ops
 {
-    auto matcher() const { return match::name("dnnl::eltwise")(match::arg(0)(has_post_ops())); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins   = r.result;
-        auto x_ins = ins->inputs().front();
-        auto x     = x_ins->get_operator();
-
-        auto op = merge_post_ops(x, ins->get_operator());
-
-        auto inputs    = x_ins->inputs();
-        inputs.back()  = ins->inputs().back();
-        auto new_shape = try_compute_shape(op, to_shapes(inputs));
-        if(new_shape.empty() or new_shape.front() != ins->get_shape())
-            return;
-        m.replace_instruction(ins, op, inputs);
-    }
-};
-
-struct find_binary
-{
-    auto matcher() const { return match::name("dnnl::binary")(match::arg(0)(has_post_ops())); }
+    auto matcher() const { return match::name("dnnl::eltwise", "dnnl::binary")(match::arg(0)(has_post_ops())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -61,7 +41,8 @@ struct find_binary
         auto op       = merge_post_ops(x, ins->get_operator());
         auto inputs   = x_ins->inputs();
         inputs.back() = ins->inputs().back();
-        inputs.insert(std::prev(inputs.end()), ins->inputs()[1]);
+        if (ins->name() == "dnnl::binary")
+            inputs.insert(std::prev(inputs.end()), ins->inputs().at(1));
         auto new_shape = try_compute_shape(op, to_shapes(inputs));
         if(new_shape.empty() or new_shape.front() != ins->get_shape())
             return;
@@ -69,7 +50,14 @@ struct find_binary
     }
 };
 
-void fuse_ops::apply(module& m) const { match::find_matches(m, find_eltwise{}, find_binary{}); }
+void fuse_ops::apply(module& m) const
+{
+    for(std::size_t i = 0;i < 4;i++)
+    {
+        match::find_matches(m, find_post_ops{});
+        dead_code_elimination{}.apply(m);
+    }
+}
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -41,6 +41,8 @@ dnnl::memory to_dnnl_memory(const argument& a);
 
 dnnl::algorithm to_dnnl_algo(const std::string& name);
 
+std::string to_string(const dnnl::algorithm& algo);
+
 struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
 {
     std::string algo;
@@ -125,9 +127,12 @@ struct dnnl_op : auto_register_op<Derived>
         auto npost_ops       = get_extra_post_op_args();
         auto prim_input_size = input_size - npost_ops;
         auto m               = self.arg_map(prim_input_size);
-        for(std::size_t i = 0; i < npost_ops; i++)
+        int i = 0;
+        for(auto&& op : post_ops)
         {
-            m.push_back(get_binary_post_op_arg(i));
+            if (contains(op.algo, "binary"))
+                m.push_back(get_binary_post_op_arg(i));
+            i++;
         }
         return m;
     }
@@ -150,17 +155,19 @@ struct dnnl_op : auto_register_op<Derived>
     {
         dnnl::primitive_attr result;
         dnnl::post_ops po;
-        int binary_post_op_pos = 1;
+        int i = 0;
         for(auto&& op : post_ops)
         {
             if(contains(op.algo, "binary"))
             {
                 po.append_binary(to_dnnl_algo(op.algo),
-                                 m.at(get_binary_post_op_arg(binary_post_op_pos)));
-                binary_post_op_pos++;
+                                 m.at(get_binary_post_op_arg(i)));
             }
             if(contains(op.algo, "eltwise"))
                 po.append_eltwise(1.0f, to_dnnl_algo(op.algo), op.alpha, op.beta);
+            else
+                MIGRAPHX_THROW("Unknown post op algo: " + op.algo);
+            i++;
         }
         result.set_post_ops(po);
         return result;
@@ -198,6 +205,9 @@ struct dnnl_op : auto_register_op<Derived>
         auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
         auto arg_lookup  = create_arg_map(inputs.size());
+#ifndef NDEBUG
+        auto prim_attr = get_primitive_attr(md);
+#endif
         execute          = [=](context&, const std::vector<argument>& args) {
 #ifndef NDEBUG
             // Check that the memory descriptors have not changed
@@ -213,6 +223,44 @@ struct dnnl_op : auto_register_op<Derived>
                     continue;
                 MIGRAPHX_THROW(name +
                                ": Memory descriptor has changed for: " + std::to_string(p.first));
+            }
+            // Check post_ops args are correct
+            auto pos = prim_attr.get_post_ops();
+            auto prim_input_size = inputs.size() - this->get_extra_post_op_args();
+            int j = 0;
+            for(int i = 0; i < pos.len(); i++)
+            {
+                auto arg = j + prim_input_size;
+                auto kind = pos.kind(i);
+                std::string mesg = "Post op " + std::to_string(i) + "@" + std::to_string(arg) + ": ";
+                try 
+                {
+                    dnnl::algorithm algo;
+                    dnnl::memory::desc mdesc;
+                    float scale, alpha, beta;
+                    if (kind == dnnl::primitive::kind::binary)
+                    {
+                        pos.get_params_binary(i, algo, mdesc);
+                        if (mdesc != md.at(arg_lookup.at(arg)))
+                            MIGRAPHX_THROW(mesg + "Memory descriptor doesn't match for binary post op");
+                        j++;
+                    }
+                    else if (kind == dnnl::primitive::kind::eltwise)
+                    {
+                        pos.get_params_eltwise(i, scale, algo, alpha, beta);
+                    }
+                    else
+                    {
+                        MIGRAPHX_THROW("Unknown kind");
+                    }
+                    if (to_dnnl_algo(post_ops[i].algo) != algo)
+                        MIGRAPHX_THROW(mesg + "Algorithm doesn't match for post op " + post_ops[i].algo + " != " + to_string(algo));
+                }
+                catch(const dnnl::error& e)
+                {
+                    MIGRAPHX_THROW(mesg + "Failed to get post ops argument " + ": " + e.what());
+                }
+
             }
 #endif
             std::unordered_map<int, dnnl::memory> m;

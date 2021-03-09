@@ -14,15 +14,10 @@ void preallocate_param::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        const auto& mod_inputs = ins->module_inputs();
-        for(const auto& mod : mod_inputs)
-        {
-            this->apply(*mod);
-        }
-
         if(ins->name() != "@param")
             continue;
         std::string id = any_cast<builtin::param>(ins->get_operator()).parameter;
+        id = p.name() + ":" + id;
         if(id != param)
             continue;
         auto r = p.insert_instruction(ins, hip_allocate_memory{ins->get_shape(), id});

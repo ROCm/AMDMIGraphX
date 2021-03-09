@@ -23,8 +23,7 @@ void memory_coloring_impl::run()
             alloc_queue.pop();
         }
 
-        // // rewrite happens after all modules are processed
-        // if(p_mod->name() == "main")
+        // rewrite happens after all modules are processed
         rewrite();
 
         if(enable_verify)
@@ -141,6 +140,7 @@ void memory_coloring_impl::build()
         {
             is_dead = true;
         }
+
         for(auto&& arg : iter->inputs())
         {
             if(is_param(arg) || is_outline(arg))

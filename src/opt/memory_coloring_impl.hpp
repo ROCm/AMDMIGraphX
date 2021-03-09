@@ -5,6 +5,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_config.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/config.hpp>
 
 #include <set>
@@ -98,7 +99,11 @@ struct memory_coloring_impl
     static bool is_param(const instruction_ref ins) { return ins->name() == "@param"; }
     static bool is_output_param(const instruction_ref ins)
     {
-        return is_param(ins) && any_cast<builtin::param>(ins->get_operator()).parameter == "output";
+        if (not is_param(ins))
+            return false;
+
+        auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        return contains(param_name, "#output_");
     }
     bool is_allocate(const instruction_ref ins) const { return ins->name() == allocation_op; }
     static bool is_outline(const instruction_ref ins) { return ins->name() == "@outline"; }

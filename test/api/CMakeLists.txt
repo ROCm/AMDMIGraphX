@@ -11,11 +11,11 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
 endfunction()
 
 
-add_api_test(ref test_cpu.cpp TEST_ONNX_DIR)
-add_api_test(save_load test_save_load.cpp TEST_ONNX_DIR)
-add_api_test(op test_op_construct.cpp TEST_ONNX_DIR)
-add_api_test(parser test_parser.cpp TEST_TF_DIR)
+add_api_test(ref test_cpu.cpp ${TEST_ONNX_DIR})
+add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})
+add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
+add_api_test(parser test_parser.cpp ${TEST_TF_DIR})
 if(MIGRAPHX_ENABLE_GPU)
-add_api_test(gpu test_gpu.cpp TEST_ONNX_DIR)
+add_api_test(gpu test_gpu.cpp ${TEST_ONNX_DIR})
 # GPU-based tests
 endif()

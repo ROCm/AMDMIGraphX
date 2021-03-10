@@ -907,7 +907,7 @@ extern "C" migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_opti
         if(names == nullptr and names_size != 0)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter names: Null pointer");
         migraphx::set_output_names((tf_options->object),
-                                        (std::vector<const char*>(names, names + names_size)));
+                                   (std::vector<const char*>(names, names + names_size)));
     });
 }
 

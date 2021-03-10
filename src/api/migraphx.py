@@ -275,7 +275,7 @@ def tf_options(h):
     h.method(
         'set_output_names',
         api.params(names='std::vector<const char*>'),
-        invoke='migraphx::set_default_dim_value($@)',
+        invoke='migraphx::set_output_names($@)',
     )
 
 

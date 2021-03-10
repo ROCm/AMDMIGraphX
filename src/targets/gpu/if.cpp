@@ -22,10 +22,10 @@ argument hip_if::compute(
     std::unordered_map<std::string, argument> params;
     auto out_shapes = mod->get_output_shapes();
     assert(out_shapes.size() + 1 == args.size());
-    for (std::size_t i = 0; i < out_shapes.size(); ++i)
+    for(std::size_t i = 0; i < out_shapes.size(); ++i)
     {
         std::string out_name = "#output_" + std::to_string(i);
-        params[out_name] = args.at(i + 1);
+        params[out_name]     = args.at(i + 1);
     }
 
     run(mod, params);

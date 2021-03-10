@@ -424,8 +424,8 @@ struct miopen_apply
             inputs.front() = cpu_cond;
 
             std::vector<module_ref> mod_args = ins->module_inputs();
-            auto out_shapes = mod_args.at(0)->get_output_shapes();
-            for (auto& s : out_shapes)
+            auto out_shapes                  = mod_args.at(0)->get_output_shapes();
+            for(auto& s : out_shapes)
             {
                 auto output = insert_allocation(ins, s);
                 inputs.push_back(output);

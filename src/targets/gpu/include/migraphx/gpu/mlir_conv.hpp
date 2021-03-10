@@ -10,10 +10,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 namespace gpu {
-struct target_mlir_conv
+struct mlir_conv
 {
     context* ctx;
-    std::string name() const { return "gpu::mlir_conv"; }
+    std::string name() const { return "mlir::convolution"; }
     void apply(module& p) const;
 };
 

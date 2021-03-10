@@ -7,7 +7,6 @@
 
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
-#include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 
@@ -25,7 +24,7 @@
 #include <algorithm>
 
 #ifdef    MIGRAPHX_MLIR_MIOPEN_SUPPORT
-#include <mlir-miopen-lib.hpp>
+#include <mlir-miopen-lib.h>
 #endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
 
 #include <stdio.h>
@@ -37,11 +36,11 @@ namespace gpu {
 struct mlir_apply
 {
     module* prog                 = nullptr;
-    const target_mlir_conv* pass = nullptr;
+    const mlir_conv* pass        = nullptr;
 
     const char *mlir_kernel_name = "migraphx_conv2d";
-      
-    std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
+
+    std::unordered_map<uint64_t, instruction_ref> literal_map{};
 
     struct execution_spec {
       migraphx::value::binary binary;
@@ -61,8 +60,6 @@ struct mlir_apply
     {
         assert(prog != nullptr);
         assert(pass != nullptr);
-
-        add_convolution_op();
     }
 
     execution_spec *make_mlir_binary(instruction_ref op_r)
@@ -137,26 +134,19 @@ struct mlir_apply
           size_t bin_size = 0;
           char *bin_buffer = nullptr;
 
-          auto mlir_handle = CreateMlirHandle(mlir_options.c_str());
+          auto mlir_handle = miirCreateHandle(mlir_options.c_str());
 
-          if (MlirLowerBin(mlir_handle) == EMlirSuccess &&
-              MlirGenIgemmBin(mlir_handle, &bin_buffer, &bin_size) == EMlirSuccess) {
-            {
-              // static int i=0;
-              // std::string fname = std::string("mlir_conv2d_fwd.") + std::to_string(i++);
-              // auto* F = fopen(fname.c_str(), "w");
-              // fwrite(bin_buffer, 1, bin_size, F);
-              // fclose(F);
-            }
+          if (miirLowerBin(mlir_handle) == MIIR_SUCCESS &&
+              miirGenIgemmBin(mlir_handle, &bin_buffer, &bin_size) == MIIR_SUCCESS) {
 
             size_t grid_size, block_size;
-            if (MlirGetExecutionDims(mlir_handle, &grid_size, &block_size) == EMlirSuccess) {
+            if (miirGetExecutionDims(mlir_handle, &grid_size, &block_size) == MIIR_SUCCESS) {
               printf("make_mlir_binary - grid=%zu block=%zu\n", grid_size, block_size);
               size_t global_size = grid_size * block_size;
               result = new execution_spec{{bin_buffer, bin_size}, global_size, block_size};
             }
           }
-          DestroyMlirHandle(mlir_handle);
+          miirDestroyHandle(mlir_handle);
         
           binary_map[mlir_options] = result;
         } else {
@@ -166,12 +156,30 @@ struct mlir_apply
         return result;
     }
 
-
-    operation make_code_object_op(instruction_ref op_r, execution_spec *spec) {
+    instruction_ref get_literal(uint64_t value)
+    {
+      auto fi = literal_map.find(value);
+      if (fi != literal_map.end())
+        return fi->second;
+      auto lit = prog->add_literal(value);
+      literal_map.emplace(value, lit);
+      return lit;
+    }
+  
+    operation make_code_object_op(instruction_ref op_r, execution_spec *spec)
+    {
+      // each pointer is expanded out to a MemRefDescriptor
       auto inp_t = op_r->inputs().at(0)->get_shape();
       auto flt_t = op_r->inputs().at(1)->get_shape();
       auto out_t = op_r->get_shape();
-      std::vector<shape> expected_inputs = {flt_t, inp_t};
+
+      auto i64 = shape(shape::uint64_type, {1});
+
+      std::vector<shape> expected_inputs = {
+        flt_t, flt_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        inp_t, inp_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        out_t, out_t, i64, i64, i64, i64, i64, i64, i64, i64, i64
+      };
 
       return migraphx::make_op("gpu::code_object",
                              {{"code_object", spec->binary},
@@ -179,36 +187,67 @@ struct mlir_apply
                               {"global", spec->global_size},
                               {"local", spec->local_size},
                               {"expected_inputs", migraphx::to_value(expected_inputs)},
-                              {"output", migraphx::to_value(out_t)}});
+                              {"output", migraphx::to_value(out_t)},
+                                  });
+    }
+
+    void add_memref_descriptor(std::vector<instruction_ref> & refs, instruction_ref inst)
+    {
+      const size_t offset = 0;
+      auto inst_t = inst->get_shape();
+      refs.push_back(inst);
+      refs.push_back(inst);
+      refs.push_back(get_literal(offset)); // offset
+
+      auto &lens = inst_t.lens();
+      for (int i = 0; i < lens.size(); ++i) {
+        refs.push_back(get_literal(lens[i]));
+      }
+      auto &strides = inst_t.strides();
+      for (int i = 0; i < strides.size(); ++i) {
+        refs.push_back(get_literal(strides[i]));
+      }
+    }
+  
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    {
+        return prog->insert_instruction(ins, hip_allocate{s});
+    }
+
+    void replace_conv_op(instruction_ref ins)
+    {
+      auto conv_bin = make_mlir_binary(ins);
+      if (conv_bin != nullptr) {
+        auto conv = make_code_object_op(ins, conv_bin);
+
+        auto inp = ins->inputs().at(0);
+        auto flt = ins->inputs().at(1);
+        auto out = insert_allocation(ins, ins->get_shape());
+              
+        std::vector<instruction_ref> refs;
+        refs.reserve(3*11);
+        add_memref_descriptor(refs, flt);
+        add_memref_descriptor(refs, inp);
+        add_memref_descriptor(refs, out);
+              
+        prog->replace_instruction(ins, conv, refs);
+      }
     }
 
     void apply()
     {
         init();
         for(auto it = prog->begin(); it != prog->end(); it++) {
-            if(apply_map.count(it->name()) > 0) {
-                apply_map.at(it->name())(it);
+            if (it->name() == "convolution") {
+                replace_conv_op(it);
             }
         }
     }
 
-    void add_convolution_op()
-    {
-        apply_map.emplace("convolution", [=](instruction_ref ins) {
-            auto conv_bin = make_mlir_binary(ins);
-            if (conv_bin != nullptr) {
-              auto conv = make_code_object_op(ins, conv_bin);
-              auto inp = ins->inputs().at(0);
-              auto flt = ins->inputs().at(1);
-              return prog->replace_instruction(ins, conv, {flt, inp});
-            }
-            return ins;
-        });
-    }
-
 };
 
-void target_mlir_conv::apply(module& p) const { mlir_apply{&p, this}.apply(); }
+void mlir_conv::apply(module& p) const { mlir_apply{&p, this}.apply(); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

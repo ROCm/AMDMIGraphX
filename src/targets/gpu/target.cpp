@@ -68,7 +68,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        target_mlir_conv{&ctx},
+        mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},

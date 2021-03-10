@@ -18,12 +18,18 @@ argument hip_if::compute(
         module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
 {
     auto cond      = args.at(0).at<bool>();
-    module_ref mdl = cond ? mods[0] : mods[1];
-    auto results   = run(mdl, {});
-    context ctx{};
-    gpu_copy(ctx, results[0], args.back());
+    module_ref mod = cond ? mods[0] : mods[1];
+    std::unordered_map<std::string, argument> params;
+    auto out_shapes = mod->get_output_shapes();
+    assert(out_shapes.size() + 1 == args.size());
+    for (std::size_t i = 0; i < out_shapes.size(); ++i)
+    {
+        std::string out_name = "#output_" + std::to_string(i);
+        params[out_name] = args.at(i + 1);
+    }
 
-    return args.back();
+    run(mod, params);
+    return args.at(1);
 }
 
 } // namespace gpu

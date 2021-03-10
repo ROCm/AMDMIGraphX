@@ -48,7 +48,9 @@ void dead_code_elimination::apply(module& p) const
             continue;
         assert(bidistance(p, i, last) > 0);
         fix([&](auto self, auto leaf) {
-            assert(p.has_instruction(leaf));
+            if (not p.has_instruction(leaf))
+                return;
+                
             if(leaf->outputs().empty())
             {
                 std::unordered_set<instruction_ref> args(leaf->inputs().begin(),

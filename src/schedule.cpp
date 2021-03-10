@@ -214,6 +214,8 @@ struct stream_info
             p.move_instruction(top, p.begin());
             for(auto ins : top->inputs())
             {
+                if (not p.has_instruction(ins))
+                    continue;
                 add_child(ins);
             }
         }
@@ -348,6 +350,9 @@ struct stream_info
         {
             for(auto&& arg : ins->outputs())
             {
+                if (not p.has_instruction(arg))
+                    continue;
+
                 if(is_merge_point(arg))
                     merge_from[ins].insert(arg);
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());

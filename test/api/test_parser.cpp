@@ -4,7 +4,7 @@
 
 TEST_CASE(load_and_run)
 {
-    auto p             = migraphx::parse_tf("add_test.pb");
+    auto p      = migraphx::parse_tf("add_test.pb");
     auto shapes = p.get_output_shapes();
     CHECK(shapes.size() == 1);
 }
@@ -13,7 +13,7 @@ TEST_CASE(load_and_run_multi)
 {
     migraphx::tf_options tf_options;
     tf_options.set_output_names({"relu", "tanh"});
-    auto p             = migraphx::parse_tf("multi_output_test.pb", tf_options);
+    auto p      = migraphx::parse_tf("multi_output_test.pb", tf_options);
     auto shapes = p.get_output_shapes();
     CHECK(shapes.size() == 2);
 }

@@ -17,8 +17,7 @@ argument hip_if::compute(
     std::function<std::vector<argument>(
         module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
 {
-    auto arg_cond  = migraphx::gpu::from_gpu(args[0]);
-    auto cond      = arg_cond.at<bool>();
+    auto cond      = args.at(0).at<bool>();
     module_ref mdl = cond ? mods[0] : mods[1];
     auto results   = run(mdl, {});
     context ctx{};

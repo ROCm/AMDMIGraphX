@@ -420,11 +420,14 @@ struct miopen_apply
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
             auto s                              = ins->get_shape();
-            auto output                         = insert_allocation(ins, s);
             std::vector<instruction_ref> inputs = ins->inputs();
-            inputs.push_back(output);
-            std::vector<module_ref> mod_args = ins->module_inputs();
+            auto cpu_cond = mod->insert_instruction(ins, hip_copy_from_gpu{}, inputs.front());
+            inputs.front() = cpu_cond;
 
+            auto output                         = insert_allocation(ins, s);
+            inputs.push_back(output);
+
+            std::vector<module_ref> mod_args = ins->module_inputs();
             return mod->replace_instruction(ins, make_op("gpu::if"), inputs, mod_args);
         });
     }

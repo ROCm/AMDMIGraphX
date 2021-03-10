@@ -139,7 +139,6 @@ struct miopen_apply
         add_generic_op("tan");
         add_generic_op("tanh");
 
-
         add_extend_op("abs");
         add_extend_op("argmax");
         add_extend_op("argmin");

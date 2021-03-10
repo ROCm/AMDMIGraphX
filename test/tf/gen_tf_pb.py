@@ -336,7 +336,6 @@ def mean_test_nhwc(g1):
         g1_input = tf.compat.v1.placeholder(tf.float32,
                                             shape=(1, 16, 16, 3),
                                             name='0')
-        tf.math.reduce_mean(g1_input, axis=(1, 2), keepdims=True, name='mean1')
         tf.math.reduce_mean(g1_input,
                             axis=(1, 2),
                             keepdims=False,

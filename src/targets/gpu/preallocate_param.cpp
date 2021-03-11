@@ -16,7 +16,7 @@ void preallocate_param::apply(module& p) const
     {
         if(ins->name() != "@param")
             continue;
-        std::string id = any_cast<builtin::param>(ins->get_operator()).parameter;
+        std::string id        = any_cast<builtin::param>(ins->get_operator()).parameter;
         std::string mod_param = p.name() + param;
         if(id != mod_param)
             continue;

@@ -114,9 +114,9 @@ struct stream_info
             assert(ins != p.end());
             if(contains(partitions, ins))
                 return;
-            if(not p.has_instruction(ins))
-                return;
-            // assert(p.has_instruction(ins));
+            // if(not p.has_instruction(ins))
+            //     return;
+            assert(p.has_instruction(ins));
             // Add an entry so we know the instruction was visited
             partitions[ins];
             part.add(ins, this->iweights[ins]);
@@ -469,7 +469,6 @@ struct stream_info
 
 void schedule::apply(module& p) const
 {
-    return;
     if(not enable)
         return;
     stream_info si;

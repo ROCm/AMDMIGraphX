@@ -120,7 +120,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 for(auto&& x : v)
                 {
                     o.pack(x.get_key());
-                    o.pack(x);
+                    o.pack(x.without_key());
                 }
             }
             else

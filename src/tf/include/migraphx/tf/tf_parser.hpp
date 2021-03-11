@@ -54,6 +54,7 @@ struct tf_parser
         const tf_parser&, const node_info&, std::vector<instruction_ref>)>;
     node_map nodes;
     std::vector<tensorflow::NodeDef> input_nodes;
+    std::vector<std::string> output_node_names;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                  = program();
     module* mm                    = prog.get_main_module();
@@ -95,6 +96,7 @@ struct tf_parser
     void parse_node(const std::string& name);
     literal parse_tensor(const tensorflow::TensorProto& t) const;
     shape::type_t parse_type(tensorflow::DataType t) const;
+    std::vector<std::string> find_outputs() const;
 };
 
 std::vector<int64_t> get_axes_from_mask(size_t num_axes, uint32_t mask);

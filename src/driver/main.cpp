@@ -43,6 +43,7 @@ struct loader
     std::string output_type;
     std::string output;
     std::vector<std::string> param_dims;
+    std::vector<std::string> output_names;
 
     void parse(argument_parser& ap)
     {
@@ -63,6 +64,12 @@ struct loader
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
+
+        ap(output_names,
+           {"--output-names"},
+           ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
@@ -106,12 +113,24 @@ struct loader
         return map_input_dims;
     }
 
+    static auto parse_output_names(const std::vector<std::string>& output_names_info)
+    {
+        std::vector<std::string> output_node_names;
+        std::transform(output_names_info.begin(),
+                       output_names_info.end(),
+                       std::back_inserter(output_node_names),
+                       [&](auto x) { return value_parser<std::string>::apply(x); });
+
+        return output_node_names;
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
-            auto map_input_dims = parse_param_dims(param_dims);
+            auto map_input_dims    = parse_param_dims(param_dims);
+            auto output_node_names = parse_output_names(output_names);
             if(file_type.empty())
             {
                 if(ends_with(file, ".onnx"))
@@ -135,7 +154,7 @@ struct loader
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims});
+                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims, output_node_names});
             }
             else if(file_type == "json")
             {

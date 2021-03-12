@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <dnnl.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/assert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -120,6 +121,23 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return s;
     }
+    template<class F>
+    void for_each_post_op(F f) const
+    {
+        int i = 0;
+        for(auto&& op : post_ops)
+        {
+            if(contains(op.algo, "binary"))
+            {
+                f(op, get_binary_post_op_arg(i));
+            }
+            else
+            {
+                f(op, -1);
+            }
+            i++;
+        }
+    }
     shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
     std::vector<int> create_arg_map(std::size_t input_size) const
     {
@@ -127,13 +145,11 @@ struct dnnl_op : auto_register_op<Derived>
         auto npost_ops       = get_extra_post_op_args();
         auto prim_input_size = input_size - npost_ops;
         auto m               = self.arg_map(prim_input_size);
-        int i                = 0;
-        for(auto&& op : post_ops)
-        {
-            if(contains(op.algo, "binary"))
-                m.push_back(get_binary_post_op_arg(i));
-            i++;
-        }
+        for_each_post_op([&](auto&&, auto arg) {
+            if (arg < 0)
+                return;
+            m.push_back(arg);
+        });
         return m;
     }
     std::unordered_map<int, dnnl::memory::desc>
@@ -155,19 +171,24 @@ struct dnnl_op : auto_register_op<Derived>
     {
         dnnl::primitive_attr result;
         dnnl::post_ops po;
-        int i = 0;
-        for(auto&& op : post_ops)
-        {
-            if(contains(op.algo, "binary"))
+        for_each_post_op([&](auto&& op, auto arg) {
+            if(contains(op.algo, "binary_add"))
             {
-                po.append_binary(to_dnnl_algo(op.algo), m.at(get_binary_post_op_arg(i)));
+                auto desc = m.at(arg);
+                if(desc == m.at(DNNL_ARG_DST))
+                    po.append_sum(1.0f);
+                else
+                    po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
             }
-            if(contains(op.algo, "eltwise"))
+            else if(contains(op.algo, "binary"))
+            {
+                po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
+            }
+            else if(contains(op.algo, "eltwise"))
                 po.append_eltwise(1.0f, to_dnnl_algo(op.algo), op.alpha, op.beta);
             else
                 MIGRAPHX_THROW("Unknown post op algo: " + op.algo);
-            i++;
-        }
+        });
         result.set_post_ops(po);
         return result;
     }
@@ -181,7 +202,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         auto desc        = self.get_desc(m);
-        auto attr        = get_primitive_attr(m);
+        auto attr        = MIGRAPHX_ASSERT_NO_THROW(get_primitive_attr(m));
         auto pd          = self.get_primitive_desc(desc, attr);
         return Primitive(pd);
     }
@@ -249,6 +270,11 @@ struct dnnl_op : auto_register_op<Derived>
                     else if(kind == dnnl::primitive::kind::eltwise)
                     {
                         pos.get_params_eltwise(i, scale, algo, alpha, beta);
+                    }
+                    else if(kind == dnnl::primitive::kind::sum)
+                    {
+                        pos.get_params_sum(i, scale);
+                        algo = dnnl::algorithm::binary_add;
                     }
                     else
                     {

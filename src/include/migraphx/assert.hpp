@@ -8,7 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class F>
+template <class F>
 auto abort_on_throw(F f) -> decltype(f())
 {
     try
@@ -29,7 +29,8 @@ auto abort_on_throw(F f) -> decltype(f())
 #ifdef NDEBUG
 #define MIGRAPHX_ASSERT_NO_THROW(...) __VA_ARGS__
 #else
-#define MIGRAPHX_ASSERT_NO_THROW(...) migraphx::abort_on_throw([&]() -> decltype(__VA_ARGS__) { return __VA_ARGS__; })
+#define MIGRAPHX_ASSERT_NO_THROW(...) \
+    migraphx::abort_on_throw([&]() -> decltype(__VA_ARGS__) { return __VA_ARGS__; })
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -121,7 +121,7 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return s;
     }
-    template<class F>
+    template <class F>
     void for_each_post_op(F f) const
     {
         int i = 0;
@@ -146,7 +146,7 @@ struct dnnl_op : auto_register_op<Derived>
         auto prim_input_size = input_size - npost_ops;
         auto m               = self.arg_map(prim_input_size);
         for_each_post_op([&](auto&&, auto arg) {
-            if (arg < 0)
+            if(arg < 0)
                 return;
             m.push_back(arg);
         });

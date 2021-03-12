@@ -32,7 +32,8 @@ struct find_post_ops
 {
     auto matcher() const
     {
-        return match::name("dnnl::eltwise", "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
+        return match::name("dnnl::eltwise",
+                           "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
     }
 
     void apply(module& m, const match::matcher_result& r) const

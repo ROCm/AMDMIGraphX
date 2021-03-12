@@ -114,9 +114,9 @@ struct stream_info
             assert(ins != p.end());
             if(contains(partitions, ins))
                 return;
-            // if(not p.has_instruction(ins))
-            //     return;
-            assert(p.has_instruction(ins));
+            if(not p.has_instruction(ins))
+                return;
+            // assert(p.has_instruction(ins));
             // Add an entry so we know the instruction was visited
             partitions[ins];
             part.add(ins, this->iweights[ins]);
@@ -480,7 +480,7 @@ void schedule::apply(module& p) const
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
     auto nstreams = si.assign_streams(p, model.concurrency());
-    si.sort(p, model.concurrency());
+    // si.sort(p, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {

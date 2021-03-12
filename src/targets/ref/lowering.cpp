@@ -993,7 +993,7 @@ struct ref_apply
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op      = any_cast<Op>(ins->get_operator());
-        auto& mod_args = ins->module_inputs();
+        const auto& mod_args = ins->module_inputs();
         if(mod_args.empty())
         {
             mod->replace_instruction(ins, T{op}, ins->inputs());

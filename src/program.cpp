@@ -232,7 +232,6 @@ std::vector<argument> generic_eval(const module* mod,
 
             const auto& mod_args = ins->module_inputs();
             if(not mod_args.empty())
-            {
                 results.emplace(
                     ins, trace(ins, mod, [&] {
                         return ins->get_operator().compute(
@@ -243,27 +242,17 @@ std::vector<argument> generic_eval(const module* mod,
                                 // wrap up parameters for sub_modules
                                 const auto& param_names = smod->get_parameter_names();
                                 parameter_map m;
-                                for(auto& nm : param_names)
-                                {
-                                    std::cout << "nm = " << nm << std::endl;
+                                for(const auto& nm : param_names)
                                     if(contains(inputs, nm))
-                                    {
                                         m[nm] = inputs.at(nm);
-                                    }
                                     else if(contains(params, nm))
-                                    {
                                         m[nm] = params.at(nm);
-                                    }
                                     else
-                                    {
                                         MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" +
                                                        mod->name() + "\" not exist!");
-                                    }
-                                }
                                 return generic_eval(smod, ctx, m, results, trace);
                             });
                     }));
-            }
             else
             {
                 results.emplace(ins, trace(ins, mod, [&] {

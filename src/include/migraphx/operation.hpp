@@ -245,6 +245,29 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 }
 
 template <class T>
+auto compile_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.compile(auto_any_cast(ctx), output_shape, input))
+{
+    return x.compile(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+value compile_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+{
+    return value::object{};
+}
+
+template <class T>
+value compile_op(const T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input)
+{
+    return compile_op(rank<1>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
 value attributes_op(const T&)
 {
     return value::object{};
@@ -283,6 +306,7 @@ bool is_borrowed_op(const T&)
  *      bool has_finalize() const;
  *      bool is_borrowed() const;
  *      std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+ *      value compile(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      argument compute(context& ctx,const shape& output,const std::vector<argument>& input) const;
@@ -395,6 +419,12 @@ struct operation
         return (*this).private_detail_te_get_handle().output_alias(input);
     }
 
+    value compile(context& ctx, const shape& output, const std::vector<shape>& input)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compile(ctx, output, input);
+    }
+
     void finalize(context& ctx, const shape& output, const std::vector<shape>& input)
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -468,6 +498,8 @@ struct operation
         virtual bool has_finalize() const                                          = 0;
         virtual bool is_borrowed() const                                           = 0;
         virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
+        virtual value
+        compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual void
         finalize(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual shape compute_shape(const std::vector<shape>& input) const           = 0;
@@ -548,6 +580,27 @@ struct operation
                                                                  const std::vector<shape>& input)
     {
         return detail::output_alias_op(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_compile(char,
+                                                  T&& private_detail_te_self,
+                                                  context& ctx,
+                                                  const shape& output,
+                                                  const std::vector<shape>& input)
+        -> decltype(private_detail_te_self.compile(ctx, output, input))
+    {
+        return private_detail_te_self.compile(ctx, output, input);
+    }
+
+    template <class T>
+    static value private_detail_te_default_compile(float,
+                                                   T&& private_detail_te_self,
+                                                   context& ctx,
+                                                   const shape& output,
+                                                   const std::vector<shape>& input)
+    {
+        return detail::compile_op(private_detail_te_self, ctx, output, input);
     }
 
     template <class T>
@@ -729,6 +782,13 @@ struct operation
             return private_detail_te_default_output_alias(char(0), private_detail_te_value, input);
         }
 
+        value compile(context& ctx, const shape& output, const std::vector<shape>& input) override
+        {
+
+            return private_detail_te_default_compile(
+                char(0), private_detail_te_value, ctx, output, input);
+        }
+
         void finalize(context& ctx, const shape& output, const std::vector<shape>& input) override
         {
 
@@ -855,6 +915,24 @@ inline const ValueType& any_cast(const operation& x)
 
 inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
 
+inline value
+compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    return op.compile(ctx, output_shape, input);
+}
+template <class Context>
+inline value
+compile(operation& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    dependent_type<context, Context> ctx2 = std::ref(ctx);
+    return compile(op, ctx2, output_shape, input);
+}
+template <class T, class Context>
+inline auto compile(T& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(op.compile(ctx, ctx, output_shape, input))
+{
+    return op.compile(ctx, ctx, output_shape, input);
+}
 inline shape compute_shape(const operation& op, const std::vector<shape>& inputs)
 {
     return op.compute_shape(inputs);

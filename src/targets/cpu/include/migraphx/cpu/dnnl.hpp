@@ -94,6 +94,13 @@ struct dnnl_op : auto_register_op<Derived>
         });
         return shapes;
     }
+    static std::string impl(const Primitive& prim)
+    {
+        auto desc = prim.get_primitive_desc();
+        const char *str = nullptr;
+        dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
+        return str ? str : "";
+    }
     // Map arg index to arg in dnnl
     std::vector<int> arg_map(int size) const
     {
@@ -214,6 +221,15 @@ struct dnnl_op : auto_register_op<Derived>
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
+    }
+    value compile(context&, const shape& output_shape, std::vector<shape> inputs)
+    {
+        // Compensate for allocation
+        inputs.pop_back();
+        auto md          = to_memory_desc(output_shape, inputs);
+        auto prim        = get_primitive(md);
+        auto impl_name = impl(prim);
+        return {{"impl", impl_name}};
     }
 
     void finalize(context&, const shape& output_shape, std::vector<shape> inputs)

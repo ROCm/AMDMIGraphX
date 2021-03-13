@@ -3,6 +3,8 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/context.hpp>
+#include <migraphx/cpu/context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
@@ -30,6 +32,7 @@ operation merge_post_ops(const operation& op, const operation& post_op)
 
 struct find_post_ops
 {
+    context* ctx = nullptr;
     auto matcher() const
     {
         return match::name("dnnl::eltwise",
@@ -47,8 +50,12 @@ struct find_post_ops
         inputs.back() = ins->inputs().back();
         if(ins->name() == "dnnl::binary")
             inputs.insert(std::prev(inputs.end()), ins->inputs().at(1));
-        auto new_shape = try_compute_shape(op, to_shapes(inputs));
+        auto input_shapes = to_shapes(inputs);
+        auto new_shape = try_compute_shape(op, input_shapes);
         if(new_shape.empty() or new_shape.front() != ins->get_shape())
+            return;
+        auto info = compile(op, *ctx, new_shape.front(), input_shapes);
+        if(info.contains("impl") and starts_with(info.at("impl").to<std::string>(), "ref:"))
             return;
         m.replace_instruction(ins, op, inputs);
     }
@@ -58,7 +65,7 @@ void fuse_ops::apply(module& m) const
 {
     for(std::size_t i = 0; i < 4; i++)
     {
-        match::find_matches(m, find_post_ops{});
+        match::find_matches(m, find_post_ops{ctx});
         dead_code_elimination{}.apply(m);
     }
 }

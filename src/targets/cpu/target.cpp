@@ -26,6 +26,7 @@
 #include <migraphx/cpu/write_literals.hpp>
 #include <migraphx/cpu/allocation_model.hpp>
 #include <migraphx/cpu/target.hpp>
+#include <migraphx/cpu/context.hpp>
 #include <migraphx/cpu/lowering.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/generate.hpp>
@@ -37,8 +38,9 @@ namespace cpu {
 
 std::string target::name() const { return "cpu"; }
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
 {
+      auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
@@ -68,7 +70,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             adjust_allocation{cpu_allocation_model{}},
             dead_code_elimination{},
-            fuse_ops{},
+            fuse_ops{&ctx},
             dead_code_elimination{},
             write_literals{},
             dead_code_elimination{},

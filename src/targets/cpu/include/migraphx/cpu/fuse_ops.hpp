@@ -11,8 +11,11 @@ struct module;
 
 namespace cpu {
 
+struct context;
+
 struct fuse_ops
 {
+    context* ctx = nullptr;
     std::string name() const { return "cpu::fuse_ops"; }
     void apply(module& m) const;
 };

@@ -96,8 +96,8 @@ struct dnnl_op : auto_register_op<Derived>
     }
     static std::string impl(const Primitive& prim)
     {
-        auto desc = prim.get_primitive_desc();
-        const char *str = nullptr;
+        auto desc       = prim.get_primitive_desc();
+        const char* str = nullptr;
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
         return str ? str : "";
     }
@@ -226,8 +226,8 @@ struct dnnl_op : auto_register_op<Derived>
     {
         // Compensate for allocation
         inputs.pop_back();
-        auto md          = to_memory_desc(output_shape, inputs);
-        auto prim        = get_primitive(md);
+        auto md        = to_memory_desc(output_shape, inputs);
+        auto prim      = get_primitive(md);
         auto impl_name = impl(prim);
         return {{"impl", impl_name}};
     }

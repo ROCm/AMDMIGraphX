@@ -51,7 +51,7 @@ struct find_post_ops
         if(ins->name() == "dnnl::binary")
             inputs.insert(std::prev(inputs.end()), ins->inputs().at(1));
         auto input_shapes = to_shapes(inputs);
-        auto new_shape = try_compute_shape(op, input_shapes);
+        auto new_shape    = try_compute_shape(op, input_shapes);
         if(new_shape.empty() or new_shape.front() != ins->get_shape())
             return;
         auto info = compile(op, *ctx, new_shape.front(), input_shapes);

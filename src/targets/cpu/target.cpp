@@ -40,7 +40,7 @@ std::string target::name() const { return "cpu"; }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
 {
-      auto& ctx = any_cast<context>(gctx);
+    auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},

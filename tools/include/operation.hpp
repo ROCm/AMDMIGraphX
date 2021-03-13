@@ -259,7 +259,10 @@ value compile_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
 }
 
 template <class T>
-value compile_op(const T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+value compile_op(const T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input)
 {
     return compile_op(rank<1>{}, x, ctx, output_shape, input);
 }
@@ -310,7 +313,7 @@ bool is_borrowed_op(const T&)
              const   = True,
              default = 'detail::output_alias_op'),
      virtual('compile',
-            returns = 'value',
+             returns = 'value',
              ctx     = 'context&',
              output  = 'const shape&',
              input   = 'const std::vector<shape>&',
@@ -357,19 +360,21 @@ bool is_borrowed_op(const T&)
     return !(x == y);
 }
 
-inline value compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+inline value
+compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
 {
     return op.compile(ctx, output_shape, input);
 }
-template<class Context>
-inline value compile(operation& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+template <class Context>
+inline value
+compile(operation& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
 {
     dependent_type<context, Context> ctx2 = std::ref(ctx);
     return compile(op, ctx2, output_shape, input);
 }
-template<class T, class Context>
+template <class T, class Context>
 inline auto compile(T& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
--> decltype(op.compile(ctx, ctx, output_shape, input))
+    -> decltype(op.compile(ctx, ctx, output_shape, input))
 {
     return op.compile(ctx, ctx, output_shape, input);
 }

@@ -1643,6 +1643,22 @@ TEST_CASE(less_bool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(lessorequal_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto temp     = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
+    auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
+    
+    mm->add_return({le});
+
+    auto prog = migraphx::parse_onnx("lessorequal_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;

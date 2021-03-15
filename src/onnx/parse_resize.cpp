@@ -170,9 +170,9 @@ struct parse_resize : op_parser<parse_resize>
 
         shape out_s{in_s.type(), out_lens};
         std::size_t out_elements = out_s.elements();
-        auto idx_op     = get_original_idx_op(coord_trans_mode);
+        auto idx_op              = get_original_idx_op(coord_trans_mode);
 
-        if (mode == "nearest")
+        if(mode == "nearest")
         {
             std::vector<int> ind(out_elements);
 
@@ -205,24 +205,26 @@ struct parse_resize : op_parser<parse_resize>
             std::vector<float> val_ind(out_elements);
 
             auto nearest_floor = get_nearest_op("floor");
-            auto nearest_ceil = get_nearest_op("ceil");
+            auto nearest_ceil  = get_nearest_op("ceil");
 
             shape_for_each(out_s, [&](auto idx) {
                 auto in_idx = idx;
-                for (auto ii = 0; ii < in_lens.size(); ++ii)
+                for(auto ii = 0; ii < in_lens.size(); ++ii)
                 {
-                    auto out_idx = out_s.index(idx);
+                    auto out_idx     = out_s.index(idx);
                     val_ind[out_idx] = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
                     floor_ind[out_idx] = nearest_floor(in_lens[ii], val_ind[out_idx]);
-                    ceil_ind[out_idx] = nearest_ceil(in_lens[ii], val_ind[out_idx]);
+                    ceil_ind[out_idx]  = nearest_ceil(in_lens[ii], val_ind[out_idx]);
                 }
             });
 
             // compute the difference to add
             std::vector<float> delta(out_elements);
-            std::transform(floor_ind.begin(), floor_ind.end(), val_ind.begin(), delta.begin(), [](auto fi, auto vi){
-                return val_ind - fi;
-            });
+            std::transform(floor_ind.begin(),
+                           floor_ind.end(),
+                           val_ind.begin(),
+                           delta.begin(),
+                           [](auto fi, auto vi) { return val_ind - fi; });
 
             auto input_type = args.at(0)->get_shape().type();
             shape delta_s{input_type, out_lens};

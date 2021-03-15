@@ -95,9 +95,9 @@ struct parse_resize : op_parser<parse_resize>
         if(contains(info.attributes, "mode"))
         {
             auto mode = info.attributes.at("mode").s();
-            if(mode != "nearest")
+            if(mode != "nearest" and mode != "linear")
             {
-                MIGRAPHX_THROW("PARSE_RESIZE: only nearest mode is supported!");
+                MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
             }
         }
 
@@ -169,29 +169,68 @@ struct parse_resize : op_parser<parse_resize>
         }
 
         shape out_s{in_s.type(), out_lens};
-        std::vector<int> ind(out_s.elements());
-
-        // map out_idx to in_idx
-        auto nearest_op = get_nearest_op(nearest_mode);
+        std::size_t out_elements = out_s.elements();
         auto idx_op     = get_original_idx_op(coord_trans_mode);
 
-        shape_for_each(out_s, [&](auto idx) {
-            auto in_idx = idx;
-            for(auto ii = 0; ii < in_lens.size(); ++ii)
-            {
-                auto idx_val = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
-                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-            }
+        if (mode == "nearest")
+        {
+            std::vector<int> ind(out_elements);
 
-            ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
-        });
+            // map out_idx to in_idx
+            auto nearest_op = get_nearest_op(nearest_mode);
 
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        shape ind_s{shape::int32_type, out_lens};
-        auto rsp     = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
-        auto ins_ind = info.add_literal(literal(ind_s, ind));
-        return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+            shape_for_each(out_s, [&](auto idx) {
+                auto in_idx = idx;
+                for(auto ii = 0; ii < in_lens.size(); ++ii)
+                {
+                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
+                    in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+                }
+
+                ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
+            });
+
+            // reshape input to one-dimension
+            std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+            shape ind_s{shape::int32_type, out_lens};
+            auto rsp     = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+            auto ins_ind = info.add_literal(literal(ind_s, ind));
+            return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        }
+        // linear mode
+        else
+        {
+            std::vector<int> floor_ind(out_elements);
+            std::vector<int> ceil_ind(out_elements);
+            std::vector<float> val_ind(out_elements);
+
+            auto nearest_floor = get_nearest_op("floor");
+            auto nearest_ceil = get_nearest_op("ceil");
+
+            shape_for_each(out_s, [&](auto idx) {
+                auto in_idx = idx;
+                for (auto ii = 0; ii < in_lens.size(); ++ii)
+                {
+                    auto out_idx = out_s.index(idx);
+                    val_ind[out_idx] = idx_op(in_lens[ii], out_lens[ii], in_idx[ii], vec_scale[ii]);
+                    floor_ind[out_idx] = nearest_floor(in_lens[ii], val_ind[out_idx]);
+                    ceil_ind[out_idx] = nearest_ceil(in_lens[ii], val_ind[out_idx]);
+                }
+            });
+
+            // compute the difference to add
+            std::vector<float> delta(out_elements);
+            std::transform(floor_ind.begin(), floor_ind.end(), val_ind.begin(), delta.begin(), [](auto fi, auto vi){
+                return val_ind - fi;
+            });
+
+            auto input_type = args.at(0)->get_shape().type();
+            shape delta_s{input_type, out_lens};
+            auto l_scale = info.add_literal(literal(delta_s, delta));
+
+            std::vector<int> ind(ceil_ind);
+            ind.insert(ind.end(), floor_ind.begin(), floor_ind.end());
+        }
     }
 };
 

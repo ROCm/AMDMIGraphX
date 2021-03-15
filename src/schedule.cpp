@@ -40,25 +40,26 @@ struct stream_info
     using map_deps = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
     map_deps mod_implicit_deps;
 
-    void calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, map_deps& deps)
+    void
+    calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, map_deps& deps)
     {
         const auto& ins_inputs = ins->inputs();
         for(auto ii : iterator_for(smod))
         {
             const auto& ii_inputs = ii->inputs();
-            for (auto iii : ii_inputs)
+            for(auto iii : ii_inputs)
             {
-                if (pmod.has_instruction(iii))
+                if(pmod.has_instruction(iii))
                 {
-                    if (not contains(ins_inputs, iii))
+                    if(not contains(ins_inputs, iii))
                         deps[ins].insert(iii);
                 }
             }
 
             const auto& mod_args = ii->module_inputs();
-            if (not mod_args.empty())
+            if(not mod_args.empty())
             {
-                for (const auto* ssmod : mod_args)
+                for(const auto* ssmod : mod_args)
                 {
                     calc_implicit_deps(*ssmod, pmod, ins, deps);
                 }
@@ -72,12 +73,12 @@ struct stream_info
         for(auto ins : iterator_for(p))
         {
             const auto& mod_args = ins->module_inputs();
-            if (mod_args.empty())
+            if(mod_args.empty())
             {
                 continue;
             }
 
-            for (const auto* mod : mod_args)
+            for(const auto* mod : mod_args)
             {
                 calc_implicit_deps(*mod, p, ins, mod_implicit_deps);
             }
@@ -97,18 +98,17 @@ struct stream_info
                 if(op.name() == "@return")
                     weight = 1;
                 iweights[ins] = weight;
-                auto inputs = ins->inputs();
-                if (contains(mod_implicit_deps, ins))
+                auto inputs   = ins->inputs();
+                if(contains(mod_implicit_deps, ins))
                 {
                     const auto& impl_deps = mod_implicit_deps.at(ins);
                     inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
                 }
 
-                weights[ins] =
-                    std::accumulate(inputs.begin(),
-                                    inputs.end(),
-                                    weight,
-                                    [&](std::size_t w, instruction_ref i) { return w + self(i); });
+                weights[ins] = std::accumulate(
+                    inputs.begin(), inputs.end(), weight, [&](std::size_t w, instruction_ref i) {
+                        return w + self(i);
+                    });
             }
             return weights[ins];
         })(last);
@@ -271,9 +271,9 @@ struct stream_info
                 add_child(ins);
             }
 
-            if (contains(mod_implicit_deps, top))
+            if(contains(mod_implicit_deps, top))
             {
-                for (auto ins : mod_implicit_deps.at(top))
+                for(auto ins : mod_implicit_deps.at(top))
                 {
                     assert(p.has_instruction(ins));
                     add_child(ins);

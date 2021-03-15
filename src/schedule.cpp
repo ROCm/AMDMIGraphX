@@ -37,6 +37,52 @@ struct stream_info
     std::unordered_map<instruction_ref, std::size_t> ins2stream;
     std::unordered_map<instruction_ref, std::size_t> weights;
     std::unordered_map<instruction_ref, std::size_t> iweights;
+    using map_deps = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+    map_deps mod_implicit_deps;
+
+    void calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, map_deps& deps)
+    {
+        const auto& ins_inputs = ins->inputs();
+        for(auto ii : iterator_for(smod))
+        {
+            const auto& ii_inputs = ii->inputs();
+            for (auto iii : ii_inputs)
+            {
+                if (pmod.has_instruction(iii))
+                {
+                    if (not contains(ins_inputs, iii))
+                        deps[ins].insert(iii);
+                }
+            }
+
+            const auto& mod_args = ii->module_inputs();
+            if (not mod_args.empty())
+            {
+                for (const auto* ssmod : mod_args)
+                {
+                    calc_implicit_deps(*ssmod, pmod, ins, deps);
+                }
+            }
+        }
+    }
+
+    void calc_implicit_deps(module& p)
+    {
+        mod_implicit_deps.clear();
+        for(auto ins : iterator_for(p))
+        {
+            const auto& mod_args = ins->module_inputs();
+            if (mod_args.empty())
+            {
+                continue;
+            }
+
+            for (const auto* mod : mod_args)
+            {
+                calc_implicit_deps(*mod, p, ins, mod_implicit_deps);
+            }
+        }
+    }
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {
@@ -51,9 +97,16 @@ struct stream_info
                 if(op.name() == "@return")
                     weight = 1;
                 iweights[ins] = weight;
+                auto inputs = ins->inputs();
+                if (contains(mod_implicit_deps, ins))
+                {
+                    const auto& impl_deps = mod_implicit_deps.at(ins);
+                    inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
+                }
+
                 weights[ins] =
-                    std::accumulate(ins->inputs().begin(),
-                                    ins->inputs().end(),
+                    std::accumulate(inputs.begin(),
+                                    inputs.end(),
                                     weight,
                                     [&](std::size_t w, instruction_ref i) { return w + self(i); });
             }
@@ -210,13 +263,21 @@ struct stream_info
             // Pop the first element
             auto top = children.begin()->second;
             children.erase(children.begin());
-
             p.move_instruction(top, p.begin());
             for(auto ins : top->inputs())
             {
                 if(not p.has_instruction(ins))
                     continue;
                 add_child(ins);
+            }
+
+            if (contains(mod_implicit_deps, top))
+            {
+                for (auto ins : mod_implicit_deps.at(top))
+                {
+                    assert(p.has_instruction(ins));
+                    add_child(ins);
+                }
             }
         }
     }
@@ -476,11 +537,13 @@ void schedule::apply(module& p) const
 {
     if(not enable)
         return;
+
     stream_info si;
+    si.calc_implicit_deps(p);
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
     auto nstreams = si.assign_streams(p, model.concurrency());
-    // si.sort(p, model.concurrency());
+    si.sort(p, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {

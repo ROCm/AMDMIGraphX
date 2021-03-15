@@ -362,10 +362,7 @@ bool module::has_instruction(instruction_ref ins) const
         return true;
     }
 
-    auto parent_modules = get_sub_modules();
-    return std::any_of(parent_modules.begin(), parent_modules.end(), [&](auto mod) {
-        return mod->has_instruction(ins);
-    });
+    return false;
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }

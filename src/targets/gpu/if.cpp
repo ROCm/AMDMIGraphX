@@ -8,7 +8,7 @@ namespace gpu {
 shape hip_if::compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
 {
     inputs.pop_back();
-    return op.compute_shape(inputs, mods);
+    return op.compute_shape(inputs, std::move(mods));
 }
 
 argument hip_if::compute(

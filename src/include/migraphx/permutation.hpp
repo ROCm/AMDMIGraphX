@@ -27,9 +27,8 @@ inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 {
     std::vector<std::int64_t> result(data.size());
     std::iota(result.begin(), result.end(), 0);
-    std::stable_sort(result.begin(), result.end(), [&](auto x, auto y) {
-        return op(data[x], data[y]); 
-    });
+    std::stable_sort(
+        result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
     return result;
 }
 

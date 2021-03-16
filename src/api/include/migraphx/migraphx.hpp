@@ -702,6 +702,12 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
     }
 
     /// When there is a dimension parameter than use this default value
+    void set_nhwc(bool is_nhwc)
+    {
+        call(&migraphx_tf_options_set_nhwc, this->get_handle_ptr(), is_nhwc);
+    }
+
+    /// When there is a dimension parameter than use this default value
     void set_default_dim_value(unsigned int value)
     {
         call(&migraphx_tf_options_set_default_dim_value, this->get_handle_ptr(), value);

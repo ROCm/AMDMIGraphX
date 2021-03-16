@@ -263,6 +263,11 @@ api.add_function('migraphx_parse_onnx_buffer',
 def tf_options(h):
     h.constructor('create')
     h.method(
+        'set_nhwc',
+        api.params(is_nhwc='unsigned char'),
+        invoke='migraphx::set_nhwc($@)',
+    )
+    h.method(
         'set_input_parameter_shape',
         api.params(name='const char*', dims='std::vector<size_t>'),
         invoke='migraphx::set_input_parameter_shape($@)',

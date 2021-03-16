@@ -91,6 +91,8 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
+void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
+
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
 
 void set_input_parameter_shape(onnx_options& options,

@@ -91,6 +91,8 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
+void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
+
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
 
 void set_input_parameter_shape(onnx_options& options,
@@ -871,6 +873,16 @@ extern "C" migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_
 {
     return migraphx::try_([&] {
         *tf_options = object_cast<migraphx_tf_options_t>(allocate<migraphx::tf_options>());
+    });
+}
+
+extern "C" migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options,
+                                                        unsigned char is_nhwc)
+{
+    return migraphx::try_([&] {
+        if(tf_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter tf_options: Null pointer");
+        migraphx::set_nhwc((tf_options->object), (is_nhwc));
     });
 }
 

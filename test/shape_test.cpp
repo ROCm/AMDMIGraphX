@@ -1,6 +1,8 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/stringutils.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -401,6 +403,87 @@ TEST_CASE(test_with_lens2)
     auto s2 = s1.with_lens({3, 4});
     EXPECT(s2.standard());
     migraphx::shape s3{migraphx::shape::float_type, {3, 4}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 1, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous2)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 1}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous3)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 3, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous4)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous5)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 5, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous6)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 24, 24, 5}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous7)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous8)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 24, 24}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous9)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 24, 24, 1}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 = migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
     EXPECT(s2 == s3);
 }
 

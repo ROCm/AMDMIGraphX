@@ -175,7 +175,7 @@ struct parse_resize : op_parser<parse_resize>
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         shape ind_s{shape::int32_type, out_lens};
-        auto rsp     = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
         if(mode == "nearest")
         {
@@ -200,7 +200,7 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
-            if (out_lens.size() > 2)
+            if(out_lens.size() > 2)
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: linear mode can support at most 2 dimensions!");
             }
@@ -209,7 +209,7 @@ struct parse_resize : op_parser<parse_resize>
             auto nearest_ceil  = get_nearest_op("ceil");
 
             // 1 dimension
-            if (out_lens.size() == 1)
+            if(out_lens.size() == 1)
             {
                 std::vector<int> ind_floor(out_elements);
                 std::vector<int> ind_ceil(out_elements);
@@ -219,15 +219,15 @@ struct parse_resize : op_parser<parse_resize>
 
                 shape_for_each(out_s, [&](auto idx) {
                     auto in_idx_floor = idx;
-                    auto in_idx_ceil = idx;
-                    auto out_idx     = out_s.index(idx);
-                    auto idx_val = idx_op(in_lens[0], out_lens[0], idx[0], vec_scale[0]);
-                    in_idx_floor[0] = nearest_floor(in_lens[0], idx_val);
-                    in_idx_ceil[0]  = nearest_ceil(in_lens[0], idx_val);
-                    delta[out_idx] = idx_val - in_idx_floor[0];
+                    auto in_idx_ceil  = idx;
+                    auto out_idx      = out_s.index(idx);
+                    auto idx_val      = idx_op(in_lens[0], out_lens[0], idx[0], vec_scale[0]);
+                    in_idx_floor[0]   = nearest_floor(in_lens[0], idx_val);
+                    in_idx_ceil[0]    = nearest_ceil(in_lens[0], idx_val);
+                    delta[out_idx]    = idx_val - in_idx_floor[0];
 
                     ind_floor[out_idx] = static_cast<int64_t>(in_s.index(in_idx_floor));
-                    ind_ceil[out_idx] = static_cast<int64_t>(in_s.index(in_idx_ceil));
+                    ind_ceil[out_idx]  = static_cast<int64_t>(in_s.index(in_idx_ceil));
                 });
 
                 auto input_type = args.at(0)->get_shape().type();
@@ -241,14 +241,18 @@ struct parse_resize : op_parser<parse_resize>
                 ind_lens[0] *= 2;
                 shape ind_s{shape::int32_type, ind_lens};
 
-                auto ins_ind = info.add_literal(literal(ind_s, ind));
+                auto ins_ind   = info.add_literal(literal(ind_s, ind));
                 auto ins_delta = info.add_literal(literal(out_s, delta));
                 auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
                 int64_t slc_size = static_cast<int64_t>(out_lens[0]);
-                auto ins_ceil = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
-                auto ins_floor = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}), data);
+                auto ins_ceil    = info.add_instruction(
+                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
+                auto ins_floor = info.add_instruction(
+                    make_op("slice",
+                            {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}),
+                    data);
 
-                auto diff = info.add_instruction(make_op("sub"), ins_ceil, ins_floor);
+                auto diff  = info.add_instruction(make_op("sub"), ins_ceil, ins_floor);
                 auto sdiff = info.add_instruction(make_op("mul"), diff, ins_delta);
 
                 return info.add_instruction(make_op("add"), sdiff, ins_floor);
@@ -261,45 +265,60 @@ struct parse_resize : op_parser<parse_resize>
                 std::vector<std::vector<int>> ind_ceil(n_dim, std::vector<int>(out_elements));
                 std::vector<std::vector<float>> ind_val(n_dim, std::vector<float>(out_elements));
                 std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
-                
+
                 shape_for_each(out_s, [&](auto idx) {
-                    auto in_idx = idx;
+                    auto in_idx  = idx;
                     auto out_idx = out_s.index(idx);
                     for(auto ii = 0; ii < in_lens.size(); ++ii)
                     {
                         auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
                         ind_floor[ii][out_idx] = nearest_floor(in_lens[ii], idx_val);
-                        ind_ceil[ii][out_idx] = nearest_ceil(in_len[ii], idx_val);
-                        ind_val[ii][out_idx] = idx_val;
-                        delta[ii][out_idx] = idx_val - ind_floor[ii][out_idx];
+                        ind_ceil[ii][out_idx]  = nearest_ceil(in_len[ii], idx_val);
+                        ind_val[ii][out_idx]   = idx_val;
+                        delta[ii][out_idx]     = idx_val - ind_floor[ii][out_idx];
                     }
                 });
-
 
                 std::vector<int> ind;
                 const auto& x00 = ind_floor[0];
                 const auto& y00 = ind_floor[1];
-                std::transform(x00.begin(), x00.end(), y00.begin(), std::back_inserter(ind), [&](auto x, auto y) {
-                    return ind_s.index({x, y});
-                });
+                std::transform(x00.begin(),
+                               x00.end(),
+                               y00.begin(),
+                               std::back_inserter(ind),
+                               [&](auto x, auto y) {
+                                   return ind_s.index({x, y});
+                               });
 
                 const auto& x01 = ind_floor[0];
                 const auto& y01 = ind_ceil[1];
-                std::transform(x01.begin(), x01.end(), y01.begin(), std::back_inserter(ind), [&](auto x, auto y) {
-                    return ind_s.index({x, y});
-                });
+                std::transform(x01.begin(),
+                               x01.end(),
+                               y01.begin(),
+                               std::back_inserter(ind),
+                               [&](auto x, auto y) {
+                                   return ind_s.index({x, y});
+                               });
 
                 const auto& x10 = ind_ceil[0];
                 const auto& y10 = ind_floor[1];
-                std::transform(x10.begin(), x10.end(), y10.begin(), std::back_inserter(ind), [&](auto x, auto y) {
-                    return ind_s.index({x, y});
-                });
+                std::transform(x10.begin(),
+                               x10.end(),
+                               y10.begin(),
+                               std::back_inserter(ind),
+                               [&](auto x, auto y) {
+                                   return ind_s.index({x, y});
+                               });
 
                 const auto& x11 = ind_ceil[0];
                 const auto& y11 = ind_ceil[1];
-                std::transform(x11.begin(), x11.end(), y11.begin(), std::back_inserter(ind), [&](auto x, auto y) {
-                    return ind_s.index({x, y});
-                });
+                std::transform(x11.begin(),
+                               x11.end(),
+                               y11.begin(),
+                               std::back_inserter(ind),
+                               [&](auto x, auto y) {
+                                   return ind_s.index({x, y});
+                               });
 
                 // gather shape
                 auto ind_lens = out_lens;
@@ -319,18 +338,27 @@ struct parse_resize : op_parser<parse_resize>
                 auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
                 std::size_t slc_size = out_lens[0] * 2;
-                auto ins_xf = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
-                auto ins_xc = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}), data);
-                auto xdiff = info.add_instruction(make_op("sub"), ins_xc, ins_xf);
+                auto ins_xf          = info.add_instruction(
+                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
+                auto ins_xc = info.add_instruction(
+                    make_op("slice",
+                            {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}),
+                    data);
+                auto xdiff  = info.add_instruction(make_op("sub"), ins_xc, ins_xf);
                 auto dxdiff = info.add_instruction(make_op("mul"), xdiff, delta_x);
-                auto ins_x = info.add_instruction(make_op("add", dxdiff, ins_xf));
+                auto ins_x  = info.add_instruction(make_op("add", dxdiff, ins_xf));
 
-                slc_size = out_lens[0];
-                auto ins_yf = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), ins_x);
-                auto ins_yc = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}), ins_x);
-                auto ydiff = info.add_instruction(make_op("sub"), ins_yc, ins_yf);
+                slc_size    = out_lens[0];
+                auto ins_yf = info.add_instruction(
+                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}),
+                    ins_x);
+                auto ins_yc = info.add_instruction(
+                    make_op("slice",
+                            {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}),
+                    ins_x);
+                auto ydiff  = info.add_instruction(make_op("sub"), ins_yc, ins_yf);
                 auto dydiff = info.add_instruction(make_op("mul"), ydiff, delta_y);
-                
+
                 return info.add_instruction(make_op("add"), dydiff, ins_yf);
             }
         }

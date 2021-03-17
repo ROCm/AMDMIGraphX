@@ -254,8 +254,7 @@ migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
 
 migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options);
 
-migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options,
-                                             unsigned char is_nhwc);
+migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options, bool is_nhwc);
 
 migraphx_status migraphx_tf_options_set_input_parameter_shape(migraphx_tf_options_t tf_options,
                                                               const char* name,

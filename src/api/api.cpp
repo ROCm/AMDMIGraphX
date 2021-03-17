@@ -877,7 +877,7 @@ extern "C" migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_
 }
 
 extern "C" migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options,
-                                                        unsigned char is_nhwc)
+                                                        bool is_nhwc)
 {
     return migraphx::try_([&] {
         if(tf_options == nullptr)

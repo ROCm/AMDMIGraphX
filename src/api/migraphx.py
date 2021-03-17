@@ -264,7 +264,7 @@ def tf_options(h):
     h.constructor('create')
     h.method(
         'set_nhwc',
-        api.params(is_nhwc='unsigned char'),
+        api.params(is_nhwc='bool'),
         invoke='migraphx::set_nhwc($@)',
     )
     h.method(

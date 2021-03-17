@@ -14,7 +14,7 @@ TEST_CASE(load_tf_default_dim)
     migraphx::tf_options tf_options;
     size_t batch = 2;
     tf_options.set_default_dim_value(batch);
-    tf_options.set_nhwc(1);
+    tf_options.set_nhwc();
     auto p      = migraphx::parse_tf("conv_batch_test.pb", tf_options);
     auto shapes = p.get_output_shapes();
     CHECK(shapes.size() == 1);

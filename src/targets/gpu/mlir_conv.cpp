@@ -128,9 +128,6 @@ struct mlir_apply
 
         auto bin_i = binary_map.find(mlir_options);
         if (bin_i == binary_map.end()) {
-
-          printf("make_mlir_binary - %s\n", mlir_options.c_str());
-        
           size_t bin_size = 0;
           char *bin_buffer = nullptr;
 
@@ -138,11 +135,8 @@ struct mlir_apply
 
           if (miirLowerBin(mlir_handle) == MIIR_SUCCESS &&
               miirGenIgemmBin(mlir_handle, &bin_buffer, &bin_size) == MIIR_SUCCESS) {
-
-            size_t grid_size, block_size;
-            if (miirGetExecutionDims(mlir_handle, &grid_size, &block_size) == MIIR_SUCCESS) {
-              printf("make_mlir_binary - grid=%zu block=%zu\n", grid_size, block_size);
-              size_t global_size = grid_size * block_size;
+            size_t global_size, block_size;
+            if (miirGetExecutionDims(mlir_handle, &global_size, &block_size) == MIIR_SUCCESS) {
               result = new execution_spec{{bin_buffer, bin_size}, global_size, block_size};
             }
           }
@@ -173,12 +167,13 @@ struct mlir_apply
       auto flt_t = op_r->inputs().at(1)->get_shape();
       auto out_t = op_r->get_shape();
 
-      auto i64 = shape(shape::uint64_type, {1});
+      auto i64 = shape(shape::uint64_type);
 
       std::vector<shape> expected_inputs = {
         flt_t, flt_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
         inp_t, inp_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
-        out_t, out_t, i64, i64, i64, i64, i64, i64, i64, i64, i64
+        out_t, out_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        out_t
       };
 
       return migraphx::make_op("gpu::code_object",
@@ -225,10 +220,11 @@ struct mlir_apply
         auto out = insert_allocation(ins, ins->get_shape());
               
         std::vector<instruction_ref> refs;
-        refs.reserve(3*11);
+        refs.reserve(3*11 + 1);
         add_memref_descriptor(refs, flt);
         add_memref_descriptor(refs, inp);
         add_memref_descriptor(refs, out);
+        refs.push_back(out);
               
         prog->replace_instruction(ins, conv, refs);
       }

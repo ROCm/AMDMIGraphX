@@ -492,4 +492,13 @@ TEST_CASE(test_with_lens_ambigous9)
     EXPECT(s2 == s3);
 }
 
+TEST_CASE(test_with_lens_ambigous10)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {3, 2, 4, 1}};
+    auto s2 = s1.with_lens({3, 2, 4, 1});
+    EXPECT(not s2.transposed());
+    migraphx::shape s3{migraphx::shape::float_type, {3, 2, 4, 1}};
+    EXPECT(s2 == s3);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

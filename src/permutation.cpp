@@ -33,7 +33,8 @@ std::vector<int64_t> find_permutation(const shape& s)
         std::transform(start, last, std::back_inserter(result), [](auto&& p) { return p.second; });
         auto mag = delta > 0 ? -1 : 1;
         std::stable_sort(result.end() - n, result.end(), by(std::less<>{}, [&](auto x) {
-                             return (x - base) * mag;
+                            auto diff = (x - base);
+                            return std::make_tuple(std::abs(diff), (x - base) * mag);
                          }));
         delta = result.back() - base;
         base  = result.back();

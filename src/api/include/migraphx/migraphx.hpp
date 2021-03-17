@@ -702,7 +702,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
     }
 
     /// Change data layout to NHWC (default is NCHW)
-    void set_nhwc(bool is_nhwc=true)
+    void set_nhwc(bool is_nhwc = true)
     {
         call(&migraphx_tf_options_set_nhwc, this->get_handle_ptr(), is_nhwc);
     }

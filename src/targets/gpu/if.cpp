@@ -30,7 +30,7 @@ argument hip_if::compute(
     }
 
     auto results = run(mod, params);
-    auto res = migraphx::gpu::from_gpu(results[0]);
+    auto res     = migraphx::gpu::from_gpu(results[0]);
     std::cout << "res = " << res << std::endl;
 
     std::cout << "arg_size = " << args.size() << std::endl;

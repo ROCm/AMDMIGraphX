@@ -69,23 +69,6 @@ int main() {}
 
 )__migraphx__";
 
-// NOLINTNEXTLINE
-const std::string add_2s_binary = R"migraphx(
-#include <hip/hip_runtime.h>
-
-extern "C" {
-__global__ void add_2(std::int32_t* x, std::int32_t* y) 
-{
-    int num = threadIdx.x + blockDim.x * blockIdx.x;
-    y[num] = x[num] + 2;
-}
-    
-}
-
-int main() {}
-
-)migraphx";
-
 migraphx::gpu::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};

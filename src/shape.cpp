@@ -225,7 +225,7 @@ shape shape::normalize_standard() const
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
     assert(l.size() == this->lens().size());
-    auto perm = find_permutation(*this);
+    auto perm     = find_permutation(*this);
     auto new_lens = reorder_dims(l, perm);
     shape result  = reorder_shape({t, new_lens}, invert_permutation(perm));
     assert(result.lens() == l);

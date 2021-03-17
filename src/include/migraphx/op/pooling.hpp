@@ -51,8 +51,8 @@ struct pooling
         check_shapes{inputs, *this}.has(1);
 
         const shape& input = inputs.at(0);
-        auto input_lens = input.lens();
-        size_t kdims    = input_lens.size() - 2;
+        auto input_lens    = input.lens();
+        size_t kdims       = input_lens.size() - 2;
         if(kdims != this->kdims())
         {
             MIGRAPHX_THROW("pooling: input k-dims does not match attribute size");

@@ -354,10 +354,18 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 
 bool module::has_instruction(instruction_ref ins) const
 {
-    return std::find_if(
-               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-                   return std::addressof(*ins) == std::addressof(x);
-               }) != impl->instructions.end();
+    if(std::find_if(
+           impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+               return std::addressof(*ins) == std::addressof(x);
+           }) != impl->instructions.end())
+    {
+        return true;
+    }
+
+    auto parent_modules = get_sub_modules();
+    return std::any_of(parent_modules.begin(), parent_modules.end(), [&](auto mod) {
+        return mod->has_instruction(ins);
+    });
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }

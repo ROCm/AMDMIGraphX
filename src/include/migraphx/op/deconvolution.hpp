@@ -51,7 +51,6 @@ struct deconvolution
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
         if(kdims != this->kdims())
         {
@@ -67,7 +66,7 @@ struct deconvolution
                 stride[i] * (input.lens()[i + 2] - 1) +
                     ((weights.lens()[i + 2] - 1) * dilation[i] + 1) - 2 * padding[i])));
         }
-        return {t, output_lens};
+        return inputs[0].with_lens(output_lens);
     }
 
     size_t kdims() const

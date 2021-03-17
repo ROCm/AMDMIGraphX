@@ -222,16 +222,19 @@ shape shape::normalize_standard() const
         return *this;
 }
 
-shape shape::with_lens(const std::vector<std::size_t>& l) const
+shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
     assert(l.size() == this->lens().size());
     auto perm = find_permutation(*this);
-    // auto new_lens = reorder_dims(l, invert_permutation(perm));
-    // shape result  = reorder_shape({this->type(), new_lens}, perm);
     auto new_lens = reorder_dims(l, perm);
-    shape result  = reorder_shape({this->type(), new_lens}, invert_permutation(perm));
+    shape result  = reorder_shape({t, new_lens}, invert_permutation(perm));
     assert(result.lens() == l);
     return result;
+}
+
+shape shape::with_lens(const std::vector<std::size_t>& l) const
+{
+    return this->with_lens(this->type(), l);
 }
 
 std::size_t shape::element_space() const { return impl->element_space(); }

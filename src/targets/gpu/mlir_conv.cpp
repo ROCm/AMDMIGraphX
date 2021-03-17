@@ -242,7 +242,12 @@ struct mlir_apply
 
 };
 
-void mlir_conv::apply(module& p) const { mlir_apply{&p, this}.apply(); }
+void mlir_conv::apply(module& p) const
+{
+  if (enable_mlir) {
+    mlir_apply{&p, this}.apply();
+  }
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

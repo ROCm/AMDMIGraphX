@@ -294,6 +294,7 @@ struct compiler
     compiler_target ct;
     bool offload_copy = false;
     bool fast_math    = true;
+    bool enalbe_mlir  = false;
     int quantize      = 0;
 
     std::vector<std::string> fill0;
@@ -311,6 +312,10 @@ struct compiler
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
+        ap(enable_mlir,
+           {"--enable-mlir"},
+           ap.help("Enable MLIR compilation"),
+           ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
@@ -335,6 +340,7 @@ struct compiler
         compile_options options;
         options.offload_copy = offload_copy;
         options.fast_math    = fast_math;
+        options.enable_mlir  = enable_mlir;
         p.compile(t, options);
         l.save(p);
         return p;

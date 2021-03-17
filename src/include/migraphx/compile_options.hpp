@@ -11,6 +11,7 @@ struct compile_options
 {
     bool offload_copy = false;
     bool fast_math    = true;
+    bool enable_mlir  = false;
     tracer trace{};
 };
 

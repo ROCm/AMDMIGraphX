@@ -355,9 +355,9 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 bool module::has_instruction(instruction_ref ins) const
 {
     return std::find_if(
-           impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-               return std::addressof(*ins) == std::addressof(x);
-           }) != impl->instructions.end();
+               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+                   return std::addressof(*ins) == std::addressof(x);
+               }) != impl->instructions.end();
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }

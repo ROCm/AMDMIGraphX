@@ -38,6 +38,7 @@
 #include <migraphx/op/greater.hpp>
 #include <migraphx/op/gru.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/less.hpp>
@@ -91,6 +92,7 @@
 #include <migraphx/op/tan.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
+#include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>

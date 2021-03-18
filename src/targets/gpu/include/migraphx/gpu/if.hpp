@@ -29,9 +29,9 @@ struct hip_if
         const std::vector<module_ref>& mods,
         std::function<std::vector<argument>(
             module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const
     {
-        return shapes.size() - 1;
+        return 1;
     }
 };
 

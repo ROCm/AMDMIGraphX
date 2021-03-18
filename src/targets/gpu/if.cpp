@@ -20,16 +20,21 @@ argument hip_if::compute(
     auto cond      = args.at(0).at<bool>();
     module_ref mod = cond ? mods[0] : mods[1];
     std::unordered_map<std::string, argument> params;
-    auto out_shapes = mod->get_output_shapes();
-    assert(out_shapes.size() + 1 == args.size());
-    for(std::size_t i = 0; i < out_shapes.size(); ++i)
+
+    std::size_t out_index = 1;
+    for (const auto& smod : mods)
     {
-        std::string out_name = "#output_" + std::to_string(i);
-        params[out_name]     = args.at(i + 1);
+        const auto& param_shapes = smod->get_parameter_shapes();
+        for (auto& ns : param_shapes)
+        {
+            if (contains(ns.first, "#output_"))
+            {
+                params[ns.first] = args.at(out_index++);
+            }
+        }
     }
 
     auto results = run(mod, params);
-
     return results[0];
 }
 

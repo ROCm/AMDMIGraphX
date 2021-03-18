@@ -86,7 +86,7 @@ struct miopen_apply
             std::size_t index = 0;
             for(auto ins : outputs_alias)
             {
-                prog_output_names[ins] = "#output_" + std::to_string(index++);
+                prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
             }
         }
     }
@@ -245,15 +245,21 @@ struct miopen_apply
         }
 
         auto ins_alias = instruction::get_output_alias(ins);
+std::cout << "loc1" << std::endl;
         if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
         {
+std::cout << "loc2, param_name = " << prog_output_names[ins_alias] << std::endl;
             return mod->add_parameter(prog_output_names[ins_alias], s);
+std::cout << "loc3" << std::endl;
         }
         else if(ins == last and tag.empty())
         {
+std::cout << "loc4" << std::endl;
             return mod->add_parameter("output", s);
+std::cout << "loc5" << std::endl;
         }
 
+std::cout << "loc6" << std::endl;
         return mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
     }
 
@@ -424,11 +430,30 @@ struct miopen_apply
             inputs.front() = cpu_cond;
 
             std::vector<module_ref> mod_args = ins->module_inputs();
-            auto out_shapes                  = mod_args.at(0)->get_output_shapes();
-            for(auto& s : out_shapes)
+            std::size_t out_index = 0;
+            for (const auto& smod : mod_args)
             {
-                auto output = insert_allocation(ins, s);
-                inputs.push_back(output);
+                const auto& param_shapes = smod->get_parameter_shapes();
+                for(auto& ns : param_shapes)
+                {
+                    if (contains(ns.first, "#output_"))
+                    {
+                        std::cout << "name = " << ns.first << ", shape = " << ns.second << std::endl;
+                        std::cout << "before insert_allocation" << std::endl;
+                        instruction_ref output{};
+                        if (out_index == 0)
+                        {
+                            output = insert_allocation(ins, ns.second);
+                        }
+                        else
+                        {
+                            output = mod->insert_instruction(ins, hip_allocate{ns.second});
+                        }
+                        ++out_index;
+                        std::cout << "after insert_allocation" << std::endl;
+                        inputs.push_back(output);
+                    }
+                }
             }
 
             return mod->replace_instruction(ins, make_op("gpu::if"), inputs, mod_args);

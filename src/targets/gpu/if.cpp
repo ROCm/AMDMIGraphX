@@ -30,17 +30,8 @@ argument hip_if::compute(
     }
 
     auto results = run(mod, params);
-    auto res     = migraphx::gpu::from_gpu(results[0]);
-    std::cout << "res = " << res << std::endl;
 
-    std::cout << "arg_size = " << args.size() << std::endl;
-    auto arg1 = migraphx::gpu::from_gpu(args.at(1));
-    std::cout << "arg1 = " << arg1 << std::endl;
-
-    // context ctx{};
-    // gpu_copy(ctx, results[0], args[1]);
-
-    return args.at(1);
+    return results[0];
 }
 
 } // namespace gpu

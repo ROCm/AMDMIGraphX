@@ -341,7 +341,7 @@ struct cpu_apply
     }
 
     template <class M>
-    auto fuse_match(M matcher, const operation& op, std::vector<std::string> bind_inputs)
+    auto fuse_match(M matcher, const operation& op, const std::vector<std::string>& bind_inputs)
     {
         return match::make_match_finder(matcher, [=](auto&, const auto& r) {
             auto ins = r.result;

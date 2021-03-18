@@ -24,7 +24,7 @@
 #include <algorithm>
 
 #ifdef    MIGRAPHX_MLIR_MIOPEN_SUPPORT
-#include <mlir-miopen-lib.h>
+#include <Miir.h>
 #endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
 
 #include <stdio.h>
@@ -134,10 +134,14 @@ struct mlir_apply
           auto mlir_handle = miirCreateHandle(mlir_options.c_str());
 
           if (miirLowerBin(mlir_handle) == MIIR_SUCCESS &&
-              miirGenIgemmBin(mlir_handle, &bin_buffer, &bin_size) == MIIR_SUCCESS) {
-            size_t global_size, block_size;
-            if (miirGetExecutionDims(mlir_handle, &global_size, &block_size) == MIIR_SUCCESS) {
-              result = new execution_spec{{bin_buffer, bin_size}, global_size, block_size};
+              miirBufferGet(mlir_handle, nullptr, &bin_size) == MIIR_SUCCESS) {
+            bin_buffer = new char[bin_size];
+            if (miirBufferGet(mlir_handle, bin_buffer, &bin_size) == MIIR_SUCCESS) {
+              size_t global_size, block_size;
+              if (miirGetExecutionDims(mlir_handle, &global_size, &block_size) == MIIR_SUCCESS) {
+                printf("MLIR - %s\n", mlir_options.c_str());
+                result = new execution_spec{{bin_buffer, bin_size}, global_size, block_size};
+              }
             }
           }
           miirDestroyHandle(mlir_handle);

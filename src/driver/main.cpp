@@ -294,7 +294,7 @@ struct compiler
     compiler_target ct;
     bool offload_copy = false;
     bool fast_math    = true;
-    bool enalbe_mlir  = false;
+    bool enable_mlir  = false;
     int quantize      = 0;
 
     std::vector<std::string> fill0;
@@ -382,6 +382,7 @@ struct verify : command<verify>
     bool reduce          = false;
     bool offload_copy    = false;
     bool fast_math       = true;
+    bool enable_mlir     = false;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
@@ -395,6 +396,10 @@ struct verify : command<verify>
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
+        ap(enable_mlir,
+           {"--enable-mlir"},
+           ap.help("Enable MLIR compilation"),
+           ap.set_value(true));
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
@@ -412,6 +417,7 @@ struct verify : command<verify>
         compile_options options;
         options.offload_copy = offload_copy;
         options.fast_math    = fast_math;
+        options.enable_mlir  = enable_mlir;
         auto t               = ct.get_target();
         auto m               = parameters.generate(p, t, true);
 

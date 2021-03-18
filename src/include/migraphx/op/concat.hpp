@@ -89,7 +89,7 @@ struct concat
         std::vector<std::size_t> coffsets = compute_offsets(output_shape, args);
         for(std::size_t l = 0; l < args.size(); l++)
         {
-            auto argl             = args[l];
+            auto argl = args[l];
             visit_all(result, argl)([&](auto output, auto input) {
                 auto slice_shape =
                     shape{output_shape.type(), input.get_shape().lens(), output_shape.strides()};

@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_ALGORITHM_HPP
 
 #include <algorithm>
-#include <functional>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

@@ -152,7 +152,7 @@ void program::compile(const target& t, compile_options options)
     {
         // submodules do not use offload_copy
         pass_options.offload_copy = ((mod->name() == "main") ? options.offload_copy : false);
-        auto&& passes = t.get_passes(this->impl->ctx, pass_options);
+        auto&& passes             = t.get_passes(this->impl->ctx, pass_options);
 
         assert(mod->validate() == mod->end());
         run_passes(*mod, passes, options.trace);

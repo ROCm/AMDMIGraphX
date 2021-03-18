@@ -18,9 +18,17 @@ argument generate_argument(shape s, unsigned long seed)
 {
     argument result;
     s.visit_type([&](auto as) {
-        using type = typename decltype(as)::type;
-        auto v     = generate_tensor_data<type>(s, seed);
-        result     = {s, v};
+        if (s.type() == shape::bool_type)
+        {
+            auto v     = generate_tensor_data<bool>(s, seed);
+            result     = {s, v};
+        }
+        else
+        {
+            using type = typename decltype(as)::type;
+            auto v     = generate_tensor_data<type>(s, seed);
+            result     = {s, v};
+        }
     });
     return result;
 }

@@ -288,20 +288,12 @@ shape module::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-            std::cout << "x_name = " << x.name() << std::endl;
             if(x.name() == "@param")
             {
-                std::cout << "name == " << name << std::endl;
-                std::cout << "parameter = " << any_cast<builtin::param>(x.get_operator()).parameter
-                          << std::endl
-                          << std::endl;
-                bool ret = any_cast<builtin::param>(x.get_operator()).parameter == name;
-                std::cout << "if_branch = " << ret << std::endl;
                 return any_cast<builtin::param>(x.get_operator()).parameter == name;
             }
             else
             {
-                std::cout << "else_branch" << std::endl;
                 return false;
             }
         });

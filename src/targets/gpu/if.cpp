@@ -17,20 +17,18 @@ argument hip_if::compute(
     std::function<std::vector<argument>(
         module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
 {
-    auto cond      = args.at(0).at<bool>();
+    auto cond_cpu = migraphx::gpu::from_gpu(args.front());
+    auto cond      = cond_cpu.at<bool>();
     module_ref mod = cond ? mods[0] : mods[1];
     std::unordered_map<std::string, argument> params;
-
-    std::size_t out_index = 1;
-    for(const auto& smod : mods)
+    const auto& out_shapes = mod->get_output_shapes();
+    for (std::size_t i = 0; i < out_shapes.size(); ++i)
     {
-        const auto& param_shapes = smod->get_parameter_shapes();
-        for(auto& ns : param_shapes)
+        std::string name = mod->name() + ":#output_" + std::to_string(i);
+        auto&& ps = mod->get_parameter_shape(name);
+        if (ps != shape{})
         {
-            if(contains(ns.first, "#output_"))
-            {
-                params[ns.first] = args.at(out_index++);
-            }
+            params[name] = args.at(i + 1);
         }
     }
 

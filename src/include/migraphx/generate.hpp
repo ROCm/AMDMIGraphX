@@ -30,7 +30,7 @@ constexpr T normalize(unsigned long z)
     return half_max - (z % max);
 }
 
-template <class T, MIGRAPHX_REQUIRES(not is_signed<T>{} and std::is_integral<T>{})>
+template <class T, MIGRAPHX_REQUIRES(not is_signed<T>{} and std::is_integral<T>{} and not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
     const auto max = 1UL << (sizeof(T) * 5);

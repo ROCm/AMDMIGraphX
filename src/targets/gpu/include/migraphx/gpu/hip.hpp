@@ -124,12 +124,12 @@ struct hip_copy_from_gpu
         {
             argument result = allocate_gpu(output_shape, true);
             gpu_copy(ctx, args[0], result);
-            if (sync_copy) 
+            if(sync_copy)
                 gpu_sync();
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
-        if (sync_copy) 
+        if(sync_copy)
             gpu_sync();
 
         return args[1];

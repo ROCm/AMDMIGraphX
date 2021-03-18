@@ -22,8 +22,9 @@ std::vector<int64_t> find_permutation(const shape& s)
 {
     std::vector<std::int64_t> result(s.lens().size());
     std::iota(result.begin(), result.end(), 0);
-    std::stable_sort(
-        result.begin(), result.end(), by(std::greater<>{}, [&](auto x) { return std::make_tuple(s.strides()[x], s.lens()[x]); }));
+    std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
+                         return std::make_tuple(s.strides()[x], s.lens()[x]);
+                     }));
     return result;
 
     // std::vector<std::int64_t> result;
@@ -34,8 +35,8 @@ std::vector<int64_t> find_permutation(const shape& s)
     // auto pred = by(std::equal_to<>{}, [](auto&& p) { return p.first; });
     // auto each = [&](auto start, auto last) {
     //     auto n = std::distance(start, last);
-    //     std::transform(start, last, std::back_inserter(result), [](auto&& p) { return p.second; });
-    //     std::stable_sort(result.end() - n, result.end(), by(std::greater<>{}, [&](auto x) {
+    //     std::transform(start, last, std::back_inserter(result), [](auto&& p) { return p.second;
+    //     }); std::stable_sort(result.end() - n, result.end(), by(std::greater<>{}, [&](auto x) {
     //                          return s.lens()[x];
     //                      }));
     // };

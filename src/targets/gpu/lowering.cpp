@@ -427,8 +427,8 @@ struct miopen_apply
             inputs.push_back(output);
 
             std::vector<module_ref> mod_args = ins->module_inputs();
-            const auto& out_shapes = mod_args.at(0)->get_output_shapes();
-            for (std::size_t i = 1; i < out_shapes.size(); ++i)
+            const auto& out_shapes           = mod_args.at(0)->get_output_shapes();
+            for(std::size_t i = 1; i < out_shapes.size(); ++i)
             {
                 auto soutput = mod->insert_instruction(ins, hip_allocate{out_shapes.at(i)});
                 inputs.push_back(soutput);

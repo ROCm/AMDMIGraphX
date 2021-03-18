@@ -18,10 +18,10 @@ argument generate_argument(shape s, unsigned long seed)
 {
     argument result;
     s.visit_type([&](auto as) {
-        if (s.type() == shape::bool_type)
+        if(s.type() == shape::bool_type)
         {
-            auto v     = generate_tensor_data<bool>(s, seed);
-            result     = {s, v};
+            auto v = generate_tensor_data<bool>(s, seed);
+            result = {s, v};
         }
         else
         {

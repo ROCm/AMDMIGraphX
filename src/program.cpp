@@ -143,13 +143,17 @@ void program::compile(const target& t, compile_options options)
 
     options.trace(*this);
     options.trace();
-    auto&& passes = t.get_passes(this->impl->ctx, options);
 
     auto mods = this->get_modules();
     std::reverse(mods.begin(), mods.end());
+    auto pass_options = options;
 
     for(const auto& mod : mods)
     {
+        // submodules do not use offload_copy
+        pass_options.offload_copy = ((mod->name() == "main") ? options.offload_copy : false);
+        auto&& passes = t.get_passes(this->impl->ctx, pass_options);
+
         assert(mod->validate() == mod->end());
         run_passes(*mod, passes, options.trace);
         auto invalid = mod->validate();

@@ -18,6 +18,8 @@ argument generate_argument(shape s, unsigned long seed)
 {
     argument result;
     s.visit_type([&](auto as) {
+        // we use char type to store bool type internally, so bool_type
+        // needs special processing to generate data
         if(s.type() == shape::bool_type)
         {
             auto v = generate_tensor_data<bool>(s, seed);

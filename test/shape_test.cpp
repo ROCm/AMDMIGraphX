@@ -501,4 +501,34 @@ TEST_CASE(test_with_lens_ambigous10)
     EXPECT(s2 == s3);
 }
 
+TEST_CASE(test_with_lens_ambigous11)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {64, 1, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s1.standard());
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous12)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 64, 1, 1}};
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s1.standard());
+    EXPECT(s2.standard());
+    migraphx::shape s3{migraphx::shape::float_type, {64, 3, 24, 24}};
+    EXPECT(s2 == s3);
+}
+
+TEST_CASE(test_with_lens_ambigous13)
+{
+    auto s1 = migraphx::reorder_shape({migraphx::shape::float_type, {1, 1, 1, 3}}, {0, 3, 1, 2});
+    auto s2 = s1.with_lens({64, 3, 24, 24});
+    EXPECT(s2.transposed());
+    migraphx::shape s3 =
+        migraphx::reorder_shape({migraphx::shape::float_type, {64, 24, 24, 3}}, {0, 3, 1, 2});
+    EXPECT(s2 == s3);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

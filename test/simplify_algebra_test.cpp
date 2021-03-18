@@ -926,14 +926,14 @@ TEST_CASE(simplify_split_reduce0)
         auto input = m1.add_parameter("input", s);
         auto x     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
-        auto y     = m1.add_instruction(
+        auto y = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
 
-        auto one   = m1.add_literal(1);
-        auto two   = m1.add_literal(2);
+        auto one = m1.add_literal(1);
+        auto two = m1.add_literal(2);
 
-        auto arx = m1.add_instruction(migraphx::make_op("contiguous"), x);
-        auto ary = m1.add_instruction(migraphx::make_op("contiguous"), y);
+        auto arx   = m1.add_instruction(migraphx::make_op("contiguous"), x);
+        auto ary   = m1.add_instruction(migraphx::make_op("contiguous"), y);
         auto rmax0 = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1}}}), x);
         auto rmin0 = m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
         auto rmax1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), arx, one);
@@ -970,15 +970,15 @@ TEST_CASE(simplify_split_reduce1)
     {
         auto input = m2.add_parameter("input", s);
 
-        auto rmn = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), input);
-        auto slc0     = m2.add_instruction(
+        auto rmn  = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), input);
+        auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmn);
-        auto rmx = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
-        auto slc1     = m2.add_instruction(
+        auto rmx  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
+        auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rmx);
-        auto slc2     = m2.add_instruction(
+        auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmn);
-        auto slc3     = m2.add_instruction(
+        auto slc3 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rmx);
         m2.add_return({slc3, slc2, slc1, slc0});
     }
@@ -1010,13 +1010,13 @@ TEST_CASE(simplify_split_reduce2)
         auto x     = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
         auto rmn1 = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), x);
-        auto y = m2.add_instruction(
+        auto y    = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
         auto rmn2 = m2.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 1}}}), y);
-        auto rms = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
-        auto slc0     = m2.add_instruction(
+        auto rms  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 2}}}), input);
+        auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rms);
-        auto slc1     = m2.add_instruction(
+        auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rms);
         m2.add_return({slc1, rmn2, slc0, rmn1});
     }

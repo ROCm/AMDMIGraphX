@@ -103,6 +103,14 @@ struct hip_copy_to_gpu
 
 struct hip_copy_from_gpu
 {
+    bool sync_copy = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.sync_copy, "sync_copy"));
+    }
+
     std::string name() const { return "hip::copy_from_gpu"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -116,9 +124,13 @@ struct hip_copy_from_gpu
         {
             argument result = allocate_gpu(output_shape, true);
             gpu_copy(ctx, args[0], result);
+            if (sync_copy) 
+                gpu_sync();
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
+        if (sync_copy) 
+            gpu_sync();
 
         return args[1];
     }

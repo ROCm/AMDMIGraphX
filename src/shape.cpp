@@ -100,7 +100,9 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 {
 }
 
-shape shape::from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm)
+shape shape::from_permutation(type_t t,
+                              const std::vector<std::size_t>& l,
+                              const std::vector<int64_t>& perm)
 {
     auto new_lens = reorder_dims(l, perm);
     shape result  = reorder_shape({t, new_lens}, invert_permutation(perm));
@@ -233,7 +235,7 @@ shape shape::normalize_standard() const
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
     assert(l.size() == this->lens().size());
-    auto perm     = find_permutation(*this);
+    auto perm = find_permutation(*this);
     return shape::from_permutation(t, l, perm);
 }
 

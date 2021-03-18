@@ -30,12 +30,12 @@ std::vector<int64_t> find_permutation(const shape& s)
 
 std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
 {
-    if (shapes.empty())
+    if(shapes.empty())
         return {};
     std::map<std::vector<int64_t>, std::size_t> count;
-    for(auto&& s:shapes)
+    for(auto&& s : shapes)
     {
-        if (s.broadcasted())
+        if(s.broadcasted())
             continue;
         count[find_permutation(s)]++;
     }
@@ -45,7 +45,8 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
         std::iota(r.begin(), r.end(), 0);
         return r;
     }
-    auto it = std::max_element(count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
+    auto it = std::max_element(
+        count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
     assert(it != count.end());
     return it->first;
 }

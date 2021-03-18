@@ -79,7 +79,8 @@ struct shape
     {
     }
 
-    static shape from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
+    static shape
+    from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;

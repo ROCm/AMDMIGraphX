@@ -22,12 +22,12 @@ argument hip_if::compute(
     std::unordered_map<std::string, argument> params;
 
     std::size_t out_index = 1;
-    for (const auto& smod : mods)
+    for(const auto& smod : mods)
     {
         const auto& param_shapes = smod->get_parameter_shapes();
-        for (auto& ns : param_shapes)
+        for(auto& ns : param_shapes)
         {
-            if (contains(ns.first, "#output_"))
+            if(contains(ns.first, "#output_"))
             {
                 params[ns.first] = args.at(out_index++);
             }

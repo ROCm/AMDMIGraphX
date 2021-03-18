@@ -1643,6 +1643,22 @@ TEST_CASE(less_bool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(lessorequal_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
+    auto temp     = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
+    auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
+    
+    mm->add_return({le});
+
+    auto prog = migraphx::parse_onnx("lessorequal_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(log_test)
 {
     migraphx::program p;
@@ -1981,6 +1997,32 @@ TEST_CASE(nonzero_int_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::int32_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(not_bool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::bool_type, {4}});
+    auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("not_bool_test.onnx");
+
     EXPECT(p == prog);
 }
 

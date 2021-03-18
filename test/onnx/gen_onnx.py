@@ -1294,6 +1294,22 @@ def less_bool_test():
 
 
 @onnx_test
+def lessorequal_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'LessOrEqual',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -2139,6 +2155,26 @@ def neg_test():
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
 
     node = onnx.helper.make_node('Neg', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def not_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT32, [4])
+    y = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+
+    node = onnx.helper.make_node('Not', inputs=['0'], outputs=['1'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def not_bool_test():
+    x = helper.make_tensor_value_info('0', TensorProto.BOOL, [4])
+    y = helper.make_tensor_value_info('1', TensorProto.BOOL, [4])
+
+    node = onnx.helper.make_node('Not', inputs=['0'], outputs=['1'])
 
     return ([node], [x], [y])
 

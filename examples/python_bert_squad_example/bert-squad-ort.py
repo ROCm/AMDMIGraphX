@@ -72,6 +72,7 @@ session = onnxruntime.InferenceSession('bertsquad-10.onnx')
 
 for input_meta in session.get_inputs():
     print(input_meta)
+
 n = len(input_ids)
 bs = batch_size
 all_results = []
@@ -88,9 +89,14 @@ for idx in range(0, n):
     in_batch = result[1].shape[0]
     start_logits = [float(x) for x in result[1][0].flat]
     end_logits = [float(x) for x in result[2][0].flat]
+    print("logits")
+    print(start_logits)
+    print(end_logits)
     for i in range(0, in_batch):
         unique_id = len(all_results)
         all_results.append(RawResult(unique_id=unique_id, start_logits=start_logits, end_logits=end_logits))
+        print("RawResult")
+        print(RawResult(unique_id=unique_id, start_logits=start_logits, end_logits=end_logits))
 
 # postprocessing
 output_dir = 'predictions'

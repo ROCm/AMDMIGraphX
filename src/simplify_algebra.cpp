@@ -46,6 +46,8 @@ auto pointwise(Ms... ms)
                                              ms...);
 }
 
+auto reduction() { return match::name_contains("reduce"); }
+
 struct find_mul_conv
 {
     auto matcher() const
@@ -406,7 +408,7 @@ struct find_splits
     auto matcher() const
     {
         return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](pointwise()))));
+            match::name("slice")(match::any_of[match::outputs()](pointwise(), reduction()))));
     }
 
     static std::vector<std::vector<instruction_ref>>
@@ -439,6 +441,31 @@ struct find_splits
         return groups;
     }
 
+    bool is_fusable(instruction_ref start, instruction_ref split_front) const
+    {
+        auto op = start->get_operator();
+        if(contains(op.name(), "reduce"))
+        {
+            auto slc         = any_cast<op::slice>(split_front->get_operator());
+            auto slc_axes    = slc.axes;
+            auto reduce_axes = start->get_operator().to_value()["axes"].to_vector<int64_t>();
+            // axes of slice and reduce op cannot have overlap
+            if(std::any_of(slc_axes.begin(), slc_axes.end(), [&](auto axis) {
+                   return (std::find(reduce_axes.begin(), reduce_axes.end(), axis) !=
+                           reduce_axes.end());
+               }))
+            {
+                return false;
+            }
+        }
+        else if(not op.attributes().contains("pointwise"))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -446,12 +473,16 @@ struct find_splits
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
+
         for(const auto& group : get_split_groups(splits))
         {
-            auto start = group.front();
-            auto op    = start->get_operator();
-            if(op.name() == "slice")
+            auto start       = group.front();
+            auto split_front = splits.front();
+            auto op          = start->get_operator();
+            if(not is_fusable(start, split_front))
+            {
                 continue;
+            }
 
             // Make sure there is no duplicates
             assert(std::none_of(

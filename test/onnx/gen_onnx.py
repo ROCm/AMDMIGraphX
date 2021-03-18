@@ -1590,6 +1590,56 @@ def if_else_test():
 
 
 @onnx_test
+def if_test():
+    then_out = onnx.helper.make_tensor_value_info('then_out', onnx.TensorProto.FLOAT, [5])
+    else_out = onnx.helper.make_tensor_value_info('else_out', onnx.TensorProto.FLOAT, [5])
+
+    x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
+    y = np.array([5, 4, 3, 2, 1]).astype(np.float32)
+
+    then_const_node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['then_out'],
+        value=onnx.numpy_helper.from_array(x)
+    )
+
+    else_const_node = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['else_out'],
+        value=onnx.numpy_helper.from_array(y)
+    )
+
+    then_body = onnx.helper.make_graph(
+        [then_const_node],
+        'then_body',
+        [],
+        [then_out]
+    )
+
+    else_body = onnx.helper.make_graph(
+        [else_const_node],
+        'else_body',
+        [],
+        [else_out]
+    )
+
+    cond_input = onnx.helper.make_tensor_value_info('cond', onnx.TensorProto.BOOL, [])
+    ret = onnx.helper.make_tensor_value_info('ret', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node(
+        'If',
+        inputs=['cond'],
+        outputs=['ret'],
+        then_branch=then_body,
+        else_branch=else_body
+    )
+
+    return ([node], [cond_input], [ret])
+
+
+@onnx_test
 def if_then_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])

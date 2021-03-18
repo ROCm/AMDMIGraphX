@@ -12,12 +12,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::string get_arch_name(rank<0>, const hipDeviceProp_t& props)
+template<class HipDeviceProp>
+std::string get_arch_name(rank<0>, const HipDeviceProp& props)
 {
     return "gfx" + std::to_string(props.gcnArch);
 }
 
-auto get_arch_name(rank<1>, const hipDeviceProp_t& props)
+template<class HipDeviceProp>
+auto get_arch_name(rank<1>, const HipDeviceProp& props)
     -> decltype(std::string(props.gcnArchName))
 {
     return std::string(props.gcnArchName);

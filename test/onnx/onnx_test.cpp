@@ -1417,14 +1417,14 @@ TEST_CASE(if_test)
 
     migraphx::shape s{migraphx::shape::float_type, {5}};
 
-    auto* then_mod = p.create_module("If_0_if");
+    auto* then_mod           = p.create_module("If_0_if");
     std::vector<float> data1 = {1, 2, 3, 4, 5};
-    auto l1 = then_mod->add_literal(migraphx::literal(s, data1));
+    auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
     then_mod->add_return({l1});
 
-    auto* else_mod = p.create_module("If_0_else");
+    auto* else_mod           = p.create_module("If_0_else");
     std::vector<float> data2 = {5, 4, 3, 2, 1};
-    auto l2 = else_mod->add_literal(migraphx::literal(s, data2));
+    auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
     else_mod->add_return({l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -1676,9 +1676,9 @@ TEST_CASE(lessorequal_test)
 
     auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto temp     = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
+    auto temp   = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
     auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
-    
+
     mm->add_return({le});
 
     auto prog = migraphx::parse_onnx("lessorequal_test.onnx");

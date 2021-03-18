@@ -28,5 +28,27 @@ std::vector<int64_t> find_permutation(const shape& s)
     return result;
 }
 
+std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
+{
+    if (shapes.empty())
+        return {};
+    std::map<std::vector<int64_t>, std::size_t> count;
+    for(auto&& s:shapes)
+    {
+        if (s.broadcasted())
+            continue;
+        count[find_permutation(s)]++;
+    }
+    if(count.empty())
+    {
+        std::vector<int64_t> r(shapes.front().lens().size());
+        std::iota(r.begin(), r.end(), 0);
+        return r;
+    }
+    auto it = std::max_element(count.begin(), count.end(), by(std::less<>{}, [](auto&& p) { return p.second; }));
+    assert(it != count.end());
+    return it->first;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

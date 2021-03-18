@@ -9,6 +9,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
@@ -80,7 +81,7 @@ struct concat
         std::vector<std::size_t> new_lens;
         std::copy(first_shape_lens.begin(), first_shape_lens.end(), std::back_inserter(new_lens));
         new_lens[axis] = new_dim_axis;
-        return {type, new_lens};
+        return shape::from_permutation(type, new_lens, find_permutation(inputs));
     }
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {

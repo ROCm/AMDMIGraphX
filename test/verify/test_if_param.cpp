@@ -31,7 +31,6 @@ struct test_if_param : verify_program<test_if_param>
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
         mm->add_return({ret});
 
-		return p;
+        return p;
     }
 };
-

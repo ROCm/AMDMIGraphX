@@ -26,22 +26,6 @@ std::vector<int64_t> find_permutation(const shape& s)
                          return std::make_tuple(s.strides()[x], s.lens()[x]);
                      }));
     return result;
-
-    // std::vector<std::int64_t> result;
-    // std::multimap<std::size_t, int64_t, std::greater<>> m;
-    // int i = 0;
-    // for(auto&& x : s.strides())
-    //     m.emplace(x, i++);
-    // auto pred = by(std::equal_to<>{}, [](auto&& p) { return p.first; });
-    // auto each = [&](auto start, auto last) {
-    //     auto n = std::distance(start, last);
-    //     std::transform(start, last, std::back_inserter(result), [](auto&& p) { return p.second;
-    //     }); std::stable_sort(result.end() - n, result.end(), by(std::greater<>{}, [&](auto x) {
-    //                          return s.lens()[x];
-    //                      }));
-    // };
-    // group_unique(m.begin(), m.end(), each, pred);
-    // return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

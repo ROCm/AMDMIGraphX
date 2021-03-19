@@ -3407,8 +3407,7 @@ TEST_CASE(less_brcst_test)
 
 TEST_CASE(if_test_literal)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape cond_s{migraphx::shape::bool_type};
@@ -3464,8 +3463,7 @@ TEST_CASE(if_test_literal)
 
 TEST_CASE(if_test_param)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape cond_s{migraphx::shape::bool_type};
@@ -3515,8 +3513,9 @@ TEST_CASE(if_test_param)
 
     // then branch
     {
-        std::vector<float> gold_ret = {1.384804, -0.77947998, 0.54622501, 1.477438, -0.063330054, -0.12892997};
-        auto ret                    = run_prog(true);
+        std::vector<float> gold_ret = {
+            1.384804, -0.77947998, 0.54622501, 1.477438, -0.063330054, -0.12892997};
+        auto ret = run_prog(true);
         EXPECT(gold_ret == ret);
     }
 

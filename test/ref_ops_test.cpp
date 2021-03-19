@@ -3406,15 +3406,13 @@ TEST_CASE(less_brcst_test)
 
 TEST_CASE(if_test_pl)
 {
-    auto create_program = []
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape cond_s{migraphx::shape::bool_type};
         migraphx::shape s{migraphx::shape::float_type, {5}};
         auto cond = mm->add_parameter("cond", cond_s);
-        auto x = mm->add_parameter("x", s);
-
+        auto x    = mm->add_parameter("x", s);
 
         auto* then_mod           = p.create_module("If_0_if");
         std::vector<float> data1 = {1, 2, 3, 4, 5};
@@ -3424,7 +3422,7 @@ TEST_CASE(if_test_pl)
         auto* else_mod           = p.create_module("If_0_else");
         std::vector<float> data2 = {5, 4, 3, 2, 1};
         auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
-        auto s2                 = else_mod->add_instruction(migraphx::make_op("add"), x, l2);
+        auto s2                  = else_mod->add_instruction(migraphx::make_op("add"), x, l2);
         else_mod->add_return({s2, l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -3446,7 +3444,7 @@ TEST_CASE(if_test_pl)
 
         auto res = p.eval(m).back();
         std::vector<float> ret;
-        res.visit([&](auto v) { ret.assign(v.begin(), v.end()); } );
+        res.visit([&](auto v) { ret.assign(v.begin(), v.end()); });
 
         return ret;
     };
@@ -3454,17 +3452,16 @@ TEST_CASE(if_test_pl)
     // then branch
     {
         std::vector<float> gold_ret = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-        auto ret = run_prog(true);
+        auto ret                    = run_prog(true);
         EXPECT(gold_ret == ret);
     }
 
     // else branch
     {
         std::vector<float> gold_ret = {6.0f, 5.0f, 4.0f, 3.0f, 2.0f};
-        auto ret = run_prog(false);
+        auto ret                    = run_prog(false);
         EXPECT(gold_ret == ret);
     }
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

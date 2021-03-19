@@ -89,8 +89,7 @@ TEST_CASE(if_else_test)
 
 TEST_CASE(if_literal_test)
 {
-    auto run_prog = [](bool cond)
-    {
+    auto run_prog = [](bool cond) {
         migraphx::program p = migraphx::parse_onnx("if_literal_test.onnx");
         p.compile(migraphx::ref::target{});
         migraphx::shape s_data{migraphx::shape::bool_type};
@@ -108,14 +107,14 @@ TEST_CASE(if_literal_test)
 
     // then branch
     {
-        auto result_vector = run_prog(true);
+        auto result_vector      = run_prog(true);
         std::vector<float> gold = {1, 2, 3, 4, 5};
         EXPECT(migraphx::verify_range(result_vector, gold));
     }
 
     // else branch
     {
-        auto result_vector = run_prog(true);
+        auto result_vector      = run_prog(true);
         std::vector<float> gold = {5, 4, 3, 2, 1};
         EXPECT(migraphx::verify_range(result_vector, gold));
     }

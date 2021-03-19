@@ -3404,4 +3404,67 @@ TEST_CASE(less_brcst_test)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(if_test_pl)
+{
+    auto create_program = []
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        migraphx::shape s{migraphx::shape::float_type, {5}};
+        auto cond = mm->add_parameter("cond", cond_s);
+        auto x = mm->add_parameter("x", s);
+
+
+        auto* then_mod           = p.create_module("If_0_if");
+        std::vector<float> data1 = {1, 2, 3, 4, 5};
+        auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
+        then_mod->add_return({l1, x});
+
+        auto* else_mod           = p.create_module("If_0_else");
+        std::vector<float> data2 = {5, 4, 3, 2, 1};
+        auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
+        auto s2                 = else_mod->add_instruction(migraphx::make_op("add"), x, l2);
+        else_mod->add_return({s2, l2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    auto run_prog = [&](bool cond) {
+        auto p = create_program();
+        p.compile(migraphx::ref::target());
+        std::vector<char> c_data = {cond};
+        migraphx::shape cs{migraphx::shape::bool_type};
+        migraphx::parameter_map m;
+        m["cond"] = migraphx::argument(cs, c_data.data());
+        migraphx::shape ds{migraphx::shape::float_type, {5}};
+        std::vector<float> data(ds.elements(), 1);
+        m["x"] = migraphx::argument(ds, data.data());
+
+        auto res = p.eval(m).back();
+        std::vector<float> ret;
+        res.visit([&](auto v) { ret.assign(v.begin(), v.end()); } );
+
+        return ret;
+    };
+
+    // then branch
+    {
+        std::vector<float> gold_ret = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+        auto ret = run_prog(true);
+        EXPECT(gold_ret == ret);
+    }
+
+    // else branch
+    {
+        std::vector<float> gold_ret = {6.0f, 5.0f, 4.0f, 3.0f, 2.0f};
+        auto ret = run_prog(false);
+        EXPECT(gold_ret == ret);
+    }
+}
+
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

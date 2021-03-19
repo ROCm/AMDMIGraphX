@@ -93,7 +93,7 @@ TEST_CASE(if_literal_test)
         migraphx::program p = migraphx::parse_onnx("if_literal_test.onnx");
         p.compile(migraphx::ref::target{});
         migraphx::shape s_data{migraphx::shape::bool_type};
-        std::vector<char> data = {cond};
+        std::vector<char> data = {static_cast<char>(cond)};
 
         migraphx::parameter_map pp;
         pp["cond"] = migraphx::argument(s_data, data.data());
@@ -131,7 +131,7 @@ TEST_CASE(if_pl_test)
 
         std::vector<float> x_data(xs.elements(), 1.0f);
         std::vector<float> y_data(ys.elements(), 2.0f);
-        std::vector<char> cond_data{cond};
+        std::vector<char> cond_data{static_cast<char>(cond)};
 
         migraphx::parameter_map pp;
         pp["x"]    = migraphx::argument(xs, x_data.data());

@@ -273,9 +273,6 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
     impl->instructions.push_back({builtin::returns{}, {}, args});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);

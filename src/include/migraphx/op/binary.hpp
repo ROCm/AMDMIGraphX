@@ -18,7 +18,7 @@ struct binary : op_name<Derived>
     std::string point_op() const
     {
         const auto& self = static_cast<const Derived&>(*this);
-        auto pf = self.point_function();
+        auto pf          = self.point_function();
         if(pf.empty())
             return {};
         if(std::ispunct(static_cast<unsigned char>(pf.front())))
@@ -27,13 +27,13 @@ struct binary : op_name<Derived>
         }
         else
         {
-            return "${function:" + pf +"}(${1}, ${2})";
+            return "${function:" + pf + "}(${1}, ${2})";
         }
     }
     value base_attributes() const
     {
-        const auto& self = static_cast<const Derived&>(*this); 
-        return {{"pointwise", true}, "point_op", self.point_op()}; 
+        const auto& self = static_cast<const Derived&>(*this);
+        return {{"pointwise", true}, "point_op", self.point_op()};
     }
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const

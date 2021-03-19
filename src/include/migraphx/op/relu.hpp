@@ -18,6 +18,10 @@ namespace op {
 
 struct relu : unary<relu>
 {
+    std::string point_op() const
+    {
+        return "${function:max}(decltype(${1}){0}, ${1})";
+    }
     auto apply() const
     {
         return [](auto x) { return std::max(decltype(x){0}, x); };

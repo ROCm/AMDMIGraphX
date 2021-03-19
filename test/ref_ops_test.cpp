@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -3402,6 +3403,129 @@ TEST_CASE(less_brcst_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<bool> gold = {false, false, true, false, false, false, false, false, true};
     EXPECT(results_vector == gold);
+}
+
+TEST_CASE(if_test_literal)
+{
+    auto create_program = []
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        auto cond = mm->add_parameter("cond", cond_s);
+
+        migraphx::shape s{migraphx::shape::float_type, {5}};
+
+        auto* then_mod           = p.create_module("If_0_if");
+        std::vector<float> data1 = {1, 2, 3, 4, 5};
+        auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
+        then_mod->add_return({l1});
+
+        auto* else_mod           = p.create_module("If_0_else");
+        std::vector<float> data2 = {5, 4, 3, 2, 1};
+        auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
+        else_mod->add_return({l2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    auto run_prog = [&](bool cond) {
+        auto p = create_program();
+        p.compile(migraphx::ref::target());
+        std::vector<char> c_data = {cond};
+        migraphx::shape cs{migraphx::shape::bool_type};
+        migraphx::parameter_map m;
+        m["cond"] = migraphx::argument(cs, c_data.data());
+
+        auto res = p.eval(m).back();
+        std::vector<float> ret;
+        res.visit([&](auto v) { ret.assign(v.begin(), v.end()); });
+
+        return ret;
+    };
+
+    // then branch
+    {
+        std::vector<float> gold_ret = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+        auto ret                    = run_prog(true);
+        EXPECT(gold_ret == ret);
+    }
+
+    // else branch
+    {
+        std::vector<float> gold_ret = {5.0f, 4.0f, 3.0f, 2.0f, 1.0f};
+        auto ret                    = run_prog(false);
+        EXPECT(gold_ret == ret);
+    }
+}
+
+TEST_CASE(if_test_param)
+{
+    auto create_program = []
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        auto cond = mm->add_parameter("cond", cond_s);
+        migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+        auto x = mm->add_parameter("x", ds);
+        auto y = mm->add_parameter("y", ds);
+
+        auto* then_mod           = p.create_module("If_0_if");
+        std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
+        auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
+        auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+        then_mod->add_return({a1});
+
+        auto* else_mod           = p.create_module("If_0_else");
+        std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
+        auto l2                  = else_mod->add_literal(migraphx::literal(ds, data2));
+        auto a2                  = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+        else_mod->add_return({a2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    auto run_prog = [&](bool cond) {
+        auto p = create_program();
+        p.compile(migraphx::ref::target());
+        std::vector<char> c_data = {cond};
+        migraphx::shape cs{migraphx::shape::bool_type};
+        migraphx::parameter_map m;
+        m["cond"] = migraphx::argument(cs, c_data.data());
+        migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> data_x(ds.elements(), 1);
+        m["x"] = migraphx::argument(ds, data_x.data());
+        std::vector<float> data_y(ds.elements(), 2);
+        m["y"] = migraphx::argument(ds, data_y.data());
+
+        auto res = p.eval(m).back();
+        std::vector<float> ret;
+        res.visit([&](auto v) { ret.assign(v.begin(), v.end()); });
+        std::cout << std::endl;
+
+        return ret;
+    };
+
+    // then branch
+    {
+        std::vector<float> gold_ret = {1.384804, -0.77947998, 0.54622501, 1.477438, -0.063330054, -0.12892997};
+        auto ret                    = run_prog(true);
+        EXPECT(gold_ret == ret);
+    }
+
+    // else branch
+    {
+        std::vector<float> gold_ret = {-0.51609403, 0.720788, 1.073608, -1.155524, 2.0434, 2.04884};
+        auto ret                    = run_prog(false);
+        EXPECT(gold_ret == ret);
+    }
 }
 
 TEST_CASE(if_test_pl)

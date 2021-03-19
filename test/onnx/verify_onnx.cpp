@@ -122,8 +122,7 @@ TEST_CASE(if_literal_test)
 
 TEST_CASE(if_pl_test)
 {
-    auto run_prog = [](bool cond)
-    {
+    auto run_prog = [](bool cond) {
         migraphx::program p = migraphx::parse_onnx("if_pl_test.onnx");
         p.compile(migraphx::ref::target{});
         migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
@@ -135,8 +134,8 @@ TEST_CASE(if_pl_test)
         std::vector<char> cond_data{cond};
 
         migraphx::parameter_map pp;
-        pp["x"] = migraphx::argument(xs, x_data.data());
-        pp["y"] = migraphx::argument(ys, y_data.data());
+        pp["x"]    = migraphx::argument(xs, x_data.data());
+        pp["y"]    = migraphx::argument(ys, y_data.data());
         pp["cond"] = migraphx::argument(cond_s, cond_data.data());
 
         auto result = p.eval(pp).back();

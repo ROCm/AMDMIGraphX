@@ -23,11 +23,11 @@ struct binary : op_name<Derived>
             return {};
         if(std::ispunct(static_cast<unsigned char>(pf.front())))
         {
-            return "${1} " + pf + " ${2}";
+            return "${0} " + pf + " ${1}";
         }
         else
         {
-            return "${function:" + pf + "}(${1}, ${2})";
+            return "${function:" + pf + "}(${0}, ${1})";
         }
     }
     value base_attributes() const

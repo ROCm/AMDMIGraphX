@@ -23,11 +23,11 @@ struct unary : op_name<Derived>
             return {};
         if(std::ispunct(static_cast<unsigned char>(pf.front())))
         {
-            return pf + "${1}";
+            return pf + "${0}";
         }
         else
         {
-            return "${function:" + pf + "}(${1})";
+            return "${function:" + pf + "}(${0})";
         }
     }
     value base_attributes() const

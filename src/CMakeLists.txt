@@ -11,6 +11,7 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     decompose.cpp
     propagate_constant.cpp
+    cpp_generator.cpp
     dead_code_elimination.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp

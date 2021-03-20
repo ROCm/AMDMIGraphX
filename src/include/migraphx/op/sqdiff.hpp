@@ -9,7 +9,7 @@ namespace op {
 
 struct sqdiff : binary<sqdiff>
 {
-    std::string point_op() const { return "(${1} - ${2}) * (${1} - ${2})"; }
+    std::string point_op() const { return "(${0} - ${1}) * (${0} - ${1})"; }
     auto apply() const
     {
         return [](auto x, auto y) { return (x - y) * (x - y); };

@@ -15,6 +15,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
 #define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
 
+
+template<class F>
+auto with_char(F f)
+{
+    return [=](unsigned char c) -> char {
+        return f(c);
+    };
+}
+
 inline std::string
 replace_string(std::string subject, const std::string& search, const std::string& replace)
 {
@@ -70,7 +79,7 @@ std::string trim(const std::string& s, F f)
 
 inline std::string trim(const std::string& s)
 {
-    return trim(s, [](int c) { return std::isspace(c); });
+    return trim(s, [](unsigned char c) { return std::isspace(c); });
 }
 
 template <class F>

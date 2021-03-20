@@ -3434,7 +3434,7 @@ TEST_CASE(if_test_literal)
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::ref::target());
-        std::vector<char> c_data = {cond};
+        std::vector<char> c_data = {static_cast<char>(cond)};
         migraphx::shape cs{migraphx::shape::bool_type};
         migraphx::parameter_map m;
         m["cond"] = migraphx::argument(cs, c_data.data());
@@ -3493,7 +3493,7 @@ TEST_CASE(if_test_param)
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::ref::target());
-        std::vector<char> c_data = {cond};
+        std::vector<char> c_data = {static_cast<char>(cond)};
         migraphx::shape cs{migraphx::shape::bool_type};
         migraphx::parameter_map m;
         m["cond"] = migraphx::argument(cs, c_data.data());
@@ -3557,7 +3557,7 @@ TEST_CASE(if_test_pl)
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::ref::target());
-        std::vector<char> c_data = {cond};
+        std::vector<char> c_data = {static_cast<char>(cond)};
         migraphx::shape cs{migraphx::shape::bool_type};
         migraphx::parameter_map m;
         m["cond"] = migraphx::argument(cs, c_data.data());

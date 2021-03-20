@@ -273,7 +273,7 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    impl->instructions.push_back({builtin::returns{}, {}, args});
+    impl->instructions.push_back({builtin::returns{}, {}, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));

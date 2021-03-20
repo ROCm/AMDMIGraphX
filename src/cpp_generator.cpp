@@ -15,9 +15,7 @@ struct cpp_generator_impl
     std::stringstream fs{};
     std::size_t function_count = 0;
 };
-cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>())
-{
-}
+cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
 cpp_generator::cpp_generator(cpp_generator&& rhs) noexcept = default;
 
@@ -29,45 +27,47 @@ cpp_generator& cpp_generator::operator=(cpp_generator rhs)
 
 cpp_generator::~cpp_generator() noexcept = default;
 
-std::string cpp_generator::generate_point_op(const operation& op, const std::vector<std::string>& args, const cpp_generator::string_map& fmap)
+std::string cpp_generator::generate_point_op(const operation& op,
+                                             const std::vector<std::string>& args,
+                                             const cpp_generator::string_map& fmap)
 {
     auto v = op.to_value();
-    return interpolate_string(op.attributes()["point_op"].to<std::string>(), [&](auto start, auto last) -> std::string {
-        auto key = trim({start, last});
-        if (key.empty())
-            MIGRAPHX_THROW("Empty parameter");
-        std::string fselector = "function:";
-        if(starts_with(key, fselector))
-        {
-            auto fname = key.substr(fselector.size());
-            auto it = fmap.find(fname);
-            if (it == fmap.end())
-                return fname;
-            else
-                return it->second;
-        }
-        else if(with_char(::isdigit)(key[0]))
-        {
-            auto i = std::stoul(key);
-            return args.at(i);
-        }
-        else if (v.contains(key))
-        {
-            return v[key].template to<std::string>();
-        }
-        else
-        {
-            return key;
-        }
-    });
+    return interpolate_string(op.attributes()["point_op"].to<std::string>(),
+                              [&](auto start, auto last) -> std::string {
+                                  auto key = trim({start, last});
+                                  if(key.empty())
+                                      MIGRAPHX_THROW("Empty parameter");
+                                  std::string fselector = "function:";
+                                  if(starts_with(key, fselector))
+                                  {
+                                      auto fname = key.substr(fselector.size());
+                                      auto it    = fmap.find(fname);
+                                      if(it == fmap.end())
+                                          return fname;
+                                      else
+                                          return it->second;
+                                  }
+                                  else if(with_char(::isdigit)(key[0]))
+                                  {
+                                      auto i = std::stoul(key);
+                                      return args.at(i);
+                                  }
+                                  else if(v.contains(key))
+                                  {
+                                      return v[key].template to<std::string>();
+                                  }
+                                  else
+                                  {
+                                      return key;
+                                  }
+                              });
 }
 
-std::string cpp_generator::str() const
-{
-    return impl->fs.str();
-}
+std::string cpp_generator::str() const { return impl->fs.str(); }
 
-std::string cpp_generator::generate_module(cpp_generator::function f, const module& m, const cpp_generator::generate_module_callback& g)
+std::string cpp_generator::generate_module(cpp_generator::function f,
+                                           const module& m,
+                                           const cpp_generator::generate_module_callback& g)
 {
     std::unordered_map<migraphx::instruction_ref, std::string> names;
     std::stringstream ss;
@@ -112,5 +112,3 @@ std::string cpp_generator::create_function(const cpp_generator::function& f)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-

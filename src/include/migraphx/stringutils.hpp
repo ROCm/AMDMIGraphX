@@ -15,13 +15,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
 #define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
 
-
-template<class F>
+template <class F>
 auto with_char(F f)
 {
-    return [=](unsigned char c) -> char {
-        return f(c);
-    };
+    return [=](unsigned char c) -> char { return f(c); };
 }
 
 inline std::string

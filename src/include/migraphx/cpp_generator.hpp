@@ -18,9 +18,9 @@ struct cpp_generator_impl;
 
 struct cpp_generator
 {
-    using string_map = std::unordered_map<std::string, std::string>;
-    using generate_module_callback = std::function<std::string(instruction_ref,
-                                        const std::unordered_map<instruction_ref, std::string>&)>;
+    using string_map               = std::unordered_map<std::string, std::string>;
+    using generate_module_callback = std::function<std::string(
+        instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>;
     struct param
     {
         std::string name;
@@ -29,10 +29,10 @@ struct cpp_generator
 
     struct function
     {
-        std::vector<param> params = {};
-        std::string body = "";
-        std::string return_type = "void";
-        std::string name = "";
+        std::vector<param> params           = {};
+        std::string body                    = "";
+        std::string return_type             = "void";
+        std::string name                    = "";
         std::vector<std::string> attributes = {};
     };
 
@@ -46,7 +46,9 @@ struct cpp_generator
 
     ~cpp_generator() noexcept;
 
-    static std::string generate_point_op(const operation& op, const std::vector<std::string>& args, const string_map& fmap = {});
+    static std::string generate_point_op(const operation& op,
+                                         const std::vector<std::string>& args,
+                                         const string_map& fmap = {});
 
     std::string str() const;
 
@@ -54,7 +56,7 @@ struct cpp_generator
 
     std::string create_function(const function& f);
 
-private:
+    private:
     std::unique_ptr<cpp_generator_impl> impl;
 };
 

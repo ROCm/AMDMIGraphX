@@ -305,7 +305,7 @@ std::vector<argument> program::eval(parameter_map params) const
             *this, ctx, std::move(params), [&](auto& ins, const module* mod, auto f) {
                 ctx.finish();
                 std::cout << "Run instruction: ";
-                mod->debug_print(ins);
+                mod->debug_print(ins, names);
                 auto result = check_context(f);
                 ctx.finish();
                 if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")

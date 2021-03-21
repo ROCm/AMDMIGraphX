@@ -215,16 +215,6 @@ struct miopen_apply
         init();
         for(auto it = mod->begin(); it != mod->end(); it++)
         {
-            // contains sub modules, apply to the submodule first
-            const auto& sub_mods = it->module_inputs();
-            if(not sub_mods.empty())
-            {
-                for(auto* smod : sub_mods)
-                {
-                    miopen_apply{smod, pass}.apply();
-                }
-            }
-
             auto s = it->get_shape();
             if(apply_map.count(it->name()) > 0)
             {

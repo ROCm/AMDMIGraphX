@@ -9,6 +9,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void memory_coloring_impl::run()
 {
+    // calc implicit depdendencies
+    calc_implicit_deps(*p_mod);
+
     MIGRAPHX_DEBUG(dump("---Before memory coloring---"));
     MIGRAPHX_DEBUG(dump_module());
     build();
@@ -141,7 +144,14 @@ void memory_coloring_impl::build()
             is_dead = true;
         }
 
-        for(auto&& arg : iter->inputs())
+        auto inputs = iter->inputs();
+        if (contains(mod_implicit_deps, iter))
+        {
+            const auto& impl_deps = mod_implicit_deps.at(iter);
+            inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
+        }
+
+        for(auto&& arg : inputs)
         {
             if(is_param(arg) || is_outline(arg))
             {

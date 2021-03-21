@@ -1,5 +1,4 @@
 #include <iostream>
-#include <iomanip>
 #include <vector>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/pooling.hpp>

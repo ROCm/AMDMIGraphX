@@ -145,7 +145,7 @@ void memory_coloring_impl::build()
         }
 
         auto inputs = iter->inputs();
-        if (contains(mod_implicit_deps, iter))
+        if(contains(mod_implicit_deps, iter))
         {
             const auto& impl_deps = mod_implicit_deps.at(iter);
             inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());

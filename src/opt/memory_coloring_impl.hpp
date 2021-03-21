@@ -198,7 +198,6 @@ struct memory_coloring_impl
         }
     }
 
-
     module* p_mod;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.

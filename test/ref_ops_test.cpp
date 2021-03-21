@@ -3419,7 +3419,6 @@ TEST_CASE(sqdiff_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-
 TEST_CASE(sqrt_test)
 {
     migraphx::program p;
@@ -3587,6 +3586,5 @@ TEST_CASE(unsqueeze_test)
         EXPECT(result.get_shape() == s2);
     }
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

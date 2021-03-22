@@ -260,8 +260,10 @@ struct parse_resize : op_parser<parse_resize>
             else
             {
                 std::size_t n_dim = out_lens.size();
-                std::vector<std::vector<std::size_t>> ind_floor(n_dim, std::vector<std::size_t>(out_elements));
-                std::vector<std::vector<std::size_t>> ind_ceil(n_dim, std::vector<std::size_t>(out_elements));
+                std::vector<std::vector<std::size_t>> ind_floor(
+                    n_dim, std::vector<std::size_t>(out_elements));
+                std::vector<std::vector<std::size_t>> ind_ceil(
+                    n_dim, std::vector<std::size_t>(out_elements));
                 std::vector<std::vector<float>> ind_val(n_dim, std::vector<float>(out_elements));
                 std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 

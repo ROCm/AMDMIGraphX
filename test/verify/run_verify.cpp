@@ -120,7 +120,7 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name, const migraphx::program& p) const
+void run_verify::verify(const std::string& name, const migraphx::program& p, bool run_cpu) const
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
@@ -131,6 +131,8 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     for(const auto& tname : migraphx::get_targets())
     {
         if(tname == "ref")
+            continue;
+        if(tname == "cpu" and not run_cpu)
             continue;
         target_names.push_back(tname);
     }
@@ -192,7 +194,7 @@ void run_verify::run(int argc, const char* argv[]) const
             if(args.count(p.name) == 0 and args.count(p.section) == 0)
                 continue;
         }
-        verify(p.name, p.get_program());
+        verify(p.name, p.get_program(), p.run_cpu);
     }
 }
 

@@ -93,6 +93,9 @@ typedef const struct migraphx_operation* const_migraphx_operation_t;
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
 
+typedef struct migraphx_tf_options* migraphx_tf_options_t;
+typedef const struct migraphx_tf_options* const_migraphx_tf_options_t;
+
 typedef struct migraphx_quantize_op_names* migraphx_quantize_op_names_t;
 typedef const struct migraphx_quantize_op_names* const_migraphx_quantize_op_names_t;
 
@@ -246,6 +249,27 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            const void* data,
                                            size_t size,
                                            migraphx_onnx_options_t options);
+
+migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
+
+migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options);
+
+migraphx_status migraphx_tf_options_set_nhwc(migraphx_tf_options_t tf_options, bool is_nhwc);
+
+migraphx_status migraphx_tf_options_set_input_parameter_shape(migraphx_tf_options_t tf_options,
+                                                              const char* name,
+                                                              size_t* dims,
+                                                              size_t dims_size);
+
+migraphx_status migraphx_tf_options_set_default_dim_value(migraphx_tf_options_t tf_options,
+                                                          size_t value);
+
+migraphx_status migraphx_tf_options_set_output_names(migraphx_tf_options_t tf_options,
+                                                     const char** names,
+                                                     size_t names_size);
+
+migraphx_status
+migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options_t options);
 
 migraphx_status migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 

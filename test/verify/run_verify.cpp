@@ -148,9 +148,9 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         {
             target_info ti = get_target_info(tname);
             // if tests disabled, skip running it
-            if (migraphx::contains(ti.disabled_tests, name))
+            if(migraphx::contains(ti.disabled_tests, name))
                 continue;
-            auto t         = migraphx::make_target(tname);
+            auto t = migraphx::make_target(tname);
             results.emplace_back(tname,
                                  detach_async([=] { return run_target(t, p, m); }, ti.parallel));
         }

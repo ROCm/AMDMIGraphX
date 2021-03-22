@@ -92,9 +92,10 @@ struct parse_resize : op_parser<parse_resize>
         }
 
         // mode: only nearest mode is supported for now
+        std::string mode = "nearest";
         if(contains(info.attributes, "mode"))
         {
-            auto mode = info.attributes.at("mode").s();
+            mode = info.attributes.at("mode").s();
             if(mode != "nearest" and mode != "linear")
             {
                 MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
@@ -174,7 +175,6 @@ struct parse_resize : op_parser<parse_resize>
 
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        shape ind_s{shape::int32_type, out_lens};
         auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
         if(mode == "nearest")
@@ -194,6 +194,7 @@ struct parse_resize : op_parser<parse_resize>
                 ind[out_s.index(idx)] = static_cast<int64_t>(in_s.index(in_idx));
             });
 
+            shape ind_s{shape::int32_type, out_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
         }
@@ -214,7 +215,6 @@ struct parse_resize : op_parser<parse_resize>
                 std::vector<int> ind_floor(out_elements);
                 std::vector<int> ind_ceil(out_elements);
                 std::vector<float> ind_val(out_elements);
-
                 std::vector<float> delta(out_elements);
 
                 shape_for_each(out_s, [&](auto idx) {
@@ -232,10 +232,9 @@ struct parse_resize : op_parser<parse_resize>
 
                 auto input_type = args.at(0)->get_shape().type();
                 shape delta_s{input_type, out_lens};
-                auto l_scale = info.add_literal(literal(delta_s, delta));
 
                 std::vector<int> ind(ind_ceil);
-                ind.insert(ind.end(), ind_floor.begin(), ind._floor.end());
+                ind.insert(ind.end(), ind_floor.begin(), ind_floor.end());
 
                 auto ind_lens = out_lens;
                 ind_lens[0] *= 2;
@@ -261,10 +260,15 @@ struct parse_resize : op_parser<parse_resize>
             else
             {
                 std::size_t n_dim = out_lens.size();
-                std::vector<std::vector<int>> ind_floor(n_dim, std::vector<int>(out_elements));
-                std::vector<std::vector<int>> ind_ceil(n_dim, std::vector<int>(out_elements));
+                std::vector<std::vector<std::size_t>> ind_floor(n_dim, std::vector<std::size_t>(out_elements));
+                std::vector<std::vector<std::size_t>> ind_ceil(n_dim, std::vector<std::size_t>(out_elements));
                 std::vector<std::vector<float>> ind_val(n_dim, std::vector<float>(out_elements));
                 std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
+
+                // gather shape
+                auto ind_lens = out_lens;
+                ind_lens[0] *= 4;
+                shape ind_s{shape::int32_type, ind_lens};
 
                 shape_for_each(out_s, [&](auto idx) {
                     auto in_idx  = idx;
@@ -273,7 +277,7 @@ struct parse_resize : op_parser<parse_resize>
                     {
                         auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
                         ind_floor[ii][out_idx] = nearest_floor(in_lens[ii], idx_val);
-                        ind_ceil[ii][out_idx]  = nearest_ceil(in_len[ii], idx_val);
+                        ind_ceil[ii][out_idx]  = nearest_ceil(in_lens[ii], idx_val);
                         ind_val[ii][out_idx]   = idx_val;
                         delta[ii][out_idx]     = idx_val - ind_floor[ii][out_idx];
                     }
@@ -320,10 +324,6 @@ struct parse_resize : op_parser<parse_resize>
                                    return ind_s.index({x, y});
                                });
 
-                // gather shape
-                auto ind_lens = out_lens;
-                ind_lens[0] *= 4;
-                shape ind_s{shape::int32_type, ind_lens};
                 auto ins_ind = info.add_literal(literal(ind_s, ind));
                 auto delta_y = info.add_literal(literal(out_s, delta[1]));
 
@@ -346,7 +346,7 @@ struct parse_resize : op_parser<parse_resize>
                     data);
                 auto xdiff  = info.add_instruction(make_op("sub"), ins_xc, ins_xf);
                 auto dxdiff = info.add_instruction(make_op("mul"), xdiff, delta_x);
-                auto ins_x  = info.add_instruction(make_op("add", dxdiff, ins_xf));
+                auto ins_x  = info.add_instruction(make_op("add"), dxdiff, ins_xf);
 
                 slc_size    = out_lens[0];
                 auto ins_yf = info.add_instruction(

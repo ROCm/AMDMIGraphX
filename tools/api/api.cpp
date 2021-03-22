@@ -3,6 +3,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/tf.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -90,11 +91,25 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
+void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
+
+void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
+
 void set_input_parameter_shape(onnx_options& options,
                                const char* name,
                                std::vector<std::size_t> dims)
 {
     options.map_input_dims[std::string(name)] = std::move(dims);
+}
+
+void set_input_parameter_shape(tf_options& options, const char* name, std::vector<std::size_t> dims)
+{
+    options.map_input_dims[std::string(name)] = std::move(dims);
+}
+
+void set_output_names(tf_options& options, std::vector<const char*> names)
+{
+    options.output_node_names = std::vector<std::string>(names.begin(), names.end());
 }
 
 template <class Value>

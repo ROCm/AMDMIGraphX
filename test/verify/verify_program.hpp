@@ -9,7 +9,6 @@ struct program_info
 {
     std::string name;
     std::string section;
-    bool run_cpu;
     std::function<migraphx::program()> get_program;
 };
 
@@ -25,7 +24,6 @@ struct register_verify_program_action
         program_info pi;
         pi.name        = migraphx::get_type_name<T>();
         pi.section     = x.section();
-        pi.run_cpu     = x.run_cpu();
         pi.get_program = [x] { return x.create_program(); };
         register_program_info(pi);
     }
@@ -38,8 +36,6 @@ template <class T>
 struct verify_program : auto_register_verify_program<T>
 {
     std::string section() const { return "general"; };
-
-    bool run_cpu() const { return true; };
 };
 
 #endif

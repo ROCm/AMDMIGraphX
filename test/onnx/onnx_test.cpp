@@ -1650,9 +1650,9 @@ TEST_CASE(lessorequal_test)
 
     auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
-    auto temp     = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
+    auto temp   = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
     auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
-    
+
     mm->add_return({le});
 
     auto prog = migraphx::parse_onnx("lessorequal_test.onnx");

@@ -227,7 +227,7 @@ void find_matches(module& p, instruction_ref ins, Ms&&... ms)
 {
     std::cout << "p = " << std::endl;
     std::cout << p << std::endl;
-    
+
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif

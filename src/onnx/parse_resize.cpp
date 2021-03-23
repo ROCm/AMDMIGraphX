@@ -150,7 +150,7 @@ struct parse_resize : op_parser<parse_resize>
                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
         }
         // need to compute the output lens from input
-        else if (args.size() >= 3 and args.at(2)->name() != "undefine")
+        else if(args.size() >= 3 and args.at(2)->name() != "undefine")
         {
             auto arg_scale = args[2]->eval();
             check_arg_empty(arg_scale, "PARSE_RESIZE: dynamic input scale is not supported!");
@@ -220,13 +220,13 @@ struct parse_resize : op_parser<parse_resize>
                 shape_for_each(out_s, [&](auto idx) {
                     auto in_idx_floor = idx;
                     auto in_idx_ceil  = idx;
-                    auto out_lidx      = out_s.index(idx);
+                    auto out_lidx     = out_s.index(idx);
                     auto idx_val      = idx_op(in_lens[0], out_lens[0], idx[0], vec_scale[0]);
                     in_idx_floor[0]   = nearest_floor(in_lens[0], idx_val);
                     in_idx_ceil[0]    = nearest_ceil(in_lens[0], idx_val);
 
-                    ind_val[out_lidx] = idx_val;
-                    delta[out_lidx]    = idx_val - in_idx_floor[0];
+                    ind_val[out_lidx]   = idx_val;
+                    delta[out_lidx]     = idx_val - in_idx_floor[0];
                     ind_floor[out_lidx] = static_cast<int64_t>(in_s.index(in_idx_floor));
                     ind_ceil[out_lidx]  = static_cast<int64_t>(in_s.index(in_idx_ceil));
                 });
@@ -341,7 +341,7 @@ struct parse_resize : op_parser<parse_resize>
                 auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
                 int64_t slc_size = static_cast<int64_t>(out_lens[0] * 2);
-                auto ins_xf          = info.add_instruction(
+                auto ins_xf      = info.add_instruction(
                     make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
                 auto ins_xc = info.add_instruction(
                     make_op("slice",

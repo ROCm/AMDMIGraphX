@@ -153,7 +153,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
-            auto t = migraphx::make_target(tname);
+            auto t         = migraphx::make_target(tname);
             results.emplace_back(tname,
                                  detach_async([=] { return run_target(t, p, m); }, ti.parallel));
         }

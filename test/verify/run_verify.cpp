@@ -133,6 +133,12 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     {
         if(tname == "ref")
             continue;
+
+        // if tests disabled, skip running it
+        target_info ti = get_target_info(tname);
+        if(migraphx::contains(ti.disabled_tests, name))
+            continue;
+
         target_names.push_back(tname);
     }
     if(not target_names.empty())
@@ -147,9 +153,6 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
-            // if tests disabled, skip running it
-            if(migraphx::contains(ti.disabled_tests, name))
-                continue;
             auto t = migraphx::make_target(tname);
             results.emplace_back(tname,
                                  detach_async([=] { return run_target(t, p, m); }, ti.parallel));

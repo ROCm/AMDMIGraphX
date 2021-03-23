@@ -35,8 +35,9 @@ std::string unique_string(const std::string& prefix)
 {
     auto pid = getpid();
     auto tid = std::this_thread::get_id();
+    auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
     std::stringstream ss;
-    ss << prefix << "-" << pid << "-" << tid << "-" << random_string(64);
+    ss << std::hex << prefix << "-" << pid << "-" << tid << "-" << clk << "-" << random_string(16);
     return ss.str();
 }
 

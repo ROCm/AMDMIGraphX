@@ -27,8 +27,7 @@ TEST_CASE(load_and_run)
 
 TEST_CASE(if_pl_test)
 {
-    auto run_prog = [&](auto cond)
-    {
+    auto run_prog = [&](auto cond) {
         auto p             = migraphx::parse_onnx("if_pl_test.onnx");
         auto shapes_before = p.get_output_shapes();
         migraphx_compile_options options;
@@ -40,7 +39,7 @@ TEST_CASE(if_pl_test)
 
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
-        auto xs = param_shapes["x"];
+        auto xs           = param_shapes["x"];
         std::vector<float> xd(xs.bytes() / sizeof(float), 1.0);
         pp.add("x", migraphx::argument(xs, xd.data()));
         auto ys = param_shapes["y"];
@@ -50,10 +49,11 @@ TEST_CASE(if_pl_test)
         pp.add("cond", migraphx::argument(param_shapes["cond"], &ccond));
 
         auto outputs = p.eval(pp);
-        auto output = outputs[0];
-        auto lens = output.get_shape().lengths();
-        auto elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-        float *data_ptr = reinterpret_cast<float*>(output.data());
+        auto output  = outputs[0];
+        auto lens    = output.get_shape().lengths();
+        auto elem_num =
+            std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
+        float* data_ptr = reinterpret_cast<float*>(output.data());
         std::vector<float> ret(data_ptr, data_ptr + elem_num);
 
         return ret;

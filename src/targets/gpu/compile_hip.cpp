@@ -46,12 +46,14 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
 
     src_compiler compiler;
-    compiler.flags = params;
+    compiler.flags    = params;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
 
     if(is_hcc_compiler())
         compiler.process = [&](fs::path obj_path) -> fs::path {
-            process{MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL) + std::string{" -i "} + obj_path.string()}.cwd(obj_path.parent_path());
+            process{MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL) + std::string{" -i "} +
+                    obj_path.string()}
+                .cwd(obj_path.parent_path());
             for(const auto& entry : fs::directory_iterator{obj_path.parent_path()})
             {
                 const auto& hsaco_path = entry.path();

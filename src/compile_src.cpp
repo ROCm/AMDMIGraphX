@@ -8,7 +8,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {
     assert(not srcs.empty());

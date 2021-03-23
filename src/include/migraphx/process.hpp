@@ -27,7 +27,7 @@ struct process
 
     void exec();
 
-private:
+    private:
     std::unique_ptr<process_impl> impl;
 };
 

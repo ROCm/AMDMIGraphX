@@ -40,7 +40,9 @@ std::string unique_string(const std::string& prefix)
     return ss.str();
 }
 
-tmp_dir::tmp_dir(const std::string& prefix) : path(fs::temp_directory_path() / unique_string(prefix.empty() ? "migraphx" : "migraphx-"+prefix))
+tmp_dir::tmp_dir(const std::string& prefix)
+    : path(fs::temp_directory_path() /
+           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + prefix))
 {
     fs::create_directories(this->path);
 }

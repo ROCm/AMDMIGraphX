@@ -23,13 +23,13 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     std::array<char, 128> buffer;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
-        ec = WIFEXITED(status) ? 0 : WEXITSTATUS(status);
+        ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status);
     };
     {
         std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer);
-        if (!pipe)
+        if(!pipe)
             MIGRAPHX_THROW("popen() failed: " + cmd);
-        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+        while(fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
             std_out(buffer.data());
     }
     return ec;
@@ -47,7 +47,7 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         result += command;
         return result;
-    }   
+    }
 };
 
 process::process(const std::string& cmd) : impl(std::make_unique<process_impl>())
@@ -75,9 +75,9 @@ void process::exec()
 {
     auto ec = migraphx::exec(impl->get_command(), redirect_to(std::cout));
     if(ec != 0)
-        MIGRAPHX_THROW("Command " + impl->get_command() + " exited with status " + std::to_string(ec));
+        MIGRAPHX_THROW("Command " + impl->get_command() + " exited with status " +
+                       std::to_string(ec));
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

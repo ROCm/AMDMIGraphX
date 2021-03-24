@@ -19,12 +19,12 @@ struct dynamic_loader
     dynamic_loader(const fs::path& p);
 
     dynamic_loader(const char* image, std::size_t size);
-    
+
     dynamic_loader(const std::vector<char>& buffer);
 
     std::shared_ptr<void> get_symbol(const std::string& name) const;
 
-    template<class F>
+    template <class F>
     std::function<F> get_function(const std::string& name) const
     {
         auto s = get_symbol(name);
@@ -33,10 +33,10 @@ struct dynamic_loader
             return f(std::forward<decltype(xs)>(xs)...);
         };
     }
-private:
+
+    private:
     std::shared_ptr<dynamic_loader_impl> impl;
 };
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

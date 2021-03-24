@@ -9,6 +9,14 @@
             {
               "question": "where is the businesses choosing to go?",
               "id": "1"
+            },
+            {
+              "question": "how may votes did the ballot measure need?",
+              "id": "2"
+            },
+            {
+              "question": "By what year many Silicon Valley businesses were choosing the Moscone Center?",
+              "id": "3"
             }
           ]
         }

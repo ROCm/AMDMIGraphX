@@ -86,17 +86,13 @@ for idx in range(0, n):
             "input_mask:0": input_mask[idx:idx+bs],
             "segment_ids:0": segment_ids[idx:idx+bs]}
     result = session.run(["unique_ids:0","unstack:0", "unstack:1"], data)
+
     in_batch = result[1].shape[0]
     start_logits = [float(x) for x in result[1][0].flat]
     end_logits = [float(x) for x in result[2][0].flat]
-    print("logits")
-    print(start_logits)
-    print(end_logits)
     for i in range(0, in_batch):
         unique_id = len(all_results)
         all_results.append(RawResult(unique_id=unique_id, start_logits=start_logits, end_logits=end_logits))
-        print("RawResult")
-        print(RawResult(unique_id=unique_id, start_logits=start_logits, end_logits=end_logits))
 
 # postprocessing
 output_dir = 'predictions'

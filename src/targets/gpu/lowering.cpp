@@ -426,7 +426,7 @@ struct miopen_apply
                 inputs.push_back(soutput);
             }
 
-            return mod->replace_instruction(ins, make_op("gpu::if"), inputs, mod_args);
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
         });
     }
 };

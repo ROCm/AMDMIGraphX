@@ -119,7 +119,6 @@ add_library(migraphx_gpu
     gather.cpp
     gemm_impl.cpp
     hip.cpp
-    if.cpp
     int8_conv_pack.cpp
     int8_gemm_pack.cpp
     kernel.cpp
@@ -170,7 +169,6 @@ register_migraphx_gpu_ops(hip_
     floor
     gather
     greater
-    if
     less
     log
     logsoftmax

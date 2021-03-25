@@ -886,38 +886,6 @@ struct ref_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(ref_rnn_var_sl_last_output)
 
-struct ref_if
-{
-    op::if_op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::if"; }
-    shape compute_shape(const std::vector<shape>& inputs,
-                        const std::vector<module_ref>& mod_args) const
-    {
-        return op.compute_shape(inputs, mod_args);
-    }
-
-    argument compute(
-        const std::vector<argument>& args,
-        const std::vector<module_ref>& mods,
-        const std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
-    {
-        bool cond      = args.front().at<bool>();
-        module_ref mod = cond ? mods[0] : mods[1];
-        auto results   = run(mod, {});
-
-        return results[0];
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_if);
-
 struct ref_apply
 {
     module* mod;
@@ -955,7 +923,6 @@ struct ref_apply
         apply_map["softmax"]    = extend_op<ref_softmax<op::softmax>, op::softmax>();
         apply_map["rnn_var_sl_last_output"] =
             extend_op<ref_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();
-        apply_map["if"] = extend_op<ref_if, op::if_op>();
     }
 
     void apply()

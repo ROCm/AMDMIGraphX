@@ -231,8 +231,8 @@ std::vector<argument> generic_eval(const module* mod,
                 });
 
             const auto& mod_args = ins->module_inputs();
-            auto module_eval = [&](module_ref smod, const std::unordered_map<std::string, argument>& inputs)
-            {
+            auto module_eval     = [&](module_ref smod,
+                                   const std::unordered_map<std::string, argument>& inputs) {
                 // wrap up parameters for sub_modules
                 const auto& param_names = smod->get_parameter_names();
                 parameter_map m;
@@ -248,8 +248,8 @@ std::vector<argument> generic_eval(const module* mod,
                     }
                     else
                     {
-                        MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" +
-                                        mod->name() + "\" not exist!");
+                        MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" + mod->name() +
+                                       "\" not exist!");
                     }
                 }
 
@@ -258,11 +258,10 @@ std::vector<argument> generic_eval(const module* mod,
 
             if(not mod_args.empty())
             {
-                results.emplace(
-                    ins, trace(ins, mod, [&] {
-                        return ins->normalized_operator().compute(
-                            values, mod_args, module_eval);
-                    }));
+                results.emplace(ins, trace(ins, mod, [&] {
+                                    return ins->normalized_operator().compute(
+                                        values, mod_args, module_eval);
+                                }));
             }
             else
             {

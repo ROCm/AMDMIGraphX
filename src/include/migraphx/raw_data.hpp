@@ -5,6 +5,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -145,6 +146,13 @@ struct raw_data : raw_data_base
         assert(static_cast<const Derived&>(*this).get_shape().type() ==
                migraphx::shape::get_type<T>{});
         return reinterpret_cast<T*>(buffer);
+    }
+
+    std::string to_string() const
+    {
+        std::stringstream ss;
+        ss << static_cast<const Derived&>(*this);
+        return ss.str();
     }
 };
 

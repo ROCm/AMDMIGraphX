@@ -87,6 +87,29 @@ const std::vector<shape::type_t>& shape::types()
     return result;
 }
 
+std::string shape::name(shape::type_t t)
+{
+    switch(t)
+    {
+#define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
+    case x: return #x;
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE
+    }
+    MIGRAPHX_THROW("Invalid type");
+}
+std::string shape::cpp_type(shape::type_t t)
+{
+    switch(t)
+    {
+#define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
+    case x: return #t;
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE
+    }
+    MIGRAPHX_THROW("Invalid type");
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
@@ -225,14 +248,7 @@ std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const
 {
-    switch(this->type())
-    {
-#define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE(x, t) \
-    case x: return #x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE)
-#undef MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE
-    }
-    MIGRAPHX_THROW("Invalid type");
+    return name(this->type());
 }
 
 bool operator==(const shape& x, const shape& y)

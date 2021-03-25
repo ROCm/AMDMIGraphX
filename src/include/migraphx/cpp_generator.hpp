@@ -13,12 +13,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct operation;
 struct module;
+struct shape;
 
 struct cpp_generator_impl;
 
 struct cpp_generator
 {
-    using string_map               = std::unordered_map<std::string, std::string>;
     using generate_module_callback = std::function<std::string(
         instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>;
     struct param
@@ -34,6 +34,24 @@ struct cpp_generator
         std::string return_type             = "void";
         std::string name                    = "";
         std::vector<std::string> attributes = {};
+        function& set_body(const module& m, const generate_module_callback& g);
+        function& set_body(const std::string& s)
+        {
+            body = s;
+            return *this;
+        }
+        function& set_name(const std::string& s)
+        {
+            name = s;
+            return *this;
+        }
+        function& set_attributes(std::vector<std::string> attrs)
+        {
+            attributes = std::move(attrs);
+            return *this;
+        }
+        function& set_types(const module& m);
+        function& set_types(const module& m, const std::function<std::string(shape)>& parse);
     };
 
     cpp_generator();
@@ -46,13 +64,16 @@ struct cpp_generator
 
     ~cpp_generator() noexcept;
 
-    static std::string generate_point_op(const operation& op,
-                                         const std::vector<std::string>& args,
-                                         const string_map& fmap = {});
+    void fmap(const std::function<std::string(std::string)>& f);
+
+    std::string generate_point_op(const operation& op,
+                                         const std::vector<std::string>& args);
 
     std::string str() const;
 
-    std::string generate_module(function f, const module& m, const generate_module_callback& g);
+    function generate_module(const module& m, const generate_module_callback& g);
+
+    function generate_module(const module& m);
 
     std::string create_function(const function& f);
 

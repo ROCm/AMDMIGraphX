@@ -33,7 +33,7 @@ struct unary : op_name<Derived>
     value base_attributes() const
     {
         const auto& self = static_cast<const Derived&>(*this);
-        return {{"pointwise", true}, "point_op", self.point_op()};
+        return {{"pointwise", true}, {"point_op", self.point_op()}};
     }
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const

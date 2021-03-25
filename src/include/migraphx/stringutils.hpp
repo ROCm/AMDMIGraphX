@@ -18,7 +18,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 auto with_char(F f)
 {
-    return [=](unsigned char c) -> char { return f(c); };
+    return [=](unsigned char c) { 
+        return f(c); 
+    };
 }
 
 inline std::string
@@ -110,17 +112,19 @@ template <class F>
 inline std::string
 interpolate_string(const std::string& input, F f, std::string start = "${", std::string end = "}")
 {
-    std::string result;
-    result.resize(input.size());
+    std::string result = "";
+    result.reserve(input.size());
     auto it = input.begin();
     while(it != input.end())
     {
         auto next_start = std::search(it, input.end(), start.begin(), start.end());
         auto next_end   = std::search(next_start, input.end(), end.begin(), end.end());
-        result.insert(result.end(), it, next_start);
-        auto r = f(next_start + start.size(), next_end - end.size());
-        result.insert(result.end(), r.begin(), r.end());
-        it = next_end;
+        result.append(it, next_start);
+        if(next_start == input.end())
+            break;
+        auto r = f(next_start + start.size(), next_end - end.size() + 1);
+        result.append(r.begin(), r.end());
+        it = next_end + 1;
     }
     return result;
 }

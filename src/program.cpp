@@ -239,18 +239,12 @@ std::vector<argument> generic_eval(const module* mod,
                 for(const auto& nm : param_names)
                 {
                     if(contains(inputs, nm))
-                    {
                         m[nm] = inputs.at(nm);
-                    }
                     else if(contains(params, nm))
-                    {
                         m[nm] = params.at(nm);
-                    }
                     else
-                    {
                         MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" + mod->name() +
                                        "\" not exist!");
-                    }
                 }
 
                 return generic_eval(smod, ctx, m, results, trace);

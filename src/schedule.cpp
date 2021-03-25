@@ -39,7 +39,7 @@ struct stream_info
     std::unordered_map<instruction_ref, std::size_t> iweights;
     ins_dep_map mod_implicit_deps;
 
-    void calc_implicit_deps(module& p) { mod_implicit_deps = p.calc_implicit_deps(); }
+    void calc_implicit_deps(const module& p) { mod_implicit_deps = p.calc_implicit_deps(); }
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {

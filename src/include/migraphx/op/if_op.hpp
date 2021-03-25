@@ -40,7 +40,7 @@ struct if_op
     argument compute(
         const std::vector<argument>& args,
         const std::vector<module_ref>& mods,
-        std::function<std::vector<argument>(
+        const std::function<std::vector<argument>(
             module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
     {
         auto cond      = args.front().at<bool>();

@@ -78,7 +78,11 @@ struct make_tensor<${n}>
 
 std::string generate_make_tensor(std::size_t n, const shape& s)
 {
-    return interpolate_string(make_tensor_template, {{"n", std::to_string(n)}, {"type", generate_cpp_type(s.type())}, {"lens", generate_index_ints(s.lens())}, {"strides", generate_index_ints(s.strides())}});
+    return interpolate_string(make_tensor_template,
+                              {{"n", std::to_string(n)},
+                               {"type", generate_cpp_type(s.type())},
+                               {"lens", generate_index_ints(s.lens())},
+                               {"strides", generate_index_ints(s.strides())}});
 }
 
 std::string generate_args_hpp(const std::vector<shape>& inputs)

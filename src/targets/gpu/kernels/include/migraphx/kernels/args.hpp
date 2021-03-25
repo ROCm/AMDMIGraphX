@@ -39,7 +39,7 @@ struct gens<1> : seq<0>
 };
 
 // Use template specialization since ADL is broken on hcc
-template<std::size_t>
+template <std::size_t>
 struct make_tensor;
 
 template <class F, std::size_t... Ns, class... Ts>

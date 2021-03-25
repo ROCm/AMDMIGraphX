@@ -19,7 +19,10 @@ unzip uncased_L-12_H-768_A-12.zip
 ```
 wget https://github.com/onnx/models/raw/master/text/machine_comprehension/bert-squad/model/bertsquad-10.onnx
 ```
-6) Run the inference, it will compile and run the model on three questions and a small data provided in `inputs.json`:
+6) Run the inference, it will compile and run the model on three questions and small data provided in `inputs.json`:
 ```
 python3 bert-squad-migraphx.py
 ```
+## References
+This example utilizes the following notebook :notebook: and applies it to MIGraphX:
+https://github.com/onnx/models/blob/master/text/machine_comprehension/bert-squad/BERT-Squad.ipynb

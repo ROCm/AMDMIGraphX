@@ -123,7 +123,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
     f.set_name(m.name()).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
-                return ins->get_literal().to_string();
+                return shape::cpp_type(ins->get_shape().type()) + "(" + ins->get_literal().to_string() + ")";
             std::vector<std::string> args;
             std::transform(ins->inputs().begin(),
                            ins->inputs().end(),

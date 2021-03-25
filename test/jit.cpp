@@ -64,4 +64,21 @@ TEST_CASE(generate_module)
     EXPECT(test::near(f(1, 2), std::sqrt(3)));
 }
 
+TEST_CASE(generate_module_with_literals)
+{
+    migraphx::module m("foo");
+    auto x   = m.add_parameter("x", migraphx::shape::float_type);
+    auto y   = m.add_parameter("y", migraphx::shape::float_type);
+    auto z = m.add_literal(1.f);
+    auto sum1 = m.add_instruction(migraphx::make_op("add"), x, z);
+    auto sum2 = m.add_instruction(migraphx::make_op("add"), sum1, y);
+    m.add_instruction(migraphx::make_op("sqrt"), sum2);
+
+    auto f = compile_module<float(float, float)>(m);
+
+    EXPECT(test::near(f(1, 2), 2));
+    EXPECT(test::near(f(9, 6), 4));
+    EXPECT(test::near(f(0, 2), std::sqrt(3)));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

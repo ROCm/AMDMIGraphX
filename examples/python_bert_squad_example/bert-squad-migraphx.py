@@ -63,12 +63,16 @@ start = timer()
 for idx in range(0, n):
     item = eval_examples[idx]
     print(item)
-    
+
     result = model.run({
-        "unique_ids_raw_output___9:0": np.array([item.qas_id], dtype=np.int64),
-        "input_ids:0": input_ids[idx:idx+bs],
-        "input_mask:0": input_mask[idx:idx+bs],
-        "segment_ids:0": segment_ids[idx:idx+bs]
+        "unique_ids_raw_output___9:0":
+        np.array([item.qas_id], dtype=np.int64),
+        "input_ids:0":
+        input_ids[idx:idx + bs],
+        "input_mask:0":
+        input_mask[idx:idx + bs],
+        "segment_ids:0":
+        segment_ids[idx:idx + bs]
     })
 
     in_batch = result[1].get_shape().lens()[0]
@@ -88,11 +92,11 @@ output_dir = 'predictions'
 os.makedirs(output_dir, exist_ok=True)
 output_prediction_file = os.path.join(output_dir, "predictions.json")
 output_nbest_file = os.path.join(output_dir, "nbest_predictions.json")
-write_predictions(eval_examples, extra_data, all_results,
-                n_best_size, max_answer_length,
-                True, output_prediction_file, output_nbest_file)
+write_predictions(eval_examples, extra_data, all_results, n_best_size,
+                  max_answer_length, True, output_prediction_file,
+                  output_nbest_file)
 
 import json
-with open(output_prediction_file) as json_file:  
+with open(output_prediction_file) as json_file:
     test_data = json.load(json_file)
     print(json.dumps(test_data, indent=2))

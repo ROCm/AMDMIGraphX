@@ -69,7 +69,7 @@ for input_meta in session.get_inputs():
 n = len(input_ids)
 bs = batch_size
 all_results = []
-start = timer()
+
 for idx in range(0, n):
     item = eval_examples[idx]
     # this is using batch_size=1

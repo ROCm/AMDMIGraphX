@@ -1,6 +1,6 @@
 name: migraphx
 
-on: push
+on: [push, pull_request]
 
 jobs:
   cancel:
@@ -118,6 +118,7 @@ jobs:
     - name: Check formatting
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
+        set -e
         find . -iname '*.h' \
               -o -iname '*.hpp' \
               -o -iname '*.cpp' \

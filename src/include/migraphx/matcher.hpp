@@ -689,7 +689,6 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
-
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

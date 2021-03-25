@@ -33,15 +33,13 @@ compile_function(const std::string& src, const std::string& flags, const std::st
 }
 
 template <class F>
-std::function<F> compile_module(const migraphx::module& m, const std::string& flags="")
+std::function<F> compile_module(const migraphx::module& m, const std::string& flags = "")
 {
     migraphx::cpp_generator g;
-    g.fmap([](auto&& name) {
-        return "std::" + name;
-    });
+    g.fmap([](auto&& name) { return "std::" + name; });
     g.create_function(g.generate_module(m).set_attributes({"extern \"C\""}));
 
-    return compile_function<F>(preamble+g.str(), flags, m.name());
+    return compile_function<F>(preamble + g.str(), flags, m.name());
 }
 
 TEST_CASE(simple_run)
@@ -54,8 +52,8 @@ TEST_CASE(simple_run)
 TEST_CASE(generate_module)
 {
     migraphx::module m("foo");
-    auto x = m.add_parameter("x", migraphx::shape::float_type);
-    auto y = m.add_parameter("y", migraphx::shape::float_type);
+    auto x   = m.add_parameter("x", migraphx::shape::float_type);
+    auto y   = m.add_parameter("y", migraphx::shape::float_type);
     auto sum = m.add_instruction(migraphx::make_op("add"), x, y);
     m.add_instruction(migraphx::make_op("sqrt"), sum);
 

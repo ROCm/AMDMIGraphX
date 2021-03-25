@@ -11,9 +11,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
-cpp_generator::function& cpp_generator::function::set_body(const module& m,
-                                           const cpp_generator::generate_module_callback& g)
+cpp_generator::function&
+cpp_generator::function::set_body(const module& m, const cpp_generator::generate_module_callback& g)
 {
     std::unordered_map<migraphx::instruction_ref, std::string> names;
     std::stringstream ss;
@@ -25,7 +24,8 @@ cpp_generator::function& cpp_generator::function::set_body(const module& m,
         ss << "// " << ins->get_operator() << " -> " << ins->get_shape() << "\n";
         if(ins->name() == "@param")
         {
-            names[ins] = migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+            names[ins] =
+                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
             continue;
         }
         if(ins->name() == "@return")
@@ -34,7 +34,7 @@ cpp_generator::function& cpp_generator::function::set_body(const module& m,
             return_ins = ins->inputs().front();
         }
         std::string n = "z" + std::to_string(names.size());
-        names[ins] = n;
+        names[ins]    = n;
         ss << "auto " << n << " = " << g(ins, names) << ";\n";
     }
     ss << "return " << names.at(return_ins) << ";\n";
@@ -44,17 +44,17 @@ cpp_generator::function& cpp_generator::function::set_body(const module& m,
 
 cpp_generator::function& cpp_generator::function::set_types(const module& m)
 {
-    return cpp_generator::function::set_types(m, [](auto s) {
-        return shape::cpp_type(s.type());
-    });
+    return cpp_generator::function::set_types(m, [](auto s) { return shape::cpp_type(s.type()); });
 }
-cpp_generator::function& cpp_generator::function::set_types(const module& m, const std::function<std::string(shape)>& parse)
+cpp_generator::function&
+cpp_generator::function::set_types(const module& m, const std::function<std::string(shape)>& parse)
 {
     auto pmap = m.get_parameter_shapes();
     std::map<std::string, shape> input_map(pmap.begin(), pmap.end());
-    std::transform(input_map.begin(), input_map.end(), std::back_inserter(this->params), [&](auto&& p) {
-        return param{p.first, parse(p.second)};
-    });
+    std::transform(
+        input_map.begin(), input_map.end(), std::back_inserter(this->params), [&](auto&& p) {
+            return param{p.first, parse(p.second)};
+        });
     auto output_shapes = m.get_output_shapes();
     assert(not output_shapes.empty());
     this->return_type = parse(output_shapes.front());
@@ -64,7 +64,7 @@ cpp_generator::function& cpp_generator::function::set_types(const module& m, con
 struct cpp_generator_impl
 {
     std::stringstream fs{};
-    std::size_t function_count = 0;
+    std::size_t function_count                   = 0;
     std::function<std::string(std::string)> fmap = nullptr;
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
@@ -79,10 +79,7 @@ cpp_generator& cpp_generator::operator=(cpp_generator rhs)
 
 cpp_generator::~cpp_generator() noexcept = default;
 
-void cpp_generator::fmap(const std::function<std::string(std::string)>& f)
-{
-    impl->fmap = f;
-}
+void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { impl->fmap = f; }
 
 std::string cpp_generator::generate_point_op(const operation& op,
                                              const std::vector<std::string>& args)
@@ -98,9 +95,9 @@ std::string cpp_generator::generate_point_op(const operation& op,
                                   {
                                       auto fname = key.substr(fselector.size());
                                       if(impl->fmap == nullptr)
-                                        return fname;
+                                          return fname;
                                       else
-                                        return impl->fmap(fname);
+                                          return impl->fmap(fname);
                                   }
                                   else if(with_char(::isdigit)(key[0]))
                                   {
@@ -123,16 +120,18 @@ std::string cpp_generator::str() const { return impl->fs.str(); }
 cpp_generator::function cpp_generator::generate_module(const module& m)
 {
     function f;
-    f.set_name(m.name()).set_types(m).set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
-        if(ins->name() == "@literal")
-            return ins->get_literal().to_string();
-        std::vector<std::string> args;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(args), [&](auto i) {
-            return names.at(i);
+    f.set_name(m.name()).set_types(m).set_body(
+        m, [&](instruction_ref ins, const auto& names) -> std::string {
+            if(ins->name() == "@literal")
+                return ins->get_literal().to_string();
+            std::vector<std::string> args;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(args),
+                           [&](auto i) { return names.at(i); });
+            auto s = generate_point_op(ins->get_operator(), args);
+            return generate_point_op(ins->get_operator(), args);
         });
-        auto s =generate_point_op(ins->get_operator(), args);
-        return generate_point_op(ins->get_operator(), args);
-    });
     return f;
 }
 

@@ -246,10 +246,7 @@ shape shape::normalize_standard() const
 
 std::size_t shape::element_space() const { return impl->element_space(); }
 
-std::string shape::type_string() const
-{
-    return name(this->type());
-}
+std::string shape::type_string() const { return name(this->type()); }
 
 bool operator==(const shape& x, const shape& y)
 {

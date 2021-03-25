@@ -199,7 +199,7 @@ struct lhs_expression
     TEST_LHS_REOPERATOR (^)
 };
 
-template<class F>
+template <class F>
 struct predicate
 {
     std::string msg;
@@ -211,24 +211,18 @@ struct predicate
         return s;
     }
 
-    decltype(auto) operator()() const
-    {
-        return f();
-    }
+    decltype(auto) operator()() const { return f(); }
 
-    operator decltype(auto)() const
-    {
-        return f();
-    }
+    operator decltype(auto)() const { return f(); }
 };
 
-template<class F>
+template <class F>
 auto make_predicate(const std::string& msg, F f)
 {
     return make_lhs_expression(predicate<F>{msg, f}, function{});
 }
 
-template<class T>
+template <class T>
 std::string as_string(const T& x)
 {
     std::stringstream ss;
@@ -236,7 +230,7 @@ std::string as_string(const T& x)
     return ss.str();
 }
 
-template<class Iterator>
+template <class Iterator>
 std::string as_string(Iterator start, Iterator last)
 {
     std::stringstream ss;
@@ -244,12 +238,13 @@ std::string as_string(Iterator start, Iterator last)
     return ss.str();
 }
 
-template<class F>
+template <class F>
 auto make_function(const std::string& name, F f)
 {
     return [=](auto&&... xs) {
         std::vector<std::string> args = {as_string(xs)...};
-        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")", [=] { return f(xs...); });
+        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")",
+                              [=] { return f(xs...); });
     };
 }
 
@@ -309,12 +304,11 @@ bool throws(F f, const std::string& msg = "")
     }
 }
 
-template<class T, class U>
+template <class T, class U>
 auto near(T px, U py, double ptol = 1e-6f)
 {
-    return make_function("near", [](auto x, auto y, auto tol) {
-        return std::abs(x - y) < tol;
-    })(px, py, ptol);
+    return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
+        px, py, ptol);
 }
 
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;

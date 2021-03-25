@@ -18,9 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 auto with_char(F f)
 {
-    return [=](unsigned char c) { 
-        return f(c); 
-    };
+    return [=](unsigned char c) { return f(c); };
 }
 
 inline std::string

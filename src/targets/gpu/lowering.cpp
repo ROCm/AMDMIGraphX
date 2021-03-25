@@ -55,6 +55,7 @@ struct miopen_apply
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
+    bool offload_copy = false;
 
     context& get_context() const
     {
@@ -96,6 +97,7 @@ struct miopen_apply
         assert(mod != nullptr);
         assert(pass != nullptr);
 
+        offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
         create_output_names();
 
         add_generic_op("acos");
@@ -175,7 +177,7 @@ struct miopen_apply
 
     void copy_params()
     {
-        if(not pass->offload_copy)
+        if(not offload_copy)
             return;
 
         for(auto ins : iterator_for(*mod))
@@ -228,7 +230,7 @@ struct miopen_apply
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
         // Instruction's output is an input of the ret instruction
-        if(pass->offload_copy)
+        if(offload_copy)
         {
             auto result = mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
             return result;

@@ -666,6 +666,53 @@ module& module::sort()
     return *this;
 }
 
+void
+module::calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, ins_dep_map& deps) const
+{
+    const auto& ins_inputs = ins->inputs();
+    for(auto ii : iterator_for(smod))
+    {
+        const auto& ii_inputs = ii->inputs();
+        for(auto iii : ii_inputs)
+        {
+            if(pmod.has_instruction(iii))
+            {
+                if(not contains(ins_inputs, iii))
+                    deps[ins].insert(iii);
+            }
+        }
+
+        const auto& mod_args = ii->module_inputs();
+        if(not mod_args.empty())
+        {
+            for(const auto* ssmod : mod_args)
+            {
+                calc_implicit_deps(*ssmod, pmod, ins, deps);
+            }
+        }
+    }
+}
+
+ins_dep_map module::calc_implicit_deps() const
+{
+    ins_dep_map mod_implicit_deps;
+    for(auto ins : iterator_for(*this))
+    {
+        const auto& mod_args = ins->module_inputs();
+        if(mod_args.empty())
+        {
+            continue;
+        }
+
+        for(const auto* mod : mod_args)
+        {
+            calc_implicit_deps(*mod, *this, ins, mod_implicit_deps);
+        }
+    }
+
+    return mod_implicit_deps;
+}
+
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }
 
 std::ostream& operator<<(std::ostream& os, const module& m)

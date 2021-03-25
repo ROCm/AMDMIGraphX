@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 void memory_coloring_impl::run()
 {
     // calc implicit depdendencies
-    calc_implicit_deps(*p_mod);
+    mod_implicit_deps = p_mod->calc_implicit_deps();
 
     MIGRAPHX_DEBUG(dump("---Before memory coloring---"));
     MIGRAPHX_DEBUG(dump_module());

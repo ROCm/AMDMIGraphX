@@ -37,52 +37,11 @@ struct stream_info
     std::unordered_map<instruction_ref, std::size_t> ins2stream;
     std::unordered_map<instruction_ref, std::size_t> weights;
     std::unordered_map<instruction_ref, std::size_t> iweights;
-    using map_deps = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
-    map_deps mod_implicit_deps;
-
-    void
-    calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, map_deps& deps)
-    {
-        const auto& ins_inputs = ins->inputs();
-        for(auto ii : iterator_for(smod))
-        {
-            const auto& ii_inputs = ii->inputs();
-            for(auto iii : ii_inputs)
-            {
-                if(pmod.has_instruction(iii))
-                {
-                    if(not contains(ins_inputs, iii))
-                        deps[ins].insert(iii);
-                }
-            }
-
-            const auto& mod_args = ii->module_inputs();
-            if(not mod_args.empty())
-            {
-                for(const auto* ssmod : mod_args)
-                {
-                    calc_implicit_deps(*ssmod, pmod, ins, deps);
-                }
-            }
-        }
-    }
+    ins_dep_map mod_implicit_deps;
 
     void calc_implicit_deps(module& p)
     {
-        mod_implicit_deps.clear();
-        for(auto ins : iterator_for(p))
-        {
-            const auto& mod_args = ins->module_inputs();
-            if(mod_args.empty())
-            {
-                continue;
-            }
-
-            for(const auto* mod : mod_args)
-            {
-                calc_implicit_deps(*mod, p, ins, mod_implicit_deps);
-            }
-        }
+        mod_implicit_deps = p.calc_implicit_deps();
     }
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)

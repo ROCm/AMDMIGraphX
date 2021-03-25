@@ -24,6 +24,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
+using ins_dep_map = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
 
 /**
  * @brief Stores the instruction stream
@@ -149,8 +150,8 @@ struct module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules() const;
-
     module& sort();
+    ins_dep_map calc_implicit_deps() const;
 
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
@@ -158,6 +159,7 @@ struct module
 
     private:
     void assign(const module& m);
+    void calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, ins_dep_map& deps) const;
 
     std::unique_ptr<module_impl> impl;
 };

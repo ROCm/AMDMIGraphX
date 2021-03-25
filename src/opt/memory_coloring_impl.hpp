@@ -152,52 +152,6 @@ struct memory_coloring_impl
         }
     };
 
-    using map_deps = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
-    void
-    calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, map_deps& deps)
-    {
-        const auto& ins_inputs = ins->inputs();
-        for(auto ii : iterator_for(smod))
-        {
-            const auto& ii_inputs = ii->inputs();
-            for(auto iii : ii_inputs)
-            {
-                if(pmod.has_instruction(iii))
-                {
-                    if(not contains(ins_inputs, iii))
-                        deps[ins].insert(iii);
-                }
-            }
-
-            const auto& mod_args = ii->module_inputs();
-            if(not mod_args.empty())
-            {
-                for(const auto* ssmod : mod_args)
-                {
-                    calc_implicit_deps(*ssmod, pmod, ins, deps);
-                }
-            }
-        }
-    }
-
-    void calc_implicit_deps(module& p)
-    {
-        mod_implicit_deps.clear();
-        for(auto ins : iterator_for(p))
-        {
-            const auto& mod_args = ins->module_inputs();
-            if(mod_args.empty())
-            {
-                continue;
-            }
-
-            for(const auto* mod : mod_args)
-            {
-                calc_implicit_deps(*mod, p, ins, mod_implicit_deps);
-            }
-        }
-    }
-
     module* p_mod;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.
@@ -221,7 +175,7 @@ struct memory_coloring_impl
     std::string allocation_op{};
     bool enable_verify;
 
-    map_deps mod_implicit_deps;
+    ins_dep_map mod_implicit_deps;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

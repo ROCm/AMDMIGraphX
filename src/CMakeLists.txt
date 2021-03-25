@@ -132,6 +132,7 @@ register_migraphx_ops(
     round
     rsqrt
     scalar
+    scan_inclusive_sum
     sigmoid
     sign
     sinh

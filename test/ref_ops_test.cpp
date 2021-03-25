@@ -3370,5 +3370,95 @@ TEST_CASE(less_brcst_test)
     std::vector<bool> gold = {false, false, true, false, false, false, false, false, true};
     EXPECT(results_vector == gold);
 }
+/*
+TEST_CASE(scan_sum_inclusive_axis0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axes", {0}}}), l0);
+    p.compile(migraphx::ref::target{});
+    // Debugging
+        p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0};
+    EXPECT(results_vector == gold);
+}*/
+
+TEST_CASE(scan_sum_inclusive_1d)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 8}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {2}}}), l0);
+    p.compile(migraphx::ref::target{});
+    // Debugging
+        p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 3.0, 6.0, 10.0, 11.0, 13.0, 16.0, 20.0};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(scan_sum_inclusive_3d_ax0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {0}}}), l0);
+    p.compile(migraphx::ref::target{});
+    // Debugging
+        p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 2.0, 3.0, 4.0, 2.0, 4.0, 6.0, 8.0};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(scan_sum_inclusive_3d_ax1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {1}}}), l0);
+    p.compile(migraphx::ref::target{});
+    // Debugging
+        p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 2.0, 4.0, 6.0, 1.0, 2.0, 4.0, 6.0};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(scan_sum_inclusive_3d_ax2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
+    auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
+    auto l0    = mm->add_literal(input);
+    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {2}}}), l0);
+    p.compile(migraphx::ref::target{});
+    // Debugging
+        p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{1.0, 3.0, 3.0, 7.0, 1.0, 3.0, 3.0, 7.0};
+    EXPECT(results_vector == gold);
+}
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

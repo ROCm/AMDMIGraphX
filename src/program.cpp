@@ -146,7 +146,7 @@ void program::compile(const target& t, compile_options options)
 
     auto mods = this->get_modules();
     std::reverse(mods.begin(), mods.end());
-    auto&& passes             = t.get_passes(this->impl->ctx, options);
+    auto&& passes = t.get_passes(this->impl->ctx, options);
 
     for(const auto& mod : mods)
     {

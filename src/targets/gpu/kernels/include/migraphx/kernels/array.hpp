@@ -148,7 +148,7 @@ template <class T, T... xs>
 struct integral_const_array : array<T, sizeof...(xs)>
 {
     using base_array = array<T, sizeof...(xs)>;
-    constexpr integral_const_array() : base_array({xs...}) {}
+    MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({xs...}) {}
 };
 
 template <index_int... Ns>

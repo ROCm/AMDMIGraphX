@@ -38,10 +38,14 @@ struct gens<1> : seq<0>
 {
 };
 
+// Use template specialization since ADL is broken on hcc
+template<std::size_t>
+struct make_tensor;
+
 template <class F, std::size_t... Ns, class... Ts>
 __device__ auto make_tensors_impl(F f, seq<Ns...>, Ts*... xs)
 {
-    f(make_tensor(arg<Ns>{}, xs)...);
+    f(make_tensor<Ns>::apply(xs)...);
 }
 
 template <class... Ts>

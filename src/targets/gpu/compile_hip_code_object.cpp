@@ -65,15 +65,20 @@ std::string generate_make_shape(const shape& s)
            ")";
 }
 
+static const char* make_tensor_template = R"__migraphx__(
+template<>
+struct make_tensor<${n}>
+{
+    static __device__ auto apply(void* p)
+    {
+        return make_tensor_view(reinterpret_cast<${type}*>(p), make_shape(${lens}, ${strides}));
+    }
+};
+)__migraphx__";
+
 std::string generate_make_tensor(std::size_t n, const shape& s)
 {
-    std::stringstream ss;
-    ss << "__device__ auto make_tensor(arg<" << n << ">, void* p)\n";
-    ss << "{\n";
-    ss << "return make_tensor_view(reinterpret_cast<" << generate_cpp_type(s.type()) << "*>(p), ";
-    ss << generate_make_shape(s) << ");\n";
-    ss << "}\n";
-    return ss.str();
+    return interpolate_string(make_tensor_template, {{"n", std::to_string(n)}, {"type", generate_cpp_type(s.type())}, {"lens", generate_index_ints(s.lens())}, {"strides", generate_index_ints(s.strides())}});
 }
 
 std::string generate_args_hpp(const std::vector<shape>& inputs)

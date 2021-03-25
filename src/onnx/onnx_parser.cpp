@@ -290,11 +290,10 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
         else
         {
-            std::string node_name = node.op_type() + "_" + std::to_string(node_index);
+            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
             result                = ops[node.op_type()](
                 *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
-        ++node_index;
 
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),

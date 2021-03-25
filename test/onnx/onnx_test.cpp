@@ -1417,12 +1417,12 @@ TEST_CASE(if_literal_test)
 
     migraphx::shape s{migraphx::shape::float_type, {5}};
 
-    auto* then_mod           = p.create_module("If_0_if");
+    auto* then_mod           = p.create_module("If_1_if");
     std::vector<float> data1 = {1, 2, 3, 4, 5};
     auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
     then_mod->add_return({l1});
 
-    auto* else_mod           = p.create_module("If_0_else");
+    auto* else_mod           = p.create_module("If_1_else");
     std::vector<float> data2 = {5, 4, 3, 2, 1};
     auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
     else_mod->add_return({l2});
@@ -1444,13 +1444,13 @@ TEST_CASE(if_param_test)
     auto x = mm->add_parameter("x", ds);
     auto y = mm->add_parameter("y", ds);
 
-    auto* then_mod           = p.create_module("If_0_if");
+    auto* then_mod           = p.create_module("If_3_if");
     std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
     auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
     auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     then_mod->add_return({a1});
 
-    auto* else_mod           = p.create_module("If_0_else");
+    auto* else_mod           = p.create_module("If_3_else");
     std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
     auto l2                  = else_mod->add_literal(migraphx::literal(ds, data2));
     auto a2                  = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
@@ -1479,12 +1479,12 @@ TEST_CASE(if_pl_test)
     auto x    = mm->add_parameter("x", xs);
     auto y    = mm->add_parameter("y", ys);
 
-    auto* then_mod = p.create_module("If_0_if");
+    auto* then_mod = p.create_module("If_5_if");
     auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
     auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x, lx);
     then_mod->add_return({a1, l1});
 
-    auto* else_mod = p.create_module("If_0_else");
+    auto* else_mod = p.create_module("If_5_else");
     auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
     auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, ly);
     else_mod->add_return({l2, a2});

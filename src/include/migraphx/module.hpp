@@ -24,7 +24,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
-using ins_dep_map = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
+using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
 
 /**
  * @brief Stores the instruction stream
@@ -159,7 +159,10 @@ struct module
 
     private:
     void assign(const module& m);
-    void calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, ins_dep_map& deps) const;
+    void calc_implicit_deps(const module& smod,
+                            const module& pmod,
+                            instruction_ref ins,
+                            ins_dep_map& deps) const;
 
     std::unique_ptr<module_impl> impl;
 };

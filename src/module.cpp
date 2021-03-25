@@ -666,8 +666,10 @@ module& module::sort()
     return *this;
 }
 
-void
-module::calc_implicit_deps(const module& smod, const module& pmod, instruction_ref ins, ins_dep_map& deps) const
+void module::calc_implicit_deps(const module& smod,
+                                const module& pmod,
+                                instruction_ref ins,
+                                ins_dep_map& deps) const
 {
     const auto& ins_inputs = ins->inputs();
     for(auto ii : iterator_for(smod))

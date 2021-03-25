@@ -37,7 +37,8 @@ struct if_op
         return out_shapes0.front();
     }
 
-    argument compute(const std::vector<argument>& args,
+    argument compute(
+        const std::vector<argument>& args,
         const std::vector<module_ref>& mods,
         std::function<std::vector<argument>(
             module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
@@ -60,7 +61,6 @@ struct if_op
         auto results = run(mod, params);
         return results[0];
     }
-
 };
 
 } // namespace op

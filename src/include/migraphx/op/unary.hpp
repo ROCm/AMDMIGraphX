@@ -5,6 +5,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {
@@ -21,7 +22,7 @@ struct unary : op_name<Derived>
         auto pf          = self.point_function();
         if(pf.empty())
             return {};
-        if(std::ispunct(static_cast<unsigned char>(pf.front())))
+        if(with_char(::ispunct)(pf.front()))
         {
             return pf + "${0}";
         }

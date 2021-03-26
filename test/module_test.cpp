@@ -2,6 +2,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
+#include <migraphx/ranges.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
@@ -201,6 +202,42 @@ TEST_CASE(submodule_copy)
 
     EXPECT(mm == mm2);
     EXPECT(mm.get_sub_modules() == mm2.get_sub_modules());
+}
+
+TEST_CASE(calc_implict_deps)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+    std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+    auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+    auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+    auto cond = mm->add_parameter("cond", cond_s);
+    auto x    = mm->add_parameter("x", xs);
+    auto y    = mm->add_parameter("y", ys);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
+    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x, lx);
+    then_mod->add_return({a1, l1});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
+    auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, ly);
+    else_mod->add_return({l2, a2});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({ret});
+
+    auto implicit_deps = mm->calc_implicit_deps();
+    EXPECT(migraphx::contains(implicit_deps, ret));
+    std::unordered_set<migraphx::instruction_ref> deps{x, y};
+    EXPECT(migraphx::contains(implicit_deps.at(ret), x));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), y));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

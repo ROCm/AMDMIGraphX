@@ -28,7 +28,9 @@ function(generate_embed_source EMBED_NAME)
             extern const char ${END_SYMBOL}[];
         ")
 
+        # TODO: Should use NAME_WLE
         get_filename_component(BASE_NAME "${OBJECT}" NAME)
+        string(REGEX REPLACE ".[A-Za-z0-9_]$" "" BASE_NAME ${BASE_NAME})
 
         string(APPEND INIT_KERNELS "
             { \"${BASE_NAME}\", { ${START_SYMBOL}, ${END_SYMBOL}} },

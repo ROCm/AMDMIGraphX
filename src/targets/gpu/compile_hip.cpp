@@ -30,6 +30,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
                        std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
     assert(not srcs.empty());
     tmp_dir td{};
+    params += " -Wno-cuda-compat";
     if(params.find("-std=") == std::string::npos)
         params += " --std=c++17";
     params += " -fno-gpu-rdc";

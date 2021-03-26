@@ -10,6 +10,12 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
+include(Embed)
+file(GLOB KERNEL_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
+message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
+add_embed_library(migraphx_kernels ${KERNEL_FILES})
+
 add_library(migraphx_device
     device/acos.cpp
     device/acosh.cpp
@@ -109,6 +115,7 @@ add_library(migraphx_gpu
     clip.cpp
     code_object_op.cpp
     compile_hip.cpp
+    compile_hip_code_object.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -280,7 +287,7 @@ endif()
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_compile_options(migraphx_gpu PRIVATE -std=c++17)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 
 rocm_install_targets(
   TARGETS migraphx_gpu migraphx_device

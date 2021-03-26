@@ -65,7 +65,7 @@ std::string generate_make_shape(const shape& s)
            ")";
 }
 
-static const char* make_tensor_template = R"__migraphx__(
+static const char* const make_tensor_template = R"__migraphx__(
 template<>
 struct make_tensor<${n}>
 {

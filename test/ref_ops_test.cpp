@@ -1786,7 +1786,7 @@ TEST_CASE(if_pl_test)
         auto* else_mod           = p.create_module("If_0_else");
         std::vector<float> data2 = {5, 4, 3, 2, 1};
         auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
-        auto x1    = else_mod->add_parameter("x", s);
+        auto x1                  = else_mod->add_parameter("x", s);
         auto s2                  = else_mod->add_instruction(migraphx::make_op("add"), x1, l2);
         else_mod->add_return({s2, l2});
 

@@ -1786,10 +1786,11 @@ TEST_CASE(if_pl_test)
         auto* else_mod           = p.create_module("If_0_else");
         std::vector<float> data2 = {5, 4, 3, 2, 1};
         auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
-        auto s2                  = else_mod->add_instruction(migraphx::make_op("add"), x, l2);
+        auto x1    = else_mod->add_parameter("x", s);
+        auto s2                  = else_mod->add_instruction(migraphx::make_op("add"), x1, l2);
         else_mod->add_return({s2, l2});
 
-        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, x}, {then_mod, else_mod});
         mm->add_return({ret});
 
         return p;
@@ -1806,6 +1807,7 @@ TEST_CASE(if_pl_test)
         std::vector<float> data(ds.elements(), 1);
         m["x"] = migraphx::argument(ds, data.data());
 
+        setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
         auto res = p.eval(m).back();
         std::vector<float> ret;
         res.visit([&](auto v) { ret.assign(v.begin(), v.end()); });

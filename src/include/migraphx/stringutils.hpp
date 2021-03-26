@@ -98,6 +98,38 @@ inline bool starts_with(const std::string& value, const std::string& prefix)
         return std::equal(prefix.begin(), prefix.end(), value.begin());
 }
 
+template <class F>
+inline std::string
+interpolate_string(const std::string& input, F f, std::string start = "${", std::string end = "}")
+{
+    std::string result = "";
+    result.reserve(input.size());
+    auto it = input.begin();
+    while(it != input.end())
+    {
+        auto next_start = std::search(it, input.end(), start.begin(), start.end());
+        auto next_end   = std::search(next_start, input.end(), end.begin(), end.end());
+        result.append(it, next_start);
+        if(next_start == input.end())
+            break;
+        auto r = f(next_start + start.size(), next_end - end.size() + 1);
+        result.append(r.begin(), r.end());
+        it = next_end + 1;
+    }
+    return result;
+}
+inline std::string interpolate_string(const std::string& input,
+                                      const std::unordered_map<std::string, std::string>& vars)
+{
+    return interpolate_string(input, [&](auto start, auto last) {
+        auto key = trim({start, last});
+        auto it  = vars.find(key);
+        if(it == vars.end())
+            throw std::runtime_error("Unknown key: " + key);
+        return it->second;
+    });
+}
+
 inline std::string remove_prefix(std::string s, const std::string& prefix)
 {
     if(starts_with(s, prefix))

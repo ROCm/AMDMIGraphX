@@ -71,6 +71,7 @@ def test_fp16_imagescaler():
     r = p.run(params)[-1]
     print(r)
 
+
 def test_if_pl():
     p = migraphx.parse_onnx("if_pl_test.onnx")
     print(p)
@@ -84,11 +85,13 @@ def test_if_pl():
     params = {}
     shapes = p.get_parameter_shapes()
     params["x"] = np.ones(6).reshape(shapes["x"].lens()).astype(np.float32)
-    params["y"] = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0]).reshape(shapes["y"].lens()).astype(np.float32)
+    params["y"] = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0
+                            ]).reshape(shapes["y"].lens()).astype(np.float32)
     params["cond"] = np.array([1]).reshape(()).astype(np.bool)
 
     r = p.run(params)[-1]
     print(r)
+
 
 test_conv_relu()
 test_sub_uint64()

@@ -924,13 +924,13 @@ TEST_CASE(if_pl_test)
     else_mod->add_return({l2, a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    auto r2        = mm->add_return({ret});
+    auto r2  = mm->add_return({ret});
 
     scheduler t{};
     auto sub_modules = p.get_modules();
     std::reverse(sub_modules.begin(), sub_modules.end());
 
-    for (const auto& smod : sub_modules)
+    for(const auto& smod : sub_modules)
     {
         t.run_pass(*smod);
     }

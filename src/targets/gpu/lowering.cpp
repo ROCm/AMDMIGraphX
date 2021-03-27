@@ -43,6 +43,7 @@
 #include <utility>
 #include <functional>
 #include <algorithm>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -415,15 +416,41 @@ struct miopen_apply
             auto cpu_cond  = mod->insert_instruction(ins, hip_copy_from_gpu{true}, inputs.front());
             inputs.front() = cpu_cond;
 
-            auto output = insert_allocation(ins, ins->get_shape());
-            inputs.push_back(output);
-
             std::vector<module_ref> mod_args = ins->module_inputs();
-            const auto& out_shapes           = mod_args.at(0)->get_output_shapes();
-            for(std::size_t i = 1; i < out_shapes.size(); ++i)
+            std::unordered_map<std::string, shape> name_shapes;
+            std::set<std::string> pnames;
+            for (const auto& smod : mod_args)
             {
-                auto soutput = mod->insert_instruction(ins, hip_allocate{out_shapes.at(i)});
-                inputs.push_back(soutput);
+                auto ps = smod->get_parameter_shapes();
+                name_shapes.insert(ps.begin(), ps.end());
+                std::transform(ps.begin(), ps.end(), std::inserter(pnames, pnames.end()), [](auto ns) {
+                    return ns.first;
+                });
+            }
+
+            bool ins_output_allocated = false;
+            for (auto name : pnames)
+            {
+                assert(contains(name_shapes, name));
+                const auto& s = name_shapes.at(name);
+                instruction_ref output{};
+                if (s == ins->get_shape() and not ins_output_allocated)
+                {
+                    output = insert_allocation(ins, s);
+                    ins_output_allocated = true;
+                }
+                else
+                {
+                    output = mod->insert_instruction(ins, hip_allocate{s});
+                }
+                inputs.push_back(output);
+            }
+
+            // if ins output is not allocated, allocate ins output argument
+            if (not ins_output_allocated)
+            {
+                auto output = insert_allocation(ins, ins->get_shape());
+                inputs.push_back(output);
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);

@@ -9,6 +9,7 @@
 #include <migraphx/module.hpp>
 #include <cmath>
 #include <utility>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,17 +47,18 @@ struct if_op
         auto cond      = args.front().at<bool>();
         module_ref mod = cond ? mods[0] : mods[1];
         std::unordered_map<std::string, argument> params;
-        // const auto& out_shapes = mod->get_output_shapes();
-        assert(args.size() == 1 or args.size() == mod->get_output_shapes().size() + 1);
-        for(std::size_t i = 1; i < args.size(); ++i)
+
+        std::set<std::string> pnames;
+        for (const auto& smod : mods)
         {
-            std::string name = mod->name() + ":#output_" + std::to_string(i - 1);
-            auto&& ps        = mod->get_parameter_shape(name);
-            if(ps != shape{})
-            {
-                params[name] = args.at(i);
-            }
+            auto names = smod->get_parameter_names();
+            pnames.insert(names.begin(), names.end());
         }
+
+        assert(pname.size() < args.size());
+        std::transform(pnames.begin(), pnames.end(), args.begin()+1, std::inserter(params, params.end()), [](auto&& name, auto&& arg) {
+            return std::make_pair(name, arg);
+        });
 
         auto results = run(mod, params);
         return results[0];

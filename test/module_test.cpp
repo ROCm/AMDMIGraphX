@@ -217,27 +217,39 @@ TEST_CASE(calc_implict_deps)
     auto lx   = mm->add_literal(migraphx::literal(xs, datax));
     auto ly   = mm->add_literal(migraphx::literal(ys, datay));
     auto cond = mm->add_parameter("cond", cond_s);
-    auto x    = mm->add_parameter("x", xs);
-    auto y    = mm->add_parameter("y", ys);
+    auto x1    = mm->add_parameter("x1", xs);
+    auto x2    = mm->add_parameter("x2", xs);
+    auto y2    = mm->add_parameter("y2", ys);
 
     auto* then_mod = p.create_module("If_5_if");
     auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
-    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x, lx);
+    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x1, lx);
     then_mod->add_return({a1, l1});
 
+    auto* then_mod1 = p.create_module("If_6_if");
+    auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+    auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+    then_mod1->add_return({a11, l11});
+
+    auto* else_mod1 = p.create_module("If_6_else");
+    auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+    auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+    else_mod1->add_return({l21, a21});
+
     auto* else_mod = p.create_module("If_5_else");
-    auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
-    auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, ly);
-    else_mod->add_return({l2, a2});
+    auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
+    auto a2        = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+    else_mod->add_return({a2, l2});
+
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     mm->add_return({ret});
 
     auto implicit_deps = mm->calc_implicit_deps();
     EXPECT(migraphx::contains(implicit_deps, ret));
-    std::unordered_set<migraphx::instruction_ref> deps{x, y};
-    EXPECT(migraphx::contains(implicit_deps.at(ret), x));
-    EXPECT(migraphx::contains(implicit_deps.at(ret), y));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), x1));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), x2));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), y2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

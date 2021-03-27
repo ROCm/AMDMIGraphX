@@ -49,16 +49,18 @@ struct if_op
         std::unordered_map<std::string, argument> params;
 
         std::set<std::string> pnames;
-        for (const auto& smod : mods)
+        for(const auto& smod : mods)
         {
             auto names = smod->get_parameter_names();
             pnames.insert(names.begin(), names.end());
         }
 
         assert(pname.size() < args.size());
-        std::transform(pnames.begin(), pnames.end(), args.begin()+1, std::inserter(params, params.end()), [](auto&& name, auto&& arg) {
-            return std::make_pair(name, arg);
-        });
+        std::transform(pnames.begin(),
+                       pnames.end(),
+                       args.begin() + 1,
+                       std::inserter(params, params.end()),
+                       [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
         auto results = run(mod, params);
         return results[0];

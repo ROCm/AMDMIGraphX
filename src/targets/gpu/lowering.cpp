@@ -419,24 +419,25 @@ struct miopen_apply
             std::vector<module_ref> mod_args = ins->module_inputs();
             std::unordered_map<std::string, shape> name_shapes;
             std::set<std::string> pnames;
-            for (const auto& smod : mod_args)
+            for(const auto& smod : mod_args)
             {
                 auto ps = smod->get_parameter_shapes();
                 name_shapes.insert(ps.begin(), ps.end());
-                std::transform(ps.begin(), ps.end(), std::inserter(pnames, pnames.end()), [](auto ns) {
-                    return ns.first;
-                });
+                std::transform(ps.begin(),
+                               ps.end(),
+                               std::inserter(pnames, pnames.end()),
+                               [](auto ns) { return ns.first; });
             }
 
             bool ins_output_allocated = false;
-            for (auto name : pnames)
+            for(auto name : pnames)
             {
                 assert(contains(name_shapes, name));
                 const auto& s = name_shapes.at(name);
                 instruction_ref output{};
-                if (s == ins->get_shape() and not ins_output_allocated)
+                if(s == ins->get_shape() and not ins_output_allocated)
                 {
-                    output = insert_allocation(ins, s);
+                    output               = insert_allocation(ins, s);
                     ins_output_allocated = true;
                 }
                 else
@@ -447,7 +448,7 @@ struct miopen_apply
             }
 
             // if ins output is not allocated, allocate ins output argument
-            if (not ins_output_allocated)
+            if(not ins_output_allocated)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
                 inputs.push_back(output);

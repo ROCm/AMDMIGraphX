@@ -1720,11 +1720,13 @@ TEST_CASE(if_param_test)
         auto* then_mod           = p.create_module("If_0_if");
         std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
         auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
-        auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+        auto tx                  = then_mod->add_parameter("x", ds);
+        auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), tx, l1);
         then_mod->add_return({a1});
 
         auto* else_mod = p.create_module("If_0_else");
-        auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, sum);
+        auto ey        = else_mod->add_parameter("y", ds);
+        auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), ey, sum);
         else_mod->add_return({a2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, x, y}, {then_mod, else_mod});
@@ -1773,6 +1775,7 @@ TEST_CASE(if_param_test)
 
 TEST_CASE(if_pl_test)
 {
+    setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
     auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -1809,7 +1812,6 @@ TEST_CASE(if_pl_test)
         std::vector<float> data(ds.elements(), 1);
         m["x"] = migraphx::argument(ds, data.data());
 
-        setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
         auto res = p.eval(m).back();
         std::vector<float> ret;
         res.visit([&](auto v) { ret.assign(v.begin(), v.end()); });

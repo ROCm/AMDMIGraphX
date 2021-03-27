@@ -441,13 +441,6 @@ struct miopen_apply
                 inputs.push_back(output);
             }
 
-            // if ins output is not allocated, allocate ins output argument
-            if(not ins_output_allocated)
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                inputs.push_back(output);
-            }
-
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
         });
     }

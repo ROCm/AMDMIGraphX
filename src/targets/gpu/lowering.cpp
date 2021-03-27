@@ -43,7 +43,7 @@
 #include <utility>
 #include <functional>
 #include <algorithm>
-#include <set>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -417,23 +417,17 @@ struct miopen_apply
             inputs.front() = cpu_cond;
 
             std::vector<module_ref> mod_args = ins->module_inputs();
-            std::unordered_map<std::string, shape> name_shapes;
-            std::set<std::string> pnames;
+            std::map<std::string, shape> name_shapes;
             for(const auto& smod : mod_args)
             {
                 auto ps = smod->get_parameter_shapes();
                 name_shapes.insert(ps.begin(), ps.end());
-                std::transform(ps.begin(),
-                               ps.end(),
-                               std::inserter(pnames, pnames.end()),
-                               [](auto ns) { return ns.first; });
             }
 
             bool ins_output_allocated = false;
-            for(auto name : pnames)
+            for(auto& pn : name_shapes)
             {
-                assert(contains(name_shapes, name));
-                const auto& s = name_shapes.at(name);
+                const auto& s = pn.second;
                 instruction_ref output{};
                 if(s == ins->get_shape() and not ins_output_allocated)
                 {

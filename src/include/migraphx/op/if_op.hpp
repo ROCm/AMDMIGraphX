@@ -55,7 +55,7 @@ struct if_op
             pnames.insert(names.begin(), names.end());
         }
 
-        assert(pname.size() < args.size());
+        assert(pnames.size() < args.size());
         std::transform(pnames.begin(),
                        pnames.end(),
                        args.begin() + 1,

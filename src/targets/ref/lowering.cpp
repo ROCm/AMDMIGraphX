@@ -959,7 +959,7 @@ struct ref_apply
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
-        auto&& op            = any_cast<Op>(ins->get_operator());
+        auto&& op = any_cast<Op>(ins->get_operator());
         mod->replace_instruction(ins, T{op}, ins->inputs());
     }
 

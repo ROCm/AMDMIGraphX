@@ -217,9 +217,9 @@ TEST_CASE(calc_implict_deps)
     auto lx   = mm->add_literal(migraphx::literal(xs, datax));
     auto ly   = mm->add_literal(migraphx::literal(ys, datay));
     auto cond = mm->add_parameter("cond", cond_s);
-    auto x1    = mm->add_parameter("x1", xs);
-    auto x2    = mm->add_parameter("x2", xs);
-    auto y2    = mm->add_parameter("y2", ys);
+    auto x1   = mm->add_parameter("x1", xs);
+    auto x2   = mm->add_parameter("x2", xs);
+    auto y2   = mm->add_parameter("y2", ys);
 
     auto* then_mod = p.create_module("If_5_if");
     auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
@@ -238,9 +238,8 @@ TEST_CASE(calc_implict_deps)
 
     auto* else_mod = p.create_module("If_5_else");
     auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
-    auto a2        = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+    auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
     else_mod->add_return({a2, l2});
-
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
     mm->add_return({ret});

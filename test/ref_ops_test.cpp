@@ -1711,11 +1711,11 @@ TEST_CASE(if_param_test)
         migraphx::shape cond_s{migraphx::shape::bool_type};
         auto cond = mm->add_parameter("cond", cond_s);
         migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
-        auto x = mm->add_parameter("x", ds);
-        auto y = mm->add_parameter("y", ds);
+        auto x                   = mm->add_parameter("x", ds);
+        auto y                   = mm->add_parameter("y", ds);
         std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
         auto l2                  = mm->add_literal(migraphx::literal(ds, data2));
-        auto sum = mm->add_instruction(migraphx::make_op("add"), x, l2);
+        auto sum                 = mm->add_instruction(migraphx::make_op("add"), x, l2);
 
         auto* then_mod           = p.create_module("If_0_if");
         std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
@@ -1723,8 +1723,8 @@ TEST_CASE(if_param_test)
         auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
         then_mod->add_return({a1});
 
-        auto* else_mod           = p.create_module("If_0_else");
-        auto a2                  = else_mod->add_instruction(migraphx::make_op("mul"), y, sum);
+        auto* else_mod = p.create_module("If_0_else");
+        auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, sum);
         else_mod->add_return({a2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, x, y}, {then_mod, else_mod});
@@ -1764,8 +1764,9 @@ TEST_CASE(if_param_test)
 
     // else branch
     {
-        std::vector<float> gold_ret = {1.483906, 2.720788, 3.0736079, 0.84447598, 4.0433998, 4.04884};
-        auto ret                    = run_prog(false);
+        std::vector<float> gold_ret = {
+            1.483906, 2.720788, 3.0736079, 0.84447598, 4.0433998, 4.04884};
+        auto ret = run_prog(false);
         EXPECT(gold_ret == ret);
     }
 }

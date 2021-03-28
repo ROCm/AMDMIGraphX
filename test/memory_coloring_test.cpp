@@ -643,12 +643,12 @@ TEST_CASE(test39)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape cond_s{migraphx::shape::bool_type};
-    auto cond = mm->add_parameter("cond", cond_s);
+    auto cond   = mm->add_parameter("cond", cond_s);
     auto output = mm->add_parameter("output", {migraphx::shape::float_type, {20}});
 
     migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
-    auto i1 = add_alloc(*mm, ds);
-    auto i2 = add_alloc(*mm, ds);
+    auto i1                  = add_alloc(*mm, ds);
+    auto i2                  = add_alloc(*mm, ds);
     std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
     auto l2                  = mm->add_literal(migraphx::literal(ds, data2));
 
@@ -669,7 +669,7 @@ TEST_CASE(test39)
 
     auto sub_modules = p.get_modules();
     std::reverse(sub_modules.begin(), sub_modules.end());
-    for (auto& smod : sub_modules)
+    for(auto& smod : sub_modules)
     {
         run_pass(*smod);
     }

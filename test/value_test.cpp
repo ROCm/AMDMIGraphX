@@ -486,6 +486,12 @@ TEST_CASE(value_emplace_object)
     EXPECT(v["three"].get_key() == "three");
 }
 
+TEST_CASE(value_bracket_convert_throws)
+{
+    migraphx::value v1;
+    EXPECT(test::throws([&] { v1["key"].to<std::string>(); }));
+}
+
 TEST_CASE(value_construct_object_string_value)
 {
     migraphx::value v = {{"one", "onev"}, {"two", "twov"}};

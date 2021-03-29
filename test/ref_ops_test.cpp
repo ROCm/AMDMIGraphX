@@ -1775,7 +1775,6 @@ TEST_CASE(if_param_test)
 
 TEST_CASE(if_pl_test)
 {
-    setenv("MIGRAPHX_TRACE_EVAL", "1", 1);
     auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();

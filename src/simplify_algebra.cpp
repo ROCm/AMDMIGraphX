@@ -82,12 +82,13 @@ struct find_resize
 {
     auto matcher() const
     {
-        return match::name("gather")(match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
+        return match::name("gather")(
+            match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
     }
 
     void apply(module& p, match::matcher_result r) const
     {
-        auto ins = r.result;
+        auto ins     = r.result;
         auto ins_rsp = r.instructions["data"];
         auto ins_ind = r.instructions["ind"];
 
@@ -98,35 +99,35 @@ struct find_resize
         auto out_shape = ins->get_shape();
 
         // check if output shape is multiple of input shape
-        auto in_lens = in_shape.lens();
+        auto in_lens  = in_shape.lens();
         auto out_lens = out_shape.lens();
-        if (in_lens.size() != out_lens.size())
+        if(in_lens.size() != out_lens.size())
             return;
 
         // if ind is not constant, cannot optimize
         std::vector<int> vec_ind;
         auto arg_ind = ins_ind->eval();
-        if (arg_ind.empty())
+        if(arg_ind.empty())
             return;
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
 
         // output shape must be multiple of input shape
         std::vector<bool> is_multi(in_lens.size());
-        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
-            return (y % x == 0);
-        });
-        if (not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) {
-            return b;
-        }))
+        std::transform(
+            in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
+                return (y % x == 0);
+            });
+        if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
         {
             return;
         }
 
         std::vector<std::size_t> scales(in_lens.size());
-        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
-            return y / x;
-        });
-        if (std::any_of(scales.begin(), scales.end(), [](auto i) { return i == 0; }))
+        std::transform(
+            in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
+                return y / x;
+            });
+        if(std::any_of(scales.begin(), scales.end(), [](auto i) { return i == 0; }))
         {
             return;
         }
@@ -134,15 +135,15 @@ struct find_resize
         // each dimension in ind must be factor[i] repeats for the index
         std::vector<bool> equal_origin(out_shape.elements());
         par_for(out_shape.elements(), [&](auto i) {
-            auto idx = out_shape.multi(i);
+            auto idx    = out_shape.multi(i);
             auto in_idx = idx;
-            for (std::size_t ii = 0; ii < idx.size(); ++ii)
+            for(std::size_t ii = 0; ii < idx.size(); ++ii)
             {
                 in_idx[ii] = idx[ii] - (idx[ii] % scales[ii]);
             }
             equal_origin[i] = (vec_ind[i] == vec_ind[out_shape.index(in_idx)]);
         });
-        if (not std::all_of(equal_origin.begin(), equal_origin.end(), [](auto b) { return b; }))
+        if(not std::all_of(equal_origin.begin(), equal_origin.end(), [](auto b) { return b; }))
         {
             return;
         }
@@ -150,9 +151,9 @@ struct find_resize
         // wrap up shapes for multibroadcast
         std::vector<int64_t> in_dims(in_lens.begin(), in_lens.end());
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
-        for (int ii = static_cast<int>(scales.size()) - 1; ii >= 0; --ii)
+        for(int ii = static_cast<int>(scales.size()) - 1; ii >= 0; --ii)
         {
-            if (scales[ii] == 1 or in_dims[ii] == 1)
+            if(scales[ii] == 1 or in_dims[ii] == 1)
             {
                 continue;
             }
@@ -163,10 +164,13 @@ struct find_resize
         }
 
         auto in_rsp = ins_rsp->inputs().front();
-        auto rsp1 = p.insert_instruction(ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
-        auto mb_rsp = p.insert_instruction(ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp1);
+        auto rsp1   = p.insert_instruction(
+            ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
+        auto mb_rsp = p.insert_instruction(
+            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp1);
         std::vector<int64_t> out_dims1(out_lens.begin(), out_lens.end());
-        auto rz_out = p.insert_instruction(ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), mb_rsp);
+        auto rz_out = p.insert_instruction(
+            ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), mb_rsp);
         p.replace_instruction(ins->outputs().front(), rz_out);
     }
 };

@@ -367,9 +367,8 @@ struct stream_info
         {
             for(auto&& arg : ins->outputs())
             {
-                // if(not p.has_instruction(arg))
-                //     continue;
-                assert(p.has_instruction(arg));
+                if(not p.has_instruction(arg))
+                    continue;
                 if(is_merge_point(arg))
                     merge_from[ins].insert(arg);
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());

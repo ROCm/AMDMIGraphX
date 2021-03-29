@@ -26,7 +26,8 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
         ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status);
     };
     {
-        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer);
+        // TODO: Use execve instead of popen
+        std::unique_ptr<FILE, decltype(closer)> pipe(popen(cmd.c_str(), "r"), closer); // NOLINT
         if(!pipe)
             MIGRAPHX_THROW("popen() failed: " + cmd);
         while(fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)

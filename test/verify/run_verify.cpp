@@ -3,6 +3,7 @@
 #include "verify_program.hpp"
 #include <migraphx/env.hpp>
 #include <migraphx/ref/target.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
 #include <set>
@@ -132,6 +133,12 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     {
         if(tname == "ref")
             continue;
+
+        // if tests disabled, skip running it
+        target_info ti = get_target_info(tname);
+        if(migraphx::contains(ti.disabled_tests, name))
+            continue;
+
         target_names.push_back(tname);
     }
     if(not target_names.empty())
@@ -202,4 +209,10 @@ void run_verify::disable_parallel_for(const std::string& name) { info[name].para
 void run_verify::add_validation_for(const std::string& name, target_info::validation_function v)
 {
     info[name].validate = std::move(v);
+}
+
+void run_verify::disable_test_for(const std::string& name, const std::vector<std::string>& tests)
+{
+    auto& disabled_tests = info[name].disabled_tests;
+    disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
 }

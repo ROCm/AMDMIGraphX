@@ -99,7 +99,7 @@ struct dnnl_op : auto_register_op<Derived>
         auto desc       = prim.get_primitive_desc();
         const char* str = nullptr;
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
-        return str ? str : "";
+        return str == nullptr ? "" : str;
     }
     // Map arg index to arg in dnnl
     std::vector<int> arg_map(int size) const

@@ -650,11 +650,11 @@ TEST_CASE(test39)
     std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
     auto l1                  = mm->add_literal(migraphx::literal(ds, data1));
     std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
-    auto l2        = mm->add_literal(migraphx::literal(ds, data2));
+    auto l2                  = mm->add_literal(migraphx::literal(ds, data2));
 
-    auto* then_mod           = p.create_module("If_0_if");
-    auto i1                  = add_alloc(*then_mod, ds);
-    auto a1                  = then_mod->add_instruction(pass_op{}, i1, l1);
+    auto* then_mod = p.create_module("If_0_if");
+    auto i1        = add_alloc(*then_mod, ds);
+    auto a1        = then_mod->add_instruction(pass_op{}, i1, l1);
     then_mod->add_return({a1, output});
 
     auto* else_mod = p.create_module("If_0_else");

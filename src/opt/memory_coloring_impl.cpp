@@ -153,9 +153,9 @@ void memory_coloring_impl::build()
 
         for(auto&& arg : inputs)
         {
-            if (not p_mod->has_instruction(arg))
+            if(not p_mod->has_instruction(arg))
                 continue;
-                
+
             if(is_param(arg) || is_outline(arg))
             {
                 if(is_output_param(arg))

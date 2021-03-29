@@ -69,7 +69,7 @@ struct cpp_generator_impl
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
-cpp_generator::cpp_generator(cpp_generator&& rhs) noexcept = default;
+cpp_generator::cpp_generator(cpp_generator&&) noexcept = default;
 
 cpp_generator& cpp_generator::operator=(cpp_generator rhs)
 {
@@ -130,8 +130,8 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
                            ins->inputs().end(),
                            std::back_inserter(args),
                            [&](auto i) { return names.at(i); });
-            auto s = generate_point_op(ins->get_operator(), args);
-            return generate_point_op(ins->get_operator(), args);
+            auto s = this->generate_point_op(ins->get_operator(), args);
+            return this->generate_point_op(ins->get_operator(), args);
         });
     return f;
 }

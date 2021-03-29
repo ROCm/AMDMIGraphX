@@ -57,7 +57,7 @@ struct cpp_generator
     cpp_generator();
 
     // move constructor
-    cpp_generator(cpp_generator&& rhs) noexcept;
+    cpp_generator(cpp_generator&&) noexcept;
 
     // copy assignment operator
     cpp_generator& operator=(cpp_generator rhs);

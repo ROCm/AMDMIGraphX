@@ -52,6 +52,12 @@ add_library(migraphx
     normalize_attributes.cpp
     normalize_ops.cpp
 )
+file(WRITE include/migraphx/version.h 
+"#ifndef MIGRAPHX_VERSION_H
+#define MIGRAPHX_VERSION_H
+#define MIGRAPHX_VERSION_MAJOR ${PROJECT_VERSION_MAJOR}
+#define MIGRAPHX_VERSION_MINOR ${PROJECT_VERSION_MINOR}
+#endif\n")
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})

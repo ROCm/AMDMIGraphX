@@ -9,6 +9,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/version.h>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -423,6 +424,16 @@ struct verify : command<verify>
     }
 };
 
+struct version : command<version>
+{
+    compiler c;
+    void parse(argument_parser& ap) { c.parse(ap); }
+    void run() const
+    {
+        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR << std::endl;
+    }
+};
+
 struct compile : command<compile>
 {
     compiler c;
@@ -504,7 +515,11 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
+        std::string version_str = "MIGraphX Version: " + 
+            std::to_string(MIGRAPHX_VERSION_MAJOR) + "." + std::to_string(MIGRAPHX_VERSION_MINOR);
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
+        ap(nullptr, {"-v", "--version"}, ap.help("Show version"), ap.show_help(version_str));
+
     }
 
     void run() {}

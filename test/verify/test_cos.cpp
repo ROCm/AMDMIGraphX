@@ -10,7 +10,7 @@ struct test_cos : verify_program<test_cos>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::double_type, {8}};
+        migraphx::shape s{migraphx::shape::float_type, {8}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("cos"), x);
         return p;

@@ -9,6 +9,7 @@ namespace tf {
 
 struct parse_binary_op : op_parser<parse_binary_op>
 {
+    bool transpose() const { return true; }
     std::vector<op_desc> operators() const
     {
         return {{"Add", "add"},

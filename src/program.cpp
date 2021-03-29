@@ -185,8 +185,7 @@ std::vector<argument> generic_eval(const module* mod,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins,
-                            trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
@@ -204,9 +203,7 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] {
-                                return argument{ins->get_shape(), nullptr};
-                            }));
+            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {
@@ -298,23 +295,21 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
-        return generic_eval(
-            *this, ctx, std::move(params), [&](auto& ins, auto f) {
-                ctx.finish();
-                std::cout << "Run instruction: ";
-                this->debug_print(ins);
-                auto result = check_context(f);
-                ctx.finish();
-                if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                    std::cout << "Ouput: " << result << std::endl;
-                return result;
-            });
+        return generic_eval(*this, ctx, std::move(params), [&](auto& ins, auto f) {
+            ctx.finish();
+            std::cout << "Run instruction: ";
+            this->debug_print(ins);
+            auto result = check_context(f);
+            ctx.finish();
+            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
+                std::cout << "Ouput: " << result << std::endl;
+            return result;
+        });
     }
     else
     {
-        return generic_eval(*this, ctx, std::move(params), [&](auto&, auto f) {
-            return check_context(f);
-        });
+        return generic_eval(
+            *this, ctx, std::move(params), [&](auto&, auto f) { return check_context(f); });
     }
 }
 

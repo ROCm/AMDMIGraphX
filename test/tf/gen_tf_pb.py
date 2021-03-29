@@ -214,6 +214,19 @@ def conv_add_test(g1):
 
 
 @tf_test
+def conv_batch_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(None, 16, 16, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+
+
+@tf_test
 def conv_nchw_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
@@ -643,6 +656,7 @@ if __name__ == '__main__':
     const_test()
     conv_test()
     conv_add_test()
+    conv_batch_test()
     conv_nchw_test()
     conv_relu_test()
     conv_relu6_test()

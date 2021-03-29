@@ -1,12 +1,25 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/erase.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
     : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
+{
+}
+
+instruction::instruction(operation o,
+                         shape r,
+                         std::vector<instruction_ref> args,
+                         std::vector<module_ref> modules)
+    : op(std::move(o)),
+      result(std::move(r)),
+      arguments(std::move(args)),
+      module_args(std::move(modules))
 {
 }
 
@@ -38,7 +51,7 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape() { replace(compute_shape(op, arguments)); }
+void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
 
 void instruction::clear_arguments()
 {
@@ -47,6 +60,7 @@ void instruction::clear_arguments()
         arg->remove_output(*this);
     }
     arguments.clear();
+    module_args.clear();
 }
 
 bool operator==(const instruction& i, instruction_ref ref)
@@ -54,12 +68,16 @@ bool operator==(const instruction& i, instruction_ref ref)
     return std::addressof(i) == std::addressof(*ref);
 }
 
-bool instruction::valid(instruction_ref start) const
+bool instruction::valid(instruction_ref start, bool check_order) const
 {
     return valid() && std::all_of(arguments.begin(), arguments.end(), [&](instruction_ref i) {
                auto self = std::find(i->outputs().begin(), i->outputs().end(), *this);
-               return self != i->outputs().end() &&
-                      std::distance(start, i) < std::distance(start, *self);
+               bool ret  = self != i->outputs().end();
+               if(check_order)
+               {
+                   ret = ret and (std::distance(start, i) < std::distance(start, *self));
+               }
+               return ret;
            });
 }
 
@@ -82,7 +100,7 @@ bool instruction::valid() const
     {
         try
         {
-            computed = compute_shape(op, arguments);
+            computed = compute_shape(op, arguments, module_args);
         }
         catch(migraphx::exception&)
         {
@@ -90,7 +108,8 @@ bool instruction::valid() const
         }
     }
 
-    return result == computed && std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
+    return (result == computed) &&
+           std::all_of(output.begin(), output.end(), [&](instruction_ref i) {
                return std::find(i->inputs().begin(), i->inputs().end(), *this) != i->inputs().end();
            });
 }
@@ -107,6 +126,8 @@ const operation& instruction::get_operator() const { return op; }
 std::string instruction::name() const { return op.name(); }
 
 const std::vector<instruction_ref>& instruction::inputs() const { return arguments; }
+
+const std::vector<module_ref>& instruction::module_inputs() const { return module_args; }
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
 
@@ -148,12 +169,29 @@ void instruction::replace_argument(instruction_ref ins,
     ins->recompute_shape();
 }
 
+void instruction::replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod)
+{
+    ins->replace_mod_argument(old, new_mod);
+    backreference(ins);
+    ins->recompute_shape();
+}
+
 void instruction::replace(instruction_ref ins,
                           operation o,
                           const shape& r,
                           std::vector<instruction_ref> args)
 {
     ins->replace(std::move(o), r, std::move(args));
+    backreference(ins);
+}
+
+void instruction::replace(instruction_ref ins,
+                          operation o,
+                          const shape& r,
+                          std::vector<instruction_ref> args,
+                          std::vector<module_ref> module_args)
+{
+    ins->replace(std::move(o), r, std::move(args), std::move(module_args));
     backreference(ins);
 }
 
@@ -165,10 +203,54 @@ void instruction::replace(operation o, const shape& r, std::vector<instruction_r
     replace(std::move(args));
 }
 
+void instruction::replace(operation o,
+                          const shape& r,
+                          std::vector<instruction_ref> args,
+                          std::vector<module_ref> mdl_args)
+{
+    op = std::move(o);
+    replace(r);
+    replace(std::move(args), std::move(mdl_args));
+}
+
+void instruction::replace_refs(
+    instruction_ref ins,
+    const std::unordered_map<instruction_ref, instruction_ref>& map_insts,
+    const std::unordered_map<module_ref, module_ref>& map_mods)
+{
+    const auto& args = ins->inputs();
+    for(const auto& arg : args)
+    {
+        if(contains(map_insts, arg))
+        {
+            instruction::replace_argument(ins, arg, map_insts.at(arg));
+        }
+    }
+
+    const auto& module_args = ins->module_inputs();
+    if(module_args.empty())
+        return;
+
+    for(const auto& mod : module_args)
+    {
+        if(contains(map_mods, mod))
+        {
+            instruction::replace_mod_argument(ins, mod, map_mods.at(mod));
+        }
+    }
+}
+
 void instruction::replace(std::vector<instruction_ref> args)
 {
     clear_arguments();
     arguments = std::move(args);
+}
+
+void instruction::replace(std::vector<instruction_ref> args, std::vector<module_ref> mdl_args)
+{
+    clear_arguments();
+    arguments   = std::move(args);
+    module_args = std::move(mdl_args);
 }
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
@@ -176,6 +258,12 @@ void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
     assert(std::any_of(arguments.begin(), arguments.end(), [&](auto i) { return i == old; }));
     std::replace(arguments.begin(), arguments.end(), old, new_ins);
     old->remove_output(*this);
+}
+
+void instruction::replace_mod_argument(module_ref old, module_ref new_mod)
+{
+    assert(std::any_of(module_args.begin(), module_args.end(), [&](auto i) { return i == old; }));
+    std::replace(module_args.begin(), module_args.end(), old, new_mod);
 }
 
 bool instruction::can_eval() const
@@ -242,10 +330,23 @@ void instruction::print(std::ostream& os,
         char delim = '(';
         for(auto&& arg : ins->inputs())
         {
-            os << delim << names.at(arg);
+            std::string arg_name = contains(names, arg) ? names.at(arg) : "?";
+            os << delim << arg_name;
             delim = ',';
         }
         os << ")";
+    }
+
+    // print module inputs
+    if(!ins->module_inputs().empty())
+    {
+        std::string delim = ", [";
+        for(auto&& mod_arg : ins->module_inputs())
+        {
+            os << delim << mod_arg->name();
+            delim = ", ";
+        }
+        os << "]";
     }
 
     // skip return instruction shape
@@ -328,6 +429,20 @@ shape compute_shape(const operation& op, const std::vector<instruction_ref>& arg
     return op.compute_shape(to_shapes(args));
 }
 
+shape compute_shape(const operation& op,
+                    const std::vector<instruction_ref>& args,
+                    const std::vector<module_ref>& mods)
+{
+    if(mods.empty())
+    {
+        return op.compute_shape(to_shapes(args));
+    }
+    else
+    {
+        return op.compute_shape(to_shapes(args), mods);
+    }
+}
+
 std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs)
 {
     shape new_shape;
@@ -341,6 +456,5 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     }
     return {new_shape};
 }
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

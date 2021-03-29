@@ -94,6 +94,7 @@ register_migraphx_ops(
     greater
     gru
     identity
+    if_op
     im2col
     leaky_relu
     less

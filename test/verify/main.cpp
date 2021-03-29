@@ -47,5 +47,6 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+    rv.disable_test_for("cpu", {});
     rv.run(argc, argv);
 }

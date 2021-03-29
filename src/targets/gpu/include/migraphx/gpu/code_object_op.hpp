@@ -21,7 +21,7 @@ struct code_object_op
     std::size_t local;
     std::vector<shape> expected_inputs;
     shape output;
-    kernel k;
+    kernel k{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

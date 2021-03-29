@@ -186,12 +186,12 @@ std::vector<argument> generic_eval(const module* mod,
         if(name == "@literal")
         {
             results.emplace(ins,
-                            trace(ins, mod, [&] { return ins->get_literal().get_argument(); }));
+                            trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
             results.emplace(
-                ins, trace(ins, mod, [&] {
+                ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
@@ -204,7 +204,7 @@ std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, mod, [&] {
+            results.emplace(ins, trace(ins, [&] {
                                 return argument{ins->get_shape(), nullptr};
                             }));
         }
@@ -250,14 +250,14 @@ std::vector<argument> generic_eval(const module* mod,
 
             if(not mod_args.empty())
             {
-                results.emplace(ins, trace(ins, mod, [&] {
+                results.emplace(ins, trace(ins, [&] {
                                     return ins->normalized_operator().compute(
                                         values, mod_args, module_eval);
                                 }));
             }
             else
             {
-                results.emplace(ins, trace(ins, mod, [&] {
+                results.emplace(ins, trace(ins, [&] {
                                     return ins->normalized_operator().compute(
                                         ctx, ins->get_shape(), values);
                                 }));
@@ -298,12 +298,11 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
-        std::unordered_map<instruction_ref, std::string> names;
         return generic_eval(
-            *this, ctx, std::move(params), [&](auto& ins, const module* mod, auto f) {
+            *this, ctx, std::move(params), [&](auto& ins, auto f) {
                 ctx.finish();
                 std::cout << "Run instruction: ";
-                mod->debug_print(ins, names);
+                this->debug_print(ins);
                 auto result = check_context(f);
                 ctx.finish();
                 if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
@@ -313,7 +312,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
     else
     {
-        return generic_eval(*this, ctx, std::move(params), [&](auto&, const module*, auto f) {
+        return generic_eval(*this, ctx, std::move(params), [&](auto&, auto f) {
             return check_context(f);
         });
     }
@@ -512,14 +511,14 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, ctx, params, [&](auto ins, const module*, auto) {
+    generic_eval(*this, ctx, params, [&](auto ins, auto) {
         ins_vec[ins].reserve(n);
         return argument{};
     });
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, ctx, params, [&](auto ins, const module*, auto f) {
+        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
             argument result;
             ins_vec[ins].push_back(time<milliseconds>([&] {
                 result = f();
@@ -630,8 +629,7 @@ void program::print(
 {
     for(const auto& mod : this->impl->modules)
     {
-        std::cout << mod.name() << ":" << std::endl;
-        mod.print(print_func, names);
+        names = mod.print(print_func, names);
     }
 }
 

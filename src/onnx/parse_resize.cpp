@@ -203,7 +203,9 @@ struct parse_resize : op_parser<parse_resize>
         {
             if(out_lens.size() > 2)
             {
-                MIGRAPHX_THROW("PARSE_RESIZE: linear mode can support at most 2 dimensions, input has " + std::to_string(out_lens.size()) + " dimensions!");
+                MIGRAPHX_THROW(
+                    "PARSE_RESIZE: linear mode can support at most 2 dimensions, input has " +
+                    std::to_string(out_lens.size()) + " dimensions!");
             }
 
             auto nearest_floor = get_nearest_op("floor");

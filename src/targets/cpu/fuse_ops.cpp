@@ -29,22 +29,21 @@ MIGRAPHX_PRED_MATCHER(without_post_ops, instruction_ref ins)
 
 bool workaround_dnnl_broken_post_ops(const operation& op, const operation& post_op)
 {
-    if (contains({"dnnl::dot", "dnnl::convolution"}, op.name()))
+    if(contains({"dnnl::dot", "dnnl::convolution"}, op.name()))
         return true;
     auto pv = post_op.to_value();
     if(not pv.at("post_ops").empty())
         return true;
-    auto v  = op.to_value();
-    auto last_op = v.at("post_ops").empty() ? v : v.at("post_ops").back();
-    auto algo = last_op.contains("algo") ? last_op.at("algo").to<std::string>() : op.name();
+    auto v         = op.to_value();
+    auto last_op   = v.at("post_ops").empty() ? v : v.at("post_ops").back();
+    auto algo      = last_op.contains("algo") ? last_op.at("algo").to<std::string>() : op.name();
     auto post_algo = pv["algo"].to<std::string>();
-    if (starts_with(algo, "eltwise") and starts_with(post_algo, "eltwise"))
+    if(starts_with(algo, "eltwise") and starts_with(post_algo, "eltwise"))
         return true;
-    if (algo == post_algo)
+    if(algo == post_algo)
         return true;
     return false;
 }
-
 
 operation merge_post_ops(const operation& op, const operation& post_op)
 {
@@ -65,7 +64,9 @@ struct find_post_ops
     auto matcher() const
     {
 #if MIGRAPHX_WORKAROUND_DNNL_POST_OPS
-        return match::name("dnnl::eltwise")(without_post_ops(), match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once())));
+        return match::name("dnnl::eltwise")(
+            without_post_ops(),
+            match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once())));
 #else
         return match::name("dnnl::eltwise",
                            "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));

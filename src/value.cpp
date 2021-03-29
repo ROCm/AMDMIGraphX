@@ -286,10 +286,26 @@ const value* value::begin() const
 value* value::end() { return begin() + size(); }
 const value* value::end() const { return begin() + size(); }
 
-value& value::front() { assert(this->size() > 0); return *begin(); }
-const value& value::front() const { assert(this->size() > 0); return *begin(); }
-value& value::back() { assert(this->size() > 0); return *std::prev(end()); }
-const value& value::back() const { assert(this->size() > 0); return *std::prev(end()); }
+value& value::front()
+{
+    assert(this->size() > 0);
+    return *begin();
+}
+const value& value::front() const
+{
+    assert(this->size() > 0);
+    return *begin();
+}
+value& value::back()
+{
+    assert(this->size() > 0);
+    return *std::prev(end());
+}
+const value& value::back() const
+{
+    assert(this->size() > 0);
+    return *std::prev(end());
+}
 value& value::at(std::size_t i)
 {
     auto* a = if_array_impl(x);
@@ -322,8 +338,16 @@ const value& value::at(const std::string& pkey) const
         MIGRAPHX_THROW("Key not found: " + pkey);
     return *r;
 }
-value& value::operator[](std::size_t i) { assert(i < this->size()); return *(begin() + i); }
-const value& value::operator[](std::size_t i) const { assert(i < this->size()); return *(begin() + i); }
+value& value::operator[](std::size_t i)
+{
+    assert(i < this->size());
+    return *(begin() + i);
+}
+const value& value::operator[](std::size_t i) const
+{
+    assert(i < this->size());
+    return *(begin() + i);
+}
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
 void value::clear() { get_array_throw(x).clear(); }

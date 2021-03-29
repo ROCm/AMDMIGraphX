@@ -4,16 +4,15 @@
 #include <migraphx/value.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/context.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/cpu/context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-
-#ifndef MIGRAPHX_WORKAROUND_DNNL_POST_OPS
-#define MIGRAPHX_WORKAROUND_DNNL_POST_OPS 1
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND);
 
 MIGRAPHX_PRED_MATCHER(has_post_ops, instruction_ref ins)
 {
@@ -61,16 +60,15 @@ operation merge_post_ops(const operation& op, const operation& post_op)
 struct find_post_ops
 {
     context* ctx = nullptr;
-    auto matcher() const
+    match::any_matcher matcher() const
     {
-#if MIGRAPHX_WORKAROUND_DNNL_POST_OPS
+        if(enabled(MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND{}))
+        return match::name("dnnl::eltwise",
+                           "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
+        else
         return match::name("dnnl::eltwise")(
             without_post_ops(),
             match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once())));
-#else
-        return match::name("dnnl::eltwise",
-                           "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
-#endif
     }
 
     void apply(module& m, const match::matcher_result& r) const

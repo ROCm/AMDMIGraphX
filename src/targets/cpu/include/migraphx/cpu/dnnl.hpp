@@ -276,7 +276,7 @@ struct dnnl_op : auto_register_op<Derived>
                     dnnl::memory::desc mdesc;
                     float scale = 0;
                     float alpha = 0;
-                    float beta = 0;
+                    float beta  = 0;
                     if(kind == dnnl::primitive::kind::binary)
                     {
                         pos.get_params_binary(i, algo, mdesc);

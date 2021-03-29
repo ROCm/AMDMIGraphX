@@ -240,8 +240,6 @@ std::vector<argument> generic_eval(const module* mod,
                 {
                     if(contains(inputs, nm))
                         m[nm] = inputs.at(nm);
-                    else if(contains(params, nm))
-                        m[nm] = params.at(nm);
                     else
                         MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" + mod->name() +
                                        "\" not exist!");

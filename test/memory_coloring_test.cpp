@@ -669,7 +669,6 @@ TEST_CASE(test39)
     std::reverse(sub_modules.begin(), sub_modules.end());
     for(auto& smod : sub_modules)
     {
-        std::cout << "mod_name = " << smod->name() << std::endl;
         run_pass(*smod);
     }
 

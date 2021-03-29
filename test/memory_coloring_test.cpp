@@ -673,8 +673,9 @@ TEST_CASE(test39)
     {
         run_pass(*smod);
     }
-    // CHECK(m.get_parameter_shape("scratch").bytes() == 320);
-    // CHECK(no_allocate(m));
+
+    CHECK(mm->get_parameter_shape("mainscratch").bytes() == 48);
+    CHECK(no_allocate(*mm));
 }
 
 TEST_CASE(literal_test)

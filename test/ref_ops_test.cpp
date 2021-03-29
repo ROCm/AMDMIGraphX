@@ -1794,7 +1794,7 @@ TEST_CASE(if_pl_test)
         auto s2                  = else_mod->add_instruction(migraphx::make_op("add"), x, l2);
         else_mod->add_return({s2, l2});
 
-        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto ret     = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
         auto outline = mm->add_outline(s);
         mm->add_return({outline, ret});
 

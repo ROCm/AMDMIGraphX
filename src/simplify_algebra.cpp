@@ -83,7 +83,8 @@ struct find_resize
     auto matcher() const
     {
         return match::name("gather")(
-            match::args(match::name("reshape").bind("data"), match::is_constant().bind("ind")));
+            match::args(match::name("reshape")(match::arg(0).bind("data")), match::is_constant().bind("ind")), 
+            match::all_of[match::outputs()](match::used_once(), pointwise()));
     }
 
     void apply(module& p, match::matcher_result r) const
@@ -91,6 +92,8 @@ struct find_resize
         auto ins     = r.result;
         auto ins_rsp = r.instructions["data"];
         auto ins_ind = r.instructions["ind"];
+        auto ins_pw = ins->outputs().front();
+
 
         // resize input shape
         auto in_shape = ins_rsp->inputs().front()->get_shape();
@@ -168,10 +171,25 @@ struct find_resize
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp1);
-        std::vector<int64_t> out_dims1(out_lens.begin(), out_lens.end());
-        auto rz_out = p.insert_instruction(
-            ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), mb_rsp);
-        p.replace_instruction(ins->outputs().front(), rz_out);
+        
+        std::vector<instruction_ref> pw_inputs;
+        for (const auto& in : ins_pw->inputs())
+        {
+            if (in != ins)
+            {   
+                auto mb_in = p.insert_instruction(ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), in);
+                pw_inputs.push_back(mb_in);
+            }
+            else
+            {
+                pw_inputs.push_back(mb_rsp);
+            }
+        }
+
+        auto pw_out = p.insert_instruction(ins_pw, ins_pw->get_operator(), pw_inputs);
+        std::vector<int64_t> out_dims_rsp(out_lens.begin(), out_lens.end());
+        auto rsp_out = p.insert_instruction(ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
+        p.replace_instruction(ins_pw->outputs().front(), rsp_out);
     }
 };
 

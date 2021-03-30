@@ -1631,6 +1631,58 @@ def if_literal_test():
 
 
 @onnx_test
+def if_param_excp_test():
+    then_out = onnx.helper.make_tensor_value_info('then_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+    else_out = onnx.helper.make_tensor_value_info('else_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+    y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 4])
+
+    yt = np.random.randn(2, 4).astype(np.float)
+    xt = np.random.randn(2, 3).astype(np.float)
+
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+    yt_tensor = helper.make_tensor(name='yt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=yt.shape,
+                                   vals=yt.flatten().astype(np.float32))
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['then_out'])
+
+    else_mul_node = onnx.helper.make_node('Mul',
+                                          inputs=['y', 'yt'],
+                                          outputs=['else_out'])
+
+    then_body = onnx.helper.make_graph([then_add_node], 'then_body', [],
+                                       [then_out], [xt_tensor])
+
+    else_body = onnx.helper.make_graph([else_mul_node], 'else_body', [],
+                                       [else_out], [yt_tensor])
+
+    cond_input = onnx.helper.make_tensor_value_info('cond',
+                                                    onnx.TensorProto.BOOL, [])
+    ret = onnx.helper.make_tensor_value_info('ret', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['ret'],
+                                 then_branch=then_body,
+                                 else_branch=else_body)
+
+    return ([node], [cond_input, x, y], [ret])
+
+
+@onnx_test
 def if_param_test():
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,
@@ -1680,7 +1732,6 @@ def if_param_test():
                                  else_branch=else_body)
 
     return ([node], [cond_input, x, y], [ret])
-
 
 @onnx_test
 def if_pl_test():

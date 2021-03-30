@@ -42,13 +42,13 @@ vocab_file = os.path.join('uncased_L-12_H-768_A-12', 'vocab.txt')
 start = time.time()
 tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file,
                                        do_lower_case=True)
-print("Tokenization time:\t %s ms"%(1000*(time.time() - start)))
+print("Tokenization time:\t %s ms" % (1000 * (time.time() - start)))
 
 # Use convert_examples_to_features method from run_onnx_squad to get parameters from the input
 start = time.time()
 input_ids, input_mask, segment_ids, extra_data = convert_examples_to_features(
     eval_examples, tokenizer, max_seq_length, doc_stride, max_query_length)
-print("Example to feature time:\t %s ms"%(1000*(time.time() - start)))
+print("Example to feature time:\t %s ms" % (1000 * (time.time() - start)))
 
 #######################################
 # Compile
@@ -57,7 +57,7 @@ start = time.time()
 model = migraphx.parse_onnx("bertsquad-10.onnx")
 model.compile(migraphx.get_target("gpu"))
 #model.print()
-print("MIGraphX Parse and Compile:\t %s ms"%(1000*(time.time() - start)))
+print("MIGraphX Parse and Compile:\t %s ms" % (1000 * (time.time() - start)))
 
 n = len(input_ids)
 bs = batch_size
@@ -77,8 +77,8 @@ for idx in range(0, n):
             "segment_ids:0":
             segment_ids[idx:idx + bs]
         })
-        print("MIGraphX Model Run: %s ms"%(1000*(time.time() - start)))
-        
+        print("MIGraphX Model Run: %s ms" % (1000 * (time.time() - start)))
+
     start = time.time()
     in_batch = result[1].get_shape().lens()[0]
     start_logits = [float(x) for x in result[1].tolist()]
@@ -87,9 +87,9 @@ for idx in range(0, n):
         unique_id = len(all_results)
         all_results.append(
             RawResult(unique_id=unique_id,
-                    start_logits=start_logits,
-                    end_logits=end_logits))
-    print("Logit processing: %s ms"%(1000*(time.time() - start)))
+                      start_logits=start_logits,
+                      end_logits=end_logits))
+    print("Logit processing: %s ms" % (1000 * (time.time() - start)))
 
 output_dir = 'predictions'
 os.makedirs(output_dir, exist_ok=True)
@@ -100,7 +100,8 @@ start = time.time()
 write_predictions(eval_examples, extra_data, all_results, n_best_size,
                   max_answer_length, True, output_prediction_file,
                   output_nbest_file)
-print("Raw result to predictions for %s samples: %s ms"%(n, 1000*(time.time() - start)))
+print("Raw result to predictions for %s samples: %s ms" %
+      (n, 1000 * (time.time() - start)))
 
 import json
 with open(output_prediction_file) as json_file:

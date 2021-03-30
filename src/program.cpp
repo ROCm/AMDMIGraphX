@@ -229,19 +229,7 @@ std::vector<argument> generic_eval(const module* mod,
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                // wrap up parameters for sub_modules
-                const auto& param_names = smod->get_parameter_names();
-                parameter_map m;
-                for(const auto& nm : param_names)
-                {
-                    if(contains(inputs, nm))
-                        m[nm] = inputs.at(nm);
-                    else
-                        MIGRAPHX_THROW("Input " + nm + " parameter of module: \"" + mod->name() +
-                                       "\" not exist!");
-                }
-
-                return generic_eval(smod, ctx, m, results, trace);
+                return generic_eval(smod, ctx, inputs, results, trace);
             };
 
             if(not mod_args.empty())

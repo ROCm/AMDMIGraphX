@@ -1697,13 +1697,12 @@ def if_param_excp1_test():
                                    dims=xt.shape,
                                    vals=xt.flatten().astype(np.float32))
 
-
     then_add_node = onnx.helper.make_node('Add',
                                           inputs=['x', 'xt'],
                                           outputs=['sub_out'])
 
     sub_body = onnx.helper.make_graph([then_add_node], 'sub_body', [],
-                                       [then_out], [xt_tensor])
+                                      [then_out], [xt_tensor])
 
     cond_input = onnx.helper.make_tensor_value_info('cond',
                                                     onnx.TensorProto.BOOL, [2])

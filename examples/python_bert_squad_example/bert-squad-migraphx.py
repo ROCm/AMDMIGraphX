@@ -17,13 +17,13 @@ if migx_lib_path not in sys.path:
 import migraphx
 
 #######################################
-input_file = 'inputs.json'
+input_file = 'inputs_amd.json'
 with open(input_file) as json_file:
     test_data = json.load(json_file)
     print(json.dumps(test_data, indent=2))
 
 # preprocess input
-predict_file = 'inputs.json'
+predict_file = 'inputs_amd.json'
 
 # Use read_squad_examples method from run_onnx_squad to read the input file
 eval_examples = read_squad_examples(input_file=predict_file)
@@ -73,11 +73,8 @@ for idx in range(0, n):
     })
 
     in_batch = result[1].get_shape().lens()[0]
-    print(in_batch)
     start_logits = [float(x) for x in result[1].tolist()]
     end_logits = [float(x) for x in result[0].tolist()]
-    # print(start_logits)
-    # print(end_logits)
     for i in range(0, in_batch):
         unique_id = len(all_results)
         all_results.append(

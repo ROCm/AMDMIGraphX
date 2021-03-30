@@ -1683,6 +1683,42 @@ def if_param_excp_test():
 
 
 @onnx_test
+def if_param_excp1_test():
+    then_out = onnx.helper.make_tensor_value_info('sub_out',
+                                                  onnx.TensorProto.FLOAT,
+                                                  [2, 3])
+
+    x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
+
+    xt = np.random.randn(2, 3).astype(np.float)
+
+    xt_tensor = helper.make_tensor(name='xt',
+                                   data_type=TensorProto.FLOAT,
+                                   dims=xt.shape,
+                                   vals=xt.flatten().astype(np.float32))
+
+
+    then_add_node = onnx.helper.make_node('Add',
+                                          inputs=['x', 'xt'],
+                                          outputs=['sub_out'])
+
+    sub_body = onnx.helper.make_graph([then_add_node], 'sub_body', [],
+                                       [then_out], [xt_tensor])
+
+    cond_input = onnx.helper.make_tensor_value_info('cond',
+                                                    onnx.TensorProto.BOOL, [2])
+    ret = onnx.helper.make_tensor_value_info('ret', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('If',
+                                 inputs=['cond'],
+                                 outputs=['ret'],
+                                 then_branch=sub_body,
+                                 else_branch=sub_body)
+
+    return ([node], [cond_input, x], [ret])
+
+
+@onnx_test
 def if_param_test():
     then_out = onnx.helper.make_tensor_value_info('then_out',
                                                   onnx.TensorProto.FLOAT,

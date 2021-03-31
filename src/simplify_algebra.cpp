@@ -188,16 +188,15 @@ struct find_where
 {
     auto matcher() const
     {
-        return match::name("gather")(
-            match::args(match::name("concat")(match::arg(0).bind("data")),
-                        match::is_constant().bind("ind")));
+        return match::name("gather")(match::args(match::name("concat")(match::arg(0).bind("data")),
+                                                 match::is_constant().bind("ind")));
     }
 
     void apply(module& p, match::matcher_result r) const
     {
-        auto ins     = r.result;
+        auto ins      = r.result;
         auto ins_data = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
+        auto ins_ind  = r.instructions["ind"];
 
         // if ind is not constant, cannot optimize
         std::vector<bool> vec_ind;
@@ -210,21 +209,21 @@ struct find_where
 
         // ind has to be the same value
         auto val = vec_ind.front();
-        if (not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val);}))
+        if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
         {
             return;
         }
 
         // check concat inputs, it has to be 2 and have the same shape
         const auto& inputs = ins_data->inputs();
-        if (inputs.size() != 2)
+        if(inputs.size() != 2)
             return;
-        if (inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
+        if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
             return;
-        if (inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
+        if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
             return;
 
-        if (val)
+        if(val)
         {
             p.replace_instruction(ins, inputs.at(0));
         }

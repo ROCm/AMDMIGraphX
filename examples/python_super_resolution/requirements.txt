@@ -1,0 +1,3 @@
+torch
+matplotlib
+python-resize-image

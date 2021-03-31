@@ -17,7 +17,6 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/par_for.hpp>
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/algorithm.hpp>

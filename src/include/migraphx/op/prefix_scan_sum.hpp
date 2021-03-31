@@ -7,28 +7,22 @@
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <vector>
-#include <migraphx/op/scan_op.hpp>
+#include <migraphx/op/prefix_scan_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scan_inclusive_sum : scan_op<scan_inclusive_sum>
+struct prefix_scan_sum : prefix_scan_op<prefix_scan_sum>
 {
-    scan_inclusive_sum() {}
-    scan_inclusive_sum(std::vector<int64_t> ax) : scan_op(std::move(ax)) {}
+    prefix_scan_sum() {}
+    prefix_scan_sum(std::vector<int64_t> ax) : prefix_scan_op(std::move(ax)) {}
+    prefix_scan_sum(std::vector<int64_t> ax, bool excl) : prefix_scan_op(std::move(ax), excl) {}
 
     auto op() const
     {
-        std::cout << "called self.op()" << std::endl;
-        return [&](auto x, auto y) { x += y; };
+        return [](auto x, auto y) { return x + y; };
     }
-
-    /*auto output(const shape&) const
-    {
-        return [&](auto val) { return val; };
-    }*/
-
 };
 
 } // namespace op

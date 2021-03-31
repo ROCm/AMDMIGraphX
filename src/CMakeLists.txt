@@ -114,6 +114,7 @@ register_migraphx_ops(
     pad
     pooling
     pow
+    prefix_scan_sum
     prelu
     quant_convolution
     quant_dot
@@ -132,7 +133,6 @@ register_migraphx_ops(
     round
     rsqrt
     scalar
-    scan_inclusive_sum
     sigmoid
     sign
     sinh

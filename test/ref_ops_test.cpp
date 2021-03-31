@@ -3396,7 +3396,7 @@ TEST_CASE(scan_sum_inclusive_1d)
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 8}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {2}}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", {2}}}), l0);
     p.compile(migraphx::ref::target{});
     // Debugging
         p.debug_print();
@@ -3414,7 +3414,7 @@ TEST_CASE(scan_sum_inclusive_3d_ax0)
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {0}}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", {0}}}), l0);
     p.compile(migraphx::ref::target{});
     // Debugging
         p.debug_print();
@@ -3432,7 +3432,7 @@ TEST_CASE(scan_sum_inclusive_3d_ax1)
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {1}}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", {1}}}), l0);
     p.compile(migraphx::ref::target{});
     // Debugging
         p.debug_print();
@@ -3450,7 +3450,7 @@ TEST_CASE(scan_sum_inclusive_3d_ax2)
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 2}};
     auto input = migraphx::literal{s, {1, 2, 3, 4, 1, 2, 3, 4}};
     auto l0    = mm->add_literal(input);
-    mm->add_instruction(migraphx::make_op("scan_inclusive_sum", {{"axis", {2}}}), l0);
+    mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", {2}}}), l0);
     p.compile(migraphx::ref::target{});
     // Debugging
         p.debug_print();

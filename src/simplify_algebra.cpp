@@ -184,6 +184,57 @@ struct find_resize
     }
 };
 
+struct find_where
+{
+    auto matcher() const
+    {
+        return match::name("gather")(
+            match::args(match::name("concat")(match::arg(0).bind("data")),
+                        match::is_constant().bind("ind")));
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins     = r.result;
+        auto ins_data = r.instructions["data"];
+        auto ins_ind = r.instructions["ind"];
+
+        // if ind is not constant, cannot optimize
+        std::vector<bool> vec_ind;
+        auto arg_ind = ins_ind->eval();
+        if(arg_ind.empty())
+        {
+            return;
+        }
+        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
+
+        // ind has to be the same value
+        auto val = vec_ind.front();
+        if (not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val);}))
+        {
+            return;
+        }
+
+        // check concat inputs, it has to be 2 and have the same shape
+        const auto& inputs = ins_data->inputs();
+        if (inputs.size() != 2)
+            return;
+        if (inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
+            return;
+        if (inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
+            return;
+
+        if (val)
+        {
+            p.replace_instruction(ins, inputs.at(0));
+        }
+        else
+        {
+            p.replace_instruction(ins, inputs.at(1));
+        }
+    }
+};
+
 struct find_mul_slice_conv
 {
     static auto conv()
@@ -1133,6 +1184,7 @@ void simplify_algebra::apply(module& p) const
     {
         match::find_matches(p,
                             find_resize{},
+                            find_where{},
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},

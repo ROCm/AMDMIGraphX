@@ -90,6 +90,8 @@ struct find_resize
 
     void apply(module& p, match::matcher_result r) const
     {
+        std::cout << "p1 = " << std::endl;
+        std::cout << p << std::endl;
         auto ins     = r.result;
         auto ins_rsp = r.instructions["data"];
         auto ins_ind = r.instructions["ind"];
@@ -182,6 +184,9 @@ struct find_resize
         p.replace_instruction(
             ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
         // p.replace_instruction(ins_pw, rsp_out);
+
+        std::cout << "p2 = " << std::endl;
+        std::cout << p << std::endl;
     }
 };
 

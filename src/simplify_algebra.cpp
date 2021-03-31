@@ -181,7 +181,6 @@ struct find_resize
         std::vector<int64_t> out_dims_rsp(out_lens.begin(), out_lens.end());
         p.replace_instruction(
             ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
-        // p.replace_instruction(ins_pw, rsp_out);
     }
 };
 

@@ -77,161 +77,153 @@ struct find_mul_conv
     }
 };
 
-struct find_resize
-{
-    auto matcher() const
-    {
-        return match::name("gather")(
-            match::args(match::name("reshape")(match::arg(0).bind("data")),
-                        match::is_constant().bind("ind")),
-            match::all_of[match::outputs()](match::used_once(), pointwise()));
-    }
+// struct find_resize
+// {
+//     auto matcher() const
+//     {
+//         return match::name("gather")(
+//             match::args(match::name("reshape")(match::arg(0)).bind("data"),
+//                         match::is_constant().bind("ind")),
+//             match::all_of[match::outputs()](match::used_once(), pointwise()));
+//     }
 
-    void apply(module& p, match::matcher_result r) const
-    {
-        auto ins     = r.result;
-        auto ins_rsp = r.instructions["data"];
-        auto ins_ind = r.instructions["ind"];
-        auto ins_pw  = ins->outputs().front();
+//     void apply(module& p, match::matcher_result r) const
+//     {
+//         auto ins     = r.result;
+//         auto ins_rsp = r.instructions["data"];
+//         auto ins_ind = r.instructions["ind"];
+//         auto ins_pw  = ins->outputs().front();
 
-        // resize input shape
-        auto in_shape = ins_rsp->inputs().front()->get_shape();
+//         // resize input shape
+//         auto in_shape = ins_rsp->inputs().front()->get_shape();
+//         if (ins_rsp->get_shape().lens().size() != 1)
+//         {
+//             return;
+//         }
 
-        // resize output shape
-        auto out_shape = ins->get_shape();
+//         // resize output shape
+//         auto out_shape = ins->get_shape();
+//         // check if output shape is multiple of input shape
+//         auto in_lens  = in_shape.lens();
+//         auto out_lens = out_shape.lens();
+//         if(in_lens.size() != out_lens.size())
+//         {
+//             return;
+//         }
 
-        // check if output shape is multiple of input shape
-        auto in_lens  = in_shape.lens();
-        auto out_lens = out_shape.lens();
-        if(in_lens.size() != out_lens.size())
-        {
-            return;
-        }
+//         // if ind is not constant, cannot optimize
+//         std::vector<int> vec_ind;
+//         auto arg_ind = ins_ind->eval();
+//         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
 
-        // if ind is not constant, cannot optimize
-        std::vector<int> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
+//         // output shape must be multiple of input shape
+//         std::vector<bool> is_multi(in_lens.size());
+//         std::transform(
+//             in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
+//                 return (y % x == 0);
+//             });
+//         if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
+//         {
+//             return;
+//         }
 
-        // output shape must be multiple of input shape
-        std::vector<bool> is_multi(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
-                return (y % x == 0);
-            });
-        if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
-        {
-            return;
-        }
+//         // output must be multiple of inputs
+//         std::vector<std::size_t> scales(in_lens.size());
+//         std::transform(
+//             in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
+//                 return y / x;
+//             });
+//         // wrap up shapes for multibroadcast
+//         std::vector<int64_t> in_dims(in_lens.begin(), in_lens.end());
+//         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
+//         for(int ii = static_cast<int>(scales.size()) - 1; ii >= 0; --ii)
+//         {
+//             if(scales[ii] == 1 or in_dims[ii] == 1)
+//             {
+//                 continue;
+//             }
 
-        // output must be multiple of inputs
-        std::vector<std::size_t> scales(in_lens.size());
-        std::transform(
-            in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
-                return y / x;
-            });
-        if(std::any_of(scales.begin(), scales.end(), [](auto i) { return i == 0; }))
-        {
-            return;
-        }
+//             out_dims[ii] = in_dims[ii];
+//             in_dims.insert(in_dims.begin() + ii + 1, 1);
+//             out_dims.insert(out_dims.begin() + ii + 1, scales[ii]);
+//         }
 
-        // wrap up shapes for multibroadcast
-        std::vector<int64_t> in_dims(in_lens.begin(), in_lens.end());
-        std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
-        for(int ii = static_cast<int>(scales.size()) - 1; ii >= 0; --ii)
-        {
-            if(scales[ii] == 1 or in_dims[ii] == 1)
-            {
-                continue;
-            }
+//         auto in_rsp   = ins_rsp->inputs().front();
+//         auto rsp_data = p.insert_instruction(
+//             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
+//         auto mb_rsp = p.insert_instruction(
+//             ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
 
-            out_dims[ii] = in_dims[ii];
-            in_dims.insert(in_dims.begin() + ii + 1, 1);
-            out_dims.insert(out_dims.begin() + ii + 1, scales[ii]);
-        }
+//         // reshape other inputs of the pointwise operator
+//         std::vector<instruction_ref> pw_inputs;
+//         for(const auto& in : ins_pw->inputs())
+//         {
+//             if(in == ins)
+//             {
+//                 pw_inputs.push_back(mb_rsp);
+//             }
+//             else
+//             {
+//                 auto mb_in = p.insert_instruction(
+//                     ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), in);
+//                 pw_inputs.push_back(mb_in);
+//             }
+//         }
 
-        auto in_rsp   = ins_rsp->inputs().front();
-        auto rsp_data = p.insert_instruction(
-            ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
-        auto mb_rsp = p.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
+//         auto pw_out = p.insert_instruction(ins_pw, ins_pw->get_operator(), pw_inputs);
+//         std::vector<int64_t> out_dims_rsp(out_lens.begin(), out_lens.end());
+//         p.replace_instruction(
+//             ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
+//     }
+// };
 
-        // reshape other inputs of the pointwise operator
-        std::vector<instruction_ref> pw_inputs;
-        for(const auto& in : ins_pw->inputs())
-        {
-            if(in == ins)
-            {
-                pw_inputs.push_back(mb_rsp);
-            }
-            else
-            {
-                auto mb_in = p.insert_instruction(
-                    ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), in);
-                pw_inputs.push_back(mb_in);
-            }
-        }
+// struct find_where
+// {
+//     auto matcher() const
+//     {
+//         return match::name("gather")(match::args(match::name("concat")(match::arg(0).bind("data")),
+//                                                  match::is_constant().bind("ind")));
+//     }
 
-        auto pw_out = p.insert_instruction(ins_pw, ins_pw->get_operator(), pw_inputs);
-        std::vector<int64_t> out_dims_rsp(out_lens.begin(), out_lens.end());
-        p.replace_instruction(
-            ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
-    }
-};
+//     void apply(module& p, match::matcher_result r) const
+//     {
+//         auto ins      = r.result;
+//         auto ins_data = r.instructions["data"];
+//         auto ins_ind  = r.instructions["ind"];
 
-struct find_where
-{
-    auto matcher() const
-    {
-        return match::name("gather")(match::args(match::name("concat")(match::arg(0).bind("data")),
-                                                 match::is_constant().bind("ind")));
-    }
+//         // if ind is not constant, cannot optimize
+//         std::vector<bool> vec_ind;
+//         auto arg_ind = ins_ind->eval();
+//         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
 
-    void apply(module& p, match::matcher_result r) const
-    {
-        auto ins      = r.result;
-        auto ins_data = r.instructions["data"];
-        auto ins_ind  = r.instructions["ind"];
+//         // concat in axis
 
-        // if ind is not constant, cannot optimize
-        std::vector<bool> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
+//         // ind has to be the same value
+//         auto val = vec_ind.front();
+//         if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
+//         {
+//             return;
+//         }
 
-        // ind has to be the same value
-        auto val = vec_ind.front();
-        if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
-        {
-            return;
-        }
+//         // check concat inputs, it has to be 2 and have the same shape
+//         const auto& inputs = ins_data->inputs();
+//         if(inputs.size() != 2)
+//             return;
+//         if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
+//             return;
+//         if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
+//             return;
 
-        // check concat inputs, it has to be 2 and have the same shape
-        const auto& inputs = ins_data->inputs();
-        if(inputs.size() != 2)
-            return;
-        if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
-            return;
-        if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
-            return;
-
-        if(val)
-        {
-            p.replace_instruction(ins, inputs.at(0));
-        }
-        else
-        {
-            p.replace_instruction(ins, inputs.at(1));
-        }
-    }
-};
+//         if(val)
+//         {
+//             p.replace_instruction(ins, inputs.at(0));
+//         }
+//         else
+//         {
+//             p.replace_instruction(ins, inputs.at(1));
+//         }
+//     }
+// };
 
 struct find_mul_slice_conv
 {
@@ -1181,8 +1173,8 @@ void simplify_algebra::apply(module& p) const
     for(int i = 0; i < 8; i++)
     {
         match::find_matches(p,
-                            find_resize{},
-                            find_where{},
+                            // find_resize{},
+                            // find_where{},
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},
                             find_add_lit_broadcast{},

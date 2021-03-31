@@ -165,15 +165,15 @@ struct find_resize
         std::vector<instruction_ref> pw_inputs;
         for(const auto& in : ins_pw->inputs())
         {
-            if(in != ins)
+            if(in == ins)
+            {
+                pw_inputs.push_back(mb_rsp);
+            }
+            else
             {
                 auto mb_in = p.insert_instruction(
                     ins_rsp, migraphx::make_op("reshape", {{"dims", out_dims}}), in);
                 pw_inputs.push_back(mb_in);
-            }
-            else
-            {
-                pw_inputs.push_back(mb_rsp);
             }
         }
 

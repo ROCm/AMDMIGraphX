@@ -155,8 +155,8 @@ struct find_resize
             out_dims.insert(out_dims.begin() + ii + 1, scales[ii]);
         }
 
-        auto in_rsp = ins_rsp->inputs().front();
-        auto rsp_data   = p.insert_instruction(
+        auto in_rsp   = ins_rsp->inputs().front();
+        auto rsp_data = p.insert_instruction(
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);

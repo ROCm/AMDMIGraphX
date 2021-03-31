@@ -479,7 +479,8 @@ std::unordered_map<instruction_ref, std::string> module::print(
         }
         else
         {
-            var_name = this->name() + ":@" + std::to_string(count);
+            var_name = "@" + std::to_string(count);
+            var_name = this->name().empty() ? var_name : (this->name() + ":" + var_name);
             count++;
         }
         names.emplace(ins, var_name);

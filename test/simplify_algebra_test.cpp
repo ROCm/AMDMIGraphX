@@ -2132,4 +2132,51 @@ TEST_CASE(reorder_slice_trans_diff_perm)
     test(4);
 }
 
+TEST_CASE(optimize_resize)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+    auto create_resize_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+        auto iny = m.add_parameter("Y", sy);
+
+        migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        auto li              = m.add_literal(migraphx::literal(si, ind));
+
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gr    = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r     = m.add_instruction(migraphx::make_op("sub"), iny, gr);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m = create_resize_module();
+    run_pass(m);
+
+    auto create_optimized_module = [&] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+        migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+        auto inx = m.add_parameter("X", sx);
+        auto iny = m.add_parameter("Y", sy);
+        std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
+        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", dims}}), inx);
+        std::vector<int64_t> mb_dims = {1, 1, 2, 2, 2, 3};
+        auto mbx = m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", mb_dims}}), rspx);
+        auto rspy = m.add_instruction(migraphx::make_op("reshape", {{"dims", mb_dims}}), iny);
+        auto diff = m.add_instruction(migraphx::make_op("sub"), rspy, mbx);
+        std::vector<int64_t> orig_dims = {1, 1, 4, 6};
+        auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), diff);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_optimized_module();
+    EXPECT(m == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -119,7 +119,8 @@ struct find_mul_conv
 //         // output shape must be multiple of input shape
 //         std::vector<bool> is_multi(in_lens.size());
 //         std::transform(
-//             in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto y) {
+//             in_lens.begin(), in_lens.end(), out_lens.begin(), is_multi.begin(), [](auto x, auto
+//             y) {
 //                 return (y % x == 0);
 //             });
 //         if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
@@ -130,7 +131,8 @@ struct find_mul_conv
 //         // output must be multiple of inputs
 //         std::vector<std::size_t> scales(in_lens.size());
 //         std::transform(
-//             in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
+//             in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y)
+//             {
 //                 return y / x;
 //             });
 //         // wrap up shapes for multibroadcast
@@ -181,7 +183,8 @@ struct find_mul_conv
 // {
 //     auto matcher() const
 //     {
-//         return match::name("gather")(match::args(match::name("concat")(match::arg(0).bind("data")),
+//         return
+//         match::name("gather")(match::args(match::name("concat")(match::arg(0).bind("data")),
 //                                                  match::is_constant().bind("ind")));
 //     }
 

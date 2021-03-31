@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Inference for squad/bert using onnx.
 
@@ -41,16 +40,17 @@ import onnxruntime as onnxrt
 import six
 import tokenization
 
+RawResult = collections.namedtuple("RawResult",
+                                   ["unique_id", "start_logits", "end_logits"])
 
-RawResult = collections.namedtuple("RawResult", ["unique_id", "start_logits", "end_logits"])
-
-Feature = collections.namedtuple("Feature", ["unique_id", "tokens", "example_index",
-                                             "token_to_orig_map", "token_is_max_context"])
+Feature = collections.namedtuple("Feature", [
+    "unique_id", "tokens", "example_index", "token_to_orig_map",
+    "token_is_max_context"
+])
 
 
 class SquadExample(object):
     """A single training/test example for simple sequence classification."""
-
     def __init__(self,
                  qas_id,
                  question_text,
@@ -71,7 +71,8 @@ class SquadExample(object):
     def __repr__(self):
         s = []
         s.append("qas_id: %s" % (tokenization.printable_text(self.qas_id)))
-        s.append("question_text: %s" % (tokenization.printable_text(self.question_text)))
+        s.append("question_text: %s" %
+                 (tokenization.printable_text(self.question_text)))
         s.append("doc_tokens: [%s]" % (" ".join(self.doc_tokens)))
         if self.start_position:
             s.append("start_position: %d" % (self.start_position))
@@ -109,7 +110,8 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
             continue
         num_left_context = position - doc_span.start
         num_right_context = end - position
-        score = min(num_left_context, num_right_context) + 0.01 * doc_span.length
+        score = min(num_left_context,
+                    num_right_context) + 0.01 * doc_span.length
         if best_score is None or score > best_score:
             best_score = score
             best_span_index = span_index
@@ -117,7 +119,8 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
     return cur_span_index == best_span_index
 
 
-def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride, max_query_length):
+def convert_examples_to_features(examples, tokenizer, max_seq_length,
+                                 doc_stride, max_query_length):
     """Loads a data file into a list of `InputBatch`s."""
 
     res_input_ids = []
@@ -177,9 +180,11 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
 
             for i in range(doc_span.length):
                 split_token_index = doc_span.start + i
-                token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
+                token_to_orig_map[len(
+                    tokens)] = tok_to_orig_index[split_token_index]
 
-                is_max_context = _check_is_max_context(doc_spans, doc_span_index,
+                is_max_context = _check_is_max_context(doc_spans,
+                                                       doc_span_index,
                                                        split_token_index)
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
@@ -201,12 +206,15 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length, doc_stride
             res_input_ids.append(np.array(input_ids, dtype=np.int64))
             res_input_mask.append(np.array(input_mask, dtype=np.int64))
             res_segment_ids.append(np.array(segment_ids, dtype=np.int64))
-            feature = Feature(unique_id=unique_id, tokens=tokens,
-                              example_index=example_index, token_to_orig_map=token_to_orig_map,
+            feature = Feature(unique_id=unique_id,
+                              tokens=tokens,
+                              example_index=example_index,
+                              token_to_orig_map=token_to_orig_map,
                               token_is_max_context=token_is_max_context)
             extra.append(feature)
             unique_id += 1
-    return np.array(res_input_ids), np.array(res_input_mask), np.array(res_segment_ids), extra
+    return np.array(res_input_ids), np.array(res_input_mask), np.array(
+        res_segment_ids), extra
 
 
 def read_squad_examples(input_file):
@@ -243,13 +251,12 @@ def read_squad_examples(input_file):
                 start_position = None
                 end_position = None
                 orig_answer_text = None
-                example = SquadExample(
-                    qas_id=qas_id,
-                    question_text=question_text,
-                    doc_tokens=doc_tokens,
-                    orig_answer_text=orig_answer_text,
-                    start_position=start_position,
-                    end_position=end_position)
+                example = SquadExample(qas_id=qas_id,
+                                       question_text=question_text,
+                                       doc_tokens=doc_tokens,
+                                       orig_answer_text=orig_answer_text,
+                                       start_position=start_position,
+                                       end_position=end_position)
                 examples.append(example)
     return examples
 
@@ -267,8 +274,10 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
         unique_id_to_result[result.unique_id] = result
 
     _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-        "PrelimPrediction",
-        ["feature_index", "start_index", "end_index", "start_logit", "end_logit"])
+        "PrelimPrediction", [
+            "feature_index", "start_index", "end_index", "start_logit",
+            "end_logit"
+        ])
 
     all_predictions = collections.OrderedDict()
     all_nbest_json = collections.OrderedDict()
@@ -296,7 +305,8 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
                         continue
                     if end_index not in feature.token_to_orig_map:
                         continue
-                    if not feature.token_is_max_context.get(start_index, False):
+                    if not feature.token_is_max_context.get(
+                            start_index, False):
                         continue
                     if end_index < start_index:
                         continue
@@ -311,10 +321,10 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
                             start_logit=result.start_logits[start_index],
                             end_logit=result.end_logits[end_index]))
 
-        prelim_predictions = sorted(
-            prelim_predictions,
-            key=lambda x: (x.start_logit + x.end_logit),
-            reverse=True)
+        prelim_predictions = sorted(prelim_predictions,
+                                    key=lambda x:
+                                    (x.start_logit + x.end_logit),
+                                    reverse=True)
 
         _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
             "NbestPrediction", ["text", "start_logit", "end_logit"])
@@ -347,10 +357,9 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
             seen_predictions[final_text] = True
             nbest.append(
-                _NbestPrediction(
-                    text=final_text,
-                    start_logit=pred.start_logit,
-                    end_logit=pred.end_logit))
+                _NbestPrediction(text=final_text,
+                                 start_logit=pred.start_logit,
+                                 end_logit=pred.end_logit))
 
         # In very rare edge cases we could have no valid predictions. So we
         # just create a nonce prediction in this case to avoid failure.
@@ -473,7 +482,9 @@ def get_final_text(pred_text, orig_text, do_lower_case):
 
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""
-    index_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
+    index_and_score = sorted(enumerate(logits),
+                             key=lambda x: x[1],
+                             reverse=True)
     best_indexes = []
     for i in range(len(index_and_score)):
         if i >= n_best_size:
@@ -512,13 +523,30 @@ def main():
     parser.add_argument('--bert_config_file', help='vocab_file')
     parser.add_argument('--predict_file', required=True, help='predict_file')
     parser.add_argument('--output_dir', help='output dir')
-    parser.add_argument('--max_seq_length', type=int, default=256, help='max_seq_length')
-    parser.add_argument('--max_query_length', type=int, default=64, help='max_query_length')
-    parser.add_argument('--max_answer_length', type=int, default=30, help='max_answer_length')
-    parser.add_argument('--n_best_size', type=int, default=20, help='n_best_size')
-    parser.add_argument('--doc_stride', type=int, default=128, help='doc_stride')
+    parser.add_argument('--max_seq_length',
+                        type=int,
+                        default=256,
+                        help='max_seq_length')
+    parser.add_argument('--max_query_length',
+                        type=int,
+                        default=64,
+                        help='max_query_length')
+    parser.add_argument('--max_answer_length',
+                        type=int,
+                        default=30,
+                        help='max_answer_length')
+    parser.add_argument('--n_best_size',
+                        type=int,
+                        default=20,
+                        help='n_best_size')
+    parser.add_argument('--doc_stride',
+                        type=int,
+                        default=128,
+                        help='doc_stride')
     parser.add_argument('--batch_size', type=int, default=1, help='batch_size')
-    parser.add_argument('--profile', action='store_true', help='enable chrome timeline trace profiling.')
+    parser.add_argument('--profile',
+                        action='store_true',
+                        help='enable chrome timeline trace profiling.')
     parser.add_argument('--log', type=int, help='log level.')
     args = parser.parse_args()
 
@@ -531,7 +559,8 @@ def main():
         sess_options = onnxrt.SessionOptions()
         sess_options.session_log_verbosity_level = args.log
 
-    tokenizer = tokenization.FullTokenizer(vocab_file=args.vocab_file, do_lower_case=True)
+    tokenizer = tokenization.FullTokenizer(vocab_file=args.vocab_file,
+                                           do_lower_case=True)
 
     eval_examples = read_squad_examples(input_file=args.predict_file)
     input_ids, input_mask, segment_ids, extra_data = \
@@ -546,26 +575,35 @@ def main():
     all_results = []
     start = timer()
     for idx in range(0, n, bs):
-        data = {"input_ids:0": input_ids[idx:idx + bs],
-                "input_mask:0": input_mask[idx:idx + bs],
-                "segment_ids:0": segment_ids[idx:idx + bs]}
+        data = {
+            "input_ids:0": input_ids[idx:idx + bs],
+            "input_mask:0": input_mask[idx:idx + bs],
+            "segment_ids:0": segment_ids[idx:idx + bs]
+        }
         result = sess.run(["unstack:0", "unstack:1"], data)
         in_batch = result[0].shape[1]
         for i in range(0, in_batch):
             unique_id = len(all_results)
-            all_results.append(RawResult(unique_id=unique_id, start_logits=result[0][0][i], end_logits=result[1][0][i]))
+            all_results.append(
+                RawResult(unique_id=unique_id,
+                          start_logits=result[0][0][i],
+                          end_logits=result[1][0][i]))
             if unique_id > 0 and unique_id % 100 == 0:
-                print("at {} {}sec per item".format(unique_id, (timer() - start) / unique_id))
+                print("at {} {}sec per item".format(
+                    unique_id, (timer() - start) / unique_id))
     end = timer()
 
-    print("total time: {}sec, {}sec per item".format(end - start, (end - start) / len(all_results)))
+    print("total time: {}sec, {}sec per item".format(
+        end - start, (end - start) / len(all_results)))
 
     if args.output_dir:
-        output_prediction_file = os.path.join(args.output_dir, "predictions.json")
-        output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
+        output_prediction_file = os.path.join(args.output_dir,
+                                              "predictions.json")
+        output_nbest_file = os.path.join(args.output_dir,
+                                         "nbest_predictions.json")
         write_predictions(eval_examples, extra_data, all_results,
-                          args.n_best_size, args.max_answer_length,
-                          True, output_prediction_file, output_nbest_file)
+                          args.n_best_size, args.max_answer_length, True,
+                          output_prediction_file, output_nbest_file)
     if args.profile:
         trace_file = sess.end_profiling()
         print("trace file written to: {}".format(trace_file))

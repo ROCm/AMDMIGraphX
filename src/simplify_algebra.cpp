@@ -105,13 +105,17 @@ struct find_resize
         auto in_lens  = in_shape.lens();
         auto out_lens = out_shape.lens();
         if(in_lens.size() != out_lens.size())
+        {
             return;
+        }
 
         // if ind is not constant, cannot optimize
         std::vector<int> vec_ind;
         auto arg_ind = ins_ind->eval();
         if(arg_ind.empty())
+        {
             return;
+        }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
 
         // output shape must be multiple of input shape
@@ -125,28 +129,13 @@ struct find_resize
             return;
         }
 
+        // output must be multiple of inputs
         std::vector<std::size_t> scales(in_lens.size());
         std::transform(
             in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
                 return y / x;
             });
         if(std::any_of(scales.begin(), scales.end(), [](auto i) { return i == 0; }))
-        {
-            return;
-        }
-
-        // each dimension in ind must be factor[i] repeats for the index
-        std::vector<bool> equal_origin(out_shape.elements());
-        par_for(out_shape.elements(), [&](auto i) {
-            auto idx    = out_shape.multi(i);
-            auto in_idx = idx;
-            for(std::size_t ii = 0; ii < idx.size(); ++ii)
-            {
-                in_idx[ii] = idx[ii] - (idx[ii] % scales[ii]);
-            }
-            equal_origin[i] = (vec_ind[i] == vec_ind[out_shape.index(in_idx)]);
-        });
-        if(not std::all_of(equal_origin.begin(), equal_origin.end(), [](auto b) { return b; }))
         {
             return;
         }
@@ -162,16 +151,17 @@ struct find_resize
             }
 
             out_dims[ii] = in_dims[ii];
-            in_dims.insert(in_dims.begin() + ii, 1);
-            out_dims.insert(out_dims.begin() + ii, scales[ii]);
+            in_dims.insert(in_dims.begin() + ii + 1, 1);
+            out_dims.insert(out_dims.begin() + ii + 1, scales[ii]);
         }
 
         auto in_rsp = ins_rsp->inputs().front();
-        auto rsp1   = p.insert_instruction(
+        auto rsp_data   = p.insert_instruction(
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp1);
+            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
 
+        // reshape other inputs of the pointwise operator
         std::vector<instruction_ref> pw_inputs;
         for(const auto& in : ins_pw->inputs())
         {
@@ -189,9 +179,9 @@ struct find_resize
 
         auto pw_out = p.insert_instruction(ins_pw, ins_pw->get_operator(), pw_inputs);
         std::vector<int64_t> out_dims_rsp(out_lens.begin(), out_lens.end());
-        auto rsp_out = p.insert_instruction(
+        p.replace_instruction(
             ins_pw, migraphx::make_op("reshape", {{"dims", out_dims_rsp}}), pw_out);
-        p.replace_instruction(ins_pw->outputs().front(), rsp_out);
+        // p.replace_instruction(ins_pw, rsp_out);
     }
 };
 

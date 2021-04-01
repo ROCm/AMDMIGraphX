@@ -652,7 +652,7 @@ TEST_CASE(optimize_resize_ind_non_const)
         auto iny = m.add_parameter("Y", sy);
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
-        auto li = m.add_parameter("ind", si);
+        auto li   = m.add_parameter("ind", si);
         auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);

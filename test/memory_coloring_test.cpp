@@ -672,9 +672,9 @@ TEST_CASE(test39)
         run_pass(*smod);
     }
 
-    CHECK(mm->get_parameter_shape("mainscratch").bytes() == 4);
-    CHECK(then_mod->get_parameter_shape("If_0_ifscratch").bytes() == 24);
-    CHECK(else_mod->get_parameter_shape("If_0_elsescratch").bytes() == 24);
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 4);
+    CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
+    CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(no_allocate(*mm));
     CHECK(no_allocate(*then_mod));
     CHECK(no_allocate(*else_mod));

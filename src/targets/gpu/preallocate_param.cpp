@@ -16,10 +16,9 @@ void preallocate_param::apply(module& p) const
     {
         if(ins->name() != "@param")
             continue;
-        std::string id        = any_cast<builtin::param>(ins->get_operator()).parameter;
-        std::string mod_param = p.name() + param;
-        if(id != mod_param)
+        if (param != any_cast<builtin::param>(ins->get_operator()).parameter)
             continue;
+        std::string id = p.name() + ":" + param;
         auto r = p.insert_instruction(ins, hip_allocate_memory{ins->get_shape(), id});
         p.replace_instruction(ins, r);
     }

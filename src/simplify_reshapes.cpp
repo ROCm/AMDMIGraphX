@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/par_for.hpp>
 
 #include <map>
 
@@ -349,15 +350,6 @@ struct find_resize
             return;
         }
 
-        // if ind is not constant, cannot optimize
-        std::vector<int> vec_ind;
-        auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
-        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-
         // output shape must be multiple of input shape
         std::vector<bool> is_multi(in_lens.size());
         std::transform(
@@ -375,6 +367,30 @@ struct find_resize
             in_lens.begin(), in_lens.end(), out_lens.begin(), scales.begin(), [](auto x, auto y) {
                 return y / x;
             });
+
+        // if ind is not constant, cannot optimize
+        std::vector<int> vec_ind;
+        auto arg_ind = ins_ind->eval();
+        if(arg_ind.empty())
+        {
+            return;
+        }
+        arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
+        std::vector<bool> equal(out_shape.elements());
+        par_for(out_shape.elements(), [&](auto i) {
+            auto out_idx = out_shape.multi(i);
+            auto in_idx = out_idx;
+            for (std::size_t ii = 0; ii < out_idx.size(); ++ii)
+            {
+                in_idx[ii] = out_idx[ii] - (out_idx[ii] % scales[ii]);
+            }
+            equal[i] = (vec_ind[out_shape.index(out_idx)] == vec_ind[out_shape.index(in_idx)]);
+        });
+        if(not std::all_of(equal.begin(), equal.end(), [](auto b) { return b; }))
+        {
+            return;
+        }
+
         // wrap up shapes for multibroadcast
         std::vector<int64_t> in_dims(in_lens.begin(), in_lens.end());
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
@@ -467,49 +483,48 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::args(match::name("contiguous").bind("cont")),
-                                      match::used_once(),
-                                      match::any_of[match::outputs()](match::pointwise()));
+        return match::pointwise(match::nargs(2), match::either_arg(0, 1)(match::name("reshape")(
+            match::args(match::name("contiguous").bind("cont"))).bind("rsp"), match::used_once()));
     }
 
     void apply(module& p, match::matcher_result r) const
     {
         auto ins        = r.result;
         auto ins_cont   = r.instructions["cont"];
+        auto in_ins = r.instructions["rsp"];
         auto cont_input = ins_cont->inputs().front();
         auto lens       = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
-        auto out_ins = ins->outputs().front();
-        if(out_ins->get_shape() != ins->get_shape())
+        if(in_ins->get_shape() != ins->get_shape())
         {
             return;
         }
 
-        if(not std::all_of(out_ins->inputs().begin(), out_ins->inputs().end(), [](auto i) {
+        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
                return i->get_shape().standard();
            }))
         {
             return;
         }
 
-        auto out_lens = out_ins->get_shape().lens();
+        auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
         std::vector<instruction_ref> inputs;
-        for(const auto& in : out_ins->inputs())
+        for(const auto& in : ins->inputs())
         {
-            if(in == ins)
+            if(in == in_ins)
             {
                 inputs.push_back(cont_input);
             }
             else
             {
                 inputs.push_back(
-                    p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), in));
+                    p.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), in));
             }
         }
-        auto out = p.insert_instruction(out_ins, out_ins->get_operator(), inputs);
-        p.replace_instruction(out_ins, make_op("reshape", {{"dims", out_dims}}), out);
+        auto out = p.insert_instruction(ins, ins->get_operator(), inputs);
+        p.replace_instruction(ins, make_op("reshape", {{"dims", out_dims}}), out);
     }
 };
 

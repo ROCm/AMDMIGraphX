@@ -561,6 +561,32 @@ TEST_CASE(optimize_resize)
     EXPECT(m1 == create_optimized_module());
 }
 
+TEST_CASE(optimize_resize_ind_not_apply)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto create_resize_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+
+        migraphx::shape si{migraphx::shape::int32_type, {1, 2, 4, 6}};
+        std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 2, 2, 2, 3,
+                                3, 3, 2, 2, 2, 3, 3, 3, 0, 0, 0, 1, 1, 1, 0, 0,
+                                0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        auto li              = m.add_literal(migraphx::literal(si, ind));
+
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), gr);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_resize_module();
+    run_pass(m1);
+    EXPECT(m1 == create_resize_module());
+}
+
 TEST_CASE(optimize_resize_rsp_dim_1)
 {
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
@@ -582,8 +608,7 @@ TEST_CASE(optimize_resize_rsp_dim_1)
 
     auto m = create_resize_module();
     run_pass(m);
-    auto m1 = create_resize_module();
-    EXPECT(m == m1);
+    EXPECT(m == create_resize_module());
 }
 
 TEST_CASE(optimize_resize_ndims_unequal)
@@ -610,8 +635,7 @@ TEST_CASE(optimize_resize_ndims_unequal)
 
     auto m = create_resize_module();
     run_pass(m);
-    auto m1 = create_resize_module();
-    EXPECT(m == m1);
+    EXPECT(m == create_resize_module());
 }
 
 TEST_CASE(optimize_resize_ind_non_brcst)
@@ -638,8 +662,7 @@ TEST_CASE(optimize_resize_ind_non_brcst)
 
     auto m = create_resize_module();
     run_pass(m);
-    auto m1 = create_resize_module();
-    EXPECT(m == m1);
+    EXPECT(m == create_resize_module());
 }
 
 TEST_CASE(optimize_resize_ind_non_const)
@@ -663,8 +686,7 @@ TEST_CASE(optimize_resize_ind_non_const)
 
     auto m = create_resize_module();
     run_pass(m);
-    auto m1 = create_resize_module();
-    EXPECT(m == m1);
+    EXPECT(m == create_resize_module());
 }
 
 TEST_CASE(optimize_where_true)

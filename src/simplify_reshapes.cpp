@@ -412,9 +412,9 @@ struct find_where_op
 
     void apply(module& p, match::matcher_result r) const
     {
-        auto ins      = r.result;
-        auto concat = r.instructions["data"];
-        auto ins_ind  = r.instructions["ind"];
+        auto ins     = r.result;
+        auto concat  = r.instructions["data"];
+        auto ins_ind = r.instructions["ind"];
         // if ind is not constant, cannot optimize
         std::vector<bool> vec_ind;
         auto arg_ind = ins_ind->eval();
@@ -432,11 +432,11 @@ struct find_where_op
 
         // concat axis must be 0
         auto op = any_cast<op::concat>(concat->get_operator());
-        if (op.axis != 0)
+        if(op.axis != 0)
         {
             return;
         }
-            
+
         // check concat inputs, it has to be 2 and have the same shape
         const auto& inputs = concat->inputs();
         if(inputs.size() != 2)

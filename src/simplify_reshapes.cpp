@@ -35,6 +35,13 @@ const auto& reshaper_names()
 
 bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 
+template <class... Ms>
+auto pointwise(Ms... ms)
+{
+    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
+                                             ms...);
+}
+
 instruction_ref find_transpose_input(instruction_ref ins)
 {
     if(ins->inputs().size() != 1)
@@ -467,8 +474,8 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::args(match::name("continuous").bind("cont")),
-                                      match::used_once());
+        return match::name("reshape")(match::args(match::name("contiguous").bind("cont")),
+                                      match::used_once(), match::any_of[match::outputs()](pointwise()));
     }
 
     void apply(module& p, match::matcher_result r) const
@@ -517,6 +524,7 @@ void simplify_reshapes::apply(module& p) const
         match::find_matches(p,
                             find_where_op{},
                             find_resize{},
+                            find_reshape_cont{},
                             find_nop_reshapes{},
                             find_reshaper{},
                             find_transpose{},

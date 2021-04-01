@@ -818,4 +818,44 @@ TEST_CASE(where_three_lens_diff)
     EXPECT(m == create_where_module());
 }
 
+TEST_CASE(reshape_cont)
+{
+    auto create_module = [] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2, 2, 6}};
+
+        auto inx = m.add_parameter("x", sx);
+        auto iny = m.add_parameter("y", sy);
+        auto mb_inx = m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+        auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
+        auto rsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
+        auto r = m.add_instruction(migraphx::make_op("add"), rsp, iny);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_module();
+    run_pass(m1);
+
+    auto create_opt_module = [] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2, 2, 6}};
+
+        auto inx = m.add_parameter("x", sx);
+        auto iny = m.add_parameter("y", sy);
+        auto mb_inx = m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+        auto rsp_iny = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), iny);
+        auto sum = m.add_instruction(migraphx::make_op("add"), mb_inx, rsp_iny);
+        auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), sum);
+        m.add_return({r});
+
+        return m;
+    };
+
+    EXPECT(m1 == create_opt_module());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

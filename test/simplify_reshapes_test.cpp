@@ -538,8 +538,8 @@ TEST_CASE(optimize_resize)
         return m;
     };
 
-    auto m = create_resize_module();
-    run_pass(m);
+    auto m1 = create_resize_module();
+    run_pass(m1);
 
     auto create_optimized_module = [&] {
         migraphx::module m;
@@ -558,7 +558,7 @@ TEST_CASE(optimize_resize)
         return m;
     };
 
-    EXPECT(m == create_optimized_module());
+    EXPECT(m1 == create_optimized_module());
 }
 
 TEST_CASE(optimize_resize_rsp_dim_1)
@@ -665,6 +665,157 @@ TEST_CASE(optimize_resize_ind_non_const)
     run_pass(m);
     auto m1 = create_resize_module();
     EXPECT(m == m1);
+}
+
+TEST_CASE(optimize_where_true)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+    auto create_where_module = [&] (bool cond) {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", s);
+        auto iny = m.add_parameter("Y", s);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
+        std::vector<char> idata(si.elements(), static_cast<char>(cond));
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto create_opt_module = [&] (std::string name) {
+        migraphx::module m;
+        auto in = m.add_parameter(name, s);
+        m.add_return({in});
+        return m;
+    };
+
+    auto m = create_where_module(true);
+    run_pass(m);
+    EXPECT(m == create_opt_module("X"));
+
+    auto m1 = create_where_module(false);
+    run_pass(m1);
+    EXPECT(m1 == create_opt_module("Y"));
+}
+
+TEST_CASE(where_different_cond_values)
+{
+    auto create_where_module = [] {
+        migraphx::module m;
+        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+        auto inx = m.add_parameter("X", s);
+        auto iny = m.add_parameter("Y", s);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
+        std::vector<char> idata = {1, 1, 0, 1, 0, 1};
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto m = create_where_module();
+    run_pass(m);
+    EXPECT(m == create_where_module());
+}
+
+TEST_CASE(where_axis_nonzero)
+{
+    auto create_where_module = [] {
+        migraphx::module m;
+        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+        auto inx = m.add_parameter("X", s);
+        auto iny = m.add_parameter("Y", s);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
+        std::vector<char> idata(6, 1);
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inx, iny);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto m = create_where_module();
+    run_pass(m);
+    EXPECT(m == create_where_module());
+}
+
+TEST_CASE(where_three_concat_inputs)
+{
+    auto create_where_module = [] {
+        migraphx::module m;
+        migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 2}};
+        auto inx = m.add_parameter("X", s);
+        auto iny = m.add_parameter("Y", s);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
+        std::vector<char> idata(6, 1);
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny, inx);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto m = create_where_module();
+    run_pass(m);
+    EXPECT(m == create_where_module());
+}
+
+TEST_CASE(where_three_inputs_diff_shapes)
+{
+    auto create_where_module = [] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 1, 3, 2}};
+        auto inx = m.add_parameter("X", sx);
+        auto iny = m.add_parameter("Y", sy);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 3, 2}};
+        std::vector<char> idata(6, 1);
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto m = create_where_module();
+    run_pass(m);
+    EXPECT(m == create_where_module());
+}
+
+TEST_CASE(where_three_lens_diff)
+{
+    auto create_where_module = [] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
+        migraphx::shape sy{migraphx::shape::float_type, {1, 1, 3, 2}};
+        auto inx = m.add_parameter("X", sx);
+        auto iny = m.add_parameter("Y", sy);
+
+        migraphx::shape si{migraphx::shape::bool_type, {1, 1, 6}};
+        std::vector<char> idata(6, 1);
+        auto li   = m.add_literal(migraphx::literal(si, idata));
+        auto data = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
+        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
+        m.add_return({r});
+        return m;
+    };
+
+    auto m = create_where_module();
+    run_pass(m);
+    EXPECT(m == create_where_module());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

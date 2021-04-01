@@ -401,21 +401,20 @@ struct find_resize
     }
 };
 
-struct find_where
+struct find_where_op
 {
     auto matcher() const
     {
         return match::name("gather")(
-            match::args(match::name("reshape")(match::args(match::name("concat").bind("data"))),
+            match::args(match::name("reshape")(match::arg(0)(match::name("concat").bind("data"))),
                         match::is_constant().bind("ind")));
     }
 
     void apply(module& p, match::matcher_result r) const
     {
         auto ins      = r.result;
-        auto ins_data = r.instructions["data"];
+        auto concat = r.instructions["data"];
         auto ins_ind  = r.instructions["ind"];
-
         // if ind is not constant, cannot optimize
         std::vector<bool> vec_ind;
         auto arg_ind = ins_ind->eval();
@@ -424,9 +423,6 @@ struct find_where
             return;
         }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-
-        // concat in axis
-
         // ind has to be the same value
         auto val = vec_ind.front();
         if(not std::all_of(vec_ind.begin(), vec_ind.end(), [&](auto v) { return (v == val); }))
@@ -434,14 +430,27 @@ struct find_where
             return;
         }
 
+        // concat axis must be 0
+        auto op = any_cast<op::concat>(concat->get_operator());
+        if (op.axis != 0)
+        {
+            return;
+        }
+            
         // check concat inputs, it has to be 2 and have the same shape
-        const auto& inputs = ins_data->inputs();
+        const auto& inputs = concat->inputs();
         if(inputs.size() != 2)
+        {
             return;
+        }
         if(inputs.at(0)->get_shape() != inputs.at(1)->get_shape())
+        {
             return;
+        }
         if(inputs.at(0)->get_shape().lens() != ins_ind->get_shape().lens())
+        {
             return;
+        }
 
         if(val)
         {
@@ -459,8 +468,8 @@ void simplify_reshapes::apply(module& p) const
     for(int i = 0; i < 2; i++)
     {
         match::find_matches(p,
+                            find_where_op{},
                             find_resize{},
-                            find_where{},
                             find_nop_reshapes{},
                             find_reshaper{},
                             find_transpose{},

@@ -379,8 +379,8 @@ struct find_resize
         std::vector<bool> equal(out_shape.elements());
         par_for(out_shape.elements(), [&](auto i) {
             auto out_idx = out_shape.multi(i);
-            auto in_idx = out_idx;
-            for (std::size_t ii = 0; ii < out_idx.size(); ++ii)
+            auto in_idx  = out_idx;
+            for(std::size_t ii = 0; ii < out_idx.size(); ++ii)
             {
                 in_idx[ii] = out_idx[ii] - (out_idx[ii] % scales[ii]);
             }
@@ -483,15 +483,19 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
-        return match::pointwise(match::nargs(2), match::either_arg(0, 1)(match::name("reshape")(
-            match::args(match::name("contiguous").bind("cont"))).bind("rsp"), match::used_once()));
+        return match::pointwise(
+            match::nargs(2),
+            match::either_arg(0, 1)(
+                match::name("reshape")(match::args(match::name("contiguous").bind("cont")))
+                    .bind("rsp"),
+                match::used_once()));
     }
 
     void apply(module& p, match::matcher_result r) const
     {
         auto ins        = r.result;
         auto ins_cont   = r.instructions["cont"];
-        auto in_ins = r.instructions["rsp"];
+        auto in_ins     = r.instructions["rsp"];
         auto cont_input = ins_cont->inputs().front();
         auto lens       = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());

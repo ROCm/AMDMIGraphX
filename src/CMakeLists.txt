@@ -52,7 +52,7 @@ add_library(migraphx
     normalize_attributes.cpp
     normalize_ops.cpp
 )
-configure_file(version.h.in version.h)
+configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -159,6 +159,7 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
 
@@ -168,7 +169,7 @@ target_link_libraries(migraphx PRIVATE -lstdc++fs)
 endif()
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(migraphx PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
 
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)

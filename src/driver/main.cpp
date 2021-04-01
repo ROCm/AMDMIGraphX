@@ -9,7 +9,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
-#include <version.h>
+#include <migraphx/version.h>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>

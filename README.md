@@ -153,6 +153,21 @@ In the docker container, all the required prerequisites are already installed, s
 libs](#building-migraphx-source-and-install-libs)
 section to build MIGraphX source.
 
+### Using MIGraphX Python Module
+To use MIGraphX's Python module, we need to create MIGraphX .deb package and install it in order to import migraphx module successfuly to Python environment.
+
+To create deb package:
+```
+make package
+```
+This will provide the path of .deb package.
+
+To install:
+```
+dpkg -i <path_to_deb_file>
+```
+
+
 ### Calling MIGraphX APIs
 To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_PATH` to the MIGraphX
 installation location and then do 

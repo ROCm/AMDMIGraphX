@@ -475,7 +475,8 @@ struct find_reshape_cont
     auto matcher() const
     {
         return match::name("reshape")(match::args(match::name("contiguous").bind("cont")),
-                                      match::used_once(), match::any_of[match::outputs()](pointwise()));
+                                      match::used_once(),
+                                      match::any_of[match::outputs()](pointwise()));
     }
 
     void apply(module& p, match::matcher_result r) const

@@ -467,19 +467,20 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::args(match::name("continuous").bind("cont")), match::used_once());
+        return match::name("reshape")(match::args(match::name("continuous").bind("cont")),
+                                      match::used_once());
     }
 
     void apply(module& p, match::matcher_result r) const
     {
-        auto ins     = r.result;
-        auto ins_cont = r.instructions["cont"];
+        auto ins        = r.result;
+        auto ins_cont   = r.instructions["cont"];
         auto cont_input = ins_cont->inputs().front();
-        auto lens = cont_input->get_shape().lens();
+        auto lens       = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
         auto out_ins = ins->outputs().front();
-        if (out_ins->get_shape() != ins->get_shape())
+        if(out_ins->get_shape() != ins->get_shape())
         {
             return;
         }
@@ -487,20 +488,21 @@ struct find_reshape_cont
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
 
         std::vector<instruction_ref> inputs;
-        for (const auto& in : out_ins->inputs())
+        for(const auto& in : out_ins->inputs())
         {
-            if (in == ins)
+            if(in == ins)
             {
                 inputs.push_back(cont_input);
             }
             else
             {
                 auto std_in = in;
-                if (not in->get_shape().standard())
+                if(not in->get_shape().standard())
                 {
                     std_in = p.insert_instruction(out_ins, make_op("contiguous"), in);
                 }
-                inputs.push_back(p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
+                inputs.push_back(
+                    p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
             }
         }
         auto out = p.insert_instruction(out_ins, out_ins->get_operator(), inputs);

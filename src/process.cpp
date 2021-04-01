@@ -56,7 +56,7 @@ process::process(const std::string& cmd) : impl(std::make_unique<process_impl>()
     impl->command = cmd;
 }
 
-process::process(process&& rhs) noexcept = default;
+process::process(process&&) noexcept = default;
 
 process& process::operator=(process rhs)
 {

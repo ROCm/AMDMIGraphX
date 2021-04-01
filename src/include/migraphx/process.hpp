@@ -16,7 +16,7 @@ struct process
     process(const std::string& cmd);
 
     // move constructor
-    process(process&& rhs) noexcept;
+    process(process&&) noexcept;
 
     // copy assignment operator
     process& operator=(process rhs);

@@ -504,13 +504,7 @@ struct find_reshape_cont
             }
             else
             {
-                auto std_in = in;
-                if(not in->get_shape().standard())
-                {
-                    std_in = p.insert_instruction(out_ins, make_op("contiguous"), in);
-                }
-                inputs.push_back(
-                    p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
+                inputs.push_back(p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
             }
         }
         auto out = p.insert_instruction(out_ins, out_ins->get_operator(), inputs);

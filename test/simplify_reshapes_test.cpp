@@ -642,4 +642,29 @@ TEST_CASE(optimize_resize_ind_non_brcst)
     EXPECT(m == m1);
 }
 
+TEST_CASE(optimize_resize_ind_non_const)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 3, 2}};
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+    auto create_resize_module = [&] {
+        migraphx::module m;
+        auto inx = m.add_parameter("X", sx);
+        auto iny = m.add_parameter("Y", sy);
+
+        migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+        auto li = m.add_parameter("ind", si);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
+        auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+        auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m = create_resize_module();
+    run_pass(m);
+    auto m1 = create_resize_module();
+    EXPECT(m == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

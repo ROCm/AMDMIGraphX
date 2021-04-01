@@ -333,10 +333,8 @@ struct find_resize
         auto ins_ind = r.instructions["ind"];
 
         // resize input shape
-        std::cout << "loc1" << std::endl;
         if(ins_rsp->get_shape().lens().size() != 1)
         {
-            std::cout << "loc2" << std::endl;
             return;
         }
 
@@ -348,7 +346,6 @@ struct find_resize
         const auto& out_lens = out_shape.lens();
         if(in_lens.size() != out_lens.size())
         {
-            std::cout << "loc3" << std::endl;
             return;
         }
 
@@ -357,7 +354,6 @@ struct find_resize
         auto arg_ind = ins_ind->eval();
         if(arg_ind.empty())
         {
-            std::cout << "loc4" << std::endl;
             return;
         }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
@@ -370,7 +366,6 @@ struct find_resize
             });
         if(not std::all_of(is_multi.begin(), is_multi.end(), [](auto b) { return b; }))
         {
-            std::cout << "loc5" << std::endl;
             return;
         }
 
@@ -387,7 +382,6 @@ struct find_resize
         {
             if(scales[ii] == 1 or in_dims[ii] == 1)
             {
-                std::cout << "loc6" << std::endl;
                 continue;
             }
 

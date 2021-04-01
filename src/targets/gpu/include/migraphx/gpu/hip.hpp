@@ -66,16 +66,17 @@ struct hip_sync_device
     }
 
     std::string name() const { return "hip::sync_device"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { 
-        if (inputs.empty())
-            return {}; 
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
         return inputs.front();
     }
 
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync();
-        if (args.empty())
+        if(args.empty())
             return {};
         return args.front();
     }

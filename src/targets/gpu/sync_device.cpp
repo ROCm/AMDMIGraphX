@@ -19,7 +19,7 @@ void sync_device::apply(module& p) const
            }))
         {
             auto sync_in = p.insert_instruction(last, hip_sync_device{}, inputs);
-            if (not inputs.empty())
+            if(not inputs.empty())
             {
                 p.replace_instruction(inputs.front(), sync_in);
             }

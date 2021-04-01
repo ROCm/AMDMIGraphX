@@ -155,11 +155,7 @@ template <class... Ps>
 auto pack_join(Ps... ps)
 {
     return fold([](auto p1, auto p2) {
-        return p1([=](auto... xs) {
-            return p2([=](auto... ys) {
-                return pack(xs..., ys...);
-            });
-        });
+        return p1([=](auto... xs) { return p2([=](auto... ys) { return pack(xs..., ys...); }); });
     })(ps...);
 }
 

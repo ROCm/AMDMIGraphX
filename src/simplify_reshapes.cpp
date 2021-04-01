@@ -35,13 +35,6 @@ const auto& reshaper_names()
 
 bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 
-template <class... Ms>
-auto pointwise(Ms... ms)
-{
-    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
-                                             ms...);
-}
-
 instruction_ref find_transpose_input(instruction_ref ins)
 {
     if(ins->inputs().size() != 1)
@@ -476,7 +469,7 @@ struct find_reshape_cont
     {
         return match::name("reshape")(match::args(match::name("contiguous").bind("cont")),
                                       match::used_once(),
-                                      match::any_of[match::outputs()](pointwise()));
+                                      match::any_of[match::outputs()](match::pointwise()));
     }
 
     void apply(module& p, match::matcher_result r) const
@@ -492,9 +485,16 @@ struct find_reshape_cont
         {
             return;
         }
+
+        if (not std::all_of(out_ins->inputs().begin(), out_ins->inputs().end(), [](auto i) {
+            return i->get_shape().standard();
+        }))
+        {
+            return;
+        }
+
         auto out_lens = out_ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
-
         std::vector<instruction_ref> inputs;
         for(const auto& in : out_ins->inputs())
         {

@@ -689,6 +689,13 @@ inline auto has_attribute(const std::string& name)
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
 }
 
+template <class... Ms>
+auto pointwise(Ms... ms)
+{
+    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
+                                             ms...);
+}
+
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

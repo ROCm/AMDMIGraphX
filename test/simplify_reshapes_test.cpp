@@ -861,6 +861,33 @@ TEST_CASE(reshape_cont)
     EXPECT(m1 == create_opt_module());
 }
 
+TEST_CASE(reshape_input_non_std)
+{
+    auto create_module = [] {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
+
+        auto inx    = m.add_parameter("x", sx);
+        auto iny    = m.add_parameter("y", sy);
+        auto mb_inx = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+        auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
+        auto rsp =
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
+        auto ty = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), iny);
+        auto r = m.add_instruction(migraphx::make_op("add"), rsp, ty);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m1 = create_module();
+    run_pass(m1);
+
+    EXPECT(m1 == create_module());
+}
+
 TEST_CASE(reshape_cont_nonpw)
 {
     auto create_module = [] {

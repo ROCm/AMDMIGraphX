@@ -1,7 +1,9 @@
 #include <migraphx/dynamic_loader.hpp>
-#include <migraphx/tmp_dir.hpp>
-#include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <utility>
+
 #include <dlfcn.h>
 
 namespace migraphx {
@@ -11,7 +13,7 @@ struct dynamic_loader_impl
 {
     dynamic_loader_impl() = default;
     dynamic_loader_impl(const fs::path& p, std::shared_ptr<tmp_dir> t = nullptr)
-        : handle(dlopen(p.string().c_str(), RTLD_LAZY), &dlclose), temp(t)
+        : handle(dlopen(p.string().c_str(), RTLD_LAZY), &dlclose), temp(std::move(t))
     {
     }
 

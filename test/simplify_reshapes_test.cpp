@@ -876,7 +876,7 @@ TEST_CASE(reshape_input_non_std)
         auto rsp =
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
         auto ty = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), iny);
-        auto r = m.add_instruction(migraphx::make_op("add"), rsp, ty);
+        auto r  = m.add_instruction(migraphx::make_op("add"), rsp, ty);
         m.add_return({r});
 
         return m;

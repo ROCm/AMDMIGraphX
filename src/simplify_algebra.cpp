@@ -399,8 +399,8 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](match::pointwise(), reduction()))));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(
+            match::any_of[match::outputs()](match::pointwise(), reduction()))));
     }
 
     static std::vector<std::vector<instruction_ref>>

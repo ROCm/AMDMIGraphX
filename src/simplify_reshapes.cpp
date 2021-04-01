@@ -486,9 +486,9 @@ struct find_reshape_cont
             return;
         }
 
-        if (not std::all_of(out_ins->inputs().begin(), out_ins->inputs().end(), [](auto i) {
-            return i->get_shape().standard();
-        }))
+        if(not std::all_of(out_ins->inputs().begin(), out_ins->inputs().end(), [](auto i) {
+               return i->get_shape().standard();
+           }))
         {
             return;
         }

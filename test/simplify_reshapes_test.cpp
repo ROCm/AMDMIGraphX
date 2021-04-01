@@ -687,7 +687,7 @@ TEST_CASE(optimize_where_true)
 
     auto create_opt_module = [&](std::string name) {
         migraphx::module m;
-        auto in = m.add_parameter(name, s);
+        auto in = m.add_parameter(std::move(name), s);
         m.add_return({in});
         return m;
     };

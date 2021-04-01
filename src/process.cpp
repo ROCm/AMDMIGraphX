@@ -23,7 +23,7 @@ int exec(const std::string& cmd, const std::function<void(const char*)>& std_out
     std::array<char, 128> buffer;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
-        ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status);
+        ec          = WIFEXITED(status) ? 0 : WEXITSTATUS(status); // NOLINT
     };
     {
         // TODO: Use execve instead of popen

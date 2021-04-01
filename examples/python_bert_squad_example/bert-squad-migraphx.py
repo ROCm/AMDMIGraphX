@@ -8,12 +8,6 @@ import sys
 import tokenization
 from run_onnx_squad import *
 
-print(sys.path)
-
-migx_lib_path = "/opt/rocm/lib"
-if migx_lib_path not in sys.path:
-    sys.path.append(migx_lib_path)
-
 import migraphx
 
 #######################################

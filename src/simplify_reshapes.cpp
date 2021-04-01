@@ -504,7 +504,8 @@ struct find_reshape_cont
             }
             else
             {
-                inputs.push_back(p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
+                inputs.push_back(
+                    p.insert_instruction(out_ins, make_op("reshape", {{"dims", dims}}), std_in));
             }
         }
         auto out = p.insert_instruction(out_ins, out_ins->get_operator(), inputs);

@@ -23,7 +23,7 @@ std::function<F>
 compile_function(const std::string& src, const std::string& flags, const std::string& fname)
 {
     migraphx::src_compiler compiler;
-    compiler.flags  = flags + "-fPIC -shared";
+    compiler.flags  = flags + "-std=c++14 -fPIC -shared";
     compiler.output = "libsimple.so";
     migraphx::src_file f;
     f.path     = "main.cpp";

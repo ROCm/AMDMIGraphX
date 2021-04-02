@@ -381,9 +381,11 @@ struct find_resize
         std::transform(index.begin(), index.end(), equal.begin(), [&](auto i) {
             auto out_idx = out_shape.multi(i);
             auto in_idx  = out_idx;
-            std::transform(out_idx.begin(), out_idx.end(), scales.begin(), in_idx.begin(), [&](auto io, auto scale) {
-                return io - (io % scale);
-            });
+            std::transform(out_idx.begin(),
+                           out_idx.end(),
+                           scales.begin(),
+                           in_idx.begin(),
+                           [&](auto io, auto scale) { return io - (io % scale); });
             auto iidx = out_shape.index(in_idx);
             return vec_ind[i] == vec_ind[iidx];
         });

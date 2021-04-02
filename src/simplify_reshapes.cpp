@@ -380,7 +380,7 @@ struct find_resize
         std::iota(index.begin(), index.end(), 0);
         std::transform(index.begin(), index.end(), equal.begin(), [&](auto i) {
             auto out_idx = out_shape.multi(i);
-            auto in_idx = out_idx;
+            auto in_idx  = out_idx;
             for(std::size_t ii = 0; ii < out_idx.size(); ++ii)
             {
                 in_idx[ii] = out_idx[ii] - (out_idx[ii] % scales[ii]);

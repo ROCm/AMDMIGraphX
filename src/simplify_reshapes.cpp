@@ -375,10 +375,9 @@ struct find_resize
             return;
         }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        std::vector<bool> equal(out_shape.elements());
         std::vector<int> index(out_shape.elements());
         std::iota(index.begin(), index.end(), 0);
-        std::transform(index.begin(), index.end(), equal.begin(), [&](auto i) {
+        if(not std::all_of(index.begin(), index.end(), [&](auto i) {
             auto out_idx = out_shape.multi(i);
             auto in_idx  = out_idx;
             std::transform(out_idx.begin(),
@@ -388,8 +387,7 @@ struct find_resize
                            [&](auto io, auto scale) { return io - (io % scale); });
             auto iidx = out_shape.index(in_idx);
             return vec_ind[i] == vec_ind[iidx];
-        });
-        if(not std::all_of(equal.begin(), equal.end(), [](auto b) { return b; }))
+        }))
         {
             return;
         }

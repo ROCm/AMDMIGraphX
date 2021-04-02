@@ -9,7 +9,8 @@ struct hash<dnnl::algorithm>
     using result_type   = std::size_t;
     result_type operator()(const argument_type& x) const noexcept
     {
-        return std::hash<underlying_type_t<argument_type>>{}(static_cast<underlying_type_t<argument_type>>(x));
+        return std::hash<underlying_type_t<argument_type>>{}(
+            static_cast<underlying_type_t<argument_type>>(x));
     }
 };
 

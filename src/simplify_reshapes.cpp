@@ -13,7 +13,6 @@
 #include <unordered_set>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
-#include <migraphx/par_for.hpp>
 
 #include <map>
 
@@ -377,14 +376,17 @@ struct find_resize
         }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
         std::vector<bool> equal(out_shape.elements());
-        par_for(out_shape.elements(), [&](auto i) {
+        std::vector<int> index(out_shape.elements());
+        std::iota(index.begin(), index.end(), 0);
+        std::transform(index.begin(), index.end(), equal.begin(), [&](auto i) {
             auto out_idx = out_shape.multi(i);
-            auto in_idx  = out_idx;
+            auto in_idx = out_idx;
             for(std::size_t ii = 0; ii < out_idx.size(); ++ii)
             {
                 in_idx[ii] = out_idx[ii] - (out_idx[ii] % scales[ii]);
             }
-            equal[i] = (vec_ind[out_shape.index(out_idx)] == vec_ind[out_shape.index(in_idx)]);
+            auto iidx = out_shape.index(in_idx);
+            return vec_ind[i] == vec_ind[iidx];
         });
         if(not std::all_of(equal.begin(), equal.end(), [](auto b) { return b; }))
         {

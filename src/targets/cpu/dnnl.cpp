@@ -1,5 +1,21 @@
 #include <migraphx/cpu/dnnl.hpp>
 
+#if defined(__GNUC__) && __GNUC__ <= 5
+namespace std {
+template <>
+struct hash<dnnl::algorithm>
+{
+    using argument_type = dnnl::algorithm;
+    using result_type   = std::size_t;
+    result_type operator()(const argument_type& x) const noexcept
+    {
+        return std::hash<underlying_type_t<argument_type>>{}(static_cast<underlying_type_t<argument_type>>(x));
+    }
+};
+
+} // namespace std
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {

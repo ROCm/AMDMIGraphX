@@ -125,7 +125,7 @@ struct stream_info
                 return;
             if(not p.has_instruction(ins))
                 return;
-            // assert(p.has_instruction(ins));
+
             // Add an entry so we know the instruction was visited
             partitions[ins];
             part.add(ins, this->iweights[ins]);

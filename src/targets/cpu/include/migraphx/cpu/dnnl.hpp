@@ -209,7 +209,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         auto desc        = self.get_desc(m);
-        auto attr        = MIGRAPHX_ASSERT_NO_THROW(get_primitive_attr(m));
+        auto attr        = MIGRAPHX_ASSERT_NO_THROW(this->get_primitive_attr(m));
         auto pd          = self.get_primitive_desc(desc, attr);
         return Primitive(pd);
     }

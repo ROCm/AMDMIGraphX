@@ -123,7 +123,7 @@ inline auto mi_launch(hipStream_t stream,
 }
 
 template <index_int N>
-inline auto mi_gs_launch(hipStream_t stream, const hip_shape<N>& global, index_int nlocal = 1024)
+inline auto mi_gs_launch(hipStream_t stream, const hip_shape<N>& global, index_int nlocal = 4096)
 {
     return [=](auto f) {
         mi_launch(stream, global, nlocal)([=](auto, auto g) { g([&](auto i) { f(i); }); });

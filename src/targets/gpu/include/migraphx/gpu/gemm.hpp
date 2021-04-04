@@ -19,6 +19,7 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
+    bool int8X4_format = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -58,7 +59,7 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        gemm(ctx, output_shape, args, op.alpha, op.beta);
+        gemm(ctx, output_shape, args, op.alpha, op.beta, int8X4_format);
         return args.back();
     }
 

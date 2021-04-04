@@ -37,7 +37,7 @@ R rocblas_invoke(R (*f)(Ts...), Us... xs)
 
 template <class T>
 void gemm_impl(
-    context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta)
+    context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta, bool int8X4_format)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -60,6 +60,10 @@ void gemm_impl(
         output_type = rocblas_datatype_i32_r;
     }
     auto compute_type = output_type;
+
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+    rocblas_gemm_flags flag = int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+#endif
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
@@ -109,7 +113,7 @@ void gemm_impl(
                            rocblas_gemm_algo_standard,
                            0,
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-                           rocblas_gemm_flags_pack_int8x4);
+                           flag);
 #else
                            0);
 #endif
@@ -146,7 +150,7 @@ void gemm_impl(
                            rocblas_gemm_algo_standard,
                            0,
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-                           rocblas_gemm_flags_pack_int8x4);
+                           flag);
 #else
                            0);
 #endif
@@ -158,18 +162,20 @@ void gemm(context& ctx,
           const shape& output_shape,
           const std::vector<argument>& args,
           float alpha,
-          float beta)
+          float beta,
+          bool int8X4_format)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8X4_format);
 }
 
 void gemm(context& ctx,
           const shape& output_shape,
           const std::vector<argument>& args,
           int32_t alpha,
-          int32_t beta)
+          int32_t beta,
+          bool int8X4_format)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8X4_format);
 }
 
 } // namespace gpu

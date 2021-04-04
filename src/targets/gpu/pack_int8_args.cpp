@@ -1,6 +1,7 @@
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/int8_gemm_pack.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
+#include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
@@ -16,6 +17,12 @@ void pack_int8_args::apply(module& p) const
     {
         if(ins->name() == "gpu::quant_gemm")
         {
+            auto&& op = any_cast<rocblas_gemm<op::quant_dot>>(ins->get_operator());
+            if (not op.int8X4_format)
+            {
+                return;
+            }
+
             auto inputs = ins->inputs();
             bool transa = inputs[0]->get_shape().transposed();
             bool transb = inputs[1]->get_shape().transposed();

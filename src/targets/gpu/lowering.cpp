@@ -42,6 +42,7 @@
 #include <utility>
 #include <functional>
 #include <algorithm>
+#include <rocblas.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -306,7 +307,18 @@ struct miopen_apply
                 }
             }
 
-            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
+            bool int8X4_format = true;
+            if (contains(op.name(), "quant_"))
+            {
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+                auto& ctx = get_context();
+                rocblas_gemm_flags flag;
+                rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+                int8X4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+#endif
+            }
+
+            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8X4_format}, refs);
         });
     }
 

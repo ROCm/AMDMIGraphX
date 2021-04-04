@@ -493,10 +493,9 @@ struct find_reshape_cont
 
     void apply(module& p, match::matcher_result r) const
     {
-        auto ins        = r.result;
-        auto ins_cont   = r.instructions["cont"];
-        auto in_ins     = r.instructions["rsp"];
-
+        auto ins      = r.result;
+        auto ins_cont = r.instructions["cont"];
+        auto in_ins   = r.instructions["rsp"];
 
         auto cont_input = ins_cont->inputs().front();
         auto lens       = cont_input->get_shape().lens();

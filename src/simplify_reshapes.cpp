@@ -488,7 +488,7 @@ struct find_reshape_cont
             match::either_arg(0, 1)(
                 match::name("reshape")(match::args(match::name("contiguous").bind("cont")))
                     .bind("rsp"),
-                match::used_once()));
+                match::any()));
     }
 
     void apply(module& p, match::matcher_result r) const
@@ -496,6 +496,8 @@ struct find_reshape_cont
         auto ins        = r.result;
         auto ins_cont   = r.instructions["cont"];
         auto in_ins     = r.instructions["rsp"];
+
+
         auto cont_input = ins_cont->inputs().front();
         auto lens       = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());

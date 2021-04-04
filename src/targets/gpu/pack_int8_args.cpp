@@ -18,7 +18,7 @@ void pack_int8_args::apply(module& p) const
         if(ins->name() == "gpu::quant_gemm")
         {
             auto&& op = any_cast<rocblas_gemm<op::quant_dot>>(ins->get_operator());
-            if (not op.int8X4_format)
+            if(not op.int8X4_format)
             {
                 return;
             }

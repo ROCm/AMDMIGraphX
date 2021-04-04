@@ -36,8 +36,12 @@ R rocblas_invoke(R (*f)(Ts...), Us... xs)
 }
 
 template <class T>
-void gemm_impl(
-    context& ctx, const shape& output_shape, const std::vector<argument>& args, T alpha, T beta, bool int8X4_format)
+void gemm_impl(context& ctx,
+               const shape& output_shape,
+               const std::vector<argument>& args,
+               T alpha,
+               T beta,
+               bool int8X4_format)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -62,7 +66,8 @@ void gemm_impl(
     auto compute_type = output_type;
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    rocblas_gemm_flags flag = int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+    rocblas_gemm_flags flag =
+        int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 #endif
 
     auto a_lens = args[0].get_shape().lens();

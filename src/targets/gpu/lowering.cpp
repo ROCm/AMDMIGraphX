@@ -308,7 +308,7 @@ struct miopen_apply
             }
 
             bool int8X4_format = true;
-            if (contains(op.name(), "quant_"))
+            if(contains(op.name(), "quant_"))
             {
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
                 auto& ctx = get_context();
@@ -318,7 +318,8 @@ struct miopen_apply
 #endif
             }
 
-            return prog->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8X4_format}, refs);
+            return prog->replace_instruction(
+                ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8X4_format}, refs);
         });
     }
 

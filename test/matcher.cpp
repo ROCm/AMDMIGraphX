@@ -978,7 +978,8 @@ TEST_CASE(match_tree1)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree("sum", match::has_value(1), match::has_value(2), match::has_value(3));
+    auto m = match::tree(
+        match::name("sum"), match::has_value(1), match::has_value(2), match::has_value(3));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -994,7 +995,8 @@ TEST_CASE(match_tree2)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree("sum", match::has_value(2), match::has_value(1), match::has_value(3));
+    auto m = match::tree(
+        match::name("sum"), match::has_value(2), match::has_value(1), match::has_value(3));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == mm->end()});
 }
@@ -1010,7 +1012,8 @@ TEST_CASE(match_tree3)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, three, sum1);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree("sum", match::has_value(3), match::has_value(1), match::has_value(2));
+    auto m = match::tree(
+        match::name("sum"), match::has_value(3), match::has_value(1), match::has_value(2));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -1026,8 +1029,11 @@ TEST_CASE(match_tree4)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree(
-        "sum", match::has_value(1), match::has_value(2), match::has_value(3), match::has_value(4));
+    auto m = match::tree(match::name("sum"),
+                         match::has_value(1),
+                         match::has_value(2),
+                         match::has_value(3),
+                         match::has_value(4));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == mm->end()});
 }
@@ -1043,7 +1049,7 @@ TEST_CASE(match_tree5)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree("sum", match::has_value(2), match::has_value(3));
+    auto m = match::tree(match::name("sum"), match::has_value(2), match::has_value(3));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == mm->end()});
 }
@@ -1059,7 +1065,7 @@ TEST_CASE(match_tree6)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m = match::tree("sum", match::has_value(1), match::has_value(3));
+    auto m = match::tree(match::name("sum"), match::has_value(1), match::has_value(3));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == mm->end()});
 }
@@ -1075,8 +1081,8 @@ TEST_CASE(match_unordered_tree1)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m =
-        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto m = match::unordered_tree(
+        match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -1092,8 +1098,8 @@ TEST_CASE(match_unordered_tree2)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, three, sum1);
     mm->add_instruction(pass_op{}, sum2);
-    auto m =
-        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto m = match::unordered_tree(
+        match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -1109,8 +1115,8 @@ TEST_CASE(match_unordered_tree3)
     auto sum1  = mm->add_instruction(sum_op{}, two, one);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m =
-        match::unordered_tree("sum", match::has_value(3), match::has_value(2), match::has_value(1));
+    auto m = match::unordered_tree(
+        match::name("sum"), match::has_value(3), match::has_value(2), match::has_value(1));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == sum2});
 }
@@ -1126,8 +1132,8 @@ TEST_CASE(match_unordered_tree4)
     auto sum1  = mm->add_instruction(sum_op{}, one, two);
     auto sum2  = mm->add_instruction(sum_op{}, sum1, three);
     mm->add_instruction(pass_op{}, sum2);
-    auto m =
-        match::unordered_tree("sum", match::has_value(4), match::has_value(2), match::has_value(1));
+    auto m = match::unordered_tree(
+        match::name("sum"), match::has_value(4), match::has_value(2), match::has_value(1));
     auto r = find_match(*mm, m);
     EXPECT(bool{r.result == mm->end()});
 }

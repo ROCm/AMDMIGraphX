@@ -251,8 +251,13 @@ auto compute_op(rank<1>,
 }
 
 template <class T, class F>
-argument
-    compute_op(rank<0>, const T& x, context&, const shape&, const std::vector<argument>&, const std::vector<module_ref>&, F)
+argument compute_op(rank<0>,
+                    const T& x,
+                    context&,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -414,8 +419,8 @@ void from_value_op(T& x, const value& v)
              default = 'detail::compute_op'),
      virtual(
          'compute',
-         ctx     = 'context&',
-         output  = 'const shape&',
+         ctx         = 'context&',
+         output      = 'const shape&',
          returns     = 'argument',
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',

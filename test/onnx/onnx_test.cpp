@@ -1408,6 +1408,104 @@ TEST_CASE(if_else_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(if_literal_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", cond_s);
+
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+
+    auto* then_mod           = p.create_module("If_1_if");
+    std::vector<float> data1 = {1, 2, 3, 4, 5};
+    auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
+    then_mod->add_return({l1});
+
+    auto* else_mod           = p.create_module("If_1_else");
+    std::vector<float> data2 = {5, 4, 3, 2, 1};
+    auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
+    else_mod->add_return({l2});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("if_literal_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_param_excp_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("if_param_excp_test.onnx"); }));
+}
+
+TEST_CASE(if_param_excp1_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("if_param_excp1_test.onnx"); }));
+}
+
+TEST_CASE(if_param_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", cond_s);
+    migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+    auto x = mm->add_parameter("x", ds);
+    auto y = mm->add_parameter("y", ds);
+
+    auto* then_mod           = p.create_module("If_3_if");
+    std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
+    auto l1                  = then_mod->add_literal(migraphx::literal(ds, data1));
+    auto a1                  = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({a1});
+
+    auto* else_mod           = p.create_module("If_3_else");
+    std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
+    auto l2                  = else_mod->add_literal(migraphx::literal(ds, data2));
+    auto a2                  = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({a2});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("if_param_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(if_pl_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+    std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+    auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+    auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+    auto cond = mm->add_parameter("cond", cond_s);
+    auto x    = mm->add_parameter("x", xs);
+    auto y    = mm->add_parameter("y", ys);
+
+    auto* then_mod = p.create_module("If_5_if");
+    auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
+    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x, lx);
+    then_mod->add_return({a1, l1});
+
+    auto* else_mod = p.create_module("If_5_else");
+    auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
+    auto a2        = else_mod->add_instruction(migraphx::make_op("mul"), y, ly);
+    else_mod->add_return({l2, a2});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("if_pl_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(if_then_test)
 {
     migraphx::program p;

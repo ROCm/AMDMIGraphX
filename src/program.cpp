@@ -143,19 +143,23 @@ void program::compile(const target& t, compile_options options)
 
     options.trace(*this);
     options.trace();
+
+    auto mods = this->get_modules();
+    std::reverse(mods.begin(), mods.end());
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
-    auto* modl = get_main_module();
-    assert(modl->validate() == modl->end());
-    run_passes(*modl, passes, options.trace);
-    auto invalid = this->validate();
-    if(invalid != modl->end())
+    for(const auto& mod : mods)
     {
-        auto index = std::distance(modl->begin(), invalid);
-        MIGRAPHX_THROW("Invalid module " + modl->name() + " from compilation at instruction " +
-                       std::to_string(index));
+        assert(mod->validate() == mod->end());
+        run_passes(*mod, passes, options.trace);
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
+        {
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
+                           std::to_string(std::distance(mod->begin(), invalid)));
+        }
+        mod->finalize(this->impl->ctx);
     }
-    modl->finalize(this->impl->ctx);
 }
 
 void program::finalize()
@@ -165,17 +169,17 @@ void program::finalize()
 }
 
 template <class F>
-std::vector<argument> generic_eval(const module& p,
+std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,
+                                   std::unordered_map<instruction_ref, argument> results,
                                    F trace)
 {
-    assert(p.validate() == p.end());
-    std::unordered_map<instruction_ref, argument> results;
-    results.reserve(p.size() * 2);
+    assert(mod->validate() == mod->end());
+    results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(*mod))
     {
         const auto& name = ins->name();
         if(name == "@literal")
@@ -221,15 +225,32 @@ std::vector<argument> generic_eval(const module& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-            results.emplace(ins, trace(ins, [&] {
-                                return ins->normalized_operator().compute(
-                                    ctx, ins->get_shape(), values);
-                            }));
+
+            const auto& mod_args = ins->module_inputs();
+            auto module_eval     = [&](module_ref smod,
+                                   const std::unordered_map<std::string, argument>& inputs) {
+                return generic_eval(smod, ctx, inputs, results, trace);
+            };
+
+            if(not mod_args.empty())
+            {
+                results.emplace(ins, trace(ins, [&] {
+                                    return ins->normalized_operator().compute(
+                                        values, mod_args, module_eval);
+                                }));
+            }
+            else
+            {
+                results.emplace(ins, trace(ins, [&] {
+                                    return ins->normalized_operator().compute(
+                                        ctx, ins->get_shape(), values);
+                                }));
+            }
         }
         assert(results.find(ins) != results.end());
     }
 
-    return {results.at(std::prev(p.end()))};
+    return {results.at(std::prev(mod->end()))};
 }
 
 template <class F>
@@ -238,8 +259,8 @@ std::vector<argument> generic_eval(const program& p,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
-    const auto* mm = p.get_main_module();
-    return generic_eval(*mm, ctx, params, trace);
+    const module* mm = p.get_main_module();
+    return generic_eval(mm, ctx, params, {}, trace);
 }
 
 std::vector<argument> program::eval(parameter_map params) const
@@ -590,8 +611,7 @@ void program::print(
 {
     for(const auto& mod : this->impl->modules)
     {
-        std::cout << mod.name() << ":" << std::endl;
-        mod.print(print_func, names);
+        names = mod.print(print_func, names);
     }
 }
 
@@ -664,8 +684,19 @@ const module* program::get_main_module() const { return get_module("main"); }
 
 std::vector<const module*> program::get_modules() const
 {
-    const module* mm = get_main_module();
+    const module* mm = this->get_main_module();
     std::vector<const module*> vec_modules;
+    vec_modules.push_back(mm);
+    auto sub_modules = mm->get_sub_modules();
+    vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());
+
+    return vec_modules;
+}
+
+std::vector<module*> program::get_modules()
+{
+    module* mm = this->get_main_module();
+    std::vector<module*> vec_modules;
     vec_modules.push_back(mm);
     auto sub_modules = mm->get_sub_modules();
     vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());

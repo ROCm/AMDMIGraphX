@@ -234,10 +234,10 @@ std::vector<argument> generic_eval(const module* mod,
 
             // if(not mod_args.empty())
             // {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        ctx, ins->get_shape(), values, mod_args, module_eval);
-                                }));
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                            }));
             // }
             // else
             // {

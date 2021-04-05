@@ -143,6 +143,13 @@ onnx_parser::node_info::add_instruction(const operation& op,
     return mod->add_instruction(op, args);
 }
 
+instruction_ref onnx_parser::node_info::add_instruction(const operation& op,
+                                                        const std::vector<instruction_ref>& args,
+                                                        const std::vector<module_ref>& mods) const
+{
+    return mod->add_instruction(op, args, mods);
+}
+
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
 {
     return mod->add_literal(std::move(l));
@@ -283,8 +290,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
         else
         {
-            result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node.op_type(), mod}, args);
+            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
+            result                = ops[node.op_type()](
+                *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

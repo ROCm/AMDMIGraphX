@@ -245,7 +245,7 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(inputs, module_args, f))
+                F f) -> decltype(x.compute(ctx, output, inputs, module_args, f))
 {
     return x.compute(ctx, output, inputs, module_args, f);
 }

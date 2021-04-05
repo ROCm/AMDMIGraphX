@@ -320,11 +320,11 @@ argument compute_op(const T& x,
 
 template <class T, class F>
 std::vector<argument> compute_outputs_op(const T& x,
-                    context&,
-                    const shape&,
-                    const std::vector<argument>&,
-                    const std::vector<module_ref>&,
-                    F)
+                                         context&,
+                                         const shape&,
+                                         const std::vector<argument>&,
+                                         const std::vector<module_ref>&,
+                                         F)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);

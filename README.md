@@ -156,11 +156,11 @@ section to build MIGraphX source.
 ### Using MIGraphX Python Module
 To use MIGraphX's Python module, please either set `PYTHONPATH` or use `.deb` package as explained below:
 
-1) Setting `PYTHONPATH` :
+- Setting `PYTHONPATH` :
 ```
 export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
 ```
-2) Creating and installing the package:
+- Creating and installing the package:
 
 To create deb package:
 ```

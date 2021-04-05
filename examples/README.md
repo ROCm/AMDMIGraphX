@@ -11,3 +11,4 @@ This directory contains examples of common use cases for MIGraphX.
 - [MIGraphX Docker Container](./migraphx_docker)
 - [MIGraphX Driver](./migraphx_driver)
 - [Python Resnet50 Inference](./python_api_inference)
+- [Python Super Resolution](./python_super_resolution)

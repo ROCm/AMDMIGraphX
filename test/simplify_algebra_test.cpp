@@ -2141,7 +2141,6 @@ TEST_CASE(reorder_slice_ins_deps)
         std::vector<float> datax = {0, 1, 2, 3, 4, 5, 6, 7};
         std::vector<float> datay = {0, 1, 2, 3};
         auto inx                 = m.add_literal(migraphx::literal(sx, datax));
-        ;
         auto iny  = m.add_literal(migraphx::literal(sy, datay));
         auto slc0 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), inx);

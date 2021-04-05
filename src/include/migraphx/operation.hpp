@@ -178,7 +178,7 @@ shape normalize_compute_shape_op(const T& x,
 }
 
 template <class T>
-auto compute_op(rank<2>,
+auto compute_op(rank<3>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -186,6 +186,18 @@ auto compute_op(rank<2>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<2>,
+                const T& x,
+                context& ctx,
+                const shape& output_shape,
+                const std::vector<argument>& input)
+    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input, {}, {}))
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
 }
 
 template <class T>
@@ -207,14 +219,22 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, ctx, output_shape, input);
+    return compute_op(rank<3>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
+auto compute_op(rank<3>, const T& x, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input))
+{
+    return x.compute(output_shape, input);
 }
 
 template <class T>
 auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
+    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input, {}, {}))
 {
-    return x.compute(output_shape, input);
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
 }
 
 template <class T>
@@ -235,7 +255,31 @@ argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argumen
 template <class T>
 argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, output_shape, input);
+    return compute_op(rank<3>{}, x, output_shape, input);
+}
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
 }
 
 template <class T, class F>
@@ -244,10 +288,10 @@ auto compute_op(rank<1>,
                 context& ctx,
                 const shape& output,
                 const std::vector<argument>& inputs,
-                const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(ctx, output, inputs, module_args, f))
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(ctx), output, inputs))
 {
-    return x.compute(ctx, output, inputs, module_args, f);
+    return x.compute(auto_any_cast(ctx), output, inputs);
 }
 
 template <class T, class F>
@@ -271,7 +315,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, ctx, output, inputs, module_args, f);
+    return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
 }
 
 template <class T>

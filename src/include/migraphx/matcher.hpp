@@ -225,9 +225,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 template <class... Ms>
 void find_matches(module& p, instruction_ref ins, Ms&&... ms)
 {
-    std::cout << "p = " << std::endl;
-    std::cout << p << std::endl;
-
 #if !defined(__GNUC__) || defined(__clang__) || __GNUC__ > 5
     const
 #endif

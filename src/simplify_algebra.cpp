@@ -460,13 +460,13 @@ struct find_splits
                 if(contains(group, *it))
                     return {};
 
-                // // there are should be no dependent between instructions in the group
-                // if (std::any_of(group.begin(), group.end(), [&](auto i) {
-                //     return is_dependent(*it, i) or is_dependent(i, *it);
-                // }))
-                // {
-                //     return {};
-                // }
+                // there are should be no dependent between instructions in the group
+                if (std::any_of(group.begin(), group.end(), [&](auto i) {
+                    return is_dependent(*it, i) or is_dependent(i, *it);
+                }))
+                {
+                    return {};
+                }
 
                 group.push_back(*it);
             }
@@ -504,7 +504,6 @@ struct find_splits
 
     void apply(module& p, const match::matcher_result& r) const
     {
-        std::cout << "find_splits = " << p << std::endl;
         auto ins = r.result;
 
         auto splits = get_splits(ins);
@@ -513,13 +512,11 @@ struct find_splits
 
         for(const auto& group : get_split_groups(splits))
         {
-            std::cout << "loc1, group_size = " << group.size() << std::endl;
             for(const auto& elem : group)
             {
                 std::cout << elem->name() << "\t";
             }
             std::cout << std::endl;
-            std::cout << "loc1.1" << std::endl;
 
             auto start       = group.front();
             auto split_front = splits.front();
@@ -530,7 +527,6 @@ struct find_splits
             }
 
             // Make sure there is no duplicates
-            std::cout << "loc2" << std::endl;
             assert(std::none_of(
                 std::next(group.begin()), group.end(), [&](auto i) { return i == start; }));
 
@@ -546,14 +542,12 @@ struct find_splits
                     return i->name() == "slice";
                 }) && "one argument must be a split");
                 auto data_idx = 1;
-                std::cout << "loc3" << std::endl;
                 if(start->inputs().back()->name() == "slice")
                 {
                     split_idx = 1;
                     data_idx  = 0;
                 }
 
-                std::cout << "loc4" << std::endl;
                 std::vector<instruction_ref> data_args;
                 std::transform(group.begin(),
                                group.end(),
@@ -573,7 +567,6 @@ struct find_splits
                 assert(not slice_op.axes.empty());
                 if(slice_op.axes.size() > 1)
                     return;
-                std::cout << "loc5" << std::endl;
                 auto concat_axis = slice_op.axes.front();
                 // TODO: Check if axises match
                 auto concat = p.insert_instruction(
@@ -584,17 +577,13 @@ struct find_splits
                 args[split_idx] = ins;
                 args[data_idx]  = concat;
                 c               = p.insert_instruction(std::next(ins), op, args);
-                std::cout << "loc6" << std::endl;
             }
             if(c != p.end())
             {
                 for(auto i : group)
                 {
-                    std::cout << "loc7.0, i_name = " << i->name() << std::endl;
                     auto split = i->inputs()[split_idx];
-                    std::cout << "loc7, split_name = " << split->name() << std::endl;
                     assert(split->name() == "slice");
-                    std::cout << "loc7.1, split_name = " << split->name() << std::endl;
                     // Insert contiguous for reshapes
                     for(auto output : i->outputs())
                     {
@@ -605,14 +594,7 @@ struct find_splits
                         p.replace_instruction(output, output->get_operator(), x);
                     }
 
-                    std::cout << "loc8, p = " << p << std::endl;
-                    std::cout << "i_name = " << i->name() << ", shape = " << i->get_shape()
-                              << std::endl;
-                    std::cout << "c_name = " << c->name() << ", shape = " << c->get_shape()
-                              << std::endl;
-                    std::cout << "op_name = " << split->get_operator().name() << std::endl;
                     p.replace_instruction(i, split->get_operator(), c);
-                    std::cout << "loc9" << std::endl;
                 }
             }
         }

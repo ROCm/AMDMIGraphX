@@ -59,7 +59,6 @@ struct find_mul_conv
 
     void apply(module& p, match::matcher_result r) const
     {
-        std::cout << "mul_conv, p = " << p << std::endl;
         auto ins      = r.result;
         auto conv_ins = r.instructions["conv"];
         auto a_ins    = r.instructions["a"];
@@ -98,8 +97,6 @@ struct find_mul_slice_conv
 
     void apply(module& p, match::matcher_result r) const
     {
-        std::cout << "mul_slice, p = " << p << std::endl;
-
         auto ins       = r.result;
         auto slice_ins = r.instructions["slice"];
         auto conv_ins  = r.instructions["conv"];
@@ -549,8 +546,6 @@ struct find_splits
 
                 // Data arguments must be a constant
                 if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
-                       std::cout << "i_name = " << i->name() << "can_eval = " << i->can_eval()
-                                 << std::endl;
                        return not i->can_eval();
                    }))
                     return;
@@ -1062,7 +1057,6 @@ void simplify_algebra::apply(module& p) const
     // Run simplifications multiple times
     for(int i = 0; i < 8; i++)
     {
-        std::cout << "i = " << i << std::endl;
         match::find_matches(p,
                             find_inner_broadcast{},
                             find_double_add_lit_broadcast{},

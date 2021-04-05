@@ -154,7 +154,13 @@ libs](#building-migraphx-source-and-install-libs)
 section to build MIGraphX source.
 
 ### Using MIGraphX Python Module
-To use MIGraphX's Python module, we need to create MIGraphX .deb package and install it in order to import migraphx module successfuly to Python environment.
+To use MIGraphX's Python module, please either set `PYTHONPATH` or use `.deb` package as explained below:
+
+1) Setting `PYTHONPATH` :
+```
+export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
+```
+2) Creating and installing the package:
 
 To create deb package:
 ```

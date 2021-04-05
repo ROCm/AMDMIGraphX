@@ -2132,4 +2132,31 @@ TEST_CASE(reorder_slice_trans_diff_perm)
     test(4);
 }
 
+TEST_CASE(reorder_slice_ins_deps)
+{
+    auto create_module = [] 
+    {
+        migraphx::module m;
+        migraphx::shape sx{migraphx::shape::float_type, {4, 2}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2}};
+        std::vector<float> datax = {0, 1, 2, 3, 4, 5, 6, 7};
+        std::vector<float> datay = {0, 1, 2, 3};
+        auto inx = m.add_literal(migraphx::literal(sx, datax));;
+        auto iny = m.add_literal(migraphx::literal(sy, datay));
+        auto slc0 = m.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), inx);
+        auto slc1 = m.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), inx);
+        auto n0 = m.add_instruction(migraphx::make_op("neg"), slc0);
+        auto a0 = m.add_instruction(migraphx::make_op("add"), n0, slc1);
+        auto m0 = m.add_instruction(migraphx::make_op("mul"), a0, iny);
+        auto r = m.add_instruction(migraphx::make_op("add"), m0, slc0);
+        m.add_return({r});
+
+        return m;
+    };
+
+    auto m = create_module();
+    run_pass(m);
+    EXPECT(m == create_module());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -505,19 +505,12 @@ struct find_splits
     void apply(module& p, const match::matcher_result& r) const
     {
         auto ins = r.result;
-
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
 
         for(const auto& group : get_split_groups(splits))
         {
-            for(const auto& elem : group)
-            {
-                std::cout << elem->name() << "\t";
-            }
-            std::cout << std::endl;
-
             auto start       = group.front();
             auto split_front = splits.front();
             auto op          = start->get_operator();
@@ -556,6 +549,7 @@ struct find_splits
 
                 // Data arguments must be a constant
                 if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
+                        std::cout << "i_name = " << i->name() << "can_eval = " << i->can_eval() << std::endl;
                        return not i->can_eval();
                    }))
                     return;

@@ -318,6 +318,18 @@ argument compute_op(const T& x,
     return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
 }
 
+template <class T, class F>
+std::vector<argument> compute_outputs_op(const T& x,
+                    context&,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
 template <class T>
 auto is_context_free_op(rank<1>,
                         const T& x,
@@ -463,15 +475,26 @@ void from_value_op(T& x, const value& v)
              default = 'detail::compute_op'),
      virtual(
          'compute',
+         returns     = 'argument',
          ctx         = 'context&',
          output      = 'const shape&',
-         returns     = 'argument',
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',
          run =
              'std::function<std::vector<argument>(module_ref&, context&, const std::unordered_map<std::string, argument>&)>',
          const   = True,
          default = 'detail::compute_op'),
+     virtual(
+         'compute_outputs',
+         returns     = 'std::vector<argument>',
+         ctx         = 'context&',
+         output      = 'const shape&',
+         input       = 'const std::vector<argument>&',
+         module_args = 'const std::vector<module_ref>&',
+         run =
+             'std::function<std::vector<argument>(module_ref&, context&, const std::unordered_map<std::string, argument>&)>',
+         const   = True,
+         default = 'detail::compute_outputs_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
      virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
      virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),

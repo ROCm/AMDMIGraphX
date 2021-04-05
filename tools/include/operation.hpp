@@ -469,7 +469,7 @@ void from_value_op(T& x, const value& v)
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',
          run =
-             'std::function<std::vector<argument>(module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>',
+             'std::function<std::vector<argument>(module_ref&, context&, const std::unordered_map<std::string, argument>&)>',
          const   = True,
          default = 'detail::compute_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),

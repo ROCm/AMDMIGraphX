@@ -39,12 +39,12 @@ struct if_op
     }
 
     argument compute(
-        context&,
+        context& ctx,
         const shape&,
         const std::vector<argument>& args,
         const std::vector<module_ref>& mods,
         const std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
+            module_ref&, context&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         auto cond      = args.front().at<bool>();
         module_ref mod = cond ? mods[0] : mods[1];
@@ -64,7 +64,7 @@ struct if_op
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
-        auto results = run(mod, params);
+        auto results = run(mod, ctx, params);
         return results[0];
     }
 };

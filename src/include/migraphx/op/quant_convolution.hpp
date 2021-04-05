@@ -10,6 +10,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -36,7 +37,7 @@ struct quant_convolution
                     f(self.group, "group"));
     }
 
-    value attributes() const { return {{"general_data_type", "convolution"}}; }
+    value attributes() const { return {{"general_data_type", "convolution"}, {"normalize_padding", "padding"}}; }
 
     std::string name() const { return "quant_convolution"; }
 
@@ -48,7 +49,7 @@ struct quant_convolution
         }
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
@@ -88,6 +89,14 @@ struct quant_convolution
     {
         check_attribute_size();
         return padding.size();
+    }
+
+    std::vector<size_t> expand_pads()
+    {
+        size_t dims = padding.size();
+        std::vector<size_t> new_padding(padding.begin(), padding.end());
+        std::copy(padding.begin(), padding.begin() + dims, std::back_inserter(new_padding));
+        return new_padding;
     }
 };
 

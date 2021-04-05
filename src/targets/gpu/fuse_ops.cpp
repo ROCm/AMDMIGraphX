@@ -641,7 +641,7 @@ struct miopen_conv_bias
     {
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
-        return op.compute_shape({inputs.at(0), inputs.at(1)});
+        return op.normalize_compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
@@ -688,7 +688,7 @@ struct miopen_conv_bias_relu
     {
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
-        return op.compute_shape({inputs.at(0), inputs.at(1)});
+        return op.normalize_compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {

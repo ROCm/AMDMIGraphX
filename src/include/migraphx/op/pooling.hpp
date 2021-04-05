@@ -40,10 +40,15 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if(not(padding.size() == stride.size() and padding.size() == lengths.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and stride.size() == lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
+    }
+
+    value attributes() const
+    {
+        return {{"normalize_padding", "padding"}};
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -55,16 +60,21 @@ struct pooling
 
         auto input_lens = input.lens();
         size_t kdims    = input_lens.size() - 2;
-        if(kdims != this->kdims())
+        if(inputs[0].lens().size() != padding.size() + 2)
         {
-            MIGRAPHX_THROW("pooling: input k-dims does not match attribute size");
+            if(inputs[0].lens().size() != (padding.size() / 2 + 2))
+                MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
 
         std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
 
         for(size_t i = 0; i < kdims; i++)
         {
-            std::ptrdiff_t dim_size = input_lens[i + 2] + 2 * padding[i] - lengths[i];
+            std::ptrdiff_t dim_size;
+            if(padding.size() == kdims)
+                dim_size = input_lens[i + 2] + 2*(padding[i]) - lengths[i];
+            else
+                dim_size = input_lens[i + 2] + (padding[i] + padding[i + kdims]) - lengths[i];
             assert(dim_size >= 0);
             std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
                                           : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);
@@ -77,7 +87,7 @@ struct pooling
     size_t kdims() const
     {
         check_attribute_size();
-        return padding.size();
+        return stride.size();
     }
 };
 

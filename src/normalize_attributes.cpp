@@ -117,11 +117,30 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     return result;
 }
 
+auto tune_attribute(const value& val)
+{
+
+    std::vector<size_t> vec_attrs = val.to_vector<size_t>();
+    std::vector<size_t> result(vec_attrs.begin(), vec_attrs.end());
+    std::copy(vec_attrs.begin(), vec_attrs.end(), std::back_inserter(result));
+
+    return result;
+}
+
 bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
 {
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
+    if(attrs.contains("normalize_padding"))
+    {
+        if (val.at("padding").to_vector<size_t>().size() == 2 * (lens.size() - 2))
+            return true;
+        auto result = tune_attribute(val.at("padding"));
+        val["padding"] = result;
+        op.from_value(val);
+        return true;
+    }
     if(!attrs.contains("normalize_axes"))
     {
         return false;

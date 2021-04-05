@@ -11,7 +11,7 @@ shape miopen_convolution::compute_shape(const std::vector<shape>& inputs) const
     check_shapes{inputs, *this}.has(4).standard();
     std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
     check_shapes{conv_inputs, *this}.max_ndims(5);
-    return op.compute_shape(conv_inputs);
+    return op.normalize_compute_shape(conv_inputs);
 }
 
 inline shape reshape_if_1d(const shape& input)

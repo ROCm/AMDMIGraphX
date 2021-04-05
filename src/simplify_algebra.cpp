@@ -461,9 +461,9 @@ struct find_splits
                     return {};
 
                 // there are should be no dependent between instructions in the group
-                if (std::any_of(group.begin(), group.end(), [&](auto i) {
-                    return is_dependent(*it, i) or is_dependent(i, *it);
-                }))
+                if(std::any_of(group.begin(), group.end(), [&](auto i) {
+                       return is_dependent(*it, i) or is_dependent(i, *it);
+                   }))
                 {
                     return {};
                 }

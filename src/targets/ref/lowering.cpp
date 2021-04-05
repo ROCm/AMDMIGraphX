@@ -204,7 +204,10 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
     }
 
     std::string name() const { return "ref::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.normalize_compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return op.normalize_compute_shape(inputs);
+    }
     argument compute(context&, shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};

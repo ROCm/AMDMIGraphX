@@ -37,7 +37,10 @@ struct quant_convolution
                     f(self.group, "group"));
     }
 
-    value attributes() const { return {{"general_data_type", "convolution"}, {"normalize_padding", "padding"}}; }
+    value attributes() const
+    {
+        return {{"general_data_type", "convolution"}, {"normalize_padding", "padding"}};
+    }
 
     std::string name() const { return "quant_convolution"; }
 

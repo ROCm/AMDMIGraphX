@@ -24,7 +24,7 @@ struct deconvolution
 
     padding_mode_t padding_mode = default_;
     int group                   = 1;
-    bool expanded_pads = false;
+    bool expanded_pads          = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -41,7 +41,8 @@ struct deconvolution
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and stride.size() == dilation.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == dilation.size()))
         {
             MIGRAPHX_THROW("deconvolution: inconsistent attribute sizes");
         }

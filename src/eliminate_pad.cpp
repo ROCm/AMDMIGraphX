@@ -44,17 +44,13 @@ void eliminate_pad::update_op(const instruction_ref& input,
 
     auto op = any_cast<op::convolution>(ins->get_operator());
 
-    std::transform(pads_l.begin(),
-                   pads_l.end(),
-                   op.padding.begin(),
-                   op.padding.begin(),
-                   std::plus<size_t>());
+    std::transform(
+        pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());
     std::transform(pads_r.begin(),
                    pads_r.end(),
                    op.padding.begin() + kdims,
                    op.padding.begin() + kdims,
                    std::plus<size_t>());
-    
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = input->inputs().front();
@@ -84,11 +80,8 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
         return;
     }
 
-    std::transform(pads_l.begin(),
-                   pads_l.end(),
-                   op.padding.begin(),
-                   op.padding.begin(),
-                   std::plus<size_t>());
+    std::transform(
+        pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());
     std::transform(pads_r.begin(),
                    pads_r.end(),
                    op.padding.begin() + kdims,

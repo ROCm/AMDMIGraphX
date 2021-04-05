@@ -41,16 +41,14 @@ struct convolution
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and stride.size() == dilation.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == dilation.size()))
         {
             MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes");
         }
     }
 
-    value attributes() const
-    {
-        return {{"normalize_padding", "padding"}};
-    }
+    value attributes() const { return {{"normalize_padding", "padding"}}; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -83,14 +81,14 @@ struct convolution
                 output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                     1,
                     (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                    2*(padding[i])) /
+                     2 * (padding[i])) /
                             stride[i] +
                         1)));
             else
                 output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                     1,
                     (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                    (padding[i] + padding[i + kdims])) /
+                     (padding[i] + padding[i + kdims])) /
                             stride[i] +
                         1)));
         }

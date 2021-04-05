@@ -40,16 +40,14 @@ struct pooling
 
     void check_attribute_size() const
     {
-        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and stride.size() == lengths.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == lengths.size()))
         {
             MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
         }
     }
 
-    value attributes() const
-    {
-        return {{"normalize_padding", "padding"}};
-    }
+    value attributes() const { return {{"normalize_padding", "padding"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -72,7 +70,7 @@ struct pooling
         {
             std::ptrdiff_t dim_size;
             if(padding.size() == kdims)
-                dim_size = input_lens[i + 2] + 2*(padding[i]) - lengths[i];
+                dim_size = input_lens[i + 2] + 2 * (padding[i]) - lengths[i];
             else
                 dim_size = input_lens[i + 2] + (padding[i] + padding[i + kdims]) - lengths[i];
             assert(dim_size >= 0);

@@ -134,9 +134,9 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        if (val.at("padding").to_vector<size_t>().size() == 2 * (lens.size() - 2))
+        if(val.at("padding").to_vector<size_t>().size() == 2 * (lens.size() - 2))
             return true;
-        auto result = tune_attribute(val.at("padding"));
+        auto result    = tune_attribute(val.at("padding"));
         val["padding"] = result;
         op.from_value(val);
         return true;

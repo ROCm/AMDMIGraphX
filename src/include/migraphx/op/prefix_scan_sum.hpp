@@ -6,7 +6,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
-#include <vector>
 #include <migraphx/op/prefix_scan_op.hpp>
 
 namespace migraphx {
@@ -16,8 +15,9 @@ namespace op {
 struct prefix_scan_sum : prefix_scan_op<prefix_scan_sum>
 {
     prefix_scan_sum() {}
-    prefix_scan_sum(std::vector<int64_t> ax) : prefix_scan_op(std::move(ax)) {}
-    prefix_scan_sum(std::vector<int64_t> ax, bool excl) : prefix_scan_op(std::move(ax), excl) {}
+    prefix_scan_sum(int64_t ax) : prefix_scan_op(ax) {}
+    prefix_scan_sum(int64_t ax, bool excl) : prefix_scan_op(ax, excl) {}
+    prefix_scan_sum(int64_t ax, bool excl, bool rev) : prefix_scan_op(ax, excl, rev) {}
 
     auto op() const
     {

@@ -39,6 +39,8 @@ struct if_op
     }
 
     argument compute(
+        context&,
+        const shape&,
         const std::vector<argument>& args,
         const std::vector<module_ref>& mods,
         const std::function<std::vector<argument>(

@@ -17,7 +17,7 @@ namespace op {
 template <class Derived>
 struct prefix_scan_op : op_name<Derived>
 {
-    int64_t axis;
+    mutable int64_t axis;
     bool exclusive = false, reverse = false;
     
     template <class Self, class F>
@@ -39,102 +39,66 @@ struct prefix_scan_op : op_name<Derived>
     {
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);
-        auto lens       = s.lens();
 
-        return {s.type(), lens};
+        return {s.type(), s.lens()};
     }
 
     void prefix_scan(argument& arg, argument& res) const
     {
-        std::vector<bool> axes(arg.get_shape().lens().size(), false);
-        axes[axis] = true;
         auto& self = static_cast<const Derived&>(*this);
-        bool first_pass = true;
-        visit_all(arg, res)([&](auto input, auto output) { 
-            shape_for_each(output.get_shape(), [&](const auto& idx) {
-                if (idx[axis] == 0) {
-                    output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
-                }
-                else {
-                    auto prefix_idx = idx;
-                    prefix_idx[axis] -= 1;
-                    if (exclusive) {
-                        output(idx.begin(), idx.end()) = input(prefix_idx.begin(), prefix_idx.end());
-                        if (first_pass) {
-                            output(prefix_idx.begin(), prefix_idx.end()) = 0;
-                            first_pass = false;
-                        }
-                        output(idx.begin(), idx.end()) = self.op()(output(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
+        if (reverse) {
+            visit_all(arg, res)([&](auto input, auto output) { 
+                shape_for_each_reverse(output.get_shape(), [&](const auto& idx) {
+                    if (idx[axis] == arg.get_shape().lens()[axis] - 1) {
+                        if (exclusive) 
+                            output(idx.begin(), idx.end()) = 0;
+                        else
+                            output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
                     }
-                    else
-                        output(idx.begin(), idx.end()) = self.op()(input(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
-                }
+                    else {
+                        auto prefix_idx = idx;
+                        prefix_idx[axis] += 1;
+                        if (exclusive) 
+                            output(idx.begin(), idx.end()) = self.op()(input(prefix_idx.begin(), prefix_idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
+                        else
+                            output(idx.begin(), idx.end()) = self.op()(input(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
+                    }
+                });
             });
-        });
-        /*
-        visit_all(arg, res)([&](auto input, auto output) {
-            std::copy(input.begin(), input.end(), output.begin());
-            bool first_pass = true;
-            if (reverse) {
-                for (std::size_t i = lens[0] - 1; i + 1 >= std::size_t(axes[0]) + 1; --i) {
-                    for (std::size_t j = lens[1] - 1; j + 1 >= std::size_t(axes[1]) + 1; --j) {
-                        for (std::size_t k = lens[2] - 1; k + 1 >= std::size_t(axes[2]) + 1; --k) {
-                            std::size_t idx = ((i - axes[0]) * lens[2] * lens[1]) + ((j - axes[1]) * lens[1]) + (k - axes[2]);
-                            std::size_t prefix_idx = (i * lens[2] * lens[1]) + (j * lens[1]) + k;
-                            if (exclusive) {
-                                output[idx] = input[prefix_idx];
-                                if (first_pass) {
-                                    output[prefix_idx] = 0;
-                                    first_pass = false;
-                                }
-                            }
-                            output[idx] = self.op()(output[idx], output[prefix_idx]);
-                        }
+        }
+        else {
+            visit_all(arg, res)([&](auto input, auto output) { 
+                shape_for_each(output.get_shape(), [&](const auto& idx) {
+                    if (idx[axis] == 0) {
+                        if (exclusive) 
+                            output(idx.begin(), idx.end()) = 0;
+                        else
+                            output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
                     }
-                }
-                return;
-            }
-            for (std::size_t i = axes[(axis + 2) % 3]; i < std::size_t(lens[(axis + 2) % 3]); ++i) {
-                for (std::size_t j = axes[(axis + 1) % 3]; j < std::size_t(lens[(axis + 1) % 3]); ++j) {
-                    for (std::size_t k = axes[axis]; k < std::size_t(lens[axis]); ++k) {
-                        std::size_t idx = (i * lens[axis] * lens[(axis + 1) % 3]) + (j * lens[(axis + 1) % 3]) + k;
-                        std::size_t prefix_idx = ((i - axes[(axis + 2) % 3]) * lens[axis] * lens[(axis + 1) % 3]) + ((j - axes[(axis + 1) % 3]) * lens[(axis + 1) % 3]) + (k - axes[axis]);
-                        if (exclusive) {
-                            output[idx] = input[prefix_idx];
-                            if (first_pass) {
-                                output[prefix_idx] = 0;
-                                first_pass = false;
-                            }
-                        }
-                        output[idx] = self.op()(output[idx], output[prefix_idx]);
+                    else {
+                        auto prefix_idx = idx;
+                        prefix_idx[axis] -= 1;
+                        if (exclusive) 
+                            output(idx.begin(), idx.end()) = self.op()(input(prefix_idx.begin(), prefix_idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
+                        else
+                            output(idx.begin(), idx.end()) = self.op()(input(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
                     }
-                }
-            }
-
-            for (std::size_t i = axes[0]; i < std::size_t(lens[0]); ++i) {
-                for (std::size_t j = axes[1]; j < std::size_t(lens[1]); ++j) {
-                    for (std::size_t k = axes[2]; k < std::size_t(lens[2]); ++k) {
-                        std::size_t idx = (i * lens[2] * lens[1]) + (j * lens[1]) + k;
-                        std::size_t prefix_idx = ((i - axes[0]) * lens[2] * lens[1]) + ((j - axes[1]) * lens[1]) + (k - axes[2]);
-                        if (exclusive) {
-                            output[idx] = input[prefix_idx];
-                            if (first_pass) {
-                                output[prefix_idx] = 0;
-                                first_pass = false;
-                            }
-                        }
-                        output[idx] = self.op()(output[idx], output[prefix_idx]);
-                    }
-                }
-            }
-            
-        });
-        */
-
+                });
+            });
+        }
     }
     
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        auto n_dims = output_shape.lens().size();
+        if (axis >= n_dims or axis < -int64_t(n_dims)) 
+        {
+            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
+        }
+        if (axis < 0 and axis >= -int64_t(n_dims)) 
+        {
+            axis += n_dims;
+        }
         argument result{output_shape};
         this->prefix_scan(args[0], result);
 

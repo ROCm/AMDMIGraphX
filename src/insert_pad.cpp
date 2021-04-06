@@ -27,8 +27,8 @@ void insert_pad::apply(module& p) const
 }
 
 void insert_pad::update_op(const instruction_ref& input,
-                              const instruction_ref& ins,
-                              module& p) const
+                           const instruction_ref& ins,
+                           module& p) const
 {
     // auto pad_op = any_cast<op::pad>(input->get_operator());
     // if(!pad_op.symmetric())
@@ -36,8 +36,11 @@ void insert_pad::update_op(const instruction_ref& input,
 
     auto op = any_cast<op::convolution>(ins->get_operator());
 
-    auto kdims    = input->get_shape().lens().size() - 2;
-    if(std::equal(op.padding.begin(), op.padding.begin() + kdims, op.padding.begin() + kdims, op.padding.end()))
+    auto kdims = input->get_shape().lens().size() - 2;
+    if(std::equal(op.padding.begin(),
+                  op.padding.begin() + kdims,
+                  op.padding.begin() + kdims,
+                  op.padding.end()))
         return;
 
     std::vector<int64_t> padding(input->get_shape().lens().size() * 2, 0);
@@ -47,7 +50,6 @@ void insert_pad::update_op(const instruction_ref& input,
     std::copy(pads_l.begin(), pads_l.end(), padding.begin() + 2);
     std::copy(pads_r.begin(), pads_r.end(), padding.begin() + kdims + 2 + 2);
 
-    
     auto pad_op = p.insert_instruction(ins, op::pad{padding}, input);
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
@@ -57,16 +59,19 @@ void insert_pad::update_op(const instruction_ref& input,
 }
 
 void insert_pad::update_pooling(const instruction_ref& input,
-                                   const instruction_ref& ins,
-                                   module& p) const
+                                const instruction_ref& ins,
+                                module& p) const
 {
     auto op = any_cast<op::pooling>(ins->get_operator());
     if(op.mode == "average")
     {
         return;
     }
-    auto kdims    = input->get_shape().lens().size() - 2;
-    if(std::equal(op.padding.begin(), op.padding.begin() + kdims, op.padding.begin() + kdims, op.padding.end()))
+    auto kdims = input->get_shape().lens().size() - 2;
+    if(std::equal(op.padding.begin(),
+                  op.padding.begin() + kdims,
+                  op.padding.begin() + kdims,
+                  op.padding.end()))
         return;
 
     std::vector<int64_t> padding(input->get_shape().lens().size() * 2, 0);

@@ -8,6 +8,7 @@
 #include <migraphx/streamutils.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/int_divide.hpp>
 #include <migraphx/config.hpp>
@@ -49,7 +50,7 @@ struct pooling
 
     value attributes() const { return {{"normalize_padding", "padding"}}; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
 

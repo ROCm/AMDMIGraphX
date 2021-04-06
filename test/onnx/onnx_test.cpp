@@ -2702,7 +2702,6 @@ TEST_CASE(resize_nonstd_input_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 2}};
     auto inx = mm->add_parameter("X", sx);
 
-
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {0, 4};
     auto li              = mm->add_literal(migraphx::literal(si, ind));

@@ -3081,9 +3081,9 @@ def resize_nonstd_input_test():
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
 
     trn = onnx.helper.make_node('Transpose',
-                                 inputs=['X'],
-                                 outputs=['TX'],
-                                 perm=[0, 1, 3, 2])
+                                inputs=['X'],
+                                outputs=['TX'],
+                                perm=[0, 1, 3, 2])
 
     node = onnx.helper.make_node('Resize',
                                  inputs=['TX', '', 'scales'],

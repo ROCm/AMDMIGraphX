@@ -5,6 +5,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pass_config.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/config.hpp>
 
 #include <set>
@@ -68,7 +69,7 @@ using interval_ptr = live_interval*;
 struct memory_coloring_impl
 {
     memory_coloring_impl(module* p, std::string alloc_op, bool p_verify)
-        : p_program(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify)
+        : p_mod(p), allocation_op(std::move(alloc_op)), enable_verify(p_verify)
     {
         instr2_live.clear();
         live_ranges.clear();
@@ -80,6 +81,7 @@ struct memory_coloring_impl
         latest_end_point   = -1;
         unify_literals     = false;
     }
+
     bool allocate(interval_ptr);
     void add_conflicts(const std::set<int>& live_set, int val)
     {
@@ -97,7 +99,11 @@ struct memory_coloring_impl
     static bool is_param(const instruction_ref ins) { return ins->name() == "@param"; }
     static bool is_output_param(const instruction_ref ins)
     {
-        return is_param(ins) && any_cast<builtin::param>(ins->get_operator()).parameter == "output";
+        if(not is_param(ins))
+            return false;
+
+        auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+        return contains(param_name, "#output_");
     }
     bool is_allocate(const instruction_ref ins) const { return ins->name() == allocation_op; }
     static bool is_outline(const instruction_ref ins) { return ins->name() == "@outline"; }
@@ -118,7 +124,7 @@ struct memory_coloring_impl
     void verify();
 #ifdef MIGRAPHX_DEBUG_OPT
     void dump(const std::string&);
-    void dump_program();
+    void dump_module();
     void dump_intervals();
 #endif
     struct ordering
@@ -145,7 +151,8 @@ struct memory_coloring_impl
             return (i1->offset > i2->offset);
         }
     };
-    module* p_program;
+
+    module* p_mod;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.
     std::vector<live_interval> live_intervals;
@@ -167,6 +174,8 @@ struct memory_coloring_impl
     bool unify_literals;
     std::string allocation_op{};
     bool enable_verify;
+
+    ins_dep_map mod_implicit_deps;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

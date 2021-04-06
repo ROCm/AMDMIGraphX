@@ -66,12 +66,19 @@ struct hip_sync_device
     }
 
     std::string name() const { return "hip::sync_device"; }
-    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
 
-    argument compute(context&, const shape&, const std::vector<argument>&) const
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync();
-        return {};
+        if(args.empty())
+            return {};
+        return args.front();
     }
 };
 
@@ -119,7 +126,6 @@ struct hip_copy_from_gpu
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
-
         return args[1];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const

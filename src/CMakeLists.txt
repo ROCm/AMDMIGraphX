@@ -29,6 +29,7 @@ add_library(migraphx
     make_op.cpp
     msgpack.cpp
     operation.cpp
+    permutation.cpp
     program.cpp
     module.cpp
     quantization.cpp

@@ -146,9 +146,9 @@ struct memory_coloring_impl
     // Map live range value number to live range.
     std::unordered_map<int, live_range*> live_ranges = {};
     // Map live range value number to a set of conflicting live ranges' value numbers.
-    std::unordered_map<int, std::set<int>> conflict_table{};
+    std::unordered_map<int, std::set<int>> conflict_table = {};
     // Priority queue for coloring.
-    std::priority_queue<interval_ptr, std::vector<interval_ptr>, ordering> alloc_queue = {};
+    std::priority_queue<interval_ptr, std::vector<interval_ptr>, ordering> alloc_queue{};
 
     int num_of_lives           = 0;
     int max_value_number       = -1;

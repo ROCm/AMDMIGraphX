@@ -56,7 +56,7 @@ struct live_interval
     std::list<std::size_t> use_points{};
     std::size_t def_point = invalid_offset;
     shape result{};
-    bool is_literal = false;
+    bool is_literal       = false;
     bool is_live_on_entry = false;
 };
 
@@ -142,7 +142,7 @@ struct memory_coloring_impl
     module* p_mod;
     std::unordered_map<const instruction*, interval_ptr> instr2_live;
     // universe of live intervals.
-    std::vector<live_interval> live_intervals= {};
+    std::vector<live_interval> live_intervals = {};
     // Map live range value number to live range.
     std::unordered_map<int, live_range*> live_ranges = {};
     // Map live range value number to a set of conflicting live ranges' value numbers.
@@ -150,8 +150,8 @@ struct memory_coloring_impl
     // Priority queue for coloring.
     std::priority_queue<interval_ptr, std::vector<interval_ptr>, ordering> alloc_queue = {};
 
-    int num_of_lives = 0;
-    int max_value_number = -1;
+    int num_of_lives           = 0;
+    int max_value_number       = -1;
     std::size_t required_bytes = 0;
     // The earliest program point where an live interval ends.
     int earliest_end_point = -1;

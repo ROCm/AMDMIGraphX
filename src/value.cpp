@@ -25,13 +25,13 @@ struct value_base_impl : cloneable<value_base_impl>
     virtual ~value_base_impl() override {}
 };
 
-#define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)               \
-    struct vt##_value_holder : value_base_impl::share                 \
-    {                                                                 \
-        vt##_value_holder(cpp_type d) : data(std::move(d)) {}         \
+#define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)                        \
+    struct vt##_value_holder : value_base_impl::share                          \
+    {                                                                          \
+        vt##_value_holder(cpp_type d) : data(std::move(d)) {}                  \
         virtual value::type_t get_type() override { return value::vt##_type; } \
         virtual const cpp_type* if_##vt() const override { return &data; }     \
-        cpp_type data;                                                \
+        cpp_type data;                                                         \
     };
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_BASE_TYPE)
 

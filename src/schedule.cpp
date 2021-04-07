@@ -288,20 +288,12 @@ struct stream_info
     {
         return [=](auto f) {
             return fix<bool>([&](auto self, auto ins) {
-                for(auto i : select(ins))
-                {
+                return all_of(select(ins), [&](auto i) {
                     if(iweights.at(i) == 0)
-                    {
-                        if(not self(i))
-                            return false;
-                    }
+                        return self(i);
                     else
-                    {
-                        if(not f(this->get_stream(i)))
-                            return false;
-                    }
-                }
-                return true;
+                        return f(this->get_stream(i));
+                });
             })(start);
         };
     }

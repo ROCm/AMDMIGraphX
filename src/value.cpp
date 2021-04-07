@@ -22,15 +22,15 @@ struct value_base_impl : cloneable<value_base_impl>
     value_base_impl()                       = default;
     value_base_impl(const value_base_impl&) = default;
     value_base_impl& operator=(const value_base_impl&) = default;
-    virtual ~value_base_impl() {}
+    virtual ~value_base_impl() override {}
 };
 
 #define MIGRAPHX_VALUE_GENERATE_BASE_TYPE(vt, cpp_type)               \
     struct vt##_value_holder : value_base_impl::share                 \
     {                                                                 \
         vt##_value_holder(cpp_type d) : data(std::move(d)) {}         \
-        virtual value::type_t get_type() { return value::vt##_type; } \
-        virtual const cpp_type* if_##vt() const { return &data; }     \
+        virtual value::type_t get_type() override { return value::vt##_type; } \
+        virtual const cpp_type* if_##vt() const override { return &data; }     \
         cpp_type data;                                                \
     };
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_BASE_TYPE)
@@ -39,8 +39,8 @@ struct array_value_holder : value_base_impl::derive<array_value_holder>
 {
     array_value_holder() {}
     array_value_holder(std::vector<value> d) : data(std::move(d)) {}
-    virtual value::type_t get_type() { return value::array_type; }
-    virtual std::vector<value>* if_array() { return &data; }
+    virtual value::type_t get_type() override { return value::array_type; }
+    virtual std::vector<value>* if_array() override { return &data; }
     std::vector<value> data;
 };
 
@@ -51,9 +51,9 @@ struct object_value_holder : value_base_impl::derive<object_value_holder>
         : data(std::move(d)), lookup(std::move(l))
     {
     }
-    virtual value::type_t get_type() { return value::object_type; }
-    virtual std::vector<value>* if_array() { return &data; }
-    virtual std::unordered_map<std::string, std::size_t>* if_object() { return &lookup; }
+    virtual value::type_t get_type() override { return value::object_type; }
+    virtual std::vector<value>* if_array() override { return &data; }
+    virtual std::unordered_map<std::string, std::size_t>* if_object() override { return &lookup; }
     std::vector<value> data;
     std::unordered_map<std::string, std::size_t> lookup;
 };

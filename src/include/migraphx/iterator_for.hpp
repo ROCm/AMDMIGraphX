@@ -59,18 +59,24 @@ struct iterator_for_range
 
     struct iterator
     {
+        using difference_type   = std::ptrdiff_t;
+        using reference         = decltype(std::declval<base_iterator>());
+        using value_type        = std::remove_reference_t<reference>;
+        using pointer           = std::add_pointer_t<value_type>;
+        using iterator_category = std::input_iterator_tag;
         base_iterator i;
         auto operator*() const { return Selector::deref(i); }
         base_iterator operator++() { return ++i; }
+        bool operator==(const iterator& rhs) const { return i == rhs.i; }
         bool operator!=(const iterator& rhs) const { return i != rhs.i; }
     };
 
-    iterator begin()
+    iterator begin() const
     {
         assert(base != nullptr);
         return {Selector::begin(base)};
     }
-    iterator end()
+    iterator end() const
     {
         assert(base != nullptr);
         return {Selector::end(base)};

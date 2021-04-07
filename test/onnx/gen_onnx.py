@@ -3070,6 +3070,32 @@ def resize_downsample_c_test():
 
 
 @onnx_test
+def resize_nonstd_input_test():
+    scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 4, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
+
+    trn = onnx.helper.make_node('Transpose',
+                                inputs=['X'],
+                                outputs=['TX'],
+                                perm=[0, 1, 3, 2])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['TX', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='ceil')
+
+    return ([trn, node], [X], [Y], [scale_tensor])
+
+
+@onnx_test
 def resize_outsize_test():
     out_lens = np.array([1, 1, 4, 6], dtype=np.int64)
     out_lens_tensor = helper.make_tensor(name='out_lens',

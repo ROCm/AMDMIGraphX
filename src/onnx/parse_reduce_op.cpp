@@ -17,7 +17,14 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     // default to reduce over all dimensions
     std::vector<int64_t> axes(n_dim);
     std::iota(axes.begin(), axes.end(), 0);
-    if(contains(info.attributes, "axes"))
+    if (args.size() == 2)
+    {
+        auto arg_axes = args.at(1)->eval();
+        check_arg_empty(arg_axes, "PARSE_" + op_name + ": cannot handle variable axes!");
+        axes.clear();
+        step_arg.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+    }
+    else if(contains(info.attributes, "axes"))
     {
         axes.clear();
         auto&& attr_axes = info.attributes["axes"].ints();

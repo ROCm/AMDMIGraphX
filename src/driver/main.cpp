@@ -426,7 +426,7 @@ struct verify : command<verify>
 
 struct version : command<version>
 {
-    void parse(argument_parser) {}
+    void parse(const argument_parser&) {}
     void run() const
     {
         std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR << std::endl;

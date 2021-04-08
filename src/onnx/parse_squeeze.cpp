@@ -1,12 +1,14 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/onnx/checks.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_generic_op : op_parser<parse_generic_op>
+struct parse_squeeze : op_parser<parse_squeeze>
 {
     std::vector<op_desc> operators() const
     {
@@ -18,7 +20,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
         return contains({"squeeze", "unsqueeze"}, op_name);
     }
 
-    void assign_axes(operation& op, const std::vector<int64_t>& axes)
+    void assign_axes(operation& op, const std::vector<int64_t>& axes) const
     {
         auto v = op.to_value();
         for(auto&& x : v)
@@ -42,7 +44,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
         {
             auto arg_axes = args.at(1)->eval();
             check_arg_empty(arg_axes, "PARSE_" + opd.op_name + ": cannot handle variable axes!");
-            step_arg.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+            arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
             assign_axes(op, axes);
         }
         if(needs_contiguous(opd.op_name))

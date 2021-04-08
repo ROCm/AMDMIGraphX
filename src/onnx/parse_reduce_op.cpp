@@ -2,6 +2,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/onnx/checks.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -22,7 +23,7 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         auto arg_axes = args.at(1)->eval();
         check_arg_empty(arg_axes, "PARSE_" + op_name + ": cannot handle variable axes!");
         axes.clear();
-        step_arg.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+        arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
     }
     else if(contains(info.attributes, "axes"))
     {

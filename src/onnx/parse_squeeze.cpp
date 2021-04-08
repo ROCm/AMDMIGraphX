@@ -10,8 +10,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 {
     std::vector<op_desc> operators() const
     {
-        return {{"Squeeze", "squeeze"},
-                {"Unsqueeze", "unsqueeze"}};
+        return {{"Squeeze", "squeeze"}, {"Unsqueeze", "unsqueeze"}};
     }
 
     bool needs_contiguous(const std::string& op_name) const
@@ -24,7 +23,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
         auto v = op.to_value();
         for(auto&& x : v)
         {
-            if (x.get_key() == "axes")
+            if(x.get_key() == "axes")
             {
                 x = axes;
                 break;
@@ -39,7 +38,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
     {
         auto op = parser.load(opd.op_name, info);
         std::vector<int64_t> axes;
-        if (args.size() == 2)
+        if(args.size() == 2)
         {
             auto arg_axes = args.at(1)->eval();
             check_arg_empty(arg_axes, "PARSE_" + opd.op_name + ": cannot handle variable axes!");

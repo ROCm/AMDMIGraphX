@@ -12,32 +12,31 @@ instruction_ref parse_prefix_scan_oper(const std::string& op_name,
                                   onnx_parser::node_info info,
                                   std::vector<instruction_ref> args)
 {
-    std::size_t n_dim = args.front()->get_shape().lens().size();
+    int64_t axis = 0; 
+    migraphx::argument in = args[1]->eval();
+    if (in.empty())
+    {
+        std::cout << "No axis given. Using axis=0" << std::endl;
+    }
+    else 
+    {
+        std::vector<std::size_t> axis_in;
+        in.visit([&](auto input) { axis_in.assign(input.begin(), input.end()); });
+        axis = axis_in[0];
+    }
+    bool exclusive = false, reverse = false;
 
-    std::vector<int64_t> axes(n_dim);
-    std::iota(axes.begin(), axes.end(), 0);
-    if(contains(info.attributes, "axes"))
+    if(contains(info.attributes, "exclusive"))
     {
-        axes.clear();
-        auto&& attr_axes = info.attributes["axes"].ints();
-        axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
+        exclusive = parser.parse_value(info.attributes.at("exclusive")).at<bool>();
     }
 
-    int keep_dims = 1;
-    if(contains(info.attributes, "keepdims"))
+    if(contains(info.attributes, "reverse"))
     {
-        keep_dims = parser.parse_value(info.attributes.at("keepdims")).at<int>();
+        reverse = parser.parse_value(info.attributes.at("reverse")).at<bool>();
     }
 
-    if(keep_dims == 1)
-    {
-        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
-    }
-    else
-    {
-        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
-        return info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
-    }
+    return info.add_instruction(make_op(op_name, {{"axis", axis}, {"exclusive", exclusive}, {"reverse", reverse}}), args[0]);
 }
 
 struct parse_prefix_scan_op : op_parser<parse_prefix_scan_op>
@@ -53,19 +52,6 @@ struct parse_prefix_scan_op : op_parser<parse_prefix_scan_op>
                           std::vector<instruction_ref> args) const
     {
         return parse_prefix_scan_oper(opd.op_name, parser, std::move(info), std::move(args));
-    }
-};
-
-struct parse_prefix_scan_l1 : op_parser<parse_prefix_scan_l1>
-{
-    std::vector<op_desc> operators() const { return {{"ReduceL1"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
-    {
-        return parse_prefix_scan_oper("prefix_scan_sum", parser, std::move(info), {args[0]});
     }
 };
 

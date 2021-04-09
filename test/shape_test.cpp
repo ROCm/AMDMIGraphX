@@ -390,9 +390,10 @@ TEST_CASE(test_serialize)
 
 TEST_CASE(tuple)
 {
-    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type},
+                       migraphx::shape{migraphx::shape::int8_type}}};
     EXPECT(s.type() == migraphx::shape::tuple_type);
-    EXPECT(s.bytes() == 4+1);
+    EXPECT(s.bytes() == 4 + 1);
     EXPECT(s.type_size() == 0);
     EXPECT(s.type_string() == "tuple_type");
     EXPECT(s.lens().empty());
@@ -412,13 +413,16 @@ TEST_CASE(tuple)
 
 TEST_CASE(tuple_copy)
 {
-    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
-    migraphx::shape s2{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
     EXPECT(s1 == s2);
     auto s3 = s1;
     EXPECT(s3 == s1);
     EXPECT(s3 == s2);
-    migraphx::shape s4{{migraphx::shape{migraphx::shape::int8_type}, migraphx::shape{migraphx::shape::float_type}}};
+    migraphx::shape s4{{migraphx::shape{migraphx::shape::int8_type},
+                        migraphx::shape{migraphx::shape::float_type}}};
     EXPECT(s4 != s1);
     EXPECT(s4 != s2);
     EXPECT(s4 != s3);
@@ -426,7 +430,8 @@ TEST_CASE(tuple_copy)
 
 TEST_CASE(tuple_print)
 {
-    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type},
+                       migraphx::shape{migraphx::shape::int8_type}}};
     std::string x = migraphx::to_string(s);
     EXPECT(x.front() == '[');
     EXPECT(x.back() == ']');
@@ -436,8 +441,10 @@ TEST_CASE(tuple_print)
 
 TEST_CASE(tuple_serialize)
 {
-    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
-    migraphx::shape s2{{migraphx::shape{migraphx::shape::int8_type}, migraphx::shape{migraphx::shape::float_type}}};
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type},
+                        migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::int8_type},
+                        migraphx::shape{migraphx::shape::float_type}}};
     auto v1 = migraphx::to_value(s1);
     auto v2 = migraphx::to_value(s2);
     EXPECT(v1 != v2);

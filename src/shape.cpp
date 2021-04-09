@@ -21,7 +21,8 @@ struct shape_impl
 
     shape_impl() : m_type(shape::float_type) {}
 
-    shape_impl(shape::type_t t) : m_type(t), m_lens({1}), m_strides({0}), m_standard(true) {
+    shape_impl(shape::type_t t) : m_type(t), m_lens({1}), m_strides({0}), m_standard(true)
+    {
         assert(t != shape::tuple_type);
     }
     shape_impl(shape::type_t t, std::vector<std::size_t> l)
@@ -42,13 +43,12 @@ struct shape_impl
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
     }
 
-    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs)
-    {}
+    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
     shape::type_t m_type;
-    std::vector<std::size_t> m_lens = {};
+    std::vector<std::size_t> m_lens    = {};
     std::vector<std::size_t> m_strides = {};
-    std::vector<shape> m_shapes = {};
-    bool m_standard = false;
+    std::vector<shape> m_shapes        = {};
+    bool m_standard                    = false;
 
     void calculate_strides()
     {
@@ -91,8 +91,7 @@ const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR)
-        tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
     return result;
 }
 
@@ -100,7 +99,7 @@ std::string shape::name(shape::type_t t)
 {
     switch(t)
     {
-        case tuple_type: return "tuple_type";
+    case tuple_type: return "tuple_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -112,7 +111,7 @@ std::string shape::cpp_type(shape::type_t t)
 {
     switch(t)
     {
-        case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -133,9 +132,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 {
 }
 
-shape::shape(const std::vector<shape>& subs)
-    : impl(std::make_shared<shape_impl>(subs))
-{}
+shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
 shape::type_t shape::type() const { return impl->m_type; }
 const std::vector<std::size_t>& shape::lens() const { return impl->m_lens; }
@@ -143,7 +140,7 @@ const std::vector<std::size_t>& shape::strides() const { return impl->m_strides;
 std::size_t shape::elements() const { return impl->elements(); }
 std::size_t shape::bytes() const
 {
-    if (this->sub_shapes().empty())
+    if(this->sub_shapes().empty())
     {
         std::size_t n = 0;
         this->visit_type([&](auto as) { n = as.size(); });
@@ -151,15 +148,16 @@ std::size_t shape::bytes() const
     }
     else
     {
-        return std::accumulate(this->sub_shapes().begin(), this->sub_shapes().end(), std::size_t{0}, [&](auto x, auto y) {
-            return x + y.bytes();
-        });
+        return std::accumulate(this->sub_shapes().begin(),
+                               this->sub_shapes().end(),
+                               std::size_t{0},
+                               [&](auto x, auto y) { return x + y.bytes(); });
     }
 }
 std::size_t shape::type_size() const
 {
     std::size_t n = 0;
-    if (this->sub_shapes().empty())
+    if(this->sub_shapes().empty())
         this->visit_type([&](auto as) { n = as.size(); });
     return n;
 }
@@ -222,7 +220,10 @@ void shape::multi_copy(std::size_t i, std::size_t* start, const std::size_t* end
                    });
 }
 
-bool shape::packed() const { return this->sub_shapes().empty() and this->elements() == this->element_space(); }
+bool shape::packed() const
+{
+    return this->sub_shapes().empty() and this->elements() == this->element_space();
+}
 
 bool shape::transposed() const
 {
@@ -256,7 +257,8 @@ bool shape::scalar() const
 {
     assert(this->lens().size() == this->strides().size());
     // if any stride > 0, then accumulate will return false
-    return this->sub_shapes().empty() and std::accumulate(this->strides().begin(), this->strides().end(), std::size_t(0)) == 0;
+    return this->sub_shapes().empty() and
+           std::accumulate(this->strides().begin(), this->strides().end(), std::size_t(0)) == 0;
 }
 
 bool shape::standard() const { return impl->m_standard; }
@@ -275,13 +277,14 @@ std::string shape::type_string() const { return name(this->type()); }
 
 bool operator==(const shape& x, const shape& y)
 {
-    return x.impl == y.impl or (x.type() == y.type() and x.lens() == y.lens() and x.strides() == y.strides() and x.sub_shapes() == y.sub_shapes());
+    return x.impl == y.impl or (x.type() == y.type() and x.lens() == y.lens() and
+                                x.strides() == y.strides() and x.sub_shapes() == y.sub_shapes());
 }
 bool operator!=(const shape& x, const shape& y) { return !(x == y); }
 
 std::ostream& operator<<(std::ostream& os, const shape& x)
 {
-    if (x.sub_shapes().empty())
+    if(x.sub_shapes().empty())
     {
         os << x.type_string() << ", ";
         os << "{" << to_string_range(x.lens()) << "}, ";
@@ -298,29 +301,27 @@ shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP)
-        {"tuple_type", tuple_type}, {"tuple", tuple_type}};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
+                                                                            tuple_type},
+        {"tuple", tuple_type}};
     return m.at(s);
 }
 
-const std::vector<shape>& shape::sub_shapes() const
-{
-    return impl->m_shapes;
-}
+const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 
 void migraphx_to_value(value& v, const shape& s)
 {
     value result;
-    result["type"]    = migraphx::to_value(s.type_string());
-    result["lens"]    = migraphx::to_value(s.lens());
-    result["strides"] = migraphx::to_value(s.strides());
+    result["type"]       = migraphx::to_value(s.type_string());
+    result["lens"]       = migraphx::to_value(s.lens());
+    result["strides"]    = migraphx::to_value(s.strides());
     result["sub_shapes"] = migraphx::to_value(s.sub_shapes());
-    v                 = result;
+    v                    = result;
 }
 void migraphx_from_value(const value& v, shape& s)
 {
     auto t = v.at("type").get_string();
-    if (t == "tuple_type")
+    if(t == "tuple_type")
     {
         s = shape{migraphx::from_value<std::vector<migraphx::shape>>(v.at("sub_shapes"))};
     }

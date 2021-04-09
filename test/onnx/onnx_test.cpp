@@ -1749,7 +1749,8 @@ TEST_CASE(lessorequal_test)
     auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
     auto temp   = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
-    auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
+    auto bt   = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), temp);
+    auto le     = mm->add_instruction(migraphx::make_op("not"), bt);
 
     mm->add_return({le});
 
@@ -1833,7 +1834,7 @@ TEST_CASE(logsoftmax_nonstd_input_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {6, 9}});
     auto l1  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {4, 4}}}), l0);
-    auto l2 = mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", 1}}), l1);
+    auto l2 = mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("logsoftmax_nonstd_input_test.onnx");
@@ -2948,7 +2949,7 @@ TEST_CASE(softmax_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l0);
+    mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l0);
     auto prog = optimize_onnx("softmax_test.onnx");
 
     EXPECT(p == prog);
@@ -2961,7 +2962,7 @@ TEST_CASE(softmax_nonstd_input_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {6, 8}});
     auto l1  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {4, 4}}}), l0);
-    auto l2 = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l1);
+    auto l2 = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("softmax_nonstd_input_test.onnx");

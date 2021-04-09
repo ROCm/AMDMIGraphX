@@ -53,7 +53,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
                 return info.make_contiguous(arg);
             });
         }
-        return info.add_instruction(op, args);
+        return info.add_instruction(op, args.front());
     }
 };
 

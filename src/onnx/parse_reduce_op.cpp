@@ -40,11 +40,11 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     if(keep_dims == 1)
     {
-        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
+        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
     }
     else
     {
-        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
+        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
         return info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
     }
 }

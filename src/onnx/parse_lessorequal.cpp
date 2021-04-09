@@ -16,8 +16,12 @@ struct parse_lessorequal : op_parser<parse_lessorequal>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto int_res = info.add_instruction(make_op("greater"), args[0], args[1]);
-        return info.add_instruction(make_op("not"), int_res);
+        auto in_res = info.add_broadcastable_binary_op("greater", args[0], args[1]);
+        if (in_res->get_shape().type() != shape::bool_type)
+        {
+            in_res = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), in_res);
+        }
+        return info.add_instruction(make_op("not"), in_res);
     }
 };
 

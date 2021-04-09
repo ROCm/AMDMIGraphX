@@ -23,8 +23,18 @@ instruction_ref parse_prefix_scan_oper(const std::string& op_name,
         std::vector<std::size_t> axis_in;
         in.visit([&](auto input) { axis_in.assign(input.begin(), input.end()); });
         axis = axis_in[0];
+        auto n_dims = args[0]->get_shape().lens().size();
+        if (axis >= n_dims or axis < -int64_t(n_dims)) 
+        {
+            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
+        }
+        if (axis < 0 and axis >= -int64_t(n_dims)) 
+        {
+            axis += n_dims;
+        }
     }
-    bool exclusive = false, reverse = false;
+    bool exclusive = false;
+    bool reverse = false;
 
     if(contains(info.attributes, "exclusive"))
     {

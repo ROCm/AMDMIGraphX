@@ -17,8 +17,9 @@ namespace op {
 template <class Derived>
 struct prefix_scan_op : op_name<Derived>
 {
-    mutable int64_t axis;
-    bool exclusive = false, reverse = false;
+    int64_t axis;
+    bool exclusive = false;
+    bool reverse = false;
     
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -90,15 +91,6 @@ struct prefix_scan_op : op_name<Derived>
     
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto n_dims = output_shape.lens().size();
-        if (axis >= n_dims or axis < -int64_t(n_dims)) 
-        {
-            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
-        }
-        if (axis < 0 and axis >= -int64_t(n_dims)) 
-        {
-            axis += n_dims;
-        }
         argument result{output_shape};
         this->prefix_scan(args[0], result);
 
@@ -106,7 +98,7 @@ struct prefix_scan_op : op_name<Derived>
     }
 
     auto init() const {}
-    prefix_scan_op() {}
+    prefix_scan_op() : axis(0) {}
     prefix_scan_op(int64_t ax) : axis(ax) {}
     prefix_scan_op(int64_t ax, bool excl) : axis(ax), exclusive(excl) {}
     prefix_scan_op(int64_t ax, bool excl, bool rev) : axis(ax), exclusive(excl), reverse(rev) {}

@@ -49,6 +49,7 @@ void rewrite_rnn::apply(module& prog) const
     }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void rewrite_rnn::apply_vanilla_rnn(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "rnn");
@@ -356,6 +357,7 @@ std::vector<operation> rewrite_rnn::vanilla_rnn_actv_funcs(instruction_ref ins) 
     }
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "gru");
@@ -533,6 +535,7 @@ void rewrite_rnn::apply_gru(module& prog, instruction_ref ins) const
     replace_last_hs_output(prog, ins, seq_lens, last_output, dirct);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
                                                    module& prog,
                                                    instruction_ref ins,
@@ -744,6 +747,7 @@ std::vector<operation> rewrite_rnn::gru_actv_funcs(instruction_ref ins) const
 }
 
 // for lstm operators
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
 {
     assert(ins->name() == "lstm");
@@ -1001,6 +1005,7 @@ void rewrite_rnn::apply_lstm(module& prog, instruction_ref ins) const
     replace_last_cell_output(prog, ins, seq_lens, cell_outputs, last_cell_output, dirct);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
                                                     module& prog,
                                                     instruction_ref ins,

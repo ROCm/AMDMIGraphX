@@ -20,7 +20,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
         return contains({"squeeze", "unsqueeze"}, op_name);
     }
 
-    void assign_axes(operation& op, const std::vector<int64_t>& axes) const
+    void assign_axes(const operation& op, const std::vector<int64_t>& axes) const
     {
         auto v = op.to_value();
         for(auto&& x : v)

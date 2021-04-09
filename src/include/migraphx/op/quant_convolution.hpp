@@ -81,7 +81,7 @@ struct quant_convolution
                     1)));
         }
 
-        return {t, output_lens};
+        return inputs[0].with_lens(t, output_lens);
     }
 
     size_t kdims() const

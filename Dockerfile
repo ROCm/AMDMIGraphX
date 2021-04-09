@@ -60,8 +60,6 @@ RUN pip3 install yapf==0.28.0
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
-RUN pip3 install onnx numpy typing pytest
-
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
@@ -79,6 +77,9 @@ RUN cget -p $PREFIX install ccache@v4.1
 
 # Install newer cmake for onnx runtime
 RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
+
+# Install onnx 1.8.1
+RUN pip3 install onnx numpy typing pytest
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master

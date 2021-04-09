@@ -17,9 +17,10 @@ struct parse_lessorequal : op_parser<parse_lessorequal>
                           std::vector<instruction_ref> args) const
     {
         auto in_res = info.add_broadcastable_binary_op("greater", args[0], args[1]);
-        if (in_res->get_shape().type() != shape::bool_type)
+        if(in_res->get_shape().type() != shape::bool_type)
         {
-            in_res = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), in_res);
+            in_res = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}),
+                                          in_res);
         }
         return info.add_instruction(make_op("not"), in_res);
     }

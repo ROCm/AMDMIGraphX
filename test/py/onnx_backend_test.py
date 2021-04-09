@@ -247,16 +247,22 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_not_4d_cpu')
         backend_test.exclude(r'test_operator_selu_cpu')
         # all reduce ops have dynamic axes inputs
-        backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_example_cpu')
-        backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_random_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_default_axes_keepdims_example_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_default_axes_keepdims_random_cpu')
         backend_test.exclude(r'test_reduce_sum_do_not_keepdims_example_cpu')
         backend_test.exclude(r'test_reduce_sum_do_not_keepdims_random_cpu')
-        backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_example_cpu')
-        backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_random_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_empty_axes_input_noop_example_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_empty_axes_input_noop_random_cpu')
         backend_test.exclude(r'test_reduce_sum_keepdims_example_cpu')
         backend_test.exclude(r'test_reduce_sum_keepdims_random_cpu')
-        backend_test.exclude(r'test_reduce_sum_negative_axes_keepdims_example_cpu')
-        backend_test.exclude(r'test_reduce_sum_negative_axes_keepdims_random_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_negative_axes_keepdims_example_cpu')
+        backend_test.exclude(
+            r'test_reduce_sum_negative_axes_keepdims_random_cpu')
         backend_test.exclude(r'test_unsqueeze_axis_0_cpu')
         backend_test.exclude(r'test_unsqueeze_axis_1_cpu')
         backend_test.exclude(r'test_unsqueeze_axis_2_cpu')

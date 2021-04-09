@@ -258,13 +258,10 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, std::v
 static bool is_valid_op(const tensorflow::NodeDef& node)
 {
     std::vector<std::string> ignored{"NoOp", "Assert"};
-    for(const auto& op : ignored)
-    {
+    return none_of(ignored, [&](const auto& op) {
         const auto& name = get_name(node);
-        if(node.op() == op or contains(name, op))
-            return false;
-    }
-    return true;
+        return node.op() == op or contains(name, op);
+    });
 }
 
 std::vector<std::string> tf_parser::find_outputs() const

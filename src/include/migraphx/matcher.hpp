@@ -4,6 +4,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
@@ -258,6 +259,22 @@ void find_matches(module& p, Ms&&... ms)
     }
 }
 
+template <class M, class F>
+struct find_generic_match
+{
+    M m;
+    F f;
+    M matcher() const { return m; }
+
+    void apply(module& mod, const matcher_result& mr) const { f(mod, mr); }
+};
+
+template <class M, class F>
+find_generic_match<M, F> make_match_finder(M m, F f)
+{
+    return {m, f};
+}
+
 template <class M>
 struct find_skip
 {
@@ -453,6 +470,22 @@ MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref in
 }
 
 template <class... Ms>
+auto skip(Ms... ms)
+{
+    auto m = any_of(ms...);
+    return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
+        return fix<instruction_ref>([&](auto self, auto ins) {
+            if(ins->inputs().size() == 1 and ctx.matched(m, ins))
+            {
+                auto next = ins->inputs().front();
+                return self(next);
+            }
+            return ins;
+        })(start);
+    });
+}
+
+template <class... Ms>
 auto skip_output(Ms... ms)
 {
     auto m = any_of(ms...);
@@ -478,6 +511,12 @@ inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
         [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
+}
+
+inline auto name_contains(const std::string& name)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return contains(ins->get_operator().name(), name); });
 }
 
 inline auto name(std::unordered_set<std::string> names)
@@ -541,15 +580,17 @@ inline auto any_arg(std::size_t i, std::size_t j)
     return [=](auto m) { return match::any_of(arg(i)(m), arg(j)(m)); };
 }
 
-template <std::size_t N>
-std::size_t
-tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, instruction_ref ins)
+template <std::size_t N, class M>
+std::size_t tree_leafs_impl(matcher_context& ctx,
+                            std::array<instruction_ref, N>& leafs,
+                            M m,
+                            instruction_ref ins)
 {
     std::size_t idx = 0;
     fix([&](auto self, auto i) {
         if(idx == leafs.size())
             return;
-        if(i->name() == s and i->inputs().size() >= 2)
+        if(ctx.matched(m, i) and i->inputs().size() >= 2)
         {
             self(i->inputs()[0]);
             self(i->inputs()[1]);
@@ -561,13 +602,13 @@ tree_leafs_impl(std::array<instruction_ref, N>& leafs, const std::string& s, ins
     return idx;
 }
 
-template <class... Ms>
-auto tree(std::string s, Ms... ms)
+template <class M, class... Ms>
+auto tree(M main_op, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
-        std::size_t idx = tree_leafs_impl(leafs, s, ins);
+        std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
         if(idx != leafs.size())
             return ctx.not_found();
         // Use explicit captures to workaround ICE on gcc
@@ -580,13 +621,13 @@ auto tree(std::string s, Ms... ms)
     });
 }
 
-template <class... Ms>
-auto unordered_tree(std::string s, Ms... ms)
+template <class M, class... Ms>
+auto unordered_tree(M main_op, Ms... ms)
 {
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
         // Flatten leaf nodes
         std::array<instruction_ref, sizeof...(Ms)> leafs;
-        std::size_t idx = tree_leafs_impl(leafs, s, ins);
+        std::size_t idx = tree_leafs_impl(ctx, leafs, main_op, ins);
         if(idx != leafs.size())
             return ctx.not_found();
         // Use explicit captures to workaround ICE on gcc
@@ -618,10 +659,16 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
+template <class... Ms>
+auto skip_broadcasts(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous"))(ms...);
+}
+
 template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
-    return make_basic_pred_matcher([=](instruction_ref ins) {
+    return skip_broadcasts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")
             return false;
         auto l = ins->get_literal();
@@ -634,7 +681,7 @@ inline auto has_value(T x, float tolerance = 1e-6)
                 b = true;
         });
         return b;
-    });
+    }));
 }
 
 inline auto has_attribute(const std::string& name)

@@ -36,7 +36,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 1.0)
+rocm_setup_version(VERSION 1.1)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -92,6 +92,7 @@ rocm_enable_clang_tidy(
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
+        -cert-str34-c
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
         # Enable some alpha checks
@@ -136,6 +137,7 @@ rocm_enable_clang_tidy(
         -readability-braces-around-statements
         -readability-convert-member-functions-to-static
         -readability-else-after-return
+        -readability-function-cognitive-complexity
         -readability-named-parameter
         -readability-redundant-string-init
         -readability-uppercase-literal-suffix
@@ -177,8 +179,7 @@ rocm_enable_cppcheck(
         passedByValue
         unusedStructMember
         functionStatic
-        functionConst:*program.*
-        functionConst:*module.*
+        functionConst
         shadowFunction
         shadowVar
         shadowVariable

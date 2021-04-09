@@ -14,6 +14,7 @@ struct tf_options
     unsigned int batch_size = 1;
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
+    std::vector<std::string> output_node_names                               = {};
 };
 
 /// Create a program from a tf pb file (default is nhwc format)

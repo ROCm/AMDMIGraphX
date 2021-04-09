@@ -23,7 +23,7 @@ void run_lowering(migraphx::program& p)
                          {migraphx::auto_contiguous{},
                           migraphx::gpu::lowering{&ctx, false},
                           migraphx::dead_code_elimination{},
-                          migraphx::eliminate_contiguous{},
+                          migraphx::eliminate_contiguous{"gpu::contiguous"},
                           migraphx::dead_code_elimination{}});
 }
 

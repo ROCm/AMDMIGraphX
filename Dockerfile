@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/.apt_3.7/ xenial main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/4.1/ xenial main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -65,21 +65,13 @@ RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
-RUN chmod +x /download_models.sh && /download_models.sh && rm /download_models.sh
+RUN /download_models.sh && rm /download_models.sh
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-# Manually ignore rocm dependencies
-RUN cget -p $PREFIX ignore \
-    RadeonOpenCompute/clang-ocl \
-    ROCm-Developer-Tools/HIP \
-    ROCmSoftwarePlatform/MIOpen \
-    ROCmSoftwarePlatform/MIOpenGEMM \
-    ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++
-RUN cget -p $PREFIX install -f dev-requirements.txt
-RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
+COPY ./tools/install_prereqs.sh /
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
@@ -100,9 +92,9 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
-
 ENV LD_LIBRARY_PATH=$PREFIX/lib
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+

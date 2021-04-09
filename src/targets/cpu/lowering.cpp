@@ -29,6 +29,10 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/match/layernorm.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/match/gelu_tanh.hpp>
+#include <migraphx/matcher.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -50,145 +54,6 @@ typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::ena
 {
     return x;
 }
-
-struct cpu_lrn
-{
-    op::lrn op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::lrn"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0])([&](auto output, auto input) {
-            int n_batch         = output_shape.lens()[0];
-            int channels        = output_shape.lens()[1];
-            int height          = output_shape.lens()[2];
-            int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
-            int radius_lower    = (op.size - 1) / 2;
-            int radius_upper    = op.size / 2 + 1;
-
-            par_dfor(n_batch, height, width)([&](int b, int h, int w) {
-                float scale = 0;
-                dfor(channels)([&](int c) {
-                    auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
-                    auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
-                    for(auto k = start; k < end; ++k)
-                    {
-                        scale += std::pow(input(b, k, h, w), 2);
-                    }
-                    scale *= alphaoverarea;
-                    scale += op.bias;
-                    scale              = std::pow(scale, -op.beta);
-                    output(b, c, h, w) = input(b, c, h, w) * scale;
-                });
-            });
-        });
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(cpu_lrn)
-
-template <class Op>
-struct cpu_deconvolution : auto_register_op<cpu_deconvolution<Op>>
-{
-    cpu_deconvolution() = default;
-
-    cpu_deconvolution(Op pop) : op(std::move(pop)) {}
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            using type = typename decltype(output)::value_type;
-
-            std::fill(output.begin(), output.end(), type{0});
-
-            auto in_lens = input.get_shape().lens();
-            auto in_n    = in_lens[0];
-            auto in_c    = in_lens[1];
-
-            auto wei   = weights.get_shape().lens();
-            auto wei_n = wei[0];
-            auto wei_c = wei[1];
-
-            auto out_lens = output_shape.lens();
-            auto kdims    = op.kdims();
-
-            std::vector<std::size_t> win_size{in_c};
-            std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
-            std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
-            shape win_shape{output_shape.type(), win_size};
-
-            par_dfor(in_n, wei_c)([&](int o, int k) {
-
-                shape_for_each(win_shape, [&](auto idx_win) {
-                    const int w = idx_win[0];
-
-                    auto input_dims_start = idx_win.begin() + 1;
-                    auto wei_dims_start   = idx_win.begin() + kdims + 1;
-
-                    std::vector<std::ptrdiff_t> win_start;
-                    for(std::size_t n = 0; n < kdims; ++n)
-                    {
-                        win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * op.stride[n]) -
-                                            std::ptrdiff_t(op.padding[n]));
-                    }
-
-                    const int group_id = w / (wei_n / op.group);
-                    const int in_ch    = group_id * wei_c + k;
-
-                    std::vector<std::ptrdiff_t> idx_out{o, in_ch};
-
-                    for(size_t n = 0; n < kdims; n++)
-                    {
-                        idx_out.push_back(win_start[n] + *(wei_dims_start + n) * op.dilation[n]);
-                    }
-
-                    std::vector<std::ptrdiff_t> idx_wei{w, k};
-                    std::copy(wei_dims_start, idx_win.end(), std::back_inserter(idx_wei));
-
-                    std::vector<std::ptrdiff_t> idx_in{o, w};
-                    std::copy(input_dims_start, wei_dims_start, std::back_inserter(idx_in));
-
-                    if(std::all_of(
-                           idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx_out.begin() + 2,
-                                  idx_out.end(),
-                                  out_lens.begin() + 2,
-                                  out_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
-                    {
-                        output(idx_out.begin(), idx_out.end()) +=
-                            input(idx_in.begin(), idx_in.end()) *
-                            weights(idx_wei.begin(), idx_wei.end());
-                    }
-                });
-
-            });
-
-        });
-        return result;
-    }
-};
-template struct cpu_deconvolution<op::deconvolution>;
 
 struct cpu_im2col
 {
@@ -334,17 +199,6 @@ struct leaky_relu_op
     }
 };
 
-struct elu_op
-{
-    op::elu op;
-    std::string name() const { return "cpu::elu"; }
-    auto fcn() const
-    {
-        auto a = op.alpha;
-        return [a](auto x) { return x > 0 ? x : a * std::expm1(x); };
-    }
-};
-
 template <typename Op>
 struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
 {
@@ -382,78 +236,6 @@ struct cpu_unary2 : auto_register_op<cpu_unary2<Op>>
     }
 };
 template struct cpu_unary2<leaky_relu_op>;
-template struct cpu_unary2<elu_op>;
-
-template <class Op>
-struct cpu_softmax : auto_register_op<cpu_softmax<Op>>
-{
-    cpu_softmax() = default;
-
-    cpu_softmax(Op pop) : op(std::move(pop)) {}
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "cpu::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(1).standard();
-        return op.normalize_compute_shape(inputs);
-    }
-    argument compute(context&, const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        auto batch_lens        = output_shape.lens();
-        int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
-        std::size_t n_dims     = batch_lens[tuned_axis];
-        batch_lens[tuned_axis] = 1;
-        shape batch_shape{shape::int32_type, batch_lens};
-
-        visit_all(result, args[0])([&](auto output, auto input) {
-            using value_type = typename decltype(input)::value_type;
-            std::vector<value_type> batch_max(batch_shape.elements(),
-                                              std::numeric_limits<value_type>::lowest());
-            std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
-            par_for(batch_shape.elements(), [&](auto i) {
-                auto idx = batch_shape.multi(i);
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis]   = j;
-                    std::size_t index = output_shape.index(idx);
-                    output[index]     = std::exp(input[index] - batch_max[i]);
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    batch_sum[i] += output(idx.begin(), idx.end());
-                }
-
-                for(std::size_t j = 0; j < n_dims; ++j)
-                {
-                    idx[tuned_axis] = j;
-                    output(idx.begin(), idx.end()) =
-                        op.output()(output(idx.begin(), idx.end()), batch_sum[i]);
-                }
-            });
-        });
-
-        return result;
-    }
-};
-template struct cpu_softmax<op::softmax>;
-template struct cpu_softmax<op::logsoftmax>;
 
 struct cpu_rnn_var_sl_last_output
 {
@@ -502,29 +284,6 @@ struct cpu_rnn_var_sl_last_output
 };
 MIGRAPHX_REGISTER_OP(cpu_rnn_var_sl_last_output)
 
-struct cpu_literal
-{
-    argument data;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.data, "data"));
-    }
-
-    std::string name() const { return "cpu::literal"; }
-
-    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-
-    argument compute(const shape&, const std::vector<argument>&) const { return data; }
-
-    friend std::ostream& operator<<(std::ostream& os, const cpu_literal& x)
-    {
-        os << x.name();
-        return os;
-    }
-};
-
 struct cpu_apply
 {
     module* modl;
@@ -548,54 +307,126 @@ struct cpu_apply
             std::size_t index = 0;
             for(auto ins : outputs_alias)
             {
-                prog_output_names[ins] = "#output_" + std::to_string(index++);
+                prog_output_names[ins] = modl->name() + ":#output_" + std::to_string(index++);
             }
         }
     }
 
-    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = false)
+    void extend_op(const std::string& op_name, const std::string& cpu_name, bool allocate = true)
     {
         apply_map.emplace(op_name, [=](instruction_ref ins) {
             auto&& op = ins->get_operator();
             if(allocate)
-                replace(ins, make_op(cpu_name, op.to_value()));
+                return replace(ins, make_op(cpu_name, op.to_value()));
             return modl->replace_instruction(ins, make_op(cpu_name, op.to_value()), ins->inputs());
+        });
+    }
+
+    void extend_dnnl_algos(const std::string& dnnl_name,
+                           const std::vector<std::pair<std::string, std::string>>& algos)
+    {
+        for(auto&& pp : algos)
+        {
+            std::string op_name = pp.first;
+            std::string algo    = pp.second;
+            apply_map.emplace(op_name, [=](instruction_ref ins) {
+                auto v = ins->get_operator().to_value();
+                if(not v.is_object())
+                    return ins;
+                v["algo"] = algo;
+                auto op   = make_op(dnnl_name, v);
+                return replace(ins, op);
+            });
+        }
+    }
+
+    template <class M>
+    auto fuse_match(M matcher, const operation& op, const std::vector<std::string>& bind_inputs)
+    {
+        return match::make_match_finder(matcher, [=](auto&, const auto& r) {
+            auto ins = r.result;
+            std::vector<instruction_ref> inputs;
+            std::transform(bind_inputs.begin(),
+                           bind_inputs.end(),
+                           std::back_inserter(inputs),
+                           [&](const auto& s) { return r.instructions.at(s); });
+            inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
+            this->modl->replace_instruction(ins, op, inputs);
         });
     }
 
     void init()
     {
         create_output_names();
-        extend_op("add", "dnnl::add", true);
-        extend_op("mul", "dnnl::mul", true);
-        extend_op("convolution", "dnnl::convolution", true);
-        extend_op("dot", "dnnl::dot", true);
-        extend_op("relu", "dnnl::relu", true);
+        extend_dnnl_algos("dnnl::binary",
+                          {
+                              {"add", "binary_add"},
+                              {"div", "binary_div"},
+                              {"max", "binary_max"},
+                              {"min", "binary_min"},
+                              {"mul", "binary_mul"},
+                          });
 
-        extend_op("contiguous", "cpu::contiguous", true);
-        extend_op("deconvolution", "cpu::deconvolution");
-        extend_op("elu", "cpu::elu");
-        extend_op("im2col", "cpu::im2col");
-        extend_op("leaky_relu", "cpu::leaky_relu");
-        extend_op("logsoftmax", "cpu::logsoftmax");
-        extend_op("lrn", "cpu::lrn");
-        extend_op("pad", "cpu::pad");
-        extend_op("quant_convolution", "cpu::quant_convolution", true);
-        extend_op("quant_dot", "cpu::quant_dot", true);
-        extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output");
-        extend_op("softmax", "cpu::softmax");
+        extend_dnnl_algos("dnnl::eltwise",
+                          {
+                              {"abs", "eltwise_abs"},
+                              {"elu", "eltwise_elu"},
+                              {"exp", "eltwise_exp"},
+                              {"log", "eltwise_log"},
+                              {"relu", "eltwise_relu"},
+                              {"sqrt", "eltwise_sqrt"},
+                              {"tanh", "eltwise_tanh"},
+                          });
+
+        extend_dnnl_algos("dnnl::reduction",
+                          {
+                              {"reduce_max", "reduction_max"},
+                              {"reduce_mean", "reduction_mean"},
+                              {"reduce_min", "reduction_min"},
+                              {"reduce_sum", "reduction_sum"},
+                          });
+
+        extend_op("concat", "dnnl::concat");
+        extend_op("contiguous", "dnnl::reorder");
+        extend_op("convolution", "dnnl::convolution");
+        extend_op("deconvolution", "dnnl::deconvolution");
+        extend_op("dot", "dnnl::dot");
+        extend_op("erf", "cpu::erf");
+        extend_op("gather", "cpu::gather");
+        extend_op("logsoftmax", "dnnl::logsoftmax");
+        extend_op("lrn", "dnnl::lrn");
+        extend_op("softmax", "dnnl::softmax");
+        extend_op("sub", "cpu::sub");
+
+        extend_op("im2col", "cpu::im2col", false);
+        extend_op("leaky_relu", "cpu::leaky_relu", false);
+        extend_op("pad", "cpu::pad", false);
+        extend_op("rnn_var_sl_last_output", "cpu::rnn_var_sl_last_output", false);
     }
 
     void apply()
     {
         init();
+        // Apply fusion matchers first
+        match::find_matches(*modl,
+                            fuse_match(match::gelu_erf(),
+                                       make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_erf"}}),
+                                       {"x"}),
+                            fuse_match(match::gelu_tanh(),
+                                       make_op("dnnl::eltwise", {{"algo", "eltwise_gelu_tanh"}}),
+                                       {"x"}),
+                            fuse_match(match::layernorm(), make_op("dnnl::layernorm"), {"x"}));
+        // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {
-            if(it->name() == "@literal")
+            if(it->name() == "pow")
             {
-                apply_literal(it);
+                apply_pow(it);
             }
-            else if(it->name() == "pooling")
+        }
+        for(auto it : iterator_for(*modl))
+        {
+            if(it->name() == "pooling")
             {
                 apply_pooling(it);
             }
@@ -606,9 +437,15 @@ struct cpu_apply
         }
     }
 
-    instruction_ref apply_literal(instruction_ref ins) const
+    instruction_ref apply_pow(instruction_ref ins)
     {
-        return modl->replace_instruction(ins, cpu_literal{ins->get_literal().get_argument()});
+        auto beta = read_scalar<float>(ins->inputs()[1]);
+        if(beta.empty())
+            return ins;
+        return replace(ins,
+                       make_op("dnnl::eltwise",
+                               {{"algo", "eltwise_pow"}, {"alpha", 1.0}, {"beta", beta.front()}}),
+                       {ins->inputs().front()});
     }
 
     instruction_ref apply_pooling(instruction_ref ins)
@@ -626,9 +463,27 @@ struct cpu_apply
         return ins;
     }
 
+    template <class T>
+    static std::vector<T> read_scalar(instruction_ref ins)
+    {
+        if(ins->name() == "contiguous")
+            return read_scalar<T>(ins->inputs().front());
+        if(ins->get_shape().elements() != 1 and not ins->get_shape().scalar())
+            return {};
+        auto r = ins->eval();
+        if(r.empty())
+            return {};
+        return {r.at<T>()};
+    }
+
     instruction_ref replace(instruction_ref ins, const operation& op)
     {
-        auto inputs = ins->inputs();
+        return replace(ins, op, ins->inputs());
+    }
+
+    instruction_ref
+    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+    {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);
     }

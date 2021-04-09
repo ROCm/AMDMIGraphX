@@ -41,6 +41,7 @@ struct shape
     enum type_t
     {
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
+        tuple_type
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -81,6 +82,8 @@ struct shape
                 std::vector<std::size_t>(s.begin(), s.end()))
     {
     }
+
+    shape(const std::vector<shape>& subs);
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -179,6 +182,7 @@ struct shape
     {
         switch(t)
         {
+            case tuple_type: MIGRAPHX_THROW("Tuple cannot be visited.");
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -203,6 +207,8 @@ struct shape
 
     std::string type_string() const;
     static type_t parse_type(const std::string& s);
+
+    const std::vector<shape>& sub_shapes() const;
 
     private:
     std::shared_ptr<const shape_impl> impl;

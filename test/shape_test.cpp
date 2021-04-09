@@ -1,6 +1,8 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -376,6 +378,67 @@ TEST_CASE(test_serialize)
     migraphx::shape s1{migraphx::shape::float_type, {100, 32, 8, 8}};
     auto v1 = migraphx::to_value(s1);
     migraphx::shape s2{migraphx::shape::uint64_type, {2, 2}};
+    auto v2 = migraphx::to_value(s2);
+    EXPECT(v1 != v2);
+
+    auto s3 = migraphx::from_value<migraphx::shape>(v1);
+    EXPECT(s3 == s1);
+    auto s4 = migraphx::from_value<migraphx::shape>(v2);
+    EXPECT(s4 == s2);
+    EXPECT(s3 != s4);
+}
+
+TEST_CASE(tuple)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    EXPECT(s.type() == migraphx::shape::tuple_type);
+    EXPECT(s.bytes() == 4+1);
+    EXPECT(s.type_size() == 0);
+    EXPECT(s.type_string() == "tuple_type");
+    EXPECT(s.lens().empty());
+    EXPECT(s.strides().empty());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.broadcasted());
+    EXPECT(not s.transposed());
+    EXPECT(not s.scalar());
+    EXPECT(s.sub_shapes().size() == 2);
+    EXPECT(s.sub_shapes()[0].type() == migraphx::shape::float_type);
+    EXPECT(s.sub_shapes()[0].elements() == 1);
+    EXPECT(s.sub_shapes()[1].type() == migraphx::shape::int8_type);
+    EXPECT(s.sub_shapes()[1].elements() == 1);
+    EXPECT(test::throws([&] { s.visit_type([](auto) {}); }));
+}
+
+TEST_CASE(tuple_copy)
+{
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    EXPECT(s1 == s2);
+    auto s3 = s1;
+    EXPECT(s3 == s1);
+    EXPECT(s3 == s2);
+    migraphx::shape s4{{migraphx::shape{migraphx::shape::int8_type}, migraphx::shape{migraphx::shape::float_type}}};
+    EXPECT(s4 != s1);
+    EXPECT(s4 != s2);
+    EXPECT(s4 != s3);
+}
+
+TEST_CASE(tuple_print)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    std::string x = migraphx::to_string(s);
+    EXPECT(x.front() == '[');
+    EXPECT(x.back() == ']');
+    EXPECT(migraphx::contains(x, "float"));
+    EXPECT(migraphx::contains(x, "int8"));
+}
+
+TEST_CASE(tuple_serialize)
+{
+    migraphx::shape s1{{migraphx::shape{migraphx::shape::float_type}, migraphx::shape{migraphx::shape::int8_type}}};
+    migraphx::shape s2{{migraphx::shape{migraphx::shape::int8_type}, migraphx::shape{migraphx::shape::float_type}}};
+    auto v1 = migraphx::to_value(s1);
     auto v2 = migraphx::to_value(s2);
     EXPECT(v1 != v2);
 

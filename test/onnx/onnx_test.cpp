@@ -2318,9 +2318,11 @@ TEST_CASE(quantizelinear_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         round);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), min_val);
-    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), max_val);
+    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), max_val);
     auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_val, max_val);
     mm->add_instruction(
         migraphx::make_op("convert",
@@ -2359,9 +2361,11 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         round);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), min_val);
-    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), max_val);
+    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    min_val  = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), min_val);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), max_val);
     auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_val, max_val);
     mm->add_instruction(
         migraphx::make_op("convert",

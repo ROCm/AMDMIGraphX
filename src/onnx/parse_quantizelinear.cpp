@@ -73,16 +73,18 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
             add_zero_point = info.add_broadcastable_binary_op("add", add_zero_point, zero_point);
         }
 
-        auto s = add_zero_point->get_shape();
+        auto s           = add_zero_point->get_shape();
         const auto& lens = s.lens();
         std::vector<int64_t> out_lens(lens.begin(), lens.end());
-        if (min_arg->get_shape() != s)
+        if(min_arg->get_shape() != s)
         {
-            min_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), min_arg);
+            min_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
+                                           min_arg);
         }
-        if (max_arg->get_shape() != s)
+        if(max_arg->get_shape() != s)
         {
-            max_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), max_arg);
+            max_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
+                                           max_arg);
         }
 
         auto saturated = info.add_instruction(make_op("clip"), add_zero_point, min_arg, max_arg);

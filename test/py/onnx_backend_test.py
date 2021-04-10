@@ -288,6 +288,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_Softplus_cpu')
 
         # real model tests
+        backend_test.exclude(r'test_inception_v1_cpu')
+        backend_test.exclude(r'test_resnet50_cpu')        
         backend_test.exclude(r'test_squeezenet_cpu')
 
         # additional cases disabled for a specific onnx version

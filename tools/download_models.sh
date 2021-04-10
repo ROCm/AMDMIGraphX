@@ -11,9 +11,7 @@ mkdir -p $model_dir
 mkdir -p $tmp_dir
 models="bvlc_alexnet \
         densenet121 \
-        inception_v1 \
         inception_v2 \
-        resnet50 \
         shufflenet \
         vgg19 \
         zfnet512"

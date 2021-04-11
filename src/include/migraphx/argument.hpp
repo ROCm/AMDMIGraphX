@@ -8,6 +8,7 @@
 #include <functional>
 #include <utility>
 
+// clang-format off
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -27,9 +28,7 @@ struct argument : raw_data<argument>
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
         : m_shape(std::move(s)),
-          // clang-format off
           m_data({[f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }})
-          // clang-format on
 
     {
     }
@@ -82,5 +81,6 @@ void migraphx_from_value(const value& v, argument& a);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+// clang-format on
 
 #endif

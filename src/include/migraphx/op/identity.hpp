@@ -19,9 +19,9 @@ struct identity
 {
     std::string name() const { return "identity"; }
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.at(0).data)};
+        return args[0];
     }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };

@@ -20,57 +20,47 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 struct argument : raw_data<argument>
 {
-    argument() {}
+    argument() = default;
 
-    argument(const shape& s) : m_shape(s)
-    {
-        auto buffer = make_shared_array<char>(s.bytes());
-        data        = [=]() mutable { return buffer.get(); };
-    }
+    argument(const shape& s);
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
-        : data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }),
-          m_shape(std::move(s))
+        : m_shape(std::move(s)),
+          m_data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); })
+          
     {
     }
     template <class T>
     argument(shape s, T* d)
-        : data([d] { return reinterpret_cast<char*>(d); }), m_shape(std::move(s))
+        : m_shape(std::move(s)), m_data([d] { return reinterpret_cast<char*>(d); })
     {
     }
 
     template <class T>
     argument(shape s, std::shared_ptr<T> d)
-        : data([d] { return reinterpret_cast<char*>(d.get()); }), m_shape(std::move(s))
+        : m_shape(std::move(s)), m_data([d] { return reinterpret_cast<char*>(d.get()); })
     {
     }
 
-    argument(shape s, std::nullptr_t) : data([] { return nullptr; }), m_shape(std::move(s)) {}
+    argument(shape s, std::nullptr_t);
 
     /// Provides a raw pointer to the data
-    std::function<char*()> data = nullptr;
+    char* data() const;
 
     /// Whether data is available
-    bool empty() const { return not data; }
+    bool empty() const;
 
-    const shape& get_shape() const { return this->m_shape; }
+    const shape& get_shape() const;
 
-    argument reshape(const shape& s) const
-    {
-        argument self = *this;
-        return {s, [=]() mutable { return self.data(); }};
-    }
+    argument reshape(const shape& s) const;
 
     /// Make copy of the argument that is always sharing the data
-    argument share() const
-    {
-        auto self = std::make_shared<argument>(*this);
-        return {m_shape, [self]() mutable { return self->data(); }};
-    }
+    argument share() const;
 
     private:
     shape m_shape;
+    std::function<char*()> m_data = nullptr;
 };
 
 void migraphx_to_value(value& v, const argument& a);

@@ -327,7 +327,7 @@ void migraphx_from_value(const value& v, shape& s)
     }
     else
     {
-        s = shape{shape::parse_type(v.at("type").get_string()),
+        s = shape{shape::parse_type(t),
                   v.at("lens").to_vector<std::size_t>(),
                   v.at("strides").to_vector<std::size_t>()};
     }

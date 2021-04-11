@@ -28,7 +28,7 @@ struct argument : raw_data<argument>
     argument(shape s, F d)
         : m_shape(std::move(s)),
           m_data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); })
-          
+
     {
     }
     template <class T>

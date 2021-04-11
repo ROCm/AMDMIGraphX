@@ -6,15 +6,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 argument::argument(const shape& s) : m_shape(s)
 {
     auto buffer = make_shared_array<char>(s.bytes());
-    m_data        = [=]() mutable { return buffer.get(); };
+    m_data      = [=]() mutable { return buffer.get(); };
 }
 
-argument::argument(shape s, std::nullptr_t) : m_shape(std::move(s)), m_data([] { return nullptr; }) {}
-
-char* argument::data() const
+argument::argument(shape s, std::nullptr_t) : m_shape(std::move(s)), m_data([] { return nullptr; })
 {
-    return m_data();
 }
+
+char* argument::data() const { return m_data(); }
 
 bool argument::empty() const { return not m_data; }
 
@@ -34,4 +33,3 @@ argument argument::share() const
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

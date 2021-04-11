@@ -27,23 +27,25 @@ struct argument : raw_data<argument>
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
         : m_shape(std::move(s)),
-          m_data([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); })
+          m_data({[f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }})
 
     {
     }
     template <class T>
     argument(shape s, T* d)
-        : m_shape(std::move(s)), m_data([d] { return reinterpret_cast<char*>(d); })
+        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d); }})
     {
     }
 
     template <class T>
     argument(shape s, std::shared_ptr<T> d)
-        : m_shape(std::move(s)), m_data([d] { return reinterpret_cast<char*>(d.get()); })
+        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d.get()); }})
     {
     }
 
     argument(shape s, std::nullptr_t);
+    
+    argument(const std::vector<argument>& args);
 
     /// Provides a raw pointer to the data
     char* data() const;
@@ -58,9 +60,19 @@ struct argument : raw_data<argument>
     /// Make copy of the argument that is always sharing the data
     argument share() const;
 
+    std::vector<argument> get_sub_arguments() const;
+
     private:
+    struct data_t
+    {
+        std::function<char*()> get = nullptr;
+        std::vector<data_t> sub = {};
+        data_t share() const;
+        static data_t from_args(const std::vector<argument>& args);
+    };
+    argument(const shape& s, const data_t& d);
     shape m_shape;
-    std::function<char*()> m_data = nullptr;
+    data_t m_data{};
 };
 
 void migraphx_to_value(value& v, const argument& a);

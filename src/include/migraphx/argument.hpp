@@ -27,7 +27,9 @@ struct argument : raw_data<argument>
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
         : m_shape(std::move(s)),
+          // clang-format off
           m_data({[f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }})
+          // clang-format on
 
     {
     }

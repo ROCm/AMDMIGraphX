@@ -34,8 +34,8 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     bool noop_with_empty_axes = 0;
     if(contains(info.attributes, "noop_with_empty_axes"))
     {
-        noop_with_empty_axes =
-            static_cast<bool>(parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>());
+        noop_with_empty_axes = static_cast<bool>(
+            parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>());
     }
 
     // empty axes behavior

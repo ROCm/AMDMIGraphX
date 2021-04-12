@@ -17,7 +17,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
 
     operation assign_axes(operation& op, const std::vector<int64_t>& axes) const
     {
-        auto v = op.to_value();
+        auto v    = op.to_value();
         v["axes"] = axes;
         op.from_value(v);
 

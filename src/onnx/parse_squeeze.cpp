@@ -20,7 +20,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
         return contains({"squeeze", "unsqueeze"}, op_name);
     }
 
-    void assign_axes(const operation& op, const std::vector<int64_t>& axes) const
+    operation assign_axes(operation& op, const std::vector<int64_t>& axes) const
     {
         auto v = op.to_value();
         for(auto&& x : v)
@@ -31,6 +31,9 @@ struct parse_squeeze : op_parser<parse_squeeze>
                 break;
             }
         }
+        op.from_value(v);
+
+        return op;
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -45,7 +48,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
             auto arg_axes = args.at(1)->eval();
             check_arg_empty(arg_axes, "PARSE_" + opd.op_name + ": cannot handle variable axes!");
             arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
-            assign_axes(op, axes);
+            op = assign_axes(op, axes);
         }
         if(needs_contiguous(opd.op_name))
         {

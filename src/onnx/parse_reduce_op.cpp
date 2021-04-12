@@ -13,8 +13,6 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
                                   onnx_parser::node_info info,
                                   std::vector<instruction_ref> args)
 {
-    std::size_t n_dim = args.front()->get_shape().lens().size();
-
     // default to reduce over all dimensions
     std::vector<int64_t> axes;
     if(args.size() == 2)
@@ -43,6 +41,8 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     {
         if(noop_with_empty_axes == 0)
         {
+            std::size_t n_dim = args.front()->get_shape().lens().size();
+            axes.resize(n_dim);
             std::iota(axes.begin(), axes.end(), 0);
         }
         else

@@ -63,6 +63,7 @@ struct onnx_parser
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     bool skip_unknown_operators = false;
+    int opset_version = -1;
 
     std::unordered_map<std::string, op_func> ops;
 

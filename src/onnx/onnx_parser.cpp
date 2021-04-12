@@ -29,6 +29,11 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 static literal
 create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
 {
+    // empty input
+    auto elem_num = std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if (elem_num == 0)
+        return {};
+
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
         return literal{{shape_type}, data};
@@ -38,6 +43,12 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
+    // empty input
+    auto elem_num = std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if (elem_num == 0)
+        return {};
+
+    // scalar input
     if(dims.empty())
         return literal{{shape_type}, data.begin(), data.end()};
     return literal{{shape_type, dims}, data.begin(), data.end()};
@@ -47,6 +58,9 @@ template <class T>
 static literal from_repeated(shape::type_t t, const T& r)
 {
     std::size_t size = r.size();
+    if (size == 0)
+        return {};
+
     return literal{{t, {size}}, r.begin(), r.end()};
 }
 

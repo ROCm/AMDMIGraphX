@@ -16,8 +16,7 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     std::size_t n_dim = args.front()->get_shape().lens().size();
 
     // default to reduce over all dimensions
-    std::vector<int64_t> axes(n_dim);
-    std::iota(axes.begin(), axes.end(), 0);
+    std::vector<int64_t> axes;
     if(args.size() == 2)
     {
         auto arg_axes = args.at(1)->eval();
@@ -30,6 +29,26 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         axes.clear();
         auto&& attr_axes = info.attributes["axes"].ints();
         axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
+    }
+
+    int noop_with_empty_axes = 0;
+    if (contains(info.attributes, "noop_with_empty_axes"))
+    {
+        noop_with_empty_axes = parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>();
+    }
+
+    // empty axes behavior
+    if (axes.empty())
+    {
+        if (noop_with_empty_axes == 0)
+        {
+            std::iota(axes.begin(), axes.end(), 0);
+        }
+        else
+        {
+            // empty axes, no reduce performed
+            return args.at(0);
+        }
     }
 
     int keep_dims = 1;

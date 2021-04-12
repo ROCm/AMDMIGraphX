@@ -61,7 +61,7 @@ struct argument : raw_data<argument>
     /// Make copy of the argument that is always sharing the data
     argument share() const;
 
-    std::vector<argument> get_sub_arguments() const;
+    std::vector<argument> get_sub_objects() const;
 
     private:
     struct data_t

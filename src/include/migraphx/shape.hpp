@@ -176,12 +176,16 @@ struct shape
         type_t type_enum() const { return get_type<type>{}; }
     };
 
-    template <class Visitor>
-    static void visit(type_t t, Visitor v)
+    template <class Visitor, class TupleVisitor>
+    static void visit(type_t t, Visitor v, TupleVisitor tv)
     {
         switch(t)
         {
-        case tuple_type: MIGRAPHX_THROW("Tuple cannot be visited.");
+            case tuple_type:
+            {
+                tv();
+                return;
+            }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -191,9 +195,15 @@ struct shape
     }
 
     template <class Visitor>
-    void visit_type(Visitor v) const
+    static void visit(type_t t, Visitor v)
     {
-        visit(this->type(), v);
+        return visit(t, v, []{ MIGRAPHX_THROW("Tuple cannot be visited."); });
+    }
+
+    template <class... Visitors>
+    void visit_type(Visitors... vs) const
+    {
+        visit(this->type(), vs...);
     }
 
     template <class Visitor>

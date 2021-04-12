@@ -63,7 +63,7 @@ argument::data_t argument::data_t::from_args(const std::vector<argument>& args)
 
 argument argument::share() const { return {m_shape, m_data.share()}; }
 
-std::vector<argument> argument::get_sub_arguments() const
+std::vector<argument> argument::get_sub_objects() const
 {
     std::vector<argument> result;
     assert(m_shape.sub_shapes().size() == m_data.sub.size());

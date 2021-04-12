@@ -15,11 +15,6 @@ struct parse_squeeze : op_parser<parse_squeeze>
         return {{"Squeeze", "squeeze"}, {"Unsqueeze", "unsqueeze"}};
     }
 
-    bool needs_contiguous(const std::string& op_name) const
-    {
-        return contains({"squeeze", "unsqueeze"}, op_name);
-    }
-
     operation assign_axes(operation& op, const std::vector<int64_t>& axes) const
     {
         auto v = op.to_value();
@@ -50,12 +45,9 @@ struct parse_squeeze : op_parser<parse_squeeze>
             arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
             op = assign_axes(op, axes);
         }
-        if(needs_contiguous(opd.op_name))
-        {
-            std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-                return info.make_contiguous(arg);
-            });
-        }
+        std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
+            return info.make_contiguous(arg);
+        });
         return info.add_instruction(op, args.front());
     }
 };

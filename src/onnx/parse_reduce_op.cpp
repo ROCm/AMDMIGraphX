@@ -31,11 +31,11 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
     }
 
-    int noop_with_empty_axes = 0;
+    bool noop_with_empty_axes = 0;
     if(contains(info.attributes, "noop_with_empty_axes"))
     {
         noop_with_empty_axes =
-            parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>();
+            static_cast<bool>(parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>());
     }
 
     // empty axes behavior

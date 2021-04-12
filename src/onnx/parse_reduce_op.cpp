@@ -29,7 +29,7 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
     }
 
-    bool noop_with_empty_axes = 0;
+    bool noop_with_empty_axes = false;
     if(contains(info.attributes, "noop_with_empty_axes"))
     {
         noop_with_empty_axes = static_cast<bool>(
@@ -39,16 +39,15 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     // empty axes behavior
     if(axes.empty())
     {
-        if(noop_with_empty_axes == 0)
+        if(noop_with_empty_axes)
+        {
+            return args.at(0);
+        }
+        else
         {
             std::size_t n_dim = args.front()->get_shape().lens().size();
             axes.resize(n_dim);
             std::iota(axes.begin(), axes.end(), 0);
-        }
-        else
-        {
-            // empty axes, no reduce performed
-            return args.at(0);
         }
     }
 

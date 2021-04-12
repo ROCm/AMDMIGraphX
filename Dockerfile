@@ -78,9 +78,6 @@ RUN cget -p $PREFIX install ccache@v4.1
 # Install newer cmake for onnx runtime
 RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
 
-# Install onnx 1.8.1
-RUN pip3 install onnx numpy typing pytest
-
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
 ARG ONNXRUNTIME_COMMIT=24f1bd6156cf5968bbc76dfb0e801a9b9c56b9fc

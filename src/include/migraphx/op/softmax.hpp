@@ -12,7 +12,7 @@ namespace op {
 
 struct softmax
 {
-    int64_t axis = -1;
+    int64_t axis = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

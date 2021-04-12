@@ -3509,6 +3509,40 @@ def sqrt_test():
 
 
 @onnx_test
+def squeeze_axes_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 5, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5])
+    axes = np.array([1, 3], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y], [axes_tensor])
+
+
+@onnx_test
+def squeeze_empty_axes_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 5, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5])
+    axes = np.array([], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y], [axes_tensor])
+
+
+@onnx_test
 def squeeze_unsqueeze_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
                                       [1, 3, 1, 1, 2, 1])

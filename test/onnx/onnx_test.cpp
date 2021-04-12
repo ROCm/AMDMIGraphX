@@ -2985,7 +2985,7 @@ TEST_CASE(softmax_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3}});
-    mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l0);
+    mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l0);
     auto prog = optimize_onnx("softmax_test.onnx");
 
     EXPECT(p == prog);
@@ -3078,6 +3078,36 @@ TEST_CASE(squeeze_unsqueeze_test)
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), l1);
     auto prog = optimize_onnx("squeeze_unsqueeze_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(squeeze_axes_input_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal({migraphx::shape::int64_type, {2}}, {1, 3}));
+    auto l0 =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3}}}), l0);
+    mm->add_return({l1});
+
+    auto prog = migraphx::parse_onnx("squeeze_axes_input_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(squeeze_empty_axes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal({});
+    auto l0 =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
+    mm->add_return({l1});
+
+    auto prog = migraphx::parse_onnx("squeeze_empty_axes_test.onnx");
 
     EXPECT(p == prog);
 }

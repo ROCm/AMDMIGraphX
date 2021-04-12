@@ -38,10 +38,9 @@ struct parse_squeeze : op_parser<parse_squeeze>
             arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
             op = assign_axes(op, axes);
         }
-        std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-            return info.make_contiguous(arg);
-        });
-        return info.add_instruction(op, args.front());
+
+        auto arg = info.make_contiguous(args.front());
+        return info.add_instruction(op, arg);
     }
 };
 

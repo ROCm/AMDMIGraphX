@@ -24,12 +24,12 @@ struct parse_softmax : op_parser<parse_softmax>
         int64_t axis = -1;
 
         // axis value is 1 for previous opset versions
-        if (parser.opset_version < 13)
+        if(parser.opset_version < 13)
         {
             axis = 1;
         }
 
-        if (contains(info.attributes, "axis"))
+        if(contains(info.attributes, "axis"))
         {
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }

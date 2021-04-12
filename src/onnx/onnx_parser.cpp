@@ -259,10 +259,10 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 void onnx_parser::parse_opset_version(const onnx::ModelProto& model)
 {
     const auto& opset_import = model.opset_import();
-    int64_t version = -1;
-    for (const auto& opset : opset_import)
+    int64_t version          = -1;
+    for(const auto& opset : opset_import)
     {
-        if (opset.has_version())
+        if(opset.has_version())
         {
             version = (version < opset.version()) ? opset.version() : version;
         }
@@ -270,7 +270,7 @@ void onnx_parser::parse_opset_version(const onnx::ModelProto& model)
 
     // if no opset version information provided in the model, use the default
     // version 13
-    if (version != -1)
+    if(version != -1)
     {
         opset_version = version;
     }

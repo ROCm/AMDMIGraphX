@@ -181,11 +181,11 @@ struct shape
     {
         switch(t)
         {
-            case tuple_type:
-            {
-                tv();
-                return;
-            }
+        case tuple_type:
+        {
+            tv();
+            return;
+        }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -197,7 +197,7 @@ struct shape
     template <class Visitor>
     static void visit(type_t t, Visitor v)
     {
-        return visit(t, v, []{ MIGRAPHX_THROW("Tuple cannot be visited."); });
+        return visit(t, v, [] { MIGRAPHX_THROW("Tuple cannot be visited."); });
     }
 
     template <class... Visitors>

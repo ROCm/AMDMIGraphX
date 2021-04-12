@@ -58,7 +58,8 @@ struct raw_data : raw_data_base
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s      = derived.get_shape();
         auto&& buffer = derived.data();
-        s.visit_type([&](auto as) { v(make_view(s, as.from(buffer))); }, [&] { tv(derived.get_sub_objects()); });
+        s.visit_type([&](auto as) { v(make_view(s, as.from(buffer))); },
+                     [&] { tv(derived.get_sub_objects()); });
     }
 
     /**
@@ -164,10 +165,10 @@ struct raw_data : raw_data_base
 
 namespace detail {
 template <class V1, class V2, class... Ts>
-void visit_all_flatten(const shape& s, V1&& v1,  V2&& v2, Ts&&... xs)
+void visit_all_flatten(const shape& s, V1&& v1, V2&& v2, Ts&&... xs)
 {
     s.visit_type([&](auto as) { v1(make_view(xs.get_shape(), as.from(xs.data()))...); },
-        [&] { v2(xs.get_sub_objects()...); });
+                 [&] { v2(xs.get_sub_objects()...); });
 }
 
 template <class V1, class V2, class... Ts>
@@ -205,9 +206,7 @@ auto visit_all(T&& x, Ts&&... xs)
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
     if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
-    return [&](auto... vs) {
-        detail::visit_all_pack(s, vs...)(x, xs...);
-    };
+    return [&](auto... vs) { detail::visit_all_pack(s, vs...)(x, xs...); };
 }
 
 template <class T>
@@ -240,11 +239,10 @@ bool operator==(const T& x, const U& y)
     bool result   = x.empty() and y.empty();
     if(not result and xshape == yshape)
     {
-        visit_all(x, y)([&](auto xview, auto yview) {
-            result = xview == yview;
-        }, [&](auto&& xs, auto&& ys) {
-            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
-        });
+        visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
+                        [&](auto&& xs, auto&& ys) {
+                            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
+                        });
     }
     return result;
 }

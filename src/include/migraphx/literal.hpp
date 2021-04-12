@@ -66,10 +66,7 @@ struct literal : raw_data<literal>
 
     const shape& get_shape() const { return this->m_shape; }
 
-    std::vector<literal> get_sub_objects() const
-    {
-        return {};
-    }
+    std::vector<literal> get_sub_objects() const { return {}; }
 
     /// Convert the data to an argument
     argument get_argument() const

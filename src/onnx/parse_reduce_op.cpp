@@ -32,15 +32,16 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
     }
 
     int noop_with_empty_axes = 0;
-    if (contains(info.attributes, "noop_with_empty_axes"))
+    if(contains(info.attributes, "noop_with_empty_axes"))
     {
-        noop_with_empty_axes = parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>();
+        noop_with_empty_axes =
+            parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>();
     }
 
     // empty axes behavior
-    if (axes.empty())
+    if(axes.empty())
     {
-        if (noop_with_empty_axes == 0)
+        if(noop_with_empty_axes == 0)
         {
             std::iota(axes.begin(), axes.end(), 0);
         }

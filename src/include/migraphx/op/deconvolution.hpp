@@ -78,16 +78,6 @@ struct deconvolution
         check_attribute_size();
         return stride.size();
     }
-
-    void expand_pads()
-    {
-        if(not expanded_pads)
-        {
-            size_t dims = padding.size();
-            std::copy(padding.begin(), padding.begin() + dims, std::back_inserter(padding));
-            expanded_pads = true;
-        }
-    }
 };
 
 } // namespace op

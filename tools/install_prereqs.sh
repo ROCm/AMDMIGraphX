@@ -6,7 +6,7 @@
 apt update && apt install -y python3-pip rocm-cmake rocblas miopen-hip openmp-extras
 
 # install onnx package for unit tests
-pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
+pip3 install onnx==1.8.1 numpy==1.18.5 typing==3.7.4 pytest==6.0.1 packaging
 
 # install rbuild to build dependencies
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz

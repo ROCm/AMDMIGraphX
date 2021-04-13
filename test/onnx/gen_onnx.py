@@ -2941,6 +2941,44 @@ def reducesum_test():
 
 
 @onnx_test
+def reducesum_empty_axes_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+    axes = np.array([], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 keepdims=0,
+                                 noop_with_empty_axes=False)
+
+    return ([node], [x], [y], [axes_tensor])
+
+
+@onnx_test
+def reducesum_noop_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+    axes = np.array([], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 keepdims=0,
+                                 noop_with_empty_axes=True)
+
+    return ([node], [x], [y], [axes_tensor])
+
+
+@onnx_test
 def reducesum_keepdims_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 1])
@@ -3468,6 +3506,40 @@ def sqrt_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def squeeze_axes_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 5, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5])
+    axes = np.array([1, 3], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y], [axes_tensor])
+
+
+@onnx_test
+def squeeze_empty_axes_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 5, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5])
+    axes = np.array([], dtype=np.int64)
+    axes_tensor = helper.make_tensor(name="axes",
+                                     data_type=TensorProto.INT64,
+                                     dims=axes.shape,
+                                     vals=axes.astype(np.int64))
+
+    node = onnx.helper.make_node('Squeeze',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y], [axes_tensor])
 
 
 @onnx_test

@@ -29,6 +29,12 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 static literal
 create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
 {
+    // empty input
+    auto elem_num =
+        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if(elem_num == 0)
+        return {};
+
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
         return literal{{shape_type}, data};
@@ -38,6 +44,13 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
+    // empty input
+    auto elem_num =
+        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if(elem_num == 0)
+        return {};
+
+    // scalar input
     if(dims.empty())
         return literal{{shape_type}, data.begin(), data.end()};
     return literal{{shape_type, dims}, data.begin(), data.end()};
@@ -47,6 +60,9 @@ template <class T>
 static literal from_repeated(shape::type_t t, const T& r)
 {
     std::size_t size = r.size();
+    if(size == 0)
+        return {};
+
     return literal{{t, {size}}, r.begin(), r.end()};
 }
 
@@ -210,6 +226,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
     {
+        parse_opset_version(model);
         if(model.has_graph())
         {
             this->parse_graph(mm, model.graph());
@@ -227,6 +244,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {
+        parse_opset_version(model);
         if(model.has_graph())
         {
             this->parse_graph(mm, model.graph());
@@ -235,6 +253,26 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     else
     {
         MIGRAPHX_THROW("Failed reading onnx file.");
+    }
+}
+
+void onnx_parser::parse_opset_version(const onnx::ModelProto& model)
+{
+    const auto& opset_import = model.opset_import();
+    int64_t version          = -1;
+    for(const auto& opset : opset_import)
+    {
+        if(opset.has_version())
+        {
+            version = (version < opset.version()) ? opset.version() : version;
+        }
+    }
+
+    // if no opset version information provided in the model, use the default
+    // version 13
+    if(version != -1)
+    {
+        opset_version = version;
     }
 }
 

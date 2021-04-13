@@ -60,8 +60,6 @@ RUN pip3 install yapf==0.28.0
 ADD doc/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
 
-RUN pip3 install onnx==1.7.0 numpy==1.18.5 typing==3.7.4 pytest==6.0.1
-
 # Download real models to run onnx unit tests
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
@@ -72,6 +70,8 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+
+RUN pip3 install onnx==1.8.1 numpy==1.18.5 typing==3.7.4 pytest==6.0.1 packaging
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

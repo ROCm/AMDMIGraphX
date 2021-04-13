@@ -2,6 +2,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/onnx/checks.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,16 +13,42 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
                                   onnx_parser::node_info info,
                                   std::vector<instruction_ref> args)
 {
-    std::size_t n_dim = args.front()->get_shape().lens().size();
-
     // default to reduce over all dimensions
-    std::vector<int64_t> axes(n_dim);
-    std::iota(axes.begin(), axes.end(), 0);
-    if(contains(info.attributes, "axes"))
+    std::vector<int64_t> axes;
+    if(args.size() == 2)
+    {
+        auto arg_axes = args.at(1)->eval();
+        check_arg_empty(arg_axes, "PARSE_" + op_name + ": cannot handle variable axes!");
+        axes.clear();
+        arg_axes.visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+    }
+    else if(contains(info.attributes, "axes"))
     {
         axes.clear();
         auto&& attr_axes = info.attributes["axes"].ints();
         axes             = std::vector<int64_t>(attr_axes.begin(), attr_axes.end());
+    }
+
+    bool noop_with_empty_axes = false;
+    if(contains(info.attributes, "noop_with_empty_axes"))
+    {
+        noop_with_empty_axes = static_cast<bool>(
+            parser.parse_value(info.attributes.at("noop_with_empty_axes")).at<int>());
+    }
+
+    // empty axes behavior
+    if(axes.empty())
+    {
+        if(noop_with_empty_axes)
+        {
+            return args.at(0);
+        }
+        else
+        {
+            std::size_t n_dim = args.front()->get_shape().lens().size();
+            axes.resize(n_dim);
+            std::iota(axes.begin(), axes.end(), 0);
+        }
     }
 
     int keep_dims = 1;
@@ -32,11 +59,11 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
 
     if(keep_dims == 1)
     {
-        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
+        return info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
     }
     else
     {
-        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args);
+        auto ins = info.add_instruction(make_op(op_name, {{"axes", axes}}), args.front());
         return info.add_instruction(make_op("squeeze", {{"axes", axes}}), ins);
     }
 }

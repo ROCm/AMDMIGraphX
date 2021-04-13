@@ -29,7 +29,14 @@ struct raw_data : raw_data_base
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
         if(not d.empty())
-            d.visit([&](auto x) { os << x; });
+            d.visit([&](auto x) { os << x; }, [&](auto&& xs) {
+                for(auto&& x:xs)
+                {
+                    os << "{ ";
+                    os << x;
+                    os << " }, ";
+                }
+            });
         return os;
     }
 
@@ -46,8 +53,7 @@ struct raw_data : raw_data_base
         if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s      = derived.get_shape();
-        auto&& buffer = derived.data();
-        s.visit_type([&](auto as) { v(*(as.from(buffer) + s.index(n))); });
+        s.visit_type([&](auto as) { v(*(as.from(derived.data()) + s.index(n))); });
     }
 
     template <class Visitor, class TupleVisitor>
@@ -57,8 +63,7 @@ struct raw_data : raw_data_base
         if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
         auto&& s      = derived.get_shape();
-        auto&& buffer = derived.data();
-        s.visit_type([&](auto as) { v(make_view(s, as.from(buffer))); },
+        s.visit_type([&](auto as) { v(make_view(s, as.from(derived.data()))); },
                      [&] { tv(derived.get_sub_objects()); });
     }
 

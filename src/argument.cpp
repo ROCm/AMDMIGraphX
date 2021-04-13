@@ -30,7 +30,12 @@ argument::argument(const std::vector<argument>& args)
 {
 }
 
-char* argument::data() const { return m_data.get(); }
+char* argument::data() const
+{ 
+    assert(m_shape.type() != shape::tuple_type);
+    assert(not this->empty());
+    return m_data.get();
+}
 
 bool argument::empty() const { return not m_data.get and m_data.sub.empty(); }
 

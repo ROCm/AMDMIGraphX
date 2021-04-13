@@ -11,7 +11,10 @@ void raw_data_to_value(value& v, const RawData& rd)
 {
     value result;
     result["shape"] = migraphx::to_value(rd.get_shape());
-    result["data"]  = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
+    if(rd.get_shape().type() == shape::tuple_type)
+        result["sub"] = migraphx::to_value(rd.get_sub_objects());
+    else
+        result["data"]  = migraphx::value::binary(rd.data(), rd.get_shape().bytes());
     v               = result;
 }
 
@@ -25,8 +28,15 @@ void migraphx_from_value(const value& v, literal& l)
 void migraphx_to_value(value& v, const argument& a) { raw_data_to_value(v, a); }
 void migraphx_from_value(const value& v, argument& a)
 {
-    literal l = migraphx::from_value<literal>(v);
-    a         = l.get_argument();
+    if(v.contains("data"))
+    {
+        literal l = migraphx::from_value<literal>(v);
+        a         = l.get_argument();
+    }
+    else
+    {
+        a = migraphx::from_value<std::vector<argument>>(v.at("sub"));
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

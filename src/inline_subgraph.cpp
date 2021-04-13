@@ -12,9 +12,9 @@ void inline_subgraph::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
-        if (ins->name() != "if")
+        if(ins->name() != "if")
             continue;
-            
+
         shape s = ins->get_shape();
         if(not s.standard() and s.elements() != 0)
         {

@@ -46,9 +46,10 @@ struct quant_convolution
 
     void check_attribute_size() const
     {
-        if(not(padding.size() == stride.size() and padding.size() == dilation.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == dilation.size()))
         {
-            MIGRAPHX_THROW("quant_convolution: inconsistent attribute sizes");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: inconsistent attribute sizes");
         }
     }
 
@@ -77,12 +78,20 @@ struct quant_convolution
 
         for(size_t i = 0; i < kdims; i++)
         {
-            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                1,
-                (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                 2 * padding[i]) /
-                        stride[i] +
-                    1)));
+            if(padding.size() == kdims)
+                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                    1,
+                    (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                     2 * (padding[i])) /
+                            stride[i] +
+                        1)));
+            else
+                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                    1,
+                    (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                     (padding[i] + padding[i + kdims])) /
+                            stride[i] +
+                        1)));
         }
 
         return {t, output_lens};
@@ -91,7 +100,7 @@ struct quant_convolution
     size_t kdims() const
     {
         check_attribute_size();
-        return padding.size();
+        return stride.size();
     }
 
     std::vector<size_t> expand_pads()

@@ -61,11 +61,12 @@ struct parse_pooling : op_parser<parse_pooling>
 
                 // if(pads[0] != pads[2] || pads[1] != pads[3])
                 // {
-                //     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                //     l0                           = info.add_instruction(
+                //     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2],
+                //     pads[3]}; l0                           = info.add_instruction(
                 //         migraphx::make_op(
                 //             "pad",
-                //             {{"pads", padding}, {"value", std::numeric_limits<float>::lowest()}}),
+                //             {{"pads", padding}, {"value",
+                //             std::numeric_limits<float>::lowest()}}),
                 //         l0);
                 // }
                 // else

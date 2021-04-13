@@ -66,8 +66,9 @@ struct parse_conv : op_parser<parse_conv>
 
                 // if(pads[0] != pads[2] || pads[1] != pads[3])
                 // {
-                //     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                //     l0 = info.add_instruction(migraphx::make_op("pad", {{"pads", padding}}), l0);
+                //     std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2],
+                //     pads[3]}; l0 = info.add_instruction(migraphx::make_op("pad", {{"pads",
+                //     padding}}), l0);
                 // }
                 // else
                 // {

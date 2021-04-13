@@ -82,7 +82,7 @@ void insert_pad::update_pooling(const instruction_ref& input,
     std::copy(pads_r.begin(), pads_r.end(), padding.begin() + kdims + 2 + 2);
 
     float pad_val = ((op.mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
-    auto pad_op = p.insert_instruction(ins, op::pad{padding, pad_val}, input);
+    auto pad_op   = p.insert_instruction(ins, op::pad{padding, pad_val}, input);
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = pad_op;

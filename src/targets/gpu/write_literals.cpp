@@ -28,7 +28,7 @@ void write_literals::apply(module& p) const
             }
             else
             {
-                std::string id = "@literal:" + std::to_string(n);
+                std::string id = p.name() + ":@literal:" + std::to_string(n);
                 p.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
                 n++;
             }

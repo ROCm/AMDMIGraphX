@@ -29,6 +29,7 @@ add_library(migraphx
     make_op.cpp
     msgpack.cpp
     operation.cpp
+    permutation.cpp
     program.cpp
     module.cpp
     quantization.cpp
@@ -52,6 +53,7 @@ add_library(migraphx
     normalize_attributes.cpp
     normalize_ops.cpp
 )
+configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -158,6 +160,7 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
 

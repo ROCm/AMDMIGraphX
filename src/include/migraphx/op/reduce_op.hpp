@@ -92,7 +92,7 @@ struct reduce_op : op_name<Derived>
             lens[axis] = 1;
         }
 
-        return {s.type(), lens};
+        return inputs[0].with_lens(lens);
     }
 
     template <class T>

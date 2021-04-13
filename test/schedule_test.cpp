@@ -144,17 +144,15 @@ struct schedule_model_test
 
 bool check_conflicts(migraphx::module& m, migraphx::instruction_ref x, migraphx::instruction_ref y)
 {
-    for(auto ins : migraphx::iterator_for(m))
-    {
+    return migraphx::any_of(migraphx::iterator_for(m), [&](auto ins) {
         if(ins->name() != "identity")
-            continue;
+            return false;
         if(not migraphx::contains(ins->inputs(), x))
-            continue;
+            return false;
         if(not migraphx::contains(ins->inputs(), y))
-            continue;
+            return false;
         return true;
-    }
-    return false;
+    });
 }
 
 struct scheduler

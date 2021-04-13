@@ -429,7 +429,8 @@ struct version : command<version>
     void parse(const argument_parser&) {}
     void run() const
     {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR << std::endl;
+        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
+                  << std::endl;
     }
 };
 
@@ -514,11 +515,13 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + 
-            std::to_string(MIGRAPHX_VERSION_MAJOR) + "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR);
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
-        ap(nullptr, {"-v", "--version"}, ap.help("Show MIGraphX version"), ap.show_help(version_str));
-
+        ap(nullptr,
+           {"-v", "--version"},
+           ap.help("Show MIGraphX version"),
+           ap.show_help(version_str));
     }
 
     void run() {}

@@ -5,17 +5,13 @@
 #include <string>
 #include "test.hpp"
 
-
-migraphx::argument as_argument(migraphx::argument a)
-{
-    return a;
-}
-template<class T>
+migraphx::argument as_argument(migraphx::argument a) { return a; }
+template <class T>
 migraphx::argument as_argument(T x)
 {
     return migraphx::literal{x}.get_argument();
 }
-template<class... Ts>
+template <class... Ts>
 migraphx::argument make_tuple(Ts... xs)
 {
     return migraphx::argument{{as_argument(xs)...}};
@@ -77,7 +73,7 @@ TEST_CASE(tuple)
 
     EXPECT(a1 == a2);
     EXPECT(a1.to_string() == a2.to_string());
-    
+
     auto a3 = make_tuple(3, 4.0);
     EXPECT(a1 != a3);
     EXPECT(a1.to_string() != a3.to_string());
@@ -91,12 +87,12 @@ TEST_CASE(nested_tuple)
     EXPECT(a1.get_sub_objects().size() == 2);
     EXPECT(a1.get_sub_objects()[0] == as_argument(3));
     EXPECT(a1.get_sub_objects()[1] == make_tuple(5, 4));
-    
+
     auto a2 = make_tuple(3, make_tuple(5, 4));
 
     EXPECT(a1 == a2);
     EXPECT(a1.to_string() == a2.to_string());
-    
+
     auto a3 = make_tuple(3, make_tuple(5, 6));
     EXPECT(a1 != a3);
     EXPECT(a1.to_string() != a3.to_string());
@@ -105,18 +101,17 @@ TEST_CASE(nested_tuple)
 TEST_CASE(tuple_visit)
 {
     auto a1 = make_tuple(3, 3.0);
-    EXPECT(test::throws([&]{ a1.visit([](auto&&) {}); }));
-    EXPECT(test::throws([&]{ a1.at<float>(); }));
+    EXPECT(test::throws([&] { a1.visit([](auto&&) {}); }));
+    EXPECT(test::throws([&] { a1.at<float>(); }));
 
     bool reaches = false;
-    a1.visit([&](auto&&) {
-        EXPECT(false);
-    }, [&](auto&& xs) {
-        reaches = true;
-        EXPECT(xs.size() == 2);
-        EXPECT(xs[0] == as_argument(3));
-        EXPECT(xs[1] == as_argument(3.0));
-    });
+    a1.visit([&](auto&&) { EXPECT(false); },
+             [&](auto&& xs) {
+                 reaches = true;
+                 EXPECT(xs.size() == 2);
+                 EXPECT(xs[0] == as_argument(3));
+                 EXPECT(xs[1] == as_argument(3.0));
+             });
     EXPECT(reaches);
 }
 
@@ -125,21 +120,20 @@ TEST_CASE(tuple_visit_all)
     auto a1 = make_tuple(3, 3.0);
     auto a2 = make_tuple(1, 2, 3);
 
-    EXPECT(test::throws([&]{ visit_all(a1, a2)([](auto&&, auto&&) {}); }));
+    EXPECT(test::throws([&] { visit_all(a1, a2)([](auto&&, auto&&) {}); }));
     bool reaches = false;
-    visit_all(a1, a2)([&](auto&&, auto&&) {
-        EXPECT(false);
-    }, [&](auto&& xs, auto&& ys) {
-        reaches = true;
-        EXPECT(xs.size() == 2);
-        EXPECT(xs[0] == as_argument(3));
-        EXPECT(xs[1] == as_argument(3.0));
+    visit_all(a1, a2)([&](auto&&, auto&&) { EXPECT(false); },
+                      [&](auto&& xs, auto&& ys) {
+                          reaches = true;
+                          EXPECT(xs.size() == 2);
+                          EXPECT(xs[0] == as_argument(3));
+                          EXPECT(xs[1] == as_argument(3.0));
 
-        EXPECT(ys.size() == 3);
-        EXPECT(ys[0] == as_argument(1));
-        EXPECT(ys[1] == as_argument(2));
-        EXPECT(ys[2] == as_argument(3));
-    });
+                          EXPECT(ys.size() == 3);
+                          EXPECT(ys[0] == as_argument(1));
+                          EXPECT(ys[1] == as_argument(2));
+                          EXPECT(ys[2] == as_argument(3));
+                      });
     EXPECT(reaches);
 }
 

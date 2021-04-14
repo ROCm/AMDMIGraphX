@@ -40,59 +40,32 @@ struct prefix_scan_op : op_name<Derived>
     {
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);
-
-        return {s.type(), s.lens()};
-    }
-
-    void prefix_scan(argument& arg, argument& res) const
-    {
-        auto& self = static_cast<const Derived&>(*this);
-        if (reverse) {
-            visit_all(arg, res)([&](auto input, auto output) { 
-                shape_for_each_reverse(output.get_shape(), [&](const auto& idx) {
-                    if (idx[axis] == arg.get_shape().lens()[axis] - 1) {
-                        if (exclusive) 
-                            output(idx.begin(), idx.end()) = 0;
-                        else
-                            output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
-                    }
-                    else {
-                        auto prefix_idx = idx;
-                        prefix_idx[axis] += 1;
-                        if (exclusive) 
-                            output(idx.begin(), idx.end()) = self.op()(input(prefix_idx.begin(), prefix_idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
-                        else
-                            output(idx.begin(), idx.end()) = self.op()(input(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
-                    }
-                });
-            });
+        auto n_dims = s.lens().size();
+        if (axis >= n_dims or axis < -int64_t(n_dims)) 
+        {
+            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
         }
-        else {
-            visit_all(arg, res)([&](auto input, auto output) { 
-                shape_for_each(output.get_shape(), [&](const auto& idx) {
-                    if (idx[axis] == 0) {
-                        if (exclusive) 
-                            output(idx.begin(), idx.end()) = 0;
-                        else
-                            output(idx.begin(), idx.end()) = input(idx.begin(), idx.end());
-                    }
-                    else {
-                        auto prefix_idx = idx;
-                        prefix_idx[axis] -= 1;
-                        if (exclusive) 
-                            output(idx.begin(), idx.end()) = self.op()(input(prefix_idx.begin(), prefix_idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
-                        else
-                            output(idx.begin(), idx.end()) = self.op()(input(idx.begin(), idx.end()), output(prefix_idx.begin(), prefix_idx.end()));
-                    }
-                });
-            });
-        }
+
+        return s;
     }
     
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result{output_shape};
-        this->prefix_scan(args[0], result);
+        argument result = args[0];
+        auto s = result.get_shape();
+        auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
+        auto lens = s.lens();
+        lens[axis] = 1;
+        auto batch = shape{s.type(), lens, s.strides()};
+        auto& self = static_cast<const Derived&>(*this);
+        result.visit([&](auto output) {
+            using type = decltype(output);
+            par_for(batch.elements(), [&](auto i) {
+                auto* start = output.data()+batch.index(i);
+                type x{slice, start};
+                std::partial_sum(x.begin(), x.end(), x.begin(), self.op());
+            });
+        });
 
         return result; 
     }

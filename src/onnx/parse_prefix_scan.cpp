@@ -1,4 +1,5 @@
 #include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -12,27 +13,12 @@ instruction_ref parse_prefix_scan_oper(const std::string& op_name,
                                   onnx_parser::node_info info,
                                   std::vector<instruction_ref> args)
 {
-    int64_t axis = 0; 
     migraphx::argument in = args[1]->eval();
-    if (in.empty())
-    {
-        std::cout << "No axis given. Using axis=0" << std::endl;
-    }
-    else 
-    {
-        std::vector<std::size_t> axis_in;
-        in.visit([&](auto input) { axis_in.assign(input.begin(), input.end()); });
-        axis = axis_in[0];
-        auto n_dims = args[0]->get_shape().lens().size();
-        if (axis >= n_dims or axis < -int64_t(n_dims)) 
-        {
-            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
-        }
-        if (axis < 0 and axis >= -int64_t(n_dims)) 
-        {
-            axis += n_dims;
-        }
-    }
+    check_arg_empty(in, "PARSE_PREFIX_SCAN: axis - dynamic shape not supported");
+    std::vector<std::size_t> axis_in;
+    in.visit([&](auto input) { axis_in.assign(input.begin(), input.end()); });
+    int64_t axis = axis_in[0];
+
     bool exclusive = false;
     bool reverse = false;
 

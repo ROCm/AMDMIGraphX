@@ -2636,15 +2636,21 @@ def pow_i64_fp32_test():
 def prefix_scan_sum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2])
-    axis = helper.make_tensor_value_info('axis', TensorProto.INT32, [1])
-
+    axis_val = np.array([0])
+    axis_tensor = helper.make_tensor(name="axis_tensor",
+                                      data_type=TensorProto.INT32,
+                                      dims=None,
+                                      vals=axis_val.astype(int))
+    axis = helper.make_node("Constant",
+                                 inputs=[],
+                                 outputs=['axis'],
+                                 value=axis_tensor)
     node = onnx.helper.make_node(
         'CumSum', 
         inputs=['x', 'axis'], 
         outputs=['y']
     )
-
-    return ([node], [x, axis], [y])
+    return ([axis, node], [x], [y])
 
 @onnx_test
 def prelu_brcst_test():

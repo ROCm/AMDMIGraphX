@@ -19,7 +19,7 @@ void run_passes(module& modl, const std::vector<pass>& passes, tracer trace)
 {
     for(const auto& p : passes)
     {
-        trace("Pass: ", p.name());
+        trace("Module: ", modl.name(), ", Pass: ", p.name());
         p.apply(modl);
         trace(modl);
 

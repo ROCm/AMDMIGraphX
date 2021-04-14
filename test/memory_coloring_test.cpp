@@ -3,6 +3,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -635,6 +636,48 @@ TEST_CASE(test38)
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
     CHECK(no_allocate(m));
+}
+
+TEST_CASE(test39)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    auto cond   = add_alloc(*mm, cond_s);
+    auto output = mm->add_parameter("output", {migraphx::shape::float_type, {20}});
+
+    migraphx::shape ds{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data1 = {0.384804, -1.77948, -0.453775, 0.477438, -1.06333, -1.12893};
+    auto l1                  = mm->add_literal(migraphx::literal(ds, data1));
+    std::vector<float> data2 = {-0.258047, 0.360394, 0.536804, -0.577762, 1.0217, 1.02442};
+    auto l2                  = mm->add_literal(migraphx::literal(ds, data2));
+
+    auto* then_mod = p.create_module("If_0_if");
+    auto i1        = add_alloc(*then_mod, ds);
+    auto a1        = then_mod->add_instruction(pass_op{}, i1, l1);
+    then_mod->add_return({a1, output});
+
+    auto* else_mod = p.create_module("If_0_else");
+    auto i2        = add_alloc(*else_mod, ds);
+    auto a2        = else_mod->add_instruction(pass_op{}, i2, l2);
+    else_mod->add_return({a2, output});
+
+    auto ret = mm->add_instruction(mod_pass_op{}, {cond}, {then_mod, else_mod});
+    mm->add_return({ret, output});
+
+    auto sub_modules = p.get_modules();
+    std::reverse(sub_modules.begin(), sub_modules.end());
+    for(auto& smod : sub_modules)
+    {
+        run_pass(*smod);
+    }
+
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 4);
+    CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
+    CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
+    CHECK(no_allocate(*mm));
+    CHECK(no_allocate(*then_mod));
+    CHECK(no_allocate(*else_mod));
 }
 
 TEST_CASE(literal_test)

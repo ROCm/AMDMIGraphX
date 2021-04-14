@@ -37,6 +37,9 @@ struct stream_info
     std::unordered_map<instruction_ref, std::size_t> ins2stream;
     std::unordered_map<instruction_ref, std::size_t> weights;
     std::unordered_map<instruction_ref, std::size_t> iweights;
+    ins_dep_map mod_implicit_deps;
+
+    void calc_implicit_deps(const module& p) { mod_implicit_deps = p.calc_implicit_deps(); }
 
     void accumulate_weights(instruction_ref last, const schedule_model& model)
     {
@@ -51,11 +54,17 @@ struct stream_info
                 if(op.name() == "@return")
                     weight = 1;
                 iweights[ins] = weight;
-                weights[ins] =
-                    std::accumulate(ins->inputs().begin(),
-                                    ins->inputs().end(),
-                                    weight,
-                                    [&](std::size_t w, instruction_ref i) { return w + self(i); });
+                auto inputs   = ins->inputs();
+                if(contains(mod_implicit_deps, ins))
+                {
+                    const auto& impl_deps = mod_implicit_deps.at(ins);
+                    inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
+                }
+
+                weights[ins] = std::accumulate(
+                    inputs.begin(), inputs.end(), weight, [&](std::size_t w, instruction_ref i) {
+                        return w + self(i);
+                    });
             }
             return weights[ins];
         })(last);
@@ -114,7 +123,9 @@ struct stream_info
             assert(ins != p.end());
             if(contains(partitions, ins))
                 return;
-            assert(p.has_instruction(ins));
+            if(not p.has_instruction(ins))
+                return;
+
             // Add an entry so we know the instruction was visited
             partitions[ins];
             part.add(ins, this->iweights[ins]);
@@ -208,11 +219,21 @@ struct stream_info
             // Pop the first element
             auto top = children.begin()->second;
             children.erase(children.begin());
-
             p.move_instruction(top, p.begin());
             for(auto ins : top->inputs())
             {
+                if(not p.has_instruction(ins))
+                    continue;
                 add_child(ins);
+            }
+
+            if(contains(mod_implicit_deps, top))
+            {
+                for(auto ins : mod_implicit_deps.at(top))
+                {
+                    assert(p.has_instruction(ins));
+                    add_child(ins);
+                }
             }
         }
     }
@@ -267,20 +288,12 @@ struct stream_info
     {
         return [=](auto f) {
             return fix<bool>([&](auto self, auto ins) {
-                for(auto i : select(ins))
-                {
+                return all_of(select(ins), [&](auto i) {
                     if(iweights.at(i) == 0)
-                    {
-                        if(not self(i))
-                            return false;
-                    }
+                        return self(i);
                     else
-                    {
-                        if(not f(this->get_stream(i)))
-                            return false;
-                    }
-                }
-                return true;
+                        return f(this->get_stream(i));
+                });
             })(start);
         };
     }
@@ -346,6 +359,8 @@ struct stream_info
         {
             for(auto&& arg : ins->outputs())
             {
+                if(not p.has_instruction(arg))
+                    continue;
                 if(is_merge_point(arg))
                     merge_from[ins].insert(arg);
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
@@ -469,7 +484,9 @@ void schedule::apply(module& p) const
 {
     if(not enable)
         return;
+
     stream_info si;
+    si.calc_implicit_deps(p);
     auto last = std::prev(p.end());
     si.accumulate_weights(last, model);
     auto nstreams = si.assign_streams(p, model.concurrency());

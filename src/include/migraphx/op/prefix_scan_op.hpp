@@ -49,7 +49,7 @@ struct prefix_scan_op : op_name<Derived>
         return s;
     }
     
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const shape&, std::vector<argument> args) const
     {
         argument result = args[0];
         auto s = result.get_shape();

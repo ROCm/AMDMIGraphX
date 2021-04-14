@@ -54,6 +54,7 @@ struct prefix_scan_op : op_name<Derived>
         argument result = args[0];
         auto s = result.get_shape();
         auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
+        auto slice_ex = shape{s.type(), {s.lens()[axis] - 1}, {s.strides()[axis]}};
         auto lens = s.lens();
         lens[axis] = 1;
         auto batch = shape{s.type(), lens, s.strides()};
@@ -63,6 +64,11 @@ struct prefix_scan_op : op_name<Derived>
             par_for(batch.elements(), [&](auto i) {
                 auto* start = output.data()+batch.index(i);
                 type x{slice, start};
+                if (exclusive) {
+                    type y{slice_ex, start};
+                    std::copy_backward(y.begin(), y.end(), x.end());
+                    *x.begin() = 0;
+                }
                 std::partial_sum(x.begin(), x.end(), x.begin(), self.op());
             });
         });

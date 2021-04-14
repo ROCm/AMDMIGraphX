@@ -90,12 +90,13 @@ TEST_CASE(load_out_of_bounds)
     auto op = migraphx::make_op("load", {{"offset", 4}, {"shape", migraphx::to_value(s)}});
 
     migraphx::argument a{bs};
-    EXPECT(test::throws( [&] { op.compute(bs, {a}); }));
+    EXPECT(test::throws([&] { op.compute(bs, {a}); }));
 }
 
 TEST_CASE(load_tuple)
 {
-    migraphx::shape s{{migraphx::shape{migraphx::shape::int8_type, {3}}, migraphx::shape{migraphx::shape::float_type, {4}}}};
+    migraphx::shape s{{migraphx::shape{migraphx::shape::int8_type, {3}},
+                       migraphx::shape{migraphx::shape::float_type, {4}}}};
     migraphx::shape bs{migraphx::shape::int8_type, {32}};
     auto op = migraphx::make_op("load", {{"offset", 4}, {"shape", migraphx::to_value(s)}});
     EXPECT(op.compute_shape({bs}) == s);

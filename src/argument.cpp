@@ -20,7 +20,7 @@ argument::argument(const shape& s, const argument::data_t& d) : m_shape(s), m_da
 
 argument argument::load(const shape& s, char* buffer)
 {
-    if (s.type() != shape::tuple_type)
+    if(s.type() != shape::tuple_type)
         return argument{s, buffer};
     // Collect all shapes
     std::unordered_map<std::size_t, shape> shapes;
@@ -34,7 +34,7 @@ argument argument::load(const shape& s, char* buffer)
             }
             else
             {
-                for(auto child:ss.sub_shapes())
+                for(auto child : ss.sub_shapes())
                     self(child);
             }
         })(s);
@@ -43,12 +43,12 @@ argument argument::load(const shape& s, char* buffer)
     std::vector<std::size_t> order(shapes.size());
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), by(std::greater<>{}, [&](auto i) {
-        return shapes[i].type_size();
-    }));
+                  return shapes[i].type_size();
+              }));
     // Compute offsets
     std::unordered_map<std::size_t, std::size_t> offsets;
     std::size_t offset = 0;
-    for(auto i:order)
+    for(auto i : order)
     {
         offsets[i] = offset;
         offset += shapes[i].bytes();
@@ -59,14 +59,15 @@ argument argument::load(const shape& s, char* buffer)
     return fix<argument>([&](auto self, auto ss) {
         if(ss.sub_shapes().empty())
         {
-            argument r{shapes[i], buffer+offsets[i]};
+            argument r{shapes[i], buffer + offsets[i]};
             i++;
             return r;
         }
         std::vector<argument> subs;
-        std::transform(ss.sub_shapes().begin(), ss.sub_shapes().end(), std::back_inserter(subs), [&](auto child) {
-            return self(child);
-        });
+        std::transform(ss.sub_shapes().begin(),
+                       ss.sub_shapes().end(),
+                       std::back_inserter(subs),
+                       [&](auto child) { return self(child); });
         return argument{subs};
     })(s);
 }

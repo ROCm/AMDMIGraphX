@@ -49,7 +49,7 @@ shape::type_t to_shape_type(migraphx_shape_datatype_t t)
 {
     switch(t)
     {
-        case migraphx_shape_tuple_type: return shape::tuple_type;
+    case migraphx_shape_tuple_type: return shape::tuple_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case migraphx_shape_##x: return shape::x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
@@ -62,7 +62,7 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 {
     switch(t)
     {
-        case shape::tuple_type: return migraphx_shape_tuple_type;
+    case shape::tuple_type: return migraphx_shape_tuple_type;
 #define MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT(x, y) \
     case shape::x: return migraphx_shape_##x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)

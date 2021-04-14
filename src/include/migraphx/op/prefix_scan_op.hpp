@@ -64,12 +64,23 @@ struct prefix_scan_op : op_name<Derived>
             par_for(batch.elements(), [&](auto i) {
                 auto* start = output.data()+batch.index(i);
                 type x{slice, start};
-                if (exclusive) {
-                    type y{slice_ex, start};
-                    std::copy_backward(y.begin(), y.end(), x.end());
-                    *x.begin() = 0;
+                if (reverse) {
+                    if (exclusive) {
+                        type y{slice_ex, start+1};
+                        type z{slice_ex, start};
+                        std::copy(y.begin(), y.end(), z.begin());
+                        *z.end() = 0;
+                    }
+                    std::partial_sum(std::make_reverse_iterator(x.end()), std::make_reverse_iterator(x.begin()), std::make_reverse_iterator(x.end()), self.op());
                 }
-                std::partial_sum(x.begin(), x.end(), x.begin(), self.op());
+                else {
+                    if (exclusive) {
+                        type y{slice_ex, start};
+                        std::copy_backward(y.begin(), y.end(), x.end());
+                        *x.begin() = 0;
+                    }
+                    std::partial_sum(x.begin(), x.end(), x.begin(), self.op());
+                }
             });
         });
 

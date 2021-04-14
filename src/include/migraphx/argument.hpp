@@ -48,6 +48,8 @@ struct argument : raw_data<argument>
     
     argument(const std::vector<argument>& args);
 
+    static argument load(const shape& s, char* buffer);
+
     /// Provides a raw pointer to the data
     char* data() const;
 

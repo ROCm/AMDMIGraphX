@@ -1,4 +1,6 @@
 #include <migraphx/argument.hpp>
+#include <migraphx/functional.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -15,6 +17,59 @@ argument::argument(shape s, std::nullptr_t)
 }
 
 argument::argument(const shape& s, const argument::data_t& d) : m_shape(s), m_data(d) {}
+
+argument argument::load(const shape& s, char* buffer)
+{
+    if (s.type() != shape::tuple_type)
+        return argument{s, buffer};
+    // Collect all shapes
+    std::unordered_map<std::size_t, shape> shapes;
+    {
+        std::size_t i = 0;
+        fix([&](auto self, auto ss) {
+            if(ss.sub_shapes().empty())
+            {
+                shapes[i] = ss;
+                i++;
+            }
+            else
+            {
+                for(auto child:ss.sub_shapes())
+                    self(child);
+            }
+        })(s);
+    }
+    // Sort by type size
+    std::vector<std::size_t> order(shapes.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), by(std::greater<>{}, [&](auto i) {
+        return shapes[i].type_size();
+    }));
+    // Compute offsets
+    std::unordered_map<std::size_t, std::size_t> offsets;
+    std::size_t offset = 0;
+    for(auto i:order)
+    {
+        offsets[i] = offset;
+        offset += shapes[i].bytes();
+    }
+    assert(offset == s.bytes());
+
+    std::size_t i = 0;
+    return fix<argument>([&](auto self, auto ss) {
+        if(ss.sub_shapes().empty())
+        {
+            argument r{shapes[i], buffer+offsets[i]};
+            i++;
+            return r;
+        }
+        std::vector<argument> subs;
+        std::transform(ss.sub_shapes().begin(), ss.sub_shapes().end(), std::back_inserter(subs), [&](auto child) {
+            return self(child);
+        });
+        return argument{subs};
+    })(s);
+}
 
 std::vector<shape> to_shapes(const std::vector<argument>& args)
 {

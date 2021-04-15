@@ -1549,5 +1549,4 @@ TEST_CASE(prefix_scan_sum)
     }
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

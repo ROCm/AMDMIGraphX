@@ -1532,4 +1532,17 @@ TEST_CASE(lstm)
     }
 }
 
+TEST_CASE(prefix_scan_sum)
+{
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2, 3}};
+        throws_shape(migraphx::make_op("prefix_scan_sum", {{"axis", 3}, {"exclusive", 0}, {"reverse", 0}}), s);
+    }
+
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2}};
+        throws_shape(migraphx::make_op("prefix_scan_sum", {{"axis", -3}, {"exclusive", 0}, {"reverse", 0}}), s);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

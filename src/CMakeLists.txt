@@ -24,6 +24,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     env.cpp
     generate.cpp
+    inline_subgraph.cpp
     instruction.cpp
     load_save.cpp
     make_op.cpp

@@ -42,7 +42,7 @@ TEST_CASE(cannot_inline_both)
         return p;
     };
 
-    auto p = create_program();
+    auto p   = create_program();
     auto* mm = p.get_main_module();
     run_pass(*mm);
 
@@ -76,7 +76,7 @@ TEST_CASE(cannot_inline_one)
         return p;
     };
 
-    auto p = create_program();
+    auto p   = create_program();
     auto* mm = p.get_main_module();
     run_pass(*mm);
 
@@ -109,7 +109,7 @@ TEST_CASE(inline_subgraph)
         return p;
     };
 
-    auto p = create_program();
+    auto p   = create_program();
     auto* mm = p.get_main_module();
     run_pass(*mm);
 
@@ -120,16 +120,18 @@ TEST_CASE(inline_subgraph)
         migraphx::shape cond_s{migraphx::shape::bool_type};
 
         migraphx::program pi;
-        auto* mm = pi.get_main_module();
-        auto cond = mm->add_parameter("cond", cond_s);
-        auto l1   = mm->add_literal(migraphx::literal(s, data1));
-        auto l2   = mm->add_literal(migraphx::literal(s, data2));
-        auto icond = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), cond);
-        auto mcond = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), icond);
+        auto* mm   = pi.get_main_module();
+        auto cond  = mm->add_parameter("cond", cond_s);
+        auto l1    = mm->add_literal(migraphx::literal(s, data1));
+        auto l2    = mm->add_literal(migraphx::literal(s, data2));
+        auto icond = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), cond);
+        auto mcond =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), icond);
         auto ccond = mm->add_instruction(migraphx::make_op("contiguous"), mcond);
-        auto cl = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l1, l2);
-        auto rl = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {10}}}), cl);
-        auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rl, ccond);
+        auto cl    = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l1, l2);
+        auto rl    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {10}}}), cl);
+        auto r     = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rl, ccond);
         mm->add_return({r});
 
         return pi;

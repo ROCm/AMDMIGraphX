@@ -51,8 +51,8 @@ void inline_subgraph::apply(module& p) const
         auto mcond =
             p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), icond);
         auto ccond = p.insert_instruction(ins, make_op("contiguous"), mcond);
-        auto l01 = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
-        auto rl  = p.insert_instruction(
+        auto l01   = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
+        auto rl    = p.insert_instruction(
             ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
         auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, ccond);
         p.replace_instruction(ins, r);

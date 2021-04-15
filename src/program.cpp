@@ -228,24 +228,15 @@ std::vector<argument> generic_eval(const module* mod,
 
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
+                                   context& cctx,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, trace);
+                return generic_eval(smod, cctx, inputs, results, trace);
             };
 
-            if(not mod_args.empty())
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        values, mod_args, module_eval);
-                                }));
-            }
-            else
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        ctx, ins->get_shape(), values);
-                                }));
-            }
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }

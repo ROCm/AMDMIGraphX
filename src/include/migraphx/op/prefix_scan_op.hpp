@@ -19,14 +19,13 @@ struct prefix_scan_op : op_name<Derived>
 {
     int64_t axis;
     bool exclusive = false;
-    bool reverse = false;
-    
+    bool reverse   = false;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), 
-                    f(self.exclusive, "exclusive"), 
-                    f(self.reverse, "reverse"));
+        return pack(
+            f(self.axis, "axis"), f(self.exclusive, "exclusive"), f(self.reverse, "reverse"));
     }
 
     value attributes() const
@@ -39,48 +38,56 @@ struct prefix_scan_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto s          = inputs.at(0);
+        auto s      = inputs.at(0);
         auto n_dims = s.lens().size();
-        if (axis >= n_dims) 
+        if(axis >= n_dims)
         {
-            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
+            MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " +
+                           std::to_string(n_dims) + " dimensions");
         }
 
         return s;
     }
-    
+
     argument compute(const shape&, std::vector<argument> args) const
     {
         argument result = args[0];
-        auto s = result.get_shape();
-        auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
-        auto lens = s.lens();
-        lens[axis] = 1;
-        auto batch = shape{s.type(), lens, s.strides()};
-        auto& self = static_cast<const Derived&>(*this);
+        auto s          = result.get_shape();
+        auto slice      = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
+        auto lens       = s.lens();
+        lens[axis]      = 1;
+        auto batch      = shape{s.type(), lens, s.strides()};
+        auto& self      = static_cast<const Derived&>(*this);
         result.visit([&](auto output) {
             using type = decltype(output);
             par_for(batch.elements(), [&](auto i) {
-                auto* start = output.data()+batch.index(i);
+                auto* start = output.data() + batch.index(i);
                 type x{slice, start};
-                if (reverse) {
-                    if (exclusive) {
+                if(reverse)
+                {
+                    if(exclusive)
+                    {
                         std::copy(++x.begin(), x.end(), x.begin());
                         x.back() = 0;
                     }
-                    std::partial_sum(std::make_reverse_iterator(x.end()), std::make_reverse_iterator(x.begin()), std::make_reverse_iterator(x.end()), self.op());
+                    std::partial_sum(std::make_reverse_iterator(x.end()),
+                                     std::make_reverse_iterator(x.begin()),
+                                     std::make_reverse_iterator(x.end()),
+                                     self.op());
                 }
-                else {
-                    if (exclusive) {
-                       std::copy_backward(x.begin(), --x.end(), x.end());
-                       x.front() = 0;
+                else
+                {
+                    if(exclusive)
+                    {
+                        std::copy_backward(x.begin(), --x.end(), x.end());
+                        x.front() = 0;
                     }
                     std::partial_sum(x.begin(), x.end(), x.begin(), self.op());
                 }
             });
         });
 
-        return result; 
+        return result;
     }
 
     auto init() const {}

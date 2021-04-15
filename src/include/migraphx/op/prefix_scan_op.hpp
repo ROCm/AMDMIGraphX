@@ -54,7 +54,6 @@ struct prefix_scan_op : op_name<Derived>
         argument result = args[0];
         auto s = result.get_shape();
         auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
-        auto slice_ex = shape{s.type(), {s.lens()[axis] - 1}, {s.strides()[axis]}};
         auto lens = s.lens();
         lens[axis] = 1;
         auto batch = shape{s.type(), lens, s.strides()};

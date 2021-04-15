@@ -41,7 +41,7 @@ struct prefix_scan_op : op_name<Derived>
         check_shapes{inputs, *this}.has(1);
         auto s          = inputs.at(0);
         auto n_dims = s.lens().size();
-        if (axis >= n_dims or axis < -int64_t(n_dims)) 
+        if (axis >= n_dims) 
         {
             MIGRAPHX_THROW("Axis " + std::to_string(axis) + " is out of bounds for shape with " + std::to_string(n_dims) + " dimensions");
         }

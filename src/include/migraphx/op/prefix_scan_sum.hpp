@@ -14,7 +14,7 @@ namespace op {
 
 struct prefix_scan_sum : prefix_scan_op<prefix_scan_sum>
 {
-    prefix_scan_sum() :prefix_scan_op() {}
+    prefix_scan_sum() : prefix_scan_op() {}
     prefix_scan_sum(int64_t ax) : prefix_scan_op(ax) {}
     prefix_scan_sum(int64_t ax, bool excl) : prefix_scan_op(ax, excl) {}
     prefix_scan_sum(int64_t ax, bool excl, bool rev) : prefix_scan_op(ax, excl, rev) {}

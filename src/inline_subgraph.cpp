@@ -46,12 +46,15 @@ void inline_subgraph::apply(module& p) const
         auto l1    = p.add_literal(literal(arg_outs.at(1).get_shape(), arg_outs.at(1).data()));
         auto lens  = l0->get_shape().lens();
         auto cond  = ins->inputs().front();
-        auto icond = p.insert_instruction(ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
-        auto mcond = p.insert_instruction(ins, make_op("multibroadcast", {"output_lens", lens}), icond);
+        auto icond = p.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
+        auto mcond =
+            p.insert_instruction(ins, make_op("multibroadcast", {"output_lens", lens}), icond);
 
-        auto l01   = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
-        auto rl    = p.insert_instruction(ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
-        auto r     = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, mcond);
+        auto l01 = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
+        auto rl  = p.insert_instruction(
+            ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
+        auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, mcond);
         p.replace_instruction(ins, r);
     }
 }

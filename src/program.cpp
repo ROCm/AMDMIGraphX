@@ -158,11 +158,11 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
                            std::to_string(std::distance(mod->begin(), invalid)));
         }
-        auto dangling = modl.find_dangling_reference();
-        if(dangling != modl.end())
+        auto dangling = mod->find_dangling_reference();
+        if(dangling != mod->end())
         {
-            auto index = std::distance(modl.begin(), dangling);
-            MIGRAPHX_THROW("Dangling reference in module " + modl.name() + " from instruction " +
+            auto index = std::distance(mod->begin(), dangling);
+            MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
         mod->finalize(this->impl->ctx);
@@ -256,12 +256,7 @@ std::vector<argument> generic_eval(const module* mod,
         }
         assert(results.find(ins) != results.end());
     }
-<<<<<<< HEAD
-    return {results.at(std::prev(p.end()))};
-=======
-
     return {results.at(std::prev(mod->end()))};
->>>>>>> develop
 }
 
 template <class F>

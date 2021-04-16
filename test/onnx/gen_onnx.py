@@ -2653,6 +2653,7 @@ def prefix_scan_sum_test():
                                  reverse=1)
     return ([axis, node], [x], [y])
 
+
 @onnx_test
 def prelu_brcst_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])

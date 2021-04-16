@@ -2646,9 +2646,12 @@ def prefix_scan_sum_test():
                             inputs=[],
                             outputs=['axis'],
                             value=axis_tensor)
-    node = onnx.helper.make_node('CumSum', inputs=['x', 'axis'], outputs=['y'])
+    node = onnx.helper.make_node('CumSum',
+                                 inputs=['x', 'axis'],
+                                 outputs=['y'],
+                                 exclusive=1,
+                                 reverse=1)
     return ([axis, node], [x], [y])
-
 
 @onnx_test
 def prelu_brcst_test():

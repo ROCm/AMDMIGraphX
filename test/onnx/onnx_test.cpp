@@ -2281,8 +2281,7 @@ TEST_CASE(prefix_scan_sum)
     auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     mm->add_literal(0);
     auto ret = mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum",
-                          {{"axis", 0}, {"exclusive", false}, {"reverse", false}}),
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", true}, {"reverse", true}}),
         l0);
     mm->add_return({ret});
 

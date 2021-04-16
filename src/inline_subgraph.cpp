@@ -15,12 +15,12 @@ void inline_subgraph::apply(module& p) const
         if(ins->name() != "if")
             continue;
 
-        auto arg_cond = ins->inputs().front()->eval();
+        auto arg_cond          = ins->inputs().front()->eval();
         const auto& mod_inputs = ins->module_inputs();
         // condition is not constant, but both subgraph outputs
         // are constant, so we can replace each subgraph with
         // a literal
-        if (arg_cond.empty())
+        if(arg_cond.empty())
         {
             std::vector<argument> arg_outs;
             for(const auto& mod : mod_inputs)
@@ -69,18 +69,18 @@ void inline_subgraph::apply(module& p) const
             const auto smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             std::vector<instruction_ref> mod_outputs;
-            for (auto sins : iterator_for(*smod))
+            for(auto sins : iterator_for(*smod))
             {
-                if (p.has_instruction(sins))
+                if(p.has_instruction(sins))
                 {
                     map_ins[sins] = sins;
                     continue;
                 }
-                
+
                 instruction_ref copy_ins{};
-                if (sins->name() == "@literal")
+                if(sins->name() == "@literal")
                 {
-                    auto l = sins->get_literal();
+                    auto l   = sins->get_literal();
                     copy_ins = p.add_literal(l);
                 }
                 else if(sins->name() == "@param")
@@ -89,15 +89,15 @@ void inline_subgraph::apply(module& p) const
                     auto s      = sins->get_shape();
                     copy_ins    = p.add_parameter(name, s);
                 }
-                else if (sins->name() == "@outline")
+                else if(sins->name() == "@outline")
                 {
-                    auto s = ins->get_shape();
+                    auto s   = ins->get_shape();
                     copy_ins = p.add_outline(s);
                 }
                 else
                 {
                     auto mod_args = sins->module_inputs();
-                    auto inputs = sins->inputs();
+                    auto inputs   = sins->inputs();
                     std::vector<instruction_ref> copy_inputs(inputs.size());
                     std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
                         assert(contains(map_ins, i));
@@ -117,12 +117,13 @@ void inline_subgraph::apply(module& p) const
                         }
                         else
                         {
-                            copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+                            copy_ins = p.insert_instruction(
+                                ins, sins->get_operator(), copy_inputs, mod_args);
                         }
                     }
                 }
                 map_ins[sins] = copy_ins;
-                mod_outputs = {copy_ins};
+                mod_outputs   = {copy_ins};
             }
 
             p.replace_instruction(ins, mod_outputs.front());

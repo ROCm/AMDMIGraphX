@@ -41,9 +41,9 @@ struct parse_if : op_parser<parse_if>
         auto then_out_shapes = then_mdl->get_output_shapes();
         auto else_out_shapes = else_mdl->get_output_shapes();
         if(not std::equal(then_out_shapes.begin(),
-                            then_out_shapes.end(),
-                            else_out_shapes.begin(),
-                            else_out_shapes.end()))
+                          then_out_shapes.end(),
+                          else_out_shapes.begin(),
+                          else_out_shapes.end()))
         {
             MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
         }

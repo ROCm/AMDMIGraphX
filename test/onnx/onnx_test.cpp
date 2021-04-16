@@ -1385,18 +1385,18 @@ TEST_CASE(if_else_test)
     auto cond = mm->add_literal(migraphx::literal(sc, {0}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1 = mm->add_literal(s, ones);
+    auto l1                 = mm->add_literal(s, ones);
     std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
     auto l2                 = mm->add_literal(s, rand);
-    auto x = mm->add_parameter("x", s);
-    auto y = mm->add_parameter("y", s);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_5_if");
-    auto rt = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_5_else");
-    auto re = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({re});
 
     auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -1520,18 +1520,18 @@ TEST_CASE(if_then_test)
     auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
-    auto l1 = mm->add_literal(s, ones);
+    auto l1                 = mm->add_literal(s, ones);
     std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
     auto l2                 = mm->add_literal(s, rand);
-    auto x = mm->add_parameter("x", s);
-    auto y = mm->add_parameter("y", s);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
 
     auto* then_mod = p.create_module("If_5_if");
-    auto rt = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
     then_mod->add_return({rt});
 
     auto* else_mod = p.create_module("If_5_else");
-    auto re = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({re});
 
     auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});

@@ -76,6 +76,7 @@ TEST_CASE(if_else_test)
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};
 
     migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s_data, data.data());
     pp["y"] = migraphx::argument(s_data, data.data());
 
     auto result = p.eval(pp).back();

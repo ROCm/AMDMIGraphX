@@ -2,7 +2,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-
+#include <migraphx/ranges.hpp>
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
@@ -55,18 +55,20 @@ void inline_subgraph::apply(module& p) const
             auto icond = p.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
             auto mcond =
-                p.insert_instruction(ins, make_op("multibroadcast", {"output_lens", lens}), icond);
-
+                p.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), icond);
+            auto ccond = p.insert_instruction(ins, make_op("contiguous"), mcond);                
             auto l01 = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
             auto rl  = p.insert_instruction(
                 ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
-            auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, mcond);
+            auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, ccond);
             p.replace_instruction(ins, r);
         }
         // cond is constant, inline the corresponding subgraph and discard the other one
         else
         {
-            const auto smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
+            std::cout << "cond = " << arg_cond.at<bool>() << std::endl;
+            const auto* smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
+            std::cout << "smod_name = " << smod->name() << std::endl;
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             std::vector<instruction_ref> mod_outputs;
             for(auto sins : iterator_for(*smod))
@@ -100,21 +102,26 @@ void inline_subgraph::apply(module& p) const
                     auto inputs   = sins->inputs();
                     std::vector<instruction_ref> copy_inputs(inputs.size());
                     std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
-                        assert(contains(map_ins, i));
-                        return map_ins[i];
+
+                        assert(contains(map_ins, i) or p.has_instruction(i));
+                        return p.has_instruction(i) ? i : map_ins[i];
                     });
 
-                    if(ins->name() == "@return")
+                    if(sins->name() == "@return")
                     {
                         mod_outputs = copy_inputs;
                         break;
                     }
 
                     if(mod_args.empty())
+                    {
                         copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs);
+                    }
                     else
+                    {
                         copy_ins =
                             p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+                    }
                 }
                 map_ins[sins] = copy_ins;
                 mod_outputs   = {copy_ins};

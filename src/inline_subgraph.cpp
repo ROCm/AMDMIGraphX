@@ -109,18 +109,12 @@ void inline_subgraph::apply(module& p) const
                         mod_outputs = copy_inputs;
                         break;
                     }
+
+                    if(mod_args.empty())
+                        copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs);
                     else
-                    {
-                        if(mod_args.empty())
-                        {
-                            copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs);
-                        }
-                        else
-                        {
-                            copy_ins = p.insert_instruction(
-                                ins, sins->get_operator(), copy_inputs, mod_args);
-                        }
-                    }
+                        copy_ins = p.insert_instruction(
+                            ins, sins->get_operator(), copy_inputs, mod_args);
                 }
                 map_ins[sins] = copy_ins;
                 mod_outputs   = {copy_ins};

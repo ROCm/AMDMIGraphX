@@ -177,7 +177,7 @@ TEST_CASE(inline_if_test)
         auto l1                 = mm->add_literal(s, ones);
         std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
         mm->add_literal(s, rand);
-        auto x                  = mm->add_parameter("x", s);
+        auto x = mm->add_parameter("x", s);
         mm->add_parameter("y", s);
         auto r = mm->add_instruction(migraphx::make_op("add"), x, l1);
         mm->add_return({r});
@@ -185,7 +185,7 @@ TEST_CASE(inline_if_test)
         return p;
     };
 
-    auto p = create_program();
+    auto p   = create_program();
     auto* mm = p.get_main_module();
     run_pass(*mm);
     EXPECT(p == create_inline());
@@ -213,7 +213,7 @@ TEST_CASE(inline_else_test)
         auto* else_mod = p.create_module("If_5_else");
         else_mod->add_parameter("e", s);
         else_mod->add_literal(migraphx::literal(s, ones));
-        auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+        auto re = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
         else_mod->add_return({re});
 
         auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -228,7 +228,7 @@ TEST_CASE(inline_else_test)
         std::vector<float> ones(s.elements(), 1.0f);
         mm->add_literal(s, ones);
         std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
-        auto l2 = mm->add_literal(s, rand);
+        auto l2                 = mm->add_literal(s, rand);
         mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
         auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
@@ -237,10 +237,10 @@ TEST_CASE(inline_else_test)
         return p;
     };
 
-    auto p = create_program();
+    auto p   = create_program();
     auto* mm = p.get_main_module();
     run_pass(*mm);
-    EXPECT(p == create_inline());    
+    EXPECT(p == create_inline());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

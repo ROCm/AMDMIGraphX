@@ -9,6 +9,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/inline_subgraph.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/propagate_constant.hpp>
@@ -56,6 +57,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
+        inline_subgraph{},
         rewrite_pooling{},
         dead_code_elimination{},
         eliminate_common_subexpression{},

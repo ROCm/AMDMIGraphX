@@ -62,7 +62,7 @@ struct basic_iota_iterator
     reference operator*() const { return f(index); }
 };
 
-template<class T, class F>
+template <class T, class F>
 inline basic_iota_iterator<F, T> make_basic_iota_iterator(T x, F f)
 {
     return basic_iota_iterator<F, T>{x, f};
@@ -70,20 +70,21 @@ inline basic_iota_iterator<F, T> make_basic_iota_iterator(T x, F f)
 
 template <class F, class Iterator>
 inline basic_iota_iterator<F, Iterator> operator+(basic_iota_iterator<F, Iterator> x,
-                                            std::ptrdiff_t y)
+                                                  std::ptrdiff_t y)
 {
     return x += y;
 }
 
 template <class F, class Iterator>
 inline basic_iota_iterator<F, Iterator> operator+(std::ptrdiff_t x,
-                                            basic_iota_iterator<F, Iterator> y)
+                                                  basic_iota_iterator<F, Iterator> y)
 {
     return y + x;
 }
 
 template <class F, class Iterator>
-inline std::ptrdiff_t operator-(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
+inline std::ptrdiff_t operator-(basic_iota_iterator<F, Iterator> x,
+                                basic_iota_iterator<F, Iterator> y)
 {
     return x.index - y.index;
 }

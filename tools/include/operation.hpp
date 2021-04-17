@@ -191,13 +191,13 @@ auto compute_op(rank<3>,
 template <class T>
 auto compute_op(rank<2>,
                 const T& x,
-                context& ctx,
+                context&,
                 const shape& output_shape,
                 const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input, {}, {}))
+    -> decltype(x.compute(output_shape, input, {}, {}))
 {
     std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    MIGRAPHX_THROW("Not computable without a callback: " + name);
 }
 
 template <class T>
@@ -231,10 +231,10 @@ auto compute_op(rank<3>, const T& x, const shape& output_shape, const std::vecto
 
 template <class T>
 auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input, {}, {}))
+    -> decltype(x.compute(output_shape, input, {}, {}))
 {
     std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    MIGRAPHX_THROW("Not computable without a callback: " + name);
 }
 
 template <class T>
@@ -261,13 +261,75 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
 template <class T, class F>
 auto compute_op(rank<3>,
                 const T& x,
-                context& ctx,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
 {
-    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output, inputs))
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<3>{}, x, output, inputs, module_args, f);
+}
+
+
+
+
+
+
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -316,18 +378,6 @@ argument compute_op(const T& x,
                     F f)
 {
     return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
-}
-
-template <class T, class F>
-std::vector<argument> compute_outputs_op(const T& x,
-                                         context&,
-                                         const shape&,
-                                         const std::vector<argument>&,
-                                         const std::vector<module_ref>&,
-                                         F)
-{
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
@@ -476,25 +526,24 @@ void from_value_op(T& x, const value& v)
      virtual(
          'compute',
          returns     = 'argument',
-         ctx         = 'context&',
          output      = 'const shape&',
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',
          run =
-             'std::function<std::vector<argument>(module_ref&, context&, const std::unordered_map<std::string, argument>&)>',
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
          const   = True,
          default = 'detail::compute_op'),
      virtual(
-         'compute_outputs',
-         returns     = 'std::vector<argument>',
+         'compute',
+         returns     = 'argument',
          ctx         = 'context&',
          output      = 'const shape&',
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',
          run =
-             'std::function<std::vector<argument>(module_ref&, context&, const std::unordered_map<std::string, argument>&)>',
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
          const   = True,
-         default = 'detail::compute_outputs_op'),
+         default = 'detail::compute_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
      virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
      virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),

@@ -189,15 +189,12 @@ auto compute_op(rank<3>,
 }
 
 template <class T>
-auto compute_op(rank<2>,
-                const T& x,
-                context& ctx,
-                const shape& output_shape,
-                const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(ctx), output_shape, input, {}, {}))
+auto compute_op(
+    rank<2>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
+    -> decltype(x.compute(output_shape, input, {}, {}))
 {
     std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    MIGRAPHX_THROW("Not computable without a callback: " + name);
 }
 
 template <class T>
@@ -231,10 +228,10 @@ auto compute_op(rank<3>, const T& x, const shape& output_shape, const std::vecto
 
 template <class T>
 auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input, {}, {}))
+    -> decltype(x.compute(output_shape, input, {}, {}))
 {
     std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    MIGRAPHX_THROW("Not computable without a callback: " + name);
 }
 
 template <class T>
@@ -261,13 +258,69 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
 template <class T, class F>
 auto compute_op(rank<3>,
                 const T& x,
-                context& ctx,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
 {
-    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output, inputs))
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable without a context: " + name);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<3>{}, x, output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -316,18 +369,6 @@ argument compute_op(const T& x,
                     F f)
 {
     return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
-}
-
-template <class T, class F>
-std::vector<argument> compute_outputs_op(const T& x,
-                                         context&,
-                                         const shape&,
-                                         const std::vector<argument>&,
-                                         const std::vector<module_ref>&,
-                                         F)
-{
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable: " + name);
 }
 
 template <class T>
@@ -443,13 +484,12 @@ void from_value_op(T& x, const value& v)
  *      shape compute_shape(const std::vector<shape>& inputs,const std::vector<module_ref>&
  * mod_args) const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
  * input) const; argument compute(const shape& output,const std::vector<argument>& input)
- * const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
- * input,const std::vector<module_ref>&
- * module_args,std::function<std::vector<argument>(module_ref&, context&, const
- * std::unordered_map<std::string, argument>&)> run) const; std::vector<argument>
- * compute_outputs(context& ctx,const shape& output,const std::vector<argument>& input,const
- * std::vector<module_ref>& module_args,std::function<std::vector<argument>(module_ref&, context&,
- * const std::unordered_map<std::string, argument>&)> run) const; value to_value() const; void
+ * const; argument compute(const shape& output,const std::vector<argument>& input,const
+ * std::vector<module_ref>& module_args,std::function<std::vector<argument>(module_ref&, const
+ * std::unordered_map<std::string, argument>&)> run) const; argument compute(context& ctx,const
+ * shape& output,const std::vector<argument>& input,const std::vector<module_ref>&
+ * module_args,std::function<std::vector<argument>(module_ref&, const
+ * std::unordered_map<std::string, argument>&)> run) const; value to_value() const; void
  * from_value(const value& v) ; value attributes() const; friend std::ostream &
  * operator<<(std::ostream & os,const operation & op) ; friend bool operator==(const operation &
  * x,const operation & y) ;
@@ -581,29 +621,26 @@ struct operation
         return (*this).private_detail_te_get_handle().compute(output, input);
     }
 
-    argument
-    compute(context& ctx,
-            const shape& output,
-            const std::vector<argument>& input,
-            const std::vector<module_ref>& module_args,
-            std::function<std::vector<argument>(
-                module_ref&, context&, const std::unordered_map<std::string, argument>&)> run) const
+    argument compute(const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().compute(
-            ctx, output, input, module_args, std::move(run));
+            output, input, module_args, std::move(run));
     }
 
-    std::vector<argument> compute_outputs(
-        context& ctx,
-        const shape& output,
-        const std::vector<argument>& input,
-        const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref&, context&, const std::unordered_map<std::string, argument>&)> run) const
+    argument compute(context& ctx,
+                     const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute_outputs(
+        return (*this).private_detail_te_get_handle().compute(
             ctx, output, input, module_args, std::move(run));
     }
 
@@ -664,26 +701,23 @@ struct operation
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
         virtual argument
+        compute(const shape& output,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual argument
         compute(context& ctx,
                 const shape& output,
                 const std::vector<argument>& input,
                 const std::vector<module_ref>& module_args,
                 std::function<std::vector<argument>(
-                    module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-            const = 0;
-        virtual std::vector<argument> compute_outputs(
-            context& ctx,
-            const shape& output,
-            const std::vector<argument>& input,
-            const std::vector<module_ref>& module_args,
-            std::function<std::vector<argument>(
-                module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-            const                                                         = 0;
-        virtual value to_value() const                                    = 0;
-        virtual void from_value(const value& v)                           = 0;
-        virtual value attributes() const                                  = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const = 0;
-        virtual bool operator==(const operation& y) const                 = 0;
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual value to_value() const                                                         = 0;
+        virtual void from_value(const value& v)                                                = 0;
+        virtual value attributes() const                                                       = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                      = 0;
+        virtual bool operator==(const operation& y) const                                      = 0;
     };
 
     template <class T>
@@ -843,12 +877,40 @@ struct operation
     static auto private_detail_te_default_compute(
         char,
         T&& private_detail_te_self,
+        const shape& output,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
+        -> decltype(private_detail_te_self.compute(output, input, module_args, std::move(run)))
+    {
+        return private_detail_te_self.compute(output, input, module_args, std::move(run));
+    }
+
+    template <class T>
+    static argument private_detail_te_default_compute(
+        float,
+        T&& private_detail_te_self,
+        const shape& output,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
+    {
+        return detail::compute_op(
+            private_detail_te_self, output, input, module_args, std::move(run));
+    }
+
+    template <class T>
+    static auto private_detail_te_default_compute(
+        char,
+        T&& private_detail_te_self,
         context& ctx,
         const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
         -> decltype(private_detail_te_self.compute(ctx, output, input, module_args, std::move(run)))
     {
         return private_detail_te_self.compute(ctx, output, input, module_args, std::move(run));
@@ -862,42 +924,10 @@ struct operation
         const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
     {
         return detail::compute_op(
-            private_detail_te_self, ctx, output, input, module_args, std::move(run));
-    }
-
-    template <class T>
-    static auto private_detail_te_default_compute_outputs(
-        char,
-        T&& private_detail_te_self,
-        context& ctx,
-        const shape& output,
-        const std::vector<argument>& input,
-        const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-        -> decltype(
-            private_detail_te_self.compute_outputs(ctx, output, input, module_args, std::move(run)))
-    {
-        return private_detail_te_self.compute_outputs(
-            ctx, output, input, module_args, std::move(run));
-    }
-
-    template <class T>
-    static std::vector<argument> private_detail_te_default_compute_outputs(
-        float,
-        T&& private_detail_te_self,
-        context& ctx,
-        const shape& output,
-        const std::vector<argument>& input,
-        const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-    {
-        return detail::compute_outputs_op(
             private_detail_te_self, ctx, output, input, module_args, std::move(run));
     }
 
@@ -1033,31 +1063,28 @@ struct operation
                 char(0), private_detail_te_value, output, input);
         }
 
-        argument
-        compute(context& ctx,
-                const shape& output,
-                const std::vector<argument>& input,
-                const std::vector<module_ref>& module_args,
-                std::function<std::vector<argument>(
-                    module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-            const override
+        argument compute(
+            const shape& output,
+            const std::vector<argument>& input,
+            const std::vector<module_ref>& module_args,
+            std::function<std::vector<argument>(
+                module_ref&, const std::unordered_map<std::string, argument>&)> run) const override
         {
 
             return private_detail_te_default_compute(
-                char(0), private_detail_te_value, ctx, output, input, module_args, std::move(run));
+                char(0), private_detail_te_value, output, input, module_args, std::move(run));
         }
 
-        std::vector<argument> compute_outputs(
+        argument compute(
             context& ctx,
             const shape& output,
             const std::vector<argument>& input,
             const std::vector<module_ref>& module_args,
             std::function<std::vector<argument>(
-                module_ref&, context&, const std::unordered_map<std::string, argument>&)> run)
-            const override
+                module_ref&, const std::unordered_map<std::string, argument>&)> run) const override
         {
 
-            return private_detail_te_default_compute_outputs(
+            return private_detail_te_default_compute(
                 char(0), private_detail_te_value, ctx, output, input, module_args, std::move(run));
         }
 

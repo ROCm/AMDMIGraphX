@@ -36,8 +36,8 @@ template <class T>
 struct tensor_view
 {
     using value_type     = T;
-    using iterator       = iota_iterator<tensor_view_iterator_read<tensor_view<T>>>;
-    using const_iterator = iota_iterator<tensor_view_iterator_read<const tensor_view<T>>>;
+    using iterator       = basic_iota_iterator<tensor_view_iterator_read<tensor_view<T>>, std::size_t>;
+    using const_iterator = basic_iota_iterator<tensor_view_iterator_read<const tensor_view<T>>, std::size_t>;
     tensor_view() : m_data(nullptr) {}
     tensor_view(shape s, T* d) : m_data(d), m_shape(std::move(s)) {}
 

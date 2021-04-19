@@ -74,10 +74,10 @@ void inline_subgraph::apply(module& p) const
 void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
 {
 
-    auto arg_cond    = ins->inputs().front()->eval();
+    auto arg_cond = ins->inputs().front()->eval();
     assert(not arg_cond.empty());
     const auto& mod_inputs = ins->module_inputs();
-    const auto* smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
+    const auto* smod       = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
 
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::vector<instruction_ref> mod_outputs;
@@ -129,8 +129,7 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
             }
             else
             {
-                copy_ins =
-                    p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+                copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
             }
         }
         map_ins[sins] = copy_ins;
@@ -139,7 +138,6 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
 
     p.replace_instruction(ins, mod_outputs.front());
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

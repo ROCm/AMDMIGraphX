@@ -2,6 +2,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/permutation.hpp>
 #include <numeric>
 #include <algorithm>
 #include <functional>
@@ -87,6 +88,29 @@ const std::vector<shape::type_t>& shape::types()
     return result;
 }
 
+std::string shape::name(shape::type_t t)
+{
+    switch(t)
+    {
+#define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
+    case x: return #x;
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE
+    }
+    MIGRAPHX_THROW("Invalid type");
+}
+std::string shape::cpp_type(shape::type_t t)
+{
+    switch(t)
+    {
+#define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
+    case x: return #t;
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
+#undef MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE
+    }
+    MIGRAPHX_THROW("Invalid type");
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
@@ -97,6 +121,16 @@ shape::shape(type_t t, std::vector<std::size_t> l)
 shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
     : impl(std::make_shared<shape_impl>(t, std::move(l), std::move(s)))
 {
+}
+
+shape shape::from_permutation(type_t t,
+                              const std::vector<std::size_t>& l,
+                              const std::vector<int64_t>& perm)
+{
+    auto new_lens = reorder_dims(l, perm);
+    shape result  = reorder_shape({t, new_lens}, invert_permutation(perm));
+    assert(result.lens() == l);
+    return result;
 }
 
 shape::type_t shape::type() const { return impl->m_type; }
@@ -221,19 +255,21 @@ shape shape::normalize_standard() const
         return *this;
 }
 
+shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
+{
+    assert(l.size() == this->lens().size());
+    auto perm = find_permutation(*this);
+    return shape::from_permutation(t, l, perm);
+}
+
+shape shape::with_lens(const std::vector<std::size_t>& l) const
+{
+    return this->with_lens(this->type(), l);
+}
+
 std::size_t shape::element_space() const { return impl->element_space(); }
 
-std::string shape::type_string() const
-{
-    switch(this->type())
-    {
-#define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE(x, t) \
-    case x: return #x;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE)
-#undef MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_CASE
-    }
-    MIGRAPHX_THROW("Invalid type");
-}
+std::string shape::type_string() const { return name(this->type()); }
 
 bool operator==(const shape& x, const shape& y)
 {

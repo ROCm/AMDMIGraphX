@@ -57,7 +57,6 @@ struct convolution
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        auto t               = input.type();
         size_t kdims         = input.lens().size() - 2;
         if(kdims != this->kdims())
         {
@@ -79,7 +78,7 @@ struct convolution
                     1)));
         }
 
-        return {t, output_lens};
+        return inputs[0].with_lens(output_lens);
     }
 
     size_t kdims() const

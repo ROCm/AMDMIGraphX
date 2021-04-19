@@ -14,6 +14,7 @@ add_library(migraphx_cpu
     erf.cpp
     gather.cpp
     gemm.cpp
+    layernorm.cpp
     logsoftmax.cpp
     lowering.cpp
     lrn.cpp

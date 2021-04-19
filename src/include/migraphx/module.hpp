@@ -2,12 +2,14 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
 #include <list>
+#include <unordered_set>
 #include <unordered_map>
 #include <migraphx/operation.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -22,6 +24,7 @@ const operation& get_operation(instruction_ref ins);
 struct module_impl;
 
 using parameter_map = std::unordered_map<std::string, argument>;
+using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
 
 /**
  * @brief Stores the instruction stream
@@ -43,14 +46,19 @@ struct module
 
     std::string name() const;
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {
         return add_instruction(op, {args...});
     }
+
     instruction_ref add_instruction(const operation& op, std::vector<instruction_ref> args);
 
-    template <class... Ts>
+    instruction_ref add_instruction(const operation& op,
+                                    std::vector<instruction_ref> args,
+                                    std::vector<module_ref> module_args);
+
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref insert_instruction(instruction_ref ins, operation op, Ts... args)
     {
         return insert_instruction(ins, op, {args...});
@@ -58,7 +66,12 @@ struct module
     instruction_ref
     insert_instruction(instruction_ref ins, const operation& op, std::vector<instruction_ref> args);
 
-    template <class... Ts>
+    instruction_ref insert_instruction(instruction_ref ins,
+                                       const operation& op,
+                                       std::vector<instruction_ref> args,
+                                       std::vector<module_ref> module_args);
+
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref replace_instruction(instruction_ref ins, operation op, Ts... args)
     {
         return replace_instruction(ins, op, {args...});
@@ -66,6 +79,11 @@ struct module
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
                                         std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
+
+    instruction_ref replace_instruction(instruction_ref ins,
+                                        const operation& op,
+                                        std::vector<instruction_ref> args,
+                                        std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
@@ -109,22 +127,31 @@ struct module
 
     void finalize(context& ctx);
 
-    value to_value() const;
-    void from_value(const value& v);
-
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
+    void debug_print(instruction_ref ins,
+                     std::unordered_map<instruction_ref, std::string>& names) const;
     void debug_print(const std::vector<instruction_ref>& inss) const;
+
+    std::unordered_map<instruction_ref, std::string> print(
+        const std::function<void(
+            instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>& print_func,
+        std::unordered_map<instruction_ref, std::string> names) const;
     void print(const std::function<void(instruction_ref,
                                         const std::unordered_map<instruction_ref, std::string>&)>&
                    print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
+
     void print_cpp(std::ostream& os) const;
+    std::unordered_map<instruction_ref, std::string>
+    print_cpp(std::ostream& os, std::unordered_map<instruction_ref, std::string> names) const;
 
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
+    std::vector<module_ref> get_sub_modules() const;
     module& sort();
+    ins_dep_map calc_implicit_deps() const;
 
     friend std::ostream& operator<<(std::ostream& os, const module& m);
     friend bool operator==(const module& x, const module& y);
@@ -132,6 +159,11 @@ struct module
 
     private:
     void assign(const module& m);
+    void calc_implicit_deps(const module& smod,
+                            const module& pmod,
+                            instruction_ref ins,
+                            ins_dep_map& deps) const;
+
     std::unique_ptr<module_impl> impl;
 };
 

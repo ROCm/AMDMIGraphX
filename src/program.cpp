@@ -9,6 +9,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -25,12 +26,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct program_impl
 {
     // A map is used to keep references to modules of the program
-    std::map<std::string, module> modules;
+    // all the modules are store in the depth-first order
+    std::list<module> modules;
     context ctx;
     std::string target_name;
 };
 
-program::program() : impl(std::make_unique<program_impl>()) { impl->modules["main"] = {"main"}; }
+program::program() : impl(std::make_unique<program_impl>()) { impl->modules.push_back({"main"}); }
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -55,9 +57,38 @@ void program::assign(const program& p)
     {
         impl->modules.clear();
     }
+
     impl->ctx         = p.impl->ctx;
     impl->target_name = p.impl->target_name;
     impl->modules     = p.impl->modules;
+
+    // build a map from old ins to new ins
+    // Build a map from old module to new module
+    std::unordered_map<module_ref, module_ref> mod_map;
+    std::transform(impl->modules.begin(),
+                   impl->modules.end(),
+                   p.impl->modules.begin(),
+                   std::inserter(mod_map, mod_map.begin()),
+                   [](auto&& x, auto&& y) { return std::make_pair(&y, &x); });
+
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(auto&& pp : mod_map)
+    {
+        auto old_ins = iterator_for(*pp.first);
+        auto new_ins = iterator_for(*pp.second);
+        std::transform(old_ins.begin(),
+                       old_ins.end(),
+                       new_ins.begin(),
+                       std::inserter(ins_map, ins_map.begin()),
+                       [](auto x, auto y) { return std::make_pair(x, y); });
+    }
+
+    // Update all references from all modules
+    for(auto&& mp : impl->modules)
+    {
+        for(auto ins : iterator_for(mp))
+            instruction::replace_refs(ins, ins_map, mod_map);
+    }
 }
 
 shape program::get_parameter_shape(std::string name) const
@@ -112,44 +143,43 @@ void program::compile(const target& t, compile_options options)
 
     options.trace(*this);
     options.trace();
+
+    auto mods = this->get_modules();
+    std::reverse(mods.begin(), mods.end());
     auto&& passes = t.get_passes(this->impl->ctx, options);
 
-    for(auto& mp : impl->modules)
+    for(const auto& mod : mods)
     {
-        auto& modl = mp.second;
-        assert(modl.validate() == modl.end());
-        run_passes(modl, passes, options.trace);
-        auto invalid = this->validate();
-        if(invalid != modl.end())
+        assert(mod->validate() == mod->end());
+        run_passes(*mod, passes, options.trace);
+        auto invalid = mod->validate();
+        if(invalid != mod->end())
         {
-            auto index = std::distance(modl.begin(), invalid);
-            MIGRAPHX_THROW("Invalid module " + mp.first + " from compilation at instruction " +
-                           std::to_string(index));
+            MIGRAPHX_THROW("Invalid module " + mod->name() + " from compilation at instruction " +
+                           std::to_string(std::distance(mod->begin(), invalid)));
         }
-        modl.finalize(this->impl->ctx);
+        mod->finalize(this->impl->ctx);
     }
 }
 
 void program::finalize()
 {
-    for(auto& mp : this->impl->modules)
-    {
-        mp.second.finalize(this->impl->ctx);
-    }
+    auto* mm = this->get_main_module();
+    mm->finalize(this->impl->ctx);
 }
 
 template <class F>
-std::vector<argument> generic_eval(const module& p,
+std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
                                    std::unordered_map<std::string, argument> params,
+                                   std::unordered_map<instruction_ref, argument> results,
                                    F trace)
 {
-    assert(p.validate() == p.end());
-    std::unordered_map<instruction_ref, argument> results;
-    results.reserve(p.size() * 2);
+    assert(mod->validate() == mod->end());
+    results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(*mod))
     {
         const auto& name = ins->name();
         if(name == "@literal")
@@ -195,15 +225,32 @@ std::vector<argument> generic_eval(const module& p,
                     assert(results.find(i) != results.end());
                     return results[i];
                 });
-            results.emplace(ins, trace(ins, [&] {
-                                return ins->normalized_operator().compute(
-                                    ctx, ins->get_shape(), values);
-                            }));
+
+            const auto& mod_args = ins->module_inputs();
+            auto module_eval     = [&](module_ref smod,
+                                   const std::unordered_map<std::string, argument>& inputs) {
+                return generic_eval(smod, ctx, inputs, results, trace);
+            };
+
+            if(not mod_args.empty())
+            {
+                results.emplace(ins, trace(ins, [&] {
+                                    return ins->normalized_operator().compute(
+                                        values, mod_args, module_eval);
+                                }));
+            }
+            else
+            {
+                results.emplace(ins, trace(ins, [&] {
+                                    return ins->normalized_operator().compute(
+                                        ctx, ins->get_shape(), values);
+                                }));
+            }
         }
         assert(results.find(ins) != results.end());
     }
 
-    return {results.at(std::prev(p.end()))};
+    return {results.at(std::prev(mod->end()))};
 }
 
 template <class F>
@@ -212,8 +259,8 @@ std::vector<argument> generic_eval(const program& p,
                                    std::unordered_map<std::string, argument> params,
                                    F trace)
 {
-    const auto* mm = p.get_main_module();
-    return generic_eval(*mm, ctx, params, trace);
+    const module* mm = p.get_main_module();
+    return generic_eval(mm, ctx, params, {}, trace);
 }
 
 std::vector<argument> program::eval(parameter_map params) const
@@ -263,13 +310,126 @@ value program::to_value() const
     if(not this->impl->target_name.empty())
         result["context"] = this->impl->ctx.to_value();
 
-    result["modules"] = value::object{};
-    auto& module_val  = result.at("modules");
-    for(auto& m : impl->modules)
+    value module_vals = value::array{};
+    std::unordered_map<instruction_ref, std::string> names;
+    for(auto& mod : this->impl->modules)
     {
-        module_val[m.first] = m.second.to_value();
+        value mod_val;
+        value nodes;
+        mod_val["name"] = mod.name();
+        names           = mod.print(
+            [&](auto ins, auto ins_names) {
+                value node;
+                node["output"]     = ins_names.at(ins);
+                node["name"]       = ins->name();
+                node["shape"]      = migraphx::to_value(ins->get_shape());
+                node["normalized"] = ins->is_normalized();
+                if(ins->name() == "@literal")
+                    node["literal"] = migraphx::to_value(ins->get_literal());
+                node["operator"] = ins->get_operator().to_value();
+                std::vector<std::string> inputs;
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               std::back_inserter(inputs),
+                               [&](auto i) {
+                                   assert(contains(ins_names, i));
+                                   return ins_names.at(i);
+                               });
+                node["inputs"]   = inputs;
+                auto module_args = ins->module_inputs();
+                if(not module_args.empty())
+                {
+                    std::vector<std::string> module_inputs;
+                    std::transform(module_args.begin(),
+                                   module_args.end(),
+                                   std::back_inserter(module_inputs),
+                                   [&](auto mod_ref) { return mod_ref->name(); });
+                    node["module_inputs"] = module_inputs;
+                }
+
+                nodes.push_back(node);
+            },
+            names);
+        mod_val["nodes"] = nodes;
+
+        module_vals.push_back(mod_val);
     }
+
+    result["modules"] = module_vals;
+
     return result;
+}
+
+static void mod_from_val(module_ref mod,
+                         const value& v,
+                         std::unordered_map<std::string, instruction_ref>& instructions,
+                         const std::unordered_map<std::string, module_ref>& map_mods)
+{
+    const auto* it = std::find_if(v.begin(), v.end(), [&](auto& mv) {
+        return mv.at("name").template to<std::string>() == mod->name();
+    });
+    assert(it != v.end());
+
+    const auto& module_val = *it;
+    for(const value& node : module_val.at("nodes"))
+    {
+        instruction_ref output;
+        auto name       = node.at("name").to<std::string>();
+        auto fields     = node.at("operator");
+        auto normalized = node.at("normalized").to<bool>();
+
+        if(name == "@param")
+        {
+            output = mod->add_parameter(fields["parameter"].to<std::string>(),
+                                        migraphx::from_value<shape>(node.at("shape")));
+        }
+        else if(name == "@literal")
+        {
+            output = mod->add_literal(migraphx::from_value<literal>(node.at("literal")));
+        }
+        else
+        {
+            auto op = make_op(name, fields);
+            std::vector<instruction_ref> inputs;
+            std::transform(node.at("inputs").begin(),
+                           node.at("inputs").end(),
+                           std::back_inserter(inputs),
+                           [&](const value& i) {
+                               auto i_name = i.to<std::string>();
+                               assert(contains(instructions, i_name));
+                               return instructions.at(i_name);
+                           });
+
+            std::vector<module_ref> module_inputs;
+            if(node.contains("module_inputs"))
+            {
+                std::transform(node.at("module_inputs").begin(),
+                               node.at("module_inputs").end(),
+                               std::back_inserter(module_inputs),
+                               [&](const value& i) { return map_mods.at(i.to<std::string>()); });
+
+                for(auto& smod : module_inputs)
+                {
+                    mod_from_val(smod, v, instructions, map_mods);
+                }
+            }
+
+            if(name == "@return")
+            {
+                output = mod->add_return(inputs);
+            }
+            else if(module_inputs.empty())
+            {
+                output = mod->add_instruction(op, inputs);
+            }
+            else
+            {
+                output = mod->add_instruction(op, inputs, module_inputs);
+            }
+        }
+        output->set_normalized(normalized);
+        instructions[node.at("output").to<std::string>()] = output;
+    }
 }
 
 void program::from_value(const value& v)
@@ -288,15 +448,21 @@ void program::from_value(const value& v)
         this->impl->ctx.from_value(v.at("context"));
     }
 
-    auto val_modules = v.at("modules");
-    for(const auto& vv : val_modules)
+    auto module_vals = v.at("modules");
+    std::unordered_map<std::string, module_ref> map_mods;
+    for(const auto& vv : module_vals)
     {
-        const auto& key = vv.get_key();
-        auto val        = vv.without_key();
-        module modl{key};
-        modl.from_value(val);
-        impl->modules[key] = modl;
+        const auto& name = vv.at("name").to<std::string>();
+        if(name == "main")
+            continue;
+        impl->modules.push_back({name});
+        map_mods[name] = &impl->modules.back();
     }
+
+    std::unordered_map<std::string, instruction_ref> map_insts;
+    auto* mm = get_main_module();
+    mod_from_val(mm, module_vals, map_insts, map_mods);
+
     this->finalize();
 }
 
@@ -368,8 +534,9 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
 
-    this->print([&](auto ins, auto names) {
-        instruction::print(std::cout, ins, names);
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, [&](auto ins, auto ins_names) {
+        instruction::print(std::cout, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -411,8 +578,9 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
+    std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& it) {
-           return (it.second.end() == ins);
+           return (it.end() == ins);
        }))
     {
         std::cout << "End instruction" << std::endl;
@@ -420,29 +588,30 @@ void program::debug_print(instruction_ref ins) const
     }
     else if(std::none_of(this->impl->modules.begin(),
                          this->impl->modules.end(),
-                         [&](const auto& it) { return it.second.has_instruction(ins); }))
+                         [&](const auto& it) { return it.has_instruction(ins); }))
     {
         std::cout << "Instruction not part of program" << std::endl;
         return;
     }
 
     std::stringstream ss;
-    this->print([&](auto x, const auto& names) {
+    this->print(names, [&](auto x, auto ins_names) {
         if(x == ins)
         {
-            instruction::print(std::cout, x, names);
+            instruction::print(std::cout, x, ins_names);
             std::cout << std::endl;
         }
     });
 }
 
-void program::print(const std::function<
-                    void(instruction_ref, const std::unordered_map<instruction_ref, std::string>&)>&
-                        print_func) const
+void program::print(
+    std::unordered_map<instruction_ref, std::string>& names,
+    const std::function<void(instruction_ref, std::unordered_map<instruction_ref, std::string>)>&
+        print_func) const
 {
-    for(const auto& mdl : this->impl->modules)
+    for(const auto& mod : this->impl->modules)
     {
-        mdl.second.print(print_func);
+        names = mod.print(print_func, names);
     }
 }
 
@@ -454,9 +623,14 @@ void program::print_graph(std::ostream& os, bool brief) const
 
 void program::print_cpp(std::ostream& os) const
 {
-    os << "migraphx::program p;" << std::endl;
-    const auto* mm = this->get_main_module();
-    mm->print_cpp(os);
+    auto vec_modules = this->get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    for(auto& mod : vec_modules)
+    {
+        os << "module: \"" << mod->name() << "\"" << std::endl;
+        names = mod->print_cpp(os, names);
+        os << std::endl;
+    }
 }
 
 void program::dry_run(std::unordered_map<std::string, argument> params) const
@@ -467,22 +641,74 @@ void program::dry_run(std::unordered_map<std::string, argument> params) const
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const
 {
-    for(auto& modl : this->impl->modules)
+    for(auto& mod : this->impl->modules)
     {
-        std::cout << modl.first << ":" << std::endl;
-        modl.second.annotate(os, a);
+        std::cout << mod.name() << ":" << std::endl;
+        mod.annotate(os, a);
     }
 }
 
-module* program::get_main_module() { return &impl->modules.at("main"); }
+const module* program::get_module(const std::string& name) const
+{
+    auto it = std::find_if(
+        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if(it == impl->modules.end())
+    {
+        return nullptr;
+    }
 
-const module* program::get_main_module() const { return &impl->modules.at("main"); }
+    return &(*it);
+}
+
+module* program::create_module(const std::string& name)
+{
+    auto it = impl->modules.insert(impl->modules.end(), {name});
+    return &(*it);
+}
+
+module* program::get_module(const std::string& name)
+{
+    auto it = std::find_if(
+        impl->modules.begin(), impl->modules.end(), [&](auto& m) { return (m.name() == name); });
+    if(it == impl->modules.end())
+    {
+        return nullptr;
+    }
+
+    return &(*it);
+}
+
+module* program::get_main_module() { return get_module("main"); }
+
+const module* program::get_main_module() const { return get_module("main"); }
+
+std::vector<const module*> program::get_modules() const
+{
+    const module* mm = this->get_main_module();
+    std::vector<const module*> vec_modules;
+    vec_modules.push_back(mm);
+    auto sub_modules = mm->get_sub_modules();
+    vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());
+
+    return vec_modules;
+}
+
+std::vector<module*> program::get_modules()
+{
+    module* mm = this->get_main_module();
+    std::vector<module*> vec_modules;
+    vec_modules.push_back(mm);
+    auto sub_modules = mm->get_sub_modules();
+    vec_modules.insert(vec_modules.end(), sub_modules.begin(), sub_modules.end());
+
+    return vec_modules;
+}
 
 program& program::sort()
 {
-    for(auto& modl : this->impl->modules)
+    for(auto& mod : this->impl->modules)
     {
-        modl.second.sort();
+        mod.sort();
     }
 
     return *this;
@@ -492,10 +718,17 @@ bool operator==(const program& x, const program& y) { return to_string(x) == to_
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {
-    for(auto& mp : p.impl->modules)
+    auto vec_modules = p.get_modules();
+    std::unordered_map<instruction_ref, std::string> names;
+    for(auto& mod : vec_modules)
     {
-        os << "Module " << mp.first << ": " << std::endl;
-        os << mp.second;
+        os << "module: \"" << mod->name() << "\"" << std::endl;
+        names = mod->print(
+            [&](auto ins, auto ins_names) {
+                instruction::print(os, ins, ins_names);
+                os << std::endl;
+            },
+            names);
         os << std::endl;
     }
 

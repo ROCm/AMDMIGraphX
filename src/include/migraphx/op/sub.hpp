@@ -18,6 +18,7 @@ namespace op {
 
 struct sub : binary<sub>
 {
+    std::string point_function() const { return "-"; }
     auto apply() const
     {
         return [](auto x, auto y) { return x - y; };

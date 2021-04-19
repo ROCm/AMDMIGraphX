@@ -26,11 +26,10 @@ void pack_int8_args::apply(module& p) const
             }
 
             auto inputs = ins->inputs();
-            auto lens = inputs.at(0)->get_shape().lens();
+            auto lens   = inputs.at(0)->get_shape().lens();
             // gemm need the k to be multiple of 4, so need packing that dimension
-            if ((lens.back() % 4) != 0)
+            if((lens.back() % 4) != 0)
             {
-
             }
 
             bool transa = inputs[0]->get_shape().transposed();
@@ -89,42 +88,40 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
 {
     std::vector<instruction_ref> ret_inputs;
     auto inputs = ins->inputs();
-    auto sa = inputs.at(0)->get_shape();
-    auto alens = sa.lens();
+    auto sa     = inputs.at(0)->get_shape();
+    auto alens  = sa.lens();
     bool transa = sa.transposed();
-    if (transa)
+    if(transa)
     {
-
     }
     else
     {
-        auto k = alens.back();
+        auto k     = alens.back();
         auto pad_k = (k + 3) / 4 * 4;
         std::vector<int64_t> pad_dims(alens.size() * 2, 0);
         pad_dims[alens.size() - 1] = pad_k - k;
-        auto inp_0 = inputs.at(0);
-        if (pad_k != k)
+        auto inp_0                 = inputs.at(0);
+        if(pad_k != k)
         {
             inp_0 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_0);
         }
         ret_inputs.push_back(inp_0);
     }
 
-    auto sb = inputs.at(1)->get_shape();
-    auto blens = sb.lens();
+    auto sb     = inputs.at(1)->get_shape();
+    auto blens  = sb.lens();
     bool transb = sb.transposed();
-    if (transb)
+    if(transb)
     {
-
     }
     else
     {
-        auto k = blens[blens.size() - 2];
+        auto k     = blens[blens.size() - 2];
         auto pad_k = (k + 3) / 4 * 4;
         std::vector<int64_t> pad_dims(blens.size() * 2, 0);
         pad_dims[blens.size() - 2] = pad_k - k;
-        auto inp_1 = inputs.at(1);
-        if (pad_k != k)
+        auto inp_1                 = inputs.at(1);
+        if(pad_k != k)
         {
             inp_1 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_1);
         }

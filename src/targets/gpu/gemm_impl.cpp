@@ -66,8 +66,7 @@ void gemm_impl(context& ctx,
     auto compute_type = output_type;
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    flag =
-        int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+    flag = int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 #else
     (void)int8X4_format;
     rocblas_gemm_flags flag = rocblas_gemm_flags_none;

@@ -25,6 +25,7 @@ argument argument::load(const shape& s, char* buffer)
     // Collect all shapes
     std::unordered_map<std::size_t, shape> shapes;
     {
+        // cppcheck-suppress variableScope
         std::size_t i = 0;
         fix([&](auto self, auto ss) {
             if(ss.sub_shapes().empty())
@@ -34,7 +35,7 @@ argument argument::load(const shape& s, char* buffer)
             }
             else
             {
-                for(auto child : ss.sub_shapes())
+                for(auto&& child : ss.sub_shapes())
                     self(child);
             }
         })(s);
@@ -55,6 +56,7 @@ argument argument::load(const shape& s, char* buffer)
     }
     assert(offset == s.bytes());
 
+    // cppcheck-suppress variableScope
     std::size_t i = 0;
     return fix<argument>([&](auto self, auto ss) {
         if(ss.sub_shapes().empty())

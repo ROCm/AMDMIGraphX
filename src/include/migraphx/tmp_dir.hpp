@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct tmp_dir
 {
     fs::path path;
-    tmp_dir();
+    tmp_dir(const std::string& prefix = "");
 
     void execute(const std::string& exe, const std::string& args) const;
 

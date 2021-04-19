@@ -5,6 +5,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 
 namespace migraphx {
@@ -14,7 +15,27 @@ namespace op {
 template <class Derived>
 struct unary : op_name<Derived>
 {
-    value base_attributes() const { return {{"pointwise", true}}; }
+    std::string point_function() const { return this->name(); }
+    std::string point_op() const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        auto pf          = self.point_function();
+        if(pf.empty())
+            return {};
+        if(with_char(::ispunct)(pf.front()))
+        {
+            return pf + "${0}";
+        }
+        else
+        {
+            return "${function:" + pf + "}(${0})";
+        }
+    }
+    value base_attributes() const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        return {{"pointwise", true}, {"point_op", self.point_op()}};
+    }
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {

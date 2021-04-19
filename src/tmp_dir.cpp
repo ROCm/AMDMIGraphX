@@ -1,6 +1,7 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/process.hpp>
 #include <algorithm>
 #include <random>
 #include <thread>
@@ -14,7 +15,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SAVE_TEMP_DIR)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_CMD_EXECUTE)
 
 std::string random_string(std::string::size_type length)
 {
@@ -35,34 +35,22 @@ std::string unique_string(const std::string& prefix)
 {
     auto pid = getpid();
     auto tid = std::this_thread::get_id();
+    auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
     std::stringstream ss;
-    ss << prefix << "-" << pid << "-" << tid << "-" << random_string(64);
+    ss << std::hex << prefix << "-" << pid << "-" << tid << "-" << clk << "-" << random_string(16);
     return ss.str();
 }
 
-tmp_dir::tmp_dir() : path(fs::temp_directory_path() / unique_string("migraphx"))
+tmp_dir::tmp_dir(const std::string& prefix)
+    : path(fs::temp_directory_path() /
+           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + prefix))
 {
     fs::create_directories(this->path);
 }
 
-void system_cmd(const std::string& cmd)
-{
-// We shouldn't call system commands
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-    (void)cmd;
-#else
-    if(std::system(cmd.c_str()) != 0)
-        MIGRAPHX_THROW("Can't execute " + cmd);
-#endif
-}
-
 void tmp_dir::execute(const std::string& exe, const std::string& args) const
 {
-    std::string cd  = "cd " + this->path.string() + "; ";
-    std::string cmd = cd + exe + " " + args; // + " > /dev/null";
-    if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        std::cout << cmd << std::endl;
-    system_cmd(cmd);
+    process{exe + " " + args}.cwd(this->path).exec();
 }
 
 tmp_dir::~tmp_dir()

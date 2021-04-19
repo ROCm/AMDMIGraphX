@@ -104,7 +104,7 @@ TEST_CASE(load_tuple)
     migraphx::argument a{bs};
     auto r = op.compute(bs, {a});
     EXPECT(r.get_sub_objects().size() == 2);
-    auto start = a.data() + 4;
+    auto* start = a.data() + 4;
     EXPECT(r.get_sub_objects()[0].data() == start + 16);
     EXPECT(r.get_sub_objects()[1].data() == start);
 }

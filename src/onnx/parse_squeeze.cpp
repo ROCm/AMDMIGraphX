@@ -26,7 +26,7 @@ struct parse_squeeze : op_parser<parse_squeeze>
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto op = parser.load(opd.op_name, info);

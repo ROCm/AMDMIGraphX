@@ -17,7 +17,7 @@ struct parse_softmax : op_parser<parse_softmax>
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
         // default axis value is -1 for opset 13

@@ -3,6 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/compile_src.hpp>
 #include <string>
 #include <utility>
 #include <vector>
@@ -10,13 +11,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-struct src_file
-{
-    fs::path path;
-    std::pair<const char*, const char*> content;
-    std::size_t len() const { return content.second - content.first; }
-};
 
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch);

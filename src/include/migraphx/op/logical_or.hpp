@@ -12,6 +12,7 @@ namespace op {
 
 struct logical_or : binary<logical_or>
 {
+    std::string point_function() const { return "||"; }
     auto apply() const
     {
         return [](auto x, auto y) { return static_cast<bool>(x) or static_cast<bool>(y); };

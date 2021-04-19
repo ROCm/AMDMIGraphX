@@ -66,67 +66,80 @@ void inline_subgraph::apply(module& p) const
         // cond is constant, inline the corresponding subgraph and discard the other one
         else
         {
-            std::cout << "cond = " << arg_cond.at<bool>() << std::endl;
-            const auto* smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
-            std::cout << "smod_name = " << smod->name() << std::endl;
-            std::unordered_map<instruction_ref, instruction_ref> map_ins;
-            std::vector<instruction_ref> mod_outputs;
-            for(auto sins : iterator_for(*smod))
-            {
-                if(p.has_instruction(sins))
-                {
-                    map_ins[sins] = sins;
-                    continue;
-                }
-
-                instruction_ref copy_ins{};
-                if(sins->name() == "@literal")
-                {
-                    auto l   = sins->get_literal();
-                    copy_ins = p.add_literal(l);
-                }
-                else if(sins->name() == "@param")
-                {
-                    auto&& name = any_cast<builtin::param>(sins->get_operator()).parameter;
-                    auto s      = sins->get_shape();
-                    copy_ins    = p.add_parameter(name, s);
-                }
-                else if(sins->name() == "@outline")
-                {
-                    auto s   = ins->get_shape();
-                    copy_ins = p.add_outline(s);
-                }
-                else
-                {
-                    auto mod_args = sins->module_inputs();
-                    auto inputs   = sins->inputs();
-                    std::vector<instruction_ref> copy_inputs(inputs.size());
-                    std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
-
-                        assert(contains(map_ins, i) or p.has_instruction(i));
-                        return p.has_instruction(i) ? i : map_ins[i];
-                    });
-
-                    if(sins->name() == "@return")
-                    {
-                        mod_outputs = copy_inputs;
-                        break;
-                    }
-
-                    if(mod_args.empty())
-                        copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs);
-                    else
-                        copy_ins =
-                            p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
-                }
-                map_ins[sins] = copy_ins;
-                mod_outputs   = {copy_ins};
-            }
-
-            p.replace_instruction(ins, mod_outputs.front());
+            inline_submodule(p, ins);
         }
     }
 }
+
+void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
+{
+
+    auto arg_cond    = ins->inputs().front()->eval();
+    assert(not arg_cond.empty());
+    const auto& mod_inputs = ins->module_inputs();
+    const auto* smod = (arg_cond.at<bool>()) ? mod_inputs.at(0) : mod_inputs.at(1);
+
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    std::vector<instruction_ref> mod_outputs;
+    for(auto sins : iterator_for(*smod))
+    {
+        if(p.has_instruction(sins))
+        {
+            map_ins[sins] = sins;
+            continue;
+        }
+
+        instruction_ref copy_ins{};
+        if(sins->name() == "@literal")
+        {
+            auto l   = sins->get_literal();
+            copy_ins = p.add_literal(l);
+        }
+        else if(sins->name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(sins->get_operator()).parameter;
+            auto s      = sins->get_shape();
+            copy_ins    = p.add_parameter(name, s);
+        }
+        else if(sins->name() == "@outline")
+        {
+            auto s   = sins->get_shape();
+            copy_ins = p.add_outline(s);
+        }
+        else
+        {
+            auto mod_args = sins->module_inputs();
+            auto inputs   = sins->inputs();
+            std::vector<instruction_ref> copy_inputs(inputs.size());
+            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
+
+                assert(contains(map_ins, i) or p.has_instruction(i));
+                return p.has_instruction(i) ? i : map_ins[i];
+            });
+
+            if(sins->name() == "@return")
+            {
+                mod_outputs = copy_inputs;
+                break;
+            }
+
+            if(mod_args.empty())
+            {
+                copy_ins = p.insert_instruction(ins, sins->get_operator(), copy_inputs);
+            }
+            else
+            {
+                copy_ins =
+                    p.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            }
+        }
+        map_ins[sins] = copy_ins;
+        mod_outputs   = {copy_ins};
+    }
+
+    p.replace_instruction(ins, mod_outputs.front());
+}
+
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -14,6 +14,7 @@ struct inline_subgraph
 {
     std::string name() const { return "inline_subgraph"; }
     void apply(module& p) const;
+    void inline_submodule(module& p, instruction_ref ins) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

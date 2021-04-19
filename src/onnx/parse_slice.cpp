@@ -4,6 +4,10 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
+#include <migraphx/generate.hpp>
+
+
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -28,9 +32,27 @@ struct parse_slice : op_parser<parse_slice>
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
             std::vector<int> steps;
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
+            
             if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
             {
-                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+                //MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+
+                //data
+                auto arg_data = args[0];
+                //data size
+                auto data_s = arg_data->get_shape();
+                //num of elements
+                int64_t data_elem_num = static_cast<uint64_t>(data_s.lens()[0]);
+
+                std::vector<int> data_indices(data_s.lens()[0]);
+                std::generate(data_indices.begin(), data_indices.end(), [&data_elem_num]{ return --data_elem_num;});
+
+                migraphx::shape new_shape = migraphx::shape(migraphx::shape::int64_type, {data_indices.size()});
+
+                auto ind = info.add_literal(literal(new_shape, data_indices.begin(), data_indices.end()));
+
+                auto op_slice_gather = make_op("gather", {{"axis", 0}});
+                return info.add_instruction(op_slice_gather, arg_data, ind );
             }
         }
 

@@ -1,3 +1,4 @@
+#include "migraphx/instruction_ref.hpp"
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/int8_gemm_pack.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
@@ -6,6 +7,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,6 +26,13 @@ void pack_int8_args::apply(module& p) const
             }
 
             auto inputs = ins->inputs();
+            auto lens = inputs.at(0)->get_shape().lens();
+            // gemm need the k to be multiple of 4, so need packing that dimension
+            if ((lens.back() % 4) != 0)
+            {
+
+            }
+
             bool transa = inputs[0]->get_shape().transposed();
             bool transb = inputs[1]->get_shape().transposed();
 
@@ -74,6 +83,55 @@ shape pack_int8_args::pack_int8_shape(const shape& s) const
     strides[0]   = strides[1] * lens[1];
 
     return {s.type(), lens, strides};
+}
+
+std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_ref ins) const
+{
+    std::vector<instruction_ref> ret_inputs;
+    auto inputs = ins->inputs();
+    auto sa = inputs.at(0)->get_shape();
+    auto alens = sa.lens();
+    bool transa = sa.transposed();
+    if (transa)
+    {
+
+    }
+    else
+    {
+        auto k = alens.back();
+        auto pad_k = (k + 3) / 4 * 4;
+        std::vector<int64_t> pad_dims(alens.size() * 2, 0);
+        pad_dims[alens.size() - 1] = pad_k - k;
+        auto inp_0 = inputs.at(0);
+        if (pad_k != k)
+        {
+            inp_0 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_0);
+        }
+        ret_inputs.push_back(inp_0);
+    }
+
+    auto sb = inputs.at(1)->get_shape();
+    auto blens = sb.lens();
+    bool transb = sb.transposed();
+    if (transb)
+    {
+
+    }
+    else
+    {
+        auto k = blens[blens.size() - 2];
+        auto pad_k = (k + 3) / 4 * 4;
+        std::vector<int64_t> pad_dims(blens.size() * 2, 0);
+        pad_dims[blens.size() - 2] = pad_k - k;
+        auto inp_1 = inputs.at(1);
+        if (pad_k != k)
+        {
+            inp_1 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_1);
+        }
+        ret_inputs.push_back(inp_1);
+    }
+
+    return ret_inputs;
 }
 
 } // namespace gpu

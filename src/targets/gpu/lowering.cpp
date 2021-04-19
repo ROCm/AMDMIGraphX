@@ -323,7 +323,7 @@ struct miopen_apply
 #endif
             }
 
-            return prog->replace_instruction(
+            return mod->replace_instruction(
                 ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8X4_format}, refs);
         });
     }

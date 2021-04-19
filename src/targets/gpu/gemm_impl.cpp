@@ -66,8 +66,11 @@ void gemm_impl(context& ctx,
     auto compute_type = output_type;
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    rocblas_gemm_flags flag =
+    flag =
         int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+#else
+    (void)int8X4_format;
+    rocblas_gemm_flags flag = rocblas_gemm_flags_none;
 #endif
 
     auto a_lens = args[0].get_shape().lens();
@@ -117,11 +120,7 @@ void gemm_impl(context& ctx,
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
                            flag);
-#else
-                           0);
-#endif
         }
         else
         {
@@ -154,11 +153,7 @@ void gemm_impl(context& ctx,
                            compute_type,
                            rocblas_gemm_algo_standard,
                            0,
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
                            flag);
-#else
-                           0);
-#endif
         }
     });
 }

@@ -127,7 +127,8 @@ TEST_CASE(code_object_hip)
     migraphx::compile_options options;
     p.compile(migraphx::gpu::target{}, options);
 
-    auto result = migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
 }
@@ -152,7 +153,8 @@ TEST_CASE(compile_code_object_hip)
     mm->add_instruction(co, x, y);
     p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
 
-    auto result = migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
 }

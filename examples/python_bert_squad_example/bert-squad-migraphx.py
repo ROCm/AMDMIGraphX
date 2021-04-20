@@ -84,7 +84,6 @@ write_predictions(eval_examples, extra_data, all_results, n_best_size,
                   max_answer_length, True, output_prediction_file,
                   output_nbest_file)
 
-import json
 with open(output_prediction_file) as json_file:
     test_data = json.load(json_file)
     print(json.dumps(test_data, indent=2))

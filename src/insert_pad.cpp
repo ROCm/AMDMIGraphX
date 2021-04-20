@@ -93,7 +93,6 @@ void insert_pad::update_pooling(const instruction_ref& input,
     new_inputs.front() = pad_op;
 
     p.replace_instruction(ins, op, new_inputs);
-    std::cout << "HERE" << std::endl;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

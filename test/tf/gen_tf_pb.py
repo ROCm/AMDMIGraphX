@@ -1,3 +1,6 @@
+# This script generates tf pb files for MIGraphX tf operator tests.
+# To generate an individual pb file, you can use the following
+# command: python -c "import gen_tf_pb; gen_tf_pb.{test_name}_test()"
 import numpy as np
 import tensorflow as tf
 from tensorflow.core.framework import attr_value_pb2
@@ -194,6 +197,36 @@ def conv_test(g1):
 
 
 @tf_test
+def conv_add_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 16, 16, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
+        tf.add(conv, conv, name='add1')
+
+
+@tf_test
+def conv_batch_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(None, 16, 16, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        tf.nn.conv2d(g1_input, g1_weights, [1, 1, 1, 1], "SAME", name='conv1')
+
+
+@tf_test
 def conv_nchw_test(g1):
     with g1.as_default():
         g1_input = tf.compat.v1.placeholder(tf.float32,
@@ -208,6 +241,40 @@ def conv_nchw_test(g1):
                      "SAME",
                      data_format='NCHW',
                      name='conv1')
+
+
+@tf_test
+def conv_relu_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 16, 16, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
+        tf.nn.relu(conv, name='relu1')
+
+
+@tf_test
+def conv_relu6_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 16, 16, 3),
+                                            name='0')
+        g1_weights = tf.constant(value=1.0,
+                                 dtype=tf.float32,
+                                 shape=(3, 3, 3, 32),
+                                 name='1')
+        conv = tf.nn.conv2d(g1_input,
+                            g1_weights, [1, 1, 1, 1],
+                            "SAME",
+                            name='conv1')
+        tf.nn.relu6(conv, name='relu1')
 
 
 @tf_test
@@ -282,7 +349,6 @@ def mean_test_nhwc(g1):
         g1_input = tf.compat.v1.placeholder(tf.float32,
                                             shape=(1, 16, 16, 3),
                                             name='0')
-        tf.math.reduce_mean(g1_input, axis=(1, 2), keepdims=True, name='mean1')
         tf.math.reduce_mean(g1_input,
                             axis=(1, 2),
                             keepdims=False,
@@ -299,6 +365,16 @@ def mul_test(g1):
                                             shape=(1, 1, 1, 16),
                                             name='1')
         tf.multiply(g1_input, g2_input, name='mul1')
+
+
+@tf_test
+def multi_output_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32,
+                                            shape=(1, 3, 16, 16),
+                                            name='0')
+        tf.nn.relu(g1_input, 'relu')
+        tf.tanh(g1_input, 'tanh')
 
 
 @tf_test
@@ -336,6 +412,15 @@ def pack_test_nhwc(g1):
                                             shape=(1, 1, 1, 2),
                                             name='2')
         tf.stack([g1_input, g2_input, g3_input], axis=3, name='pack1')
+
+
+@tf_test
+def pad_test(g1):
+    with g1.as_default():
+        g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 4), name='0')
+        paddings = tf.constant([[1, 1], [2, 2]])
+
+        tf.pad(g1_input, paddings, name='pad1')
 
 
 @tf_test
@@ -570,7 +655,11 @@ if __name__ == '__main__':
     concat_test()
     const_test()
     conv_test()
+    conv_add_test()
+    conv_batch_test()
     conv_nchw_test()
+    conv_relu_test()
+    conv_relu6_test()
     depthwiseconv_test()
     expanddims_test()
     gather_test()
@@ -579,10 +668,12 @@ if __name__ == '__main__':
     mean_test()
     mean_test_nhwc()
     mul_test()
-    onehot_test()
+    multi_output_test()
     noop_test()
+    onehot_test()
     pack_test()
     pack_test_nhwc()
+    pad_test()
     pooling_test()
     pow_test()
     relu_test()

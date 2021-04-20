@@ -27,17 +27,19 @@ TEST_CASE(basic_graph_test)
     std::stringstream ss;
     p.print_graph(ss);
     std::string test = ss.str();
+    std::cout << "test = " << test << std::endl;
+
     EXPECT(migraphx::contains(test, "digraph"));
     EXPECT(migraphx::contains(test, "rankdir=LR"));
-    EXPECT(migraphx::contains(test, "\"@0\"[label=\"@literal\"]"));
+    EXPECT(migraphx::contains(test, "\"main:@0\"[label=\"@literal\"]"));
     EXPECT(migraphx::contains(test, "\"y\"[label=\"@param:y\"]"));
     EXPECT(migraphx::contains(test, "\"x\"[label=\"@param:x\"]"));
-    EXPECT(migraphx::contains(test, "\"@1\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"@2\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"x\" -> \"@1\""));
-    EXPECT(migraphx::contains(test, "\"y\" -> \"@1\""));
-    EXPECT(migraphx::contains(test, "\"@1\" -> \"@2\""));
-    EXPECT(migraphx::contains(test, "\"@0\" -> \"@2\""));
+    EXPECT(migraphx::contains(test, "\"main:@1\"[label=\"sum\"]"));
+    EXPECT(migraphx::contains(test, "\"main:@2\"[label=\"sum\"]"));
+    EXPECT(migraphx::contains(test, "\"x\" -> \"main:@1\""));
+    EXPECT(migraphx::contains(test, "\"y\" -> \"main:@1\""));
+    EXPECT(migraphx::contains(test, "\"main:@1\" -> \"main:@2\""));
+    EXPECT(migraphx::contains(test, "\"main:@0\" -> \"main:@2\""));
     EXPECT(migraphx::contains(test, "[label=\"int64_type, {1}, {0}\"]"));
 }
 

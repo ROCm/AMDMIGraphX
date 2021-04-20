@@ -68,7 +68,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         propagate_constant{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
-        eliminate_contiguous{},
+        eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
@@ -87,6 +87,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},
         check_context<context>{},
+        normalize_ops{},
         dead_code_elimination{},
         eliminate_identity{}
     };

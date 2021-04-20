@@ -1,5 +1,6 @@
 #include <migraphx/value.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/ranges.hpp>
 #include <test.hpp>
 
 enum class enum_type
@@ -753,6 +754,48 @@ TEST_CASE(value_init_from_vector)
     std::vector<int> v     = {1, 2, 3};
     migraphx::value values = {{"a", v}};
     EXPECT(values.at("a").to_vector<int>() == v);
+}
+
+TEST_CASE(value_binary_default)
+{
+    migraphx::value v;
+    v = migraphx::value::binary{};
+    EXPECT(v.is_binary());
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_binary)
+{
+    migraphx::value v;
+    std::vector<std::uint8_t> data(20);
+    std::iota(data.begin(), data.end(), 0);
+    v = migraphx::value::binary{data};
+    EXPECT(v.is_binary());
+    EXPECT(v.get_binary().size() == data.size());
+    EXPECT(v.get_binary() == data);
+    EXPECT(v.get_key().empty());
+}
+
+TEST_CASE(value_binary_object)
+{
+    std::vector<std::uint8_t> data(20);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::value v = {{"data", migraphx::value::binary{data}}};
+
+    EXPECT(v["data"].is_binary());
+    EXPECT(v["data"].get_binary().size() == data.size());
+    EXPECT(v["data"].get_binary() == data);
+}
+
+TEST_CASE(value_binary_object_conv)
+{
+    std::vector<std::int8_t> data(20);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::value v = {{"data", migraphx::value::binary{data}}};
+
+    EXPECT(v["data"].is_binary());
+    EXPECT(v["data"].get_binary().size() == data.size());
+    EXPECT(migraphx::equal(v["data"].get_binary(), data));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

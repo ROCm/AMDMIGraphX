@@ -21,8 +21,6 @@ struct test_softmax : verify_program<test_softmax<Axis, T>>
 
 template struct test_softmax<0, migraphx::shape::float_type>;
 template struct test_softmax<2, migraphx::shape::float_type>;
-template struct test_softmax<1, migraphx::shape::double_type>;
-template struct test_softmax<3, migraphx::shape::double_type>;
 template struct test_softmax<0, migraphx::shape::half_type>;
 template struct test_softmax<1, migraphx::shape::half_type>;
 template struct test_softmax<2, migraphx::shape::half_type>;

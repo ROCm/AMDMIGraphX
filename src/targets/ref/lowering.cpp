@@ -10,6 +10,7 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/elu.hpp>
+#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>
@@ -27,6 +28,7 @@
 #include <migraphx/ref/gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -791,14 +793,14 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto batch_lens    = output_shape.lens();
-        int64_t tuned_axis = (op.axis < 0) ? op.axis + args[0].get_shape().lens().size() : op.axis;
-        std::size_t n_dims = batch_lens[tuned_axis];
+        auto batch_lens        = output_shape.lens();
+        int64_t tuned_axis     = tune_axis(args[0].get_shape().lens().size(), op.axis, op.name());
+        std::size_t n_dims     = batch_lens[tuned_axis];
         batch_lens[tuned_axis] = 1;
         shape batch_shape{shape::int32_type, batch_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
-            using value_type = typename decltype(input)::value_type;
+            using value_type = accumulator_type<typename decltype(input)::value_type>;
             std::vector<value_type> batch_max(batch_shape.elements(),
                                               std::numeric_limits<value_type>::lowest());
             std::vector<value_type> batch_sum(batch_shape.elements(), value_type(0));
@@ -807,7 +809,8 @@ struct ref_softmax : auto_register_op<ref_softmax<Op>>
                 for(std::size_t j = 0; j < n_dims; ++j)
                 {
                     idx[tuned_axis] = j;
-                    batch_max[i]    = std::max(batch_max[i], input(idx.begin(), idx.end()));
+                    batch_max[i] =
+                        std::max<value_type>(batch_max[i], input(idx.begin(), idx.end()));
                 }
 
                 for(std::size_t j = 0; j < n_dims; ++j)
@@ -885,7 +888,7 @@ MIGRAPHX_REGISTER_OP(ref_rnn_var_sl_last_output)
 
 struct ref_apply
 {
-    module* modl;
+    module* mod;
     std::unordered_map<std::string, std::function<void(instruction_ref)>> apply_map{};
 
     template <class T>
@@ -925,7 +928,7 @@ struct ref_apply
     void apply()
     {
         init();
-        for(auto it : iterator_for(*modl))
+        for(auto it : iterator_for(*mod))
         {
             if(it->name() == "pooling")
             {
@@ -944,29 +947,29 @@ struct ref_apply
 
     void apply_ref_op(instruction_ref ins) const
     {
-        modl->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
+        mod->replace_instruction(ins, ref_op{ins->get_operator()}, ins->inputs());
     }
 
     template <class T>
     void apply_simple_op(instruction_ref ins)
     {
-        modl->replace_instruction(ins, T{}, ins->inputs());
+        mod->replace_instruction(ins, T{}, ins->inputs());
     }
 
     template <class T, class Op>
     void apply_extend_op(instruction_ref ins)
     {
         auto&& op = any_cast<Op>(ins->get_operator());
-        modl->replace_instruction(ins, T{op}, ins->inputs());
+        mod->replace_instruction(ins, T{op}, ins->inputs());
     }
 
     void apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(op.mode == "max")
-            modl->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
+            mod->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
-            modl->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
+            mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
 };
 

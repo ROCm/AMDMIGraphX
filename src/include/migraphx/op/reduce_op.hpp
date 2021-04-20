@@ -92,7 +92,7 @@ struct reduce_op : op_name<Derived>
             lens[axis] = 1;
         }
 
-        return {s.type(), lens};
+        return inputs[0].with_lens(lens);
     }
 
     template <class T>
@@ -113,13 +113,14 @@ struct reduce_op : op_name<Derived>
                 std::vector<std::size_t>& out_idx,
                 tensor_view<T>& output) const
     {
-        auto data_idx = out_idx;
-        T val         = static_cast<const Derived&>(*this).init();
+        using accumulator = accumulator_type<T>;
+        auto& self        = static_cast<const Derived&>(*this);
+        auto data_idx     = out_idx;
+        accumulator val   = self.init();
         shape_for_each(batch_shape, [&](auto b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
-            val = static_cast<const Derived&>(*this).op()(
-                static_cast<const Derived&>(*this).input()(input(data_idx.begin(), data_idx.end())),
-                val);
+            accumulator x = input(data_idx.begin(), data_idx.end());
+            val           = self.op()(accumulator{self.input()(x)}, val);
         });
 
         output(out_idx.begin(), out_idx.end()) =
@@ -148,12 +149,12 @@ struct reduce_op : op_name<Derived>
 
     auto input() const
     {
-        return [&](auto val) { return val; };
+        return [](auto val) { return val; };
     }
 
     auto output(const shape&) const
     {
-        return [&](auto val) { return val; };
+        return [](auto val) { return val; };
     }
 
     reduce_op() {}

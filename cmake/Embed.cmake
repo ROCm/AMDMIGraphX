@@ -28,7 +28,9 @@ function(generate_embed_source EMBED_NAME)
             extern const char ${END_SYMBOL}[];
         ")
 
+        # TODO: Should use NAME_WLE
         get_filename_component(BASE_NAME "${OBJECT}" NAME)
+        string(REGEX REPLACE ".[A-Za-z0-9_]$" "" BASE_NAME ${BASE_NAME})
 
         string(APPEND INIT_KERNELS "
             { \"${BASE_NAME}\", { ${START_SYMBOL}, ${END_SYMBOL}} },
@@ -52,19 +54,20 @@ const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMB
 endfunction()
 
 function(embed_file OUTPUT_FILE OUTPUT_SYMBOL FILE)
-    set(${OUTPUT_FILE} "${FILE}.o" PARENT_SCOPE)
-    set(WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set(WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     # Glob is used to compute the relative path
-    get_filename_component(OUTPUT_FILE_DIR "${FILE}" DIRECTORY)
-    file(MAKE_DIRECTORY "${WORKING_DIRECTORY}/${OUTPUT_FILE_DIR}")
     file(GLOB FILES RELATIVE ${WORKING_DIRECTORY} ${FILE})
     foreach(REL_FILE ${FILES})
         string(MAKE_C_IDENTIFIER "${REL_FILE}" SYMBOL)
+        get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
+        set(OUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
         set(${OUTPUT_SYMBOL} ${SYMBOL} PARENT_SCOPE)
+        set(${OUTPUT_FILE} "${OUT_FILE}" PARENT_SCOPE)
         add_custom_command(
-            OUTPUT "${FILE}.o"
-            COMMAND ${EMBED_LD} -r -o "${FILE}.o" -z noexecstack --format=binary "${REL_FILE}" 
-            COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${FILE}.o"
+            OUTPUT "${OUT_FILE}"
+            COMMAND ${EMBED_LD} -r -o "${OUT_FILE}" -z noexecstack --format=binary "${REL_FILE}" 
+            COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUT_FILE}"
             WORKING_DIRECTORY ${WORKING_DIRECTORY}
             DEPENDS ${FILE}
             VERBATIM

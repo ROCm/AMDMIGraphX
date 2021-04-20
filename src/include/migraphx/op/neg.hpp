@@ -18,6 +18,7 @@ namespace op {
 
 struct neg : unary<neg>
 {
+    std::string point_function() const { return "-"; }
     auto apply() const
     {
         return [](auto x) { return -x; };

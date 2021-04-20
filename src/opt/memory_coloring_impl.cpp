@@ -9,8 +9,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void memory_coloring_impl::run()
 {
+    // calc implicit depdendencies
+    mod_implicit_deps = p_mod->calc_implicit_deps();
+
     MIGRAPHX_DEBUG(dump("---Before memory coloring---"));
-    MIGRAPHX_DEBUG(dump_program());
+    MIGRAPHX_DEBUG(dump_module());
     build();
     if(num_of_lives != 0)
     {
@@ -22,7 +25,10 @@ void memory_coloring_impl::run()
             allocate(interval);
             alloc_queue.pop();
         }
+
+        // rewrite happens after all modules are processed
         rewrite();
+
         if(enable_verify)
             verify();
     }
@@ -99,13 +105,13 @@ bool memory_coloring_impl::allocate(interval_ptr interval)
 
 void memory_coloring_impl::build()
 {
-    std::size_t num_of_instrs = p_program->size();
+    std::size_t num_of_instrs = p_mod->size();
     if(num_of_instrs == 0)
         return;
 
     auto cur_points       = num_of_instrs * 2;
-    instruction_ref iter  = p_program->end();
-    instruction_ref begin = p_program->begin();
+    instruction_ref iter  = p_mod->end();
+    instruction_ref begin = p_mod->begin();
     std::vector<instruction_ref> dead_instrs;
     std::set<int> live_set;
     // Build live intervals.
@@ -137,8 +143,19 @@ void memory_coloring_impl::build()
         {
             is_dead = true;
         }
-        for(auto&& arg : iter->inputs())
+
+        auto inputs = iter->inputs();
+        if(contains(mod_implicit_deps, iter))
         {
+            const auto& impl_deps = mod_implicit_deps.at(iter);
+            inputs.insert(inputs.end(), impl_deps.begin(), impl_deps.end());
+        }
+
+        for(auto&& arg : inputs)
+        {
+            if(not p_mod->has_instruction(arg))
+                continue;
+
             if(is_param(arg) || is_outline(arg))
             {
                 if(is_output_param(arg))
@@ -185,8 +202,8 @@ void memory_coloring_impl::rewrite()
     std::vector<std::size_t> dims;
     dims.push_back((required_bytes + sizeof(float) - 1) / sizeof(float));
     shape s                       = {shape::float_type, dims};
-    instruction_ref scratch_param = p_program->add_parameter("scratch", s);
-    for(auto ins : iterator_for(*p_program))
+    instruction_ref scratch_param = p_mod->add_parameter("scratch", s);
+    for(auto ins : iterator_for(*p_mod))
     {
         const instruction* p_iter = &(*ins);
         if(instr2_live.find(p_iter) != instr2_live.end())
@@ -210,7 +227,7 @@ void memory_coloring_impl::rewrite()
 
             if(is_allocate(ins))
             {
-                p_program->replace_instruction(
+                p_mod->replace_instruction(
                     ins,
                     make_op("load", {{"shape", to_value(ins->get_shape())}, {"offset", offset}}),
                     scratch_param);
@@ -218,7 +235,7 @@ void memory_coloring_impl::rewrite()
         }
     }
     MIGRAPHX_DEBUG(dump("---After rewrite---"));
-    MIGRAPHX_DEBUG(dump_program());
+    MIGRAPHX_DEBUG(dump_module());
 }
 
 void memory_coloring_impl::verify()
@@ -262,7 +279,7 @@ void memory_coloring_impl::verify()
 
 void memory_coloring_impl::dump(const std::string& str) { std::cout << str << std::endl; }
 
-void memory_coloring_impl::dump_program() { std::cout << *p_program << std::endl; }
+void memory_coloring_impl::dump_module() { std::cout << *p_mod << std::endl; }
 
 void memory_coloring_impl::dump_intervals()
 {

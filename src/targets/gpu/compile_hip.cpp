@@ -1,8 +1,8 @@
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/tmp_dir.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/compile_src.hpp>
+#include <migraphx/process.hpp>
 #include <cassert>
 
 namespace migraphx {
@@ -24,12 +24,11 @@ bool is_hip_clang_compiler()
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
-    std::vector<std::vector<char>> hsacos;
+    assert(not srcs.empty());
     if(not is_hcc_compiler() and not is_hip_clang_compiler())
         MIGRAPHX_THROW("Unknown hip compiler: " +
                        std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
-    assert(not srcs.empty());
-    tmp_dir td{};
+
     if(params.find("-std=") == std::string::npos)
         params += " --std=c++17";
     params += " -fno-gpu-rdc";
@@ -45,61 +44,31 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         params += " -O3 ";
     }
 
-    params += " -Wno-unused-command-line-argument -I. ";
+    params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
 
-    std::string output_flags{};
+    src_compiler compiler;
+    compiler.flags    = params;
+    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
 
-    for(const auto& src : srcs)
-    {
-        fs::path full_path   = td.path / src.path;
-        fs::path parent_path = full_path.parent_path();
-        fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.first, src.len());
-        if(src.path.extension().string() == ".cpp")
-        {
-            params += " " + src.path.filename().string();
-            output_flags = " -o " + src.path.stem().string() + ".o";
-        }
-    }
+    if(is_hcc_compiler())
+        compiler.process = [&](const fs::path& obj_path) -> fs::path {
+            process{MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL) + std::string{" -i "} +
+                    obj_path.string()}
+                .cwd(obj_path.parent_path());
+            for(const auto& entry : fs::directory_iterator{obj_path.parent_path()})
+            {
+                const auto& hsaco_path = entry.path();
+                if(not fs::is_regular_file(hsaco_path))
+                    continue;
+                if(hsaco_path.extension() != ".hsaco")
+                    continue;
+                return hsaco_path;
+            }
+            MIGRAPHX_THROW("Missing hsaco");
+        };
 
-    params += output_flags;
-
-    td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER), params);
-
-    for(const auto& entry : fs::directory_iterator{td.path})
-    {
-        const auto& obj_path = entry.path();
-        if(not fs::is_regular_file(obj_path))
-            continue;
-        if(obj_path.extension() != ".o")
-            continue;
-        if(is_hcc_compiler())
-        {
-            // call extract kernel
-            td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_EXTRACT_KERNEL), " -i " + obj_path.string());
-        }
-        if(is_hip_clang_compiler())
-        {
-            // call clang-offload-bundler
-            td.execute(MIGRAPHX_STRINGIZE(MIGRAPHX_OFFLOADBUNDLER_BIN),
-                       "--type=o --targets=hip-amdgcn-amd-amdhsa-" + arch +
-                           " --inputs=" + obj_path.string() + " --outputs=" + obj_path.string() +
-                           ".hsaco --unbundle");
-        }
-    }
-
-    for(const auto& entry : fs::directory_iterator{td.path})
-    {
-        const auto& obj_path = entry.path();
-        if(not fs::is_regular_file(obj_path))
-            continue;
-        if(obj_path.extension() != ".hsaco")
-            continue;
-        hsacos.push_back(read_buffer(obj_path.string()));
-    }
-
-    return hsacos;
+    return {compiler.compile(srcs)};
 }
 
 } // namespace gpu

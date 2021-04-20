@@ -12,6 +12,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <unordered_set>
 #include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
 
 #include <map>
 
@@ -156,6 +157,23 @@ struct find_transpose
     }
 };
 
+struct find_nested_convert
+{
+    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins   = mr.result;
+        auto x     = ins->inputs().front();
+        auto input = x->inputs().front();
+
+        if(ins->get_shape() != input->get_shape())
+            return;
+
+        m.replace_instruction(ins, input);
+    }
+};
+
 struct find_nested_slice
 {
     auto matcher() const { return match::name("slice")(match::arg(0)(match::name("slice"))); }
@@ -251,7 +269,7 @@ struct find_concat_transpose
 
         // axis could be a negative value
         int64_t n_dim = static_cast<int64_t>(s.lens().size());
-        op.axis       = (op.axis < 0) ? (op.axis + n_dim) : op.axis;
+        op.axis       = tune_axis(n_dim, op.axis, op.name());
 
         auto ipermutation = invert_permutation(permutation);
         op.axis           = ipermutation[op.axis];
@@ -309,6 +327,7 @@ void simplify_reshapes::apply(module& p) const
                             find_reshaper{},
                             find_transpose{},
                             find_concat_transpose{},
+                            find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{});
         dead_code_elimination{}.apply(p);

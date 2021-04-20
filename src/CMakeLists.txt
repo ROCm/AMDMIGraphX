@@ -11,11 +11,15 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     decompose.cpp
     propagate_constant.cpp
+    compile_src.cpp
+    cpp_generator.cpp
     dead_code_elimination.cpp
     dom_info.cpp
+    dynamic_loader.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp
+    eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     file_buffer.cpp
@@ -29,6 +33,8 @@ add_library(migraphx
     make_op.cpp
     msgpack.cpp
     operation.cpp
+    permutation.cpp
+    process.cpp
     program.cpp
     module.cpp
     quantization.cpp
@@ -52,6 +58,7 @@ add_library(migraphx
     normalize_attributes.cpp
     normalize_ops.cpp
 )
+configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -94,11 +101,15 @@ register_migraphx_ops(
     greater
     gru
     identity
+    if_op
     im2col
     leaky_relu
     less
     load
     log
+    logical_and
+    logical_or
+    logical_xor
     logsoftmax
     lrn
     lstm
@@ -142,6 +153,7 @@ register_migraphx_ops(
     tanh
     tan
     transpose
+    unary_not
     undefined
     unknown
     unsqueeze
@@ -153,6 +165,7 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
 
@@ -161,9 +174,8 @@ if(HAS_LIB_STD_FILESYSTEM)
 target_link_libraries(migraphx PRIVATE -lstdc++fs)
 endif()
 
+target_link_libraries(migraphx PRIVATE -ldl)
 
-find_path(HALF_INCLUDE_DIR half.hpp)
-# TODO: Fix the incorrect path
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
 find_package(msgpack REQUIRED)
@@ -193,6 +205,10 @@ list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
+endif()
+
+if(HAVE_HALF_EXPR)
+    target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
 
 rocm_export_targets(

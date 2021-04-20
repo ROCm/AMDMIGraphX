@@ -2642,10 +2642,6 @@ def prefix_scan_sum_test():
                                      data_type=TensorProto.INT32,
                                      dims=axis_val.shape,
                                      vals=axis_val.astype(int))
-    # axis = helper.make_node("Constant",
-    #                         inputs=[],
-    #                         outputs=['axis'],
-    #                         value=axis_tensor)
     node = onnx.helper.make_node('CumSum',
                                  inputs=['x', 'axis'],
                                  outputs=['y'],

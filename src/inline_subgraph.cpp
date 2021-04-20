@@ -136,7 +136,7 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
         mod_outputs   = {copy_ins};
     }
 
-    if (not mod_outputs.empty())
+    if(not mod_outputs.empty())
     {
         p.replace_instruction(ins, mod_outputs.front());
     }

@@ -66,7 +66,8 @@ struct compilable_op
 
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 
-    migraphx::value compile(migraphx::context&,const migraphx::shape&,const std::vector<migraphx::shape>&)
+    migraphx::value
+    compile(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::shape>&)
     {
         return {{"compiled", true}};
     }

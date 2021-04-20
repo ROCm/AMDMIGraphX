@@ -5,6 +5,7 @@
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -42,15 +43,18 @@ void eliminate_pad::update_op(const instruction_ref& input,
     std::vector<size_t> pads_l(kdims_it, kdims_it + kdims);
     std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
 
-    auto op = any_cast<op::convolution>(ins->get_operator());
+    auto op = ins->get_operator();
+    std::vector<size_t> padding(kdims*2, 0);
 
     std::transform(
-        pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());
+        pads_l.begin(), pads_l.end(), padding.begin(), padding.begin(), std::plus<size_t>());
     std::transform(pads_r.begin(),
                    pads_r.end(),
-                   op.padding.begin() + kdims,
-                   op.padding.begin() + kdims,
+                   padding.begin() + kdims,
+                   padding.begin() + kdims,
                    std::plus<size_t>());
+
+    op.from_value({{"padding", padding}});
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = input->inputs().front();
@@ -62,6 +66,11 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
                                    const instruction_ref& ins,
                                    module& p) const
 {
+    auto op = any_cast<op::pooling>(ins->get_operator());
+    if(op.mode == "average")
+    {
+        return;
+    }
     auto pad_op = any_cast<op::pad>(input->get_operator());
     // if(!pad_op.symmetric())
     //     return;
@@ -73,12 +82,6 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
     std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
 
     std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
-
-    auto op = any_cast<op::pooling>(ins->get_operator());
-    // if(op.mode == "average")
-    // {
-    //     return;
-    // }
 
     std::transform(
         pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());

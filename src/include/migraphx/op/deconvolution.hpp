@@ -24,7 +24,6 @@ struct deconvolution
 
     padding_mode_t padding_mode = default_;
     int group                   = 1;
-    bool expanded_pads          = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -33,8 +32,7 @@ struct deconvolution
                     f(self.stride, "stride"),
                     f(self.dilation, "dilation"),
                     f(self.padding_mode, "padding_mode"),
-                    f(self.group, "group"),
-                    f(self.expanded_pads, "expanded_pads"));
+                    f(self.group, "group"));
     }
 
     std::string name() const { return "deconvolution"; }

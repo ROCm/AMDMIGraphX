@@ -136,6 +136,8 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     {
         if(val.at("padding").to_vector<size_t>().size() == 2 * (lens.size() - 2))
             return true;
+        if(val.at("padding").to_vector<size_t>().size() != (lens.size() - 2))
+            MIGRAPHX_THROW("inconsistent padding size");
         auto result    = tune_attribute(val.at("padding"));
         val["padding"] = result;
         op.from_value(val);

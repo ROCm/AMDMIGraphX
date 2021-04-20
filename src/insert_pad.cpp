@@ -34,19 +34,23 @@ void insert_pad::update_op(const instruction_ref& input,
     // if(!pad_op.symmetric())
     //     return;
 
-    auto op = any_cast<op::convolution>(ins->get_operator());
+    auto op = ins->get_operator();
+    auto val = op.to_value();
+    auto op_padding = val.at("padding").to_vector<size_t>();
 
     auto kdims = input->get_shape().lens().size() - 2;
-    if(std::equal(op.padding.begin(),
-                  op.padding.begin() + kdims,
-                  op.padding.begin() + kdims,
-                  op.padding.end()))
+    if(std::equal(op_padding.begin(),
+                  op_padding.begin() + kdims,
+                  op_padding.begin() + kdims,
+                  op_padding.end()))
         return;
 
     std::vector<int64_t> padding(input->get_shape().lens().size() * 2, 0);
-    std::vector<size_t> pads_l(op.padding.begin(), op.padding.begin() + kdims);
-    std::vector<size_t> pads_r(op.padding.begin() + kdims, op.padding.end());
-    op.padding = std::vector<size_t>(kdims * 2, 0);
+    std::vector<size_t> pads_l(op_padding.begin(), op_padding.begin() + kdims);
+    std::vector<size_t> pads_r(op_padding.begin() + kdims, op_padding.end());
+    op_padding = std::vector<size_t>(kdims * 2, 0);
+    op.from_value({{"padding", op_padding}});
+    
     std::copy(pads_l.begin(), pads_l.end(), padding.begin() + 2);
     std::copy(pads_r.begin(), pads_r.end(), padding.begin() + kdims + 2 + 2);
 
@@ -63,10 +67,10 @@ void insert_pad::update_pooling(const instruction_ref& input,
                                 module& p) const
 {
     auto op = any_cast<op::pooling>(ins->get_operator());
-    // if(op.mode == "average")
-    // {
-    //     return;
-    // }
+    if(op.mode == "average")
+    {
+        return;
+    }
     auto kdims = input->get_shape().lens().size() - 2;
     if(std::equal(op.padding.begin(),
                   op.padding.begin() + kdims,
@@ -81,13 +85,16 @@ void insert_pad::update_pooling(const instruction_ref& input,
     std::copy(pads_l.begin(), pads_l.end(), padding.begin() + 2);
     std::copy(pads_r.begin(), pads_r.end(), padding.begin() + kdims + 2 + 2);
 
-    float pad_val = ((op.mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
+    // maxpool uses lowest value for padding
+    float pad_val = std::numeric_limits<float>::lowest();
     auto pad_op   = p.insert_instruction(ins, op::pad{padding, pad_val}, input);
 
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = pad_op;
 
     p.replace_instruction(ins, op, new_inputs);
+    std::cout << "HERE" << std::endl;
+
 }
 
 } // namespace MIGRAPHX_INLINE_NS

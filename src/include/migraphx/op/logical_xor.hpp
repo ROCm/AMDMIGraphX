@@ -12,6 +12,7 @@ namespace op {
 
 struct logical_xor : binary<logical_xor>
 {
+    std::string point_function() const { return "^"; }
     auto apply() const
     {
         return [](auto x, auto y) { return static_cast<bool>(x) xor static_cast<bool>(y); };

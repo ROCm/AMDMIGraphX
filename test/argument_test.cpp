@@ -181,7 +181,6 @@ TEST_CASE(argument_share)
     EXPECT(a1.data() != a3.data());
     auto a4 = a3;
     EXPECT(a4.data() == a3.data());
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

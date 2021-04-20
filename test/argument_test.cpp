@@ -169,4 +169,19 @@ TEST_CASE(value_tuple)
     EXPECT(a4 == a2);
 }
 
+TEST_CASE(argument_share)
+{
+    migraphx::shape s{migraphx::shape::int64_type, {3}};
+    std::vector<char> buffer(s.bytes());
+    migraphx::argument a1(s, [=]() mutable { return buffer.data(); });
+    auto a2 = a1;
+    EXPECT(a1.data() != a2.data());
+
+    auto a3 = a1.share();
+    EXPECT(a1.data() != a3.data());
+    auto a4 = a3;
+    EXPECT(a4.data() == a3.data());
+
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

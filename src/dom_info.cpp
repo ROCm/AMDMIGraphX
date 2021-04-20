@@ -26,7 +26,7 @@ bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins
 struct module_visitor
 {
     module* mm;
-    module& get_nodes() { return *mm; }
+    module& get_nodes() const { return *mm; }
 
     const std::vector<instruction_ref>& get_children(instruction_ref ins) { return ins->inputs(); }
 };

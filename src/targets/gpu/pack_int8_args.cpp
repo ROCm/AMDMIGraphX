@@ -8,6 +8,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -93,6 +94,23 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
     bool transa = sa.transposed();
     if(transa)
     {
+        auto perm = find_permutation(sa);
+        auto r_in = inputs.at(0);
+        auto t_in = r_in->inputs().front();
+        auto tlens = t_in->get_shape().lens();
+        auto k = tlens[perm.back()];
+        auto pad_k = (k + 3) / 4 * 4;
+        std::vector<int64_t> pad_dims(tlens.size() * 2, 0);
+        pad_dims[perm.back()] = pad_k - k;
+        auto val = inputs.at(0)->get_operator().to_value();
+        assert(val.contains("dims"));
+        if (pad_k != k)
+        {
+            auto perm1 = val.at("dims").to_vector<int64_t>();
+            t_in = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), t_in);
+            r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", perm1}}), t_in);
+        }
+        ret_inputs.push_back(r_in);
     }
     else
     {
@@ -113,6 +131,23 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
     bool transb = sb.transposed();
     if(transb)
     {
+        auto perm = find_permutation(sb);
+        auto r_in = inputs.at(1);
+        auto t_in = r_in->inputs().front();
+        auto tlens = t_in->get_shape().lens();
+        auto k = tlens[perm.size() - 1];
+        auto pad_k = (k + 3) / 4 * 4;
+        std::vector<int64_t> pad_dims(tlens.size() * 2, 0);
+        pad_dims[perm.size() - 2] = pad_k - k;
+        auto val = inputs.at(0)->get_operator().to_value();
+        assert(val.contains("dims"));
+        if (pad_k != k)
+        {
+            auto perm1 = val.at("dims").to_vector<int64_t>();
+            t_in = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), t_in);
+            r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", perm1}}), t_in);
+        }
+        ret_inputs.push_back(r_in);
     }
     else
     {

@@ -44,7 +44,7 @@ void eliminate_pad::update_op(const instruction_ref& input,
     std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
 
     auto op = ins->get_operator();
-    std::vector<size_t> padding(kdims*2, 0);
+    std::vector<size_t> padding(kdims * 2, 0);
 
     std::transform(
         pads_l.begin(), pads_l.end(), padding.begin(), padding.begin(), std::plus<size_t>());

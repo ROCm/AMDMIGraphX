@@ -143,7 +143,7 @@ struct parse_pooling : op_parser<parse_pooling>
         //         MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
         //     }
         // }
-        
+
         check_asym_padding(info, l0, paddings, values, count_include_pad, pad_val);
         op.from_value(values);
 

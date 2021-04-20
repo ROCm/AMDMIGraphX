@@ -57,17 +57,19 @@ struct im2col
         if(padding.size() == 2 * stride.size())
         {
             output_height = std::size_t(std::max<std::ptrdiff_t>(
-            1,
-            (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) + (padding[0] + padding[2])) /
-                    stride[0] +
-                1));
-            output_width  = std::size_t(std::max<std::ptrdiff_t>(
-            1,
-            (input.lens()[3] - (1 + dilation[1] * (kernel_width - 1)) + (padding[1] + padding[3])) /
-                    stride[1] +
-                1));
+                1,
+                (input.lens()[2] - (1 + dilation[0] * (kernel_height - 1)) +
+                 (padding[0] + padding[2])) /
+                        stride[0] +
+                    1));
+            output_width  = std::size_t(
+                std::max<std::ptrdiff_t>(1,
+                                         (input.lens()[3] - (1 + dilation[1] * (kernel_width - 1)) +
+                                          (padding[1] + padding[3])) /
+                                                 stride[1] +
+                                             1));
         }
-        auto channels_col  = kernel_height * kernel_width * input_channels;
+        auto channels_col = kernel_height * kernel_width * input_channels;
         return {input.type(), {output_height * output_width, channels_col}};
     }
 };

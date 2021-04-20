@@ -136,8 +136,16 @@ void check_asym_padding(const onnx_parser::node_info& info,
         ins = info.add_instruction(make_op("pad", {{"pads", asym_pads}, {"value", pad_val}}), ins);
         std::vector<size_t> new_padding(padding.size());
         // subtract asym padding originally found from parsing the operator
-        std::transform(padding.begin(), left_pad_it, asym_pads.begin() + 2, new_padding.begin(), std::minus<size_t>());
-        std::transform(right_pad_it, padding.end(), asym_pads.begin() + pad_ndims + 4, new_padding.begin() + pad_ndims, std::minus<size_t>());
+        std::transform(padding.begin(),
+                       left_pad_it,
+                       asym_pads.begin() + 2,
+                       new_padding.begin(),
+                       std::minus<size_t>());
+        std::transform(right_pad_it,
+                       padding.end(),
+                       asym_pads.begin() + pad_ndims + 4,
+                       new_padding.begin() + pad_ndims,
+                       std::minus<size_t>());
         v["padding"] = new_padding;
     }
 }

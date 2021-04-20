@@ -11,7 +11,9 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::normalize_ops{}, migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m,
+        {migraphx::normalize_ops{}, migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::instruction_ref

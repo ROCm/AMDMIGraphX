@@ -600,4 +600,12 @@ TEST_CASE(test_with_lens_ambigous13)
     EXPECT(s2 == s3);
 }
 
+TEST_CASE(cpp_type_name)
+{
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::int8_type) == "int8_t");
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::float_type) == "float");
+    EXPECT(migraphx::shape::cpp_type(migraphx::shape::half_type) == "half");
+    EXPECT(test::throws([&] { migraphx::shape::cpp_type(migraphx::shape::tuple_type); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

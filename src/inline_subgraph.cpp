@@ -136,7 +136,10 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
         mod_outputs   = {copy_ins};
     }
 
-    p.replace_instruction(ins, mod_outputs.front());
+    if (not mod_outputs.empty())
+    {
+        p.replace_instruction(ins, mod_outputs.front());
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

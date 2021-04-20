@@ -2638,20 +2638,20 @@ def prefix_scan_sum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2])
     axis_val = np.array([0])
-    axis_tensor = helper.make_tensor(name="axis_tensor",
+    axis_tensor = helper.make_tensor(name="axis",
                                      data_type=TensorProto.INT32,
-                                     dims=None,
+                                     dims=axis_val.shape,
                                      vals=axis_val.astype(int))
-    axis = helper.make_node("Constant",
-                            inputs=[],
-                            outputs=['axis'],
-                            value=axis_tensor)
+    # axis = helper.make_node("Constant",
+    #                         inputs=[],
+    #                         outputs=['axis'],
+    #                         value=axis_tensor)
     node = onnx.helper.make_node('CumSum',
                                  inputs=['x', 'axis'],
                                  outputs=['y'],
                                  exclusive=1,
                                  reverse=1)
-    return ([axis, node], [x], [y])
+    return ([node], [x], [y], [axis_tensor])
 
 
 @onnx_test

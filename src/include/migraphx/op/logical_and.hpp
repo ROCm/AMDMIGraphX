@@ -12,6 +12,7 @@ namespace op {
 
 struct logical_and : binary<logical_and>
 {
+    std::string point_function() const { return "&&"; }
     auto apply() const
     {
         return [](auto x, auto y) { return static_cast<bool>(x) and static_cast<bool>(y); };

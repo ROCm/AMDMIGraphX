@@ -30,10 +30,6 @@ void insert_pad::update_op(const instruction_ref& input,
                            const instruction_ref& ins,
                            module& p) const
 {
-    // auto pad_op = any_cast<op::pad>(input->get_operator());
-    // if(!pad_op.symmetric())
-    //     return;
-
     auto op         = ins->get_operator();
     auto val        = op.to_value();
     auto op_padding = val.at("padding").to_vector<size_t>();

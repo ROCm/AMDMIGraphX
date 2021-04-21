@@ -59,10 +59,11 @@ struct pooling
 
         auto input_lens = input.lens();
         size_t kdims    = input_lens.size() - 2;
-        if(inputs[0].lens().size() != padding.size() + 2)
+        auto input_size = inputs[0].lens().size();
+        auto padding_size = padding.size();
+        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
         {
-            if(inputs[0].lens().size() != (padding.size() / 2 + 2))
-                MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
+            MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
 
         std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
@@ -70,10 +71,10 @@ struct pooling
         for(size_t i = 0; i < kdims; i++)
         {
             std::ptrdiff_t dim_size;
-            if(padding.size() == kdims)
-                dim_size = input_lens[i + 2] + 2 * (padding[i]) - lengths[i];
-            else
-                dim_size = input_lens[i + 2] + (padding[i] + padding[i + kdims]) - lengths[i];
+            auto padding_factor = 2 * padding[i];
+            if(padding_size == 2 * kdims)
+                padding_factor = padding[i] + padding[i + kdims];
+            dim_size = input_lens[i + 2] + padding_factor - lengths[i];
             assert(dim_size >= 0);
             std::size_t len = (ceil_mode) ? ceil_divide<std::ptrdiff_t>(dim_size, stride[i])
                                           : floor_divide<std::ptrdiff_t>(dim_size, stride[i]);

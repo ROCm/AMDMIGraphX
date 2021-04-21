@@ -74,7 +74,6 @@ struct parse_convolution : op_parser<parse_convolution>
             }
         }
         values["padding"] = std::vector<size_t>(padding.begin(), padding.end());
-        // check_asym_padding(info, l0, padding, values);
 
         if(contains(info.attributes, "group"))
         {

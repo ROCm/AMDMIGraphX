@@ -55,16 +55,17 @@ struct convolution
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
         // dim num of input and attribute should match
-        if(inputs[0].lens().size() != padding.size() + 2)
+        auto input_size = inputs[0].lens().size();
+        auto padding_size = padding.size();
+        if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
         {
-            if(inputs[0].lens().size() != (padding.size() / 2 + 2))
-                MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
+            MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
         }
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        size_t kdims         = input.lens().size() - 2;
+        size_t kdims         = input_size - 2;
         if(kdims != this->kdims())
         {
             MIGRAPHX_THROW("convolution: input k-dims does not match attribute size");
@@ -77,20 +78,15 @@ struct convolution
 
         for(size_t i = 0; i < kdims; i++)
         {
-            if(padding.size() == kdims)
-                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                    1,
-                    (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                     2 * (padding[i])) /
-                            stride[i] +
-                        1)));
-            else
-                output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
-                    1,
-                    (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                     (padding[i] + padding[i + kdims])) /
-                            stride[i] +
-                        1)));
+            auto padding_factor = 2 * padding[i];
+            if(padding_size == 2 * kdims)
+                padding_factor = padding[i] + padding[i + kdims];
+            output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
+                1,
+                (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
+                    padding_factor) /
+                        stride[i] +
+                    1)));
         }
 
         return {t, output_lens};

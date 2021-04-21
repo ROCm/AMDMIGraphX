@@ -1907,10 +1907,6 @@ TEST_CASE(maxpool_notset_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    // std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
-    // float val                 = std::numeric_limits<float>::lowest();
-    // auto ins_pad =
-    //     mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", val}}), input);
     mm->add_instruction(
         migraphx::make_op(
             "pooling",
@@ -1927,10 +1923,6 @@ TEST_CASE(maxpool_same_upper_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    // std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
-    // float val                 = std::numeric_limits<float>::lowest();
-    // auto ins_pad =
-    //     mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}, {"value", val}}), input);
     mm->add_instruction(
         migraphx::make_op(
             "pooling",

@@ -134,15 +134,6 @@ struct parse_pooling : op_parser<parse_pooling>
                            [](auto i, auto j) { return i + j; });
         }
         values["padding"] = std::vector<size_t>(paddings.begin(), paddings.end());
-        // in_lens = l0->get_shape().lens();
-        // for(size_t i = 0; i < kdims; i++)
-        // {
-        //     if(values["lengths"][i].to<int64_t>() >
-        //        in_lens[i + 2] + 2 * values["padding"][i].to<int64_t>())
-        //     {
-        //         MIGRAPHX_THROW("PARSE_POOLING: kernel shape is too large");
-        //     }
-        // }
 
         check_asym_padding(info, l0, paddings, values, count_include_pad, pad_val);
         op.from_value(values);

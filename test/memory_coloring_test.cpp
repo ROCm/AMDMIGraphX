@@ -64,7 +64,7 @@ bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
     return is_overlap(get_load_interval(a), get_load_interval(b));
 }
 
-bool is_disjoin(std::vector<migraphx::instruction_ref> inss)
+bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
     for(auto ins1 : inss)
     {
@@ -90,7 +90,7 @@ TEST_CASE(test1)
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 192);
     CHECK(no_allocate(m));
-    CHECK(is_disjoin({a1, a2}));
+    CHECK(is_disjoint({a1, a2}));
 }
 
 TEST_CASE(test2)
@@ -3352,69 +3352,69 @@ TEST_CASE(rnn_dom)
     run_pass(m);
     CHECK(m.get_parameter_shape("scratch").bytes() == 1600);
     CHECK(no_allocate(m));
-    CHECK(is_disjoin({mx0, mx8}));
-    CHECK(is_disjoin({mx0, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx8}));
-    CHECK(is_disjoin({mx30, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx38, mx8}));
-    CHECK(is_disjoin({mx30, mx38}));
-    CHECK(is_disjoin({mx0, mx18, mx38, mx8}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx43, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx38, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx38, mx43, mx8}));
-    CHECK(is_disjoin({mx0, mx43, mx8}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx43, mx8}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx53, mx8}));
-    CHECK(is_disjoin({mx43, mx53}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx53, mx8}));
-    CHECK(is_disjoin({mx38, mx53}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx8}));
-    CHECK(is_disjoin({mx0, mx30, mx38, mx43, mx53, mx61, mx8}));
-    CHECK(is_disjoin({mx18, mx61}));
-    CHECK(is_disjoin({mx0, mx30, mx38, mx43, mx53, mx61, mx8}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx38, mx43, mx53, mx61, mx67}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx38, mx43, mx53, mx61}));
-    CHECK(is_disjoin({mx18, mx67}));
-    CHECK(is_disjoin({mx0, mx18, mx30, mx38, mx43, mx53, mx61, mx67}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx76, mx8}));
-    CHECK(is_disjoin({mx38, mx76}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx76, mx8}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx8, mx81}));
-    CHECK(is_disjoin({mx61, mx67, mx76, mx81}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx8, mx81}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx8, mx88}));
-    CHECK(is_disjoin({mx81, mx88}));
-    CHECK(is_disjoin({mx18, mx30, mx38, mx61, mx67, mx8, mx88}));
-    CHECK(is_disjoin({mx0, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx0, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx0, mx101, mx18, mx30, mx38, mx43, mx53, mx61, mx76, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx101, mx18, mx30, mx38, mx61, mx67, mx8, mx88, mx93}));
+    CHECK(is_disjoint({mx0, mx8}));
+    CHECK(is_disjoint({mx0, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx8}));
+    CHECK(is_disjoint({mx30, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx38, mx8}));
+    CHECK(is_disjoint({mx30, mx38}));
+    CHECK(is_disjoint({mx0, mx18, mx38, mx8}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx43, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx38, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx38, mx43, mx8}));
+    CHECK(is_disjoint({mx0, mx43, mx8}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx43, mx8}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx53, mx8}));
+    CHECK(is_disjoint({mx43, mx53}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx53, mx8}));
+    CHECK(is_disjoint({mx38, mx53}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx8}));
+    CHECK(is_disjoint({mx0, mx30, mx38, mx43, mx53, mx61, mx8}));
+    CHECK(is_disjoint({mx18, mx61}));
+    CHECK(is_disjoint({mx0, mx30, mx38, mx43, mx53, mx61, mx8}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx38, mx43, mx53, mx61, mx67}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx38, mx43, mx53, mx61}));
+    CHECK(is_disjoint({mx18, mx67}));
+    CHECK(is_disjoint({mx0, mx18, mx30, mx38, mx43, mx53, mx61, mx67}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx76, mx8}));
+    CHECK(is_disjoint({mx38, mx76}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx76, mx8}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx8, mx81}));
+    CHECK(is_disjoint({mx61, mx67, mx76, mx81}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx8, mx81}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx8, mx88}));
+    CHECK(is_disjoint({mx81, mx88}));
+    CHECK(is_disjoint({mx18, mx30, mx38, mx61, mx67, mx8, mx88}));
+    CHECK(is_disjoint({mx0, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx0, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx0, mx101, mx18, mx30, mx38, mx43, mx53, mx61, mx76, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx101, mx18, mx30, mx38, mx61, mx67, mx8, mx88, mx93}));
     CHECK(
-        is_disjoin({mx0, mx101, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx101, mx88, mx93}));
-    CHECK(is_disjoin({mx0, mx101, mx18, mx30, mx38, mx43, mx53, mx61, mx76, mx81, mx88, mx93}));
+        is_disjoint({mx0, mx101, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx101, mx88, mx93}));
+    CHECK(is_disjoint({mx0, mx101, mx18, mx30, mx38, mx43, mx53, mx61, mx76, mx81, mx88, mx93}));
     CHECK(
-        is_disjoin({mx0, mx101, mx113, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin(
+        is_disjoint({mx0, mx101, mx113, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint(
         {mx0, mx101, mx113, mx18, mx38, mx43, mx53, mx61, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx113, mx93}));
+    CHECK(is_disjoint({mx113, mx93}));
     CHECK(
-        is_disjoin({mx0, mx101, mx113, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
+        is_disjoint({mx0, mx101, mx113, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
     CHECK(
-        is_disjoin({mx0, mx101, mx121, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx113, mx121}));
+        is_disjoint({mx0, mx101, mx121, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx113, mx121}));
     CHECK(
-        is_disjoin({mx0, mx101, mx121, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx126, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx18, mx30, mx38, mx61, mx67, mx8, mx88, mx93}));
-    CHECK(is_disjoin({mx0,
+        is_disjoint({mx0, mx101, mx121, mx30, mx38, mx43, mx53, mx67, mx76, mx8, mx81, mx88, mx93}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx126, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx18, mx30, mx38, mx61, mx67, mx8, mx88, mx93}));
+    CHECK(is_disjoint({mx0,
                       mx101,
                       mx113,
                       mx121,
@@ -3430,32 +3430,14 @@ TEST_CASE(rnn_dom)
                       mx81,
                       mx88,
                       mx93}));
-    CHECK(is_disjoin({mx126, mx88, mx93}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx126, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx136, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx126, mx136, mx81}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx136, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx121, mx136}));
-    CHECK(is_disjoin({mx101, mx113, mx121, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx0,
-                      mx101,
-                      mx113,
-                      mx121,
-                      mx126,
-                      mx136,
-                      mx143,
-                      mx18,
-                      mx38,
-                      mx43,
-                      mx53,
-                      mx61,
-                      mx67,
-                      mx76,
-                      mx8,
-                      mx81,
-                      mx88}));
-    CHECK(is_disjoin({mx101, mx143}));
-    CHECK(is_disjoin({mx0,
+    CHECK(is_disjoint({mx126, mx88, mx93}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx126, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx136, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
+    CHECK(is_disjoint({mx126, mx136, mx81}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx136, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
+    CHECK(is_disjoint({mx121, mx136}));
+    CHECK(is_disjoint({mx101, mx113, mx121, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
+    CHECK(is_disjoint({mx0,
                       mx101,
                       mx113,
                       mx121,
@@ -3472,7 +3454,25 @@ TEST_CASE(rnn_dom)
                       mx8,
                       mx81,
                       mx88}));
-    CHECK(is_disjoin({mx0,
+    CHECK(is_disjoint({mx101, mx143}));
+    CHECK(is_disjoint({mx0,
+                      mx101,
+                      mx113,
+                      mx121,
+                      mx126,
+                      mx136,
+                      mx143,
+                      mx18,
+                      mx38,
+                      mx43,
+                      mx53,
+                      mx61,
+                      mx67,
+                      mx76,
+                      mx8,
+                      mx81,
+                      mx88}));
+    CHECK(is_disjoint({mx0,
                       mx113,
                       mx121,
                       mx126,
@@ -3489,8 +3489,8 @@ TEST_CASE(rnn_dom)
                       mx81,
                       mx88,
                       mx93}));
-    CHECK(is_disjoin({mx101, mx150, mx81}));
-    CHECK(is_disjoin({mx0,
+    CHECK(is_disjoint({mx101, mx150, mx81}));
+    CHECK(is_disjoint({mx0,
                       mx113,
                       mx121,
                       mx126,
@@ -3507,21 +3507,21 @@ TEST_CASE(rnn_dom)
                       mx81,
                       mx88,
                       mx93}));
-    CHECK(is_disjoin(
+    CHECK(is_disjoint(
         {mx101, mx113, mx121, mx143, mx150, mx157, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx121, mx157}));
-    CHECK(is_disjoin(
+    CHECK(is_disjoint({mx121, mx157}));
+    CHECK(is_disjoint(
         {mx101, mx113, mx121, mx143, mx150, mx157, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin(
+    CHECK(is_disjoint(
         {mx101, mx113, mx121, mx143, mx150, mx162, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx143, mx150, mx157, mx162}));
-    CHECK(is_disjoin(
+    CHECK(is_disjoint({mx143, mx150, mx157, mx162}));
+    CHECK(is_disjoint(
         {mx101, mx113, mx121, mx143, mx150, mx162, mx18, mx30, mx38, mx61, mx67, mx8, mx93}));
-    CHECK(is_disjoin({mx0,  mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169,
+    CHECK(is_disjoint({mx0,  mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169,
                       mx30, mx38,  mx43,  mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx0,  mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169,
+    CHECK(is_disjoint({mx0,  mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169,
                       mx30, mx38,  mx43,  mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3535,8 +3535,8 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx162, mx177}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx162, mx177}));
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3550,9 +3550,9 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx0,  mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162, mx169, mx177,
+    CHECK(is_disjoint({mx0,  mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162, mx169, mx177,
                       mx18, mx183, mx38,  mx43,  mx53,  mx61,  mx67,  mx76,  mx8,   mx81,  mx88}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3567,25 +3567,25 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169, mx177,
+    CHECK(is_disjoint({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162, mx169, mx177,
                       mx183, mx30,  mx38,  mx43,  mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx169, mx177, mx183}));
-    CHECK(is_disjoin({mx0,  mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162, mx169, mx177,
+    CHECK(is_disjoint({mx169, mx177, mx183}));
+    CHECK(is_disjoint({mx0,  mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162, mx169, mx177,
                       mx18, mx183, mx38,  mx43,  mx53,  mx61,  mx67,  mx76,  mx8,   mx81,  mx88}));
-    CHECK(is_disjoin({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
+    CHECK(is_disjoint({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
                       mx183, mx195, mx30,  mx38,  mx43,  mx53,  mx61,  mx76,  mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157,
+    CHECK(is_disjoint({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157,
                       mx162, mx169, mx177, mx183, mx195, mx30,  mx38,  mx43,
                       mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx169, mx195}));
-    CHECK(is_disjoin({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
+    CHECK(is_disjoint({mx169, mx195}));
+    CHECK(is_disjoint({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
                       mx183, mx195, mx30,  mx38,  mx43,  mx53,  mx61,  mx76,  mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
+    CHECK(is_disjoint({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
                       mx183, mx203, mx30,  mx38,  mx43,  mx53,  mx61,  mx76,  mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx195, mx203}));
-    CHECK(is_disjoin({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
+    CHECK(is_disjoint({mx195, mx203}));
+    CHECK(is_disjoint({mx0,   mx113, mx121, mx126, mx136, mx143, mx157, mx162, mx169, mx177, mx18,
                       mx183, mx203, mx30,  mx38,  mx43,  mx53,  mx61,  mx76,  mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3602,7 +3602,7 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3619,11 +3619,11 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
+    CHECK(is_disjoint({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
                       mx169, mx177, mx183, mx195, mx203, mx208, mx30,  mx38,  mx43,
                       mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx169, mx177, mx208}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx169, mx177, mx208}));
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3640,7 +3640,7 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3657,8 +3657,8 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx162, mx208, mx218}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx162, mx208, mx218}));
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3675,8 +3675,8 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx203, mx218}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx203, mx218}));
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3692,21 +3692,21 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
+    CHECK(is_disjoint({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
                       mx177, mx183, mx195, mx203, mx208, mx218, mx225, mx30,  mx38,
                       mx43,  mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx183, mx225}));
-    CHECK(is_disjoin({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
+    CHECK(is_disjoint({mx183, mx225}));
+    CHECK(is_disjoint({mx0,   mx101, mx121, mx126, mx136, mx143, mx150, mx157, mx162,
                       mx177, mx183, mx195, mx203, mx208, mx218, mx225, mx30,  mx38,
                       mx43,  mx53,  mx67,  mx76,  mx8,   mx81,  mx88,  mx93}));
-    CHECK(is_disjoin({mx0,   mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162,
+    CHECK(is_disjoint({mx0,   mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162,
                       mx169, mx177, mx18,  mx195, mx203, mx208, mx218, mx225, mx232,
                       mx38,  mx43,  mx53,  mx61,  mx67,  mx76,  mx8,   mx81,  mx88}));
-    CHECK(is_disjoin({mx162, mx183, mx232}));
-    CHECK(is_disjoin({mx0,   mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162,
+    CHECK(is_disjoint({mx162, mx183, mx232}));
+    CHECK(is_disjoint({mx0,   mx101, mx113, mx121, mx126, mx136, mx150, mx157, mx162,
                       mx169, mx177, mx18,  mx195, mx203, mx208, mx218, mx225, mx232,
                       mx38,  mx43,  mx53,  mx61,  mx67,  mx76,  mx8,   mx81,  mx88}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3725,8 +3725,8 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx203, mx239}));
-    CHECK(is_disjoin({mx101,
+    CHECK(is_disjoint({mx203, mx239}));
+    CHECK(is_disjoint({mx101,
                       mx113,
                       mx121,
                       mx143,
@@ -3745,8 +3745,8 @@ TEST_CASE(rnn_dom)
                       mx67,
                       mx8,
                       mx93}));
-    CHECK(is_disjoin({mx225, mx232, mx239, mx244}));
-    CHECK(is_disjoin({mx162, mx244, mx81}));
+    CHECK(is_disjoint({mx225, mx232, mx239, mx244}));
+    CHECK(is_disjoint({mx162, mx244, mx81}));
 }
 
 TEST_CASE(literal_test)

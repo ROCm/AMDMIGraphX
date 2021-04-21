@@ -1596,7 +1596,7 @@ def if_literal_test():
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT, [5])
     empty_out = onnx.helper.make_tensor_value_info('empty_out',
-                                                  onnx.TensorProto.FLOAT, [])
+                                                   onnx.TensorProto.FLOAT, [])
 
     x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
     y = np.array([5, 4, 3, 2, 1]).astype(np.float32)
@@ -1620,11 +1620,11 @@ def if_literal_test():
         outputs=['empty_out'],
         value=onnx.numpy_helper.from_array(z))
 
-    then_body = onnx.helper.make_graph([then_const_node, empty_const_node], 'then_body', [],
-                                       [then_out])
+    then_body = onnx.helper.make_graph([then_const_node, empty_const_node],
+                                       'then_body', [], [then_out])
 
-    else_body = onnx.helper.make_graph([else_const_node, empty_const_node], 'else_body', [],
-                                       [else_out])
+    else_body = onnx.helper.make_graph([else_const_node, empty_const_node],
+                                       'else_body', [], [else_out])
 
     cond_input = onnx.helper.make_tensor_value_info('cond',
                                                     onnx.TensorProto.BOOL, [])

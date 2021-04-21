@@ -99,6 +99,7 @@ struct program
     const module* get_main_module() const;
 
     std::vector<const module*> get_modules() const;
+    std::vector<module*> get_modules();
 
     private:
     void assign(const program& p);

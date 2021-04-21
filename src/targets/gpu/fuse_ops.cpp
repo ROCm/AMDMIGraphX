@@ -18,6 +18,9 @@
 #include <migraphx/gpu/device/add_tanh.hpp>
 #include <migraphx/gpu/device/mul_add_relu.hpp>
 #include <migraphx/gpu/device/add.hpp>
+#include <migraphx/match/layernorm.hpp>
+#include <migraphx/match/gelu_erf.hpp>
+#include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/array.hpp>
@@ -295,39 +298,11 @@ void move_standard_front(std::vector<instruction_ref>& args)
         std::swap(*it, args.front());
 }
 
+auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
+
 struct find_layernorm
 {
-    template <class... Ts>
-    static auto multibroadcast_op(Ts... xs)
-    {
-        return match::name("multibroadcast")(match::arg(0)(xs...));
-    }
-
-    static auto x_minus_mean()
-    {
-        return match::name("gpu::sub")(
-            match::arg(0)(match::any().bind("x")),
-            match::arg(1)(multibroadcast_op(match::name("gpu::reduce_mean"))));
-    }
-
-    static auto variance()
-    {
-        return match::name("gpu::reduce_mean")(match::arg(0)(
-            match::name("gpu::pow")(match::arg(0)(x_minus_mean()),
-                                    match::arg(1)(multibroadcast_op(match::has_value(2.0f))))));
-    }
-
-    static auto layernorm_onnx()
-    {
-        return match::name("gpu::div")(
-            match::arg(0)(x_minus_mean()),
-
-            match::arg(1)(multibroadcast_op(
-                match::name("gpu::sqrt")(match::arg(0)(match::name("gpu::add")(match::either_arg(
-                    0, 1)(variance(), multibroadcast_op(match::has_value(1e-12f)))))))));
-    }
-
-    auto matcher() const { return layernorm_onnx(); }
+    auto matcher() const { return match::layernorm(&gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {
@@ -366,30 +341,7 @@ struct find_triadd_layernorm
 
 struct find_gelu
 {
-
-    static auto erf_fn()
-    {
-        return match::name("gpu::erf")(
-            match::used_once(),
-            match::arg(0)(match::used_once(),
-                          match::name("gpu::mul")(match::either_arg(0, 1)(
-                              match::none_of(match::has_value(M_SQRT1_2, 1e-3)).bind("x"),
-                              match::has_value(M_SQRT1_2, 1e-3)))));
-    }
-
-    static auto add_erf()
-    {
-        return match::name("gpu::add")(
-            match::used_once(),
-            match::either_arg(0, 1)(erf_fn(), match::args(match::has_value(1.0f))));
-    }
-
-    static auto one_half() { return match::args(match::has_value(0.5f)); }
-
-    auto matcher() const
-    {
-        return match::unordered_tree("gpu::mul", one_half(), add_erf(), match::any());
-    }
+    auto matcher() const { return match::gelu_erf(&gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {
@@ -425,32 +377,7 @@ struct find_gelu_new
 {
     bool fast_math = true;
 
-    static auto pow_fn()
-    {
-        return match::name("gpu::pow")(match::used_once(),
-                                       match::arg(1)(match::args(match::has_value(3.0f))));
-    }
-
-    static auto tanh_fn()
-    {
-        return match::name("gpu::tanh")(
-            match::used_once(),
-            match::arg(0)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                match::args(match::has_value(sqrt(M_2_PI), 1e-3)),
-                match::name("gpu::add")(
-                    match::any_arg(0, 1)(match::name("gpu::mul")(match::either_arg(0, 1)(
-                        match::args(match::has_value(0.044715f)), pow_fn()))))))));
-    }
-
-    auto matcher() const
-    {
-        return match::name("gpu::mul")(
-            match::used_once(),
-            match::either_arg(0, 1)(
-                match::any().bind("x"),
-                match::name("gpu::add")(match::any_arg(0, 1)(match::name("gpu::mul")(
-                    match::either_arg(0, 1)(match::args(match::has_value(0.5f)), tanh_fn()))))));
-    }
+    auto matcher() const { return match::gelu_tanh(&gpu_name); }
 
     void apply(module& p, match::matcher_result r) const
     {

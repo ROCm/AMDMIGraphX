@@ -81,7 +81,7 @@ struct pooling
 
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(1, len + 1)));
         }
-        return {t, output_lens};
+        return inputs[0].with_lens(output_lens);
     }
 
     size_t kdims() const

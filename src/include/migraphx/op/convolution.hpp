@@ -89,7 +89,7 @@ struct convolution
                     1)));
         }
 
-        return {t, output_lens};
+        return inputs[0].with_lens(output_lens);
     }
 
     size_t kdims() const

@@ -177,7 +177,7 @@ TEST_CASE(inline_if_test)
         auto l1                 = mm->add_literal(s, ones);
         std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
         mm->add_literal(s, rand);
-        auto x = mm->add_parameter("x", s);
+        auto x  = mm->add_parameter("x", s);
         auto sm = mm->add_instruction(migraphx::make_op("add"), l1, x);
         mm->add_parameter("y", s);
         auto r = mm->add_instruction(migraphx::make_op("add"), x, sm);
@@ -279,7 +279,8 @@ TEST_CASE(if_recursive_test)
 
         auto* else_mod = p.create_module("If_5_else");
         auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
-        auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+        auto a2 =
+            else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
         else_mod->add_return({a2, l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -301,8 +302,8 @@ TEST_CASE(if_recursive_test)
         auto ly   = mm->add_literal(migraphx::literal(ys, datay));
         auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
         mm->add_parameter("x1", xs);
-        auto x2   = mm->add_parameter("x2", xs);
-        auto y2   = mm->add_parameter("y2", ys);
+        auto x2 = mm->add_parameter("x2", xs);
+        auto y2 = mm->add_parameter("y2", ys);
         // auto l2   = mm->add_literal(migraphx::literal(ys, datay));
 
         auto* then_mod1 = p.create_module("If_6_if");

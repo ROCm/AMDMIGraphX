@@ -804,25 +804,20 @@ TEST_CASE(value_binary_object_conv)
     EXPECT(migraphx::equal(v["data"].get_binary(), data));
 }
 
-template<class T>
+template <class T>
 bool is_null_type(T)
 {
     return false;
 }
 
-bool is_null_type(std::nullptr_t)
-{
-    return true;
-}
+bool is_null_type(std::nullptr_t) { return true; }
 
 TEST_CASE(visit_null)
 {
     migraphx::value v;
     EXPECT(v.is_null());
     bool visited = false;
-    v.visit([&](auto&& x) {
-        visited = is_null_type(x);
-    });
+    v.visit([&](auto&& x) { visited = is_null_type(x); });
     EXPECT(visited);
 }
 

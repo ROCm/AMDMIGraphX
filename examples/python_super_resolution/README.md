@@ -54,7 +54,7 @@ img_ndarray = np.asarray(img_y_0)
 img_4 = np.expand_dims(np.expand_dims(img_ndarray, axis=0), axis=0)
 img_5 = img_4.astype(np.float32) / 255.0
 ```
-6) Import MIGraphX, parse & compile the ONNX model with MIGraphX. Print s
+6) Import MIGraphX, parse & compile the ONNX model with MIGraphX. Print the model.
 ```
 model = migraphx.parse_onnx("super-resolution-10.onnx")
 model.compile(migraphx.get_target("gpu"))

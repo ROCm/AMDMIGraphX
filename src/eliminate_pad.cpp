@@ -71,7 +71,6 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
     }
     auto pad_op = any_cast<op::pad>(input->get_operator());
 
-
     auto kdims    = input->get_shape().lens().size() - 2;
     auto kdims_it = pad_op.pads.begin() + 2;
 

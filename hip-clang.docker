@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/.apt_3.7/ xenial main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/4.1/ xenial main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -57,14 +57,7 @@ RUN pip3 install -r /doc-requirements.txt
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
-# Manually ignore rocm dependencies
-RUN cget -p $PREFIX ignore \
-    RadeonOpenCompute/clang-ocl \
-    ROCm-Developer-Tools/HIP \
-    ROCmSoftwarePlatform/MIOpen \
-    ROCmSoftwarePlatform/MIOpenGEMM \
-    ROCmSoftwarePlatform/rocBLAS
-RUN cget -p $PREFIX init --cxx /opt/rocm/llvm/bin/clang++ --cc /opt/rocm/llvm/bin/clang
-RUN cget -p $PREFIX install -f dev-requirements.txt
-RUN cget -p $PREFIX install oneapi-src/oneDNN@v1.7
+
+COPY ./tools/install_prereqs.sh /
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 

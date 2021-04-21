@@ -24,6 +24,7 @@ struct add : binary<add>
         a["commutative"] = true;
         return a;
     }
+    std::string point_function() const { return "+"; }
     auto apply() const
     {
         return [](auto x, auto y) { return x + y; };

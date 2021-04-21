@@ -19,6 +19,7 @@ struct equal : binary<equal>
         a["commutative"] = true;
         return a;
     }
+    std::string point_function() const { return "=="; }
     auto apply() const
     {
         return [](auto x, auto y) { return float_equal(x, y); };

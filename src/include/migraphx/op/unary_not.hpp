@@ -12,6 +12,7 @@ namespace op {
 
 struct unary_not : unary<unary_not>
 {
+    std::string point_function() const { return "!"; }
     auto apply() const
     {
         return [](auto x) { return not x; };

@@ -95,8 +95,7 @@ TEST_CASE(inline_subgraph)
 
         auto* then_mod           = p.create_module("If_0_if");
         std::vector<float> data1 = {1, 2, 3, 4, 5};
-        auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
-        then_mod->add_return({l1});
+        then_mod->add_literal(migraphx::literal(s, data1));
 
         auto* else_mod           = p.create_module("If_0_else");
         std::vector<float> data2 = {5, 4, 3, 2, 1};
@@ -153,10 +152,11 @@ TEST_CASE(inline_if_test)
         std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
         auto l2                 = mm->add_literal(s, rand);
         auto x                  = mm->add_parameter("x", s);
+        auto sm                 = mm->add_instruction(migraphx::make_op("add"), l1, x);
         auto y                  = mm->add_parameter("y", s);
 
         auto* then_mod = p.create_module("If_5_if");
-        auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+        auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, sm);
         then_mod->add_outline(s);
         then_mod->add_return({rt});
 
@@ -178,8 +178,9 @@ TEST_CASE(inline_if_test)
         std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
         mm->add_literal(s, rand);
         auto x = mm->add_parameter("x", s);
+        auto sm = mm->add_instruction(migraphx::make_op("add"), l1, x);
         mm->add_parameter("y", s);
-        auto r = mm->add_instruction(migraphx::make_op("add"), x, l1);
+        auto r = mm->add_instruction(migraphx::make_op("add"), x, sm);
         mm->add_return({r});
 
         return p;
@@ -233,6 +234,89 @@ TEST_CASE(inline_else_test)
         auto y = mm->add_parameter("y", s);
         auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
         mm->add_return({r});
+
+        return p;
+    };
+
+    auto p   = create_program();
+    auto* mm = p.get_main_module();
+    run_pass(*mm);
+    EXPECT(p == create_inline());
+}
+
+TEST_CASE(if_recursive_test)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+        std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
+        auto x1   = mm->add_parameter("x1", xs);
+        auto x2   = mm->add_parameter("x2", xs);
+        auto y2   = mm->add_parameter("y2", ys);
+
+        auto* then_mod = p.create_module("If_5_if");
+        auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
+        auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x1, lx);
+        then_mod->add_return({a1, l1});
+
+        auto* then_mod1 = p.create_module("If_6_if");
+        auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+        auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+        then_mod1->add_return({a11, l11});
+
+        auto* else_mod1 = p.create_module("If_6_else");
+        auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+        auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+        else_mod1->add_return({l21, a21});
+
+        auto* else_mod = p.create_module("If_5_else");
+        auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
+        auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+        else_mod->add_return({a2, l2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    auto create_inline = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+        std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
+        mm->add_parameter("x1", xs);
+        auto x2   = mm->add_parameter("x2", xs);
+        auto y2   = mm->add_parameter("y2", ys);
+        // auto l2   = mm->add_literal(migraphx::literal(ys, datay));
+
+        auto* then_mod1 = p.create_module("If_6_if");
+        auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+        auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+        then_mod1->add_return({a11, l11});
+
+        auto* else_mod1 = p.create_module("If_6_else");
+        auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+        auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+        else_mod1->add_return({l21, a21});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+        mm->add_return({ret});
 
         return p;
     };

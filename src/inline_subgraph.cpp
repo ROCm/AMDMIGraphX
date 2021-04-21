@@ -83,12 +83,6 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
     std::vector<instruction_ref> mod_outputs;
     for(auto sins : iterator_for(*smod))
     {
-        if(p.has_instruction(sins))
-        {
-            map_ins[sins] = sins;
-            continue;
-        }
-
         instruction_ref copy_ins{};
         if(sins->name() == "@literal")
         {

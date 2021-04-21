@@ -34,8 +34,6 @@ void eliminate_pad::update_op(const instruction_ref& input,
                               module& p) const
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
-    // if(!pad_op.symmetric())
-    //     return;
 
     auto kdims    = input->get_shape().lens().size() - 2;
     auto kdims_it = pad_op.pads.begin() + 2;
@@ -72,8 +70,7 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
         return;
     }
     auto pad_op = any_cast<op::pad>(input->get_operator());
-    // if(!pad_op.symmetric())
-    //     return;
+
 
     auto kdims    = input->get_shape().lens().size() - 2;
     auto kdims_it = pad_op.pads.begin() + 2;

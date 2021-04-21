@@ -84,7 +84,7 @@ struct quant_convolution
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                 1,
                 (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                    padding_factor) /
+                 padding_factor) /
                         stride[i] +
                     1)));
         }

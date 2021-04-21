@@ -55,7 +55,7 @@ struct convolution
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
         // dim num of input and attribute should match
-        auto input_size = inputs[0].lens().size();
+        auto input_size   = inputs[0].lens().size();
         auto padding_size = padding.size();
         if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
         {
@@ -84,7 +84,7 @@ struct convolution
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                 1,
                 (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                    padding_factor) /
+                 padding_factor) /
                         stride[i] +
                     1)));
         }

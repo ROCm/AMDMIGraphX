@@ -57,9 +57,9 @@ struct pooling
         const shape& input = inputs.at(0);
         auto t             = input.type();
 
-        auto input_lens = input.lens();
-        size_t kdims    = input_lens.size() - 2;
-        auto input_size = inputs[0].lens().size();
+        auto input_lens   = input.lens();
+        size_t kdims      = input_lens.size() - 2;
+        auto input_size   = inputs[0].lens().size();
         auto padding_size = padding.size();
         if(not(input_size == padding_size / 2 + 2 or input_size == padding_size + 2))
         {

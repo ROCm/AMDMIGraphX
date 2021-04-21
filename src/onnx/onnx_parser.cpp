@@ -33,7 +33,9 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
     auto elem_num =
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
+    {
         return {};
+    }
 
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
@@ -48,7 +50,9 @@ static literal create_literal(shape::type_t shape_type, const std::vector<size_t
     auto elem_num =
         std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
     if(elem_num == 0)
+    {
         return {};
+    }
 
     // scalar input
     if(dims.empty())
@@ -60,9 +64,6 @@ template <class T>
 static literal from_repeated(shape::type_t t, const T& r)
 {
     std::size_t size = r.size();
-    if(size == 0)
-        return {};
-
     return literal{{t, {size}}, r.begin(), r.end()};
 }
 

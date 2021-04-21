@@ -434,10 +434,6 @@ struct find_where_op
         // if ind is not constant, cannot optimize
         std::vector<bool> vec_ind;
         auto arg_ind = ins_ind->eval();
-        if(arg_ind.empty())
-        {
-            return;
-        }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
         // ind has to be the same value
         auto val = vec_ind.front();

@@ -77,8 +77,6 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
     std::vector<size_t> pads_l(kdims_it, kdims_it + kdims);
     std::vector<size_t> pads_r(kdims_it + kdims + 2, pad_op.pads.end());
 
-    std::vector<size_t> new_pads(kdims_it, kdims_it + kdims);
-
     std::transform(
         pads_l.begin(), pads_l.end(), op.padding.begin(), op.padding.begin(), std::plus<size_t>());
     std::transform(pads_r.begin(),

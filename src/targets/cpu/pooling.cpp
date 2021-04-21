@@ -63,7 +63,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
     shape compute_shape(std::vector<shape> inputs) const
     {
         inputs.pop_back();
-        return op.compute_shape(inputs);
+        return op.normalize_compute_shape(inputs);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const

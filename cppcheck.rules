@@ -91,13 +91,40 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern>\\W(fclose|free|hipFree|hipHostFree|hipFreeArray|hipMemFree|hipStreamDestroy|hipEventDestroy|hipArrayDestroy|hipCtxDestroy|hipDestroyTextureObject|hipDestroySurfaceObject) \(</pattern>
+    <pattern>\\W(fclose|free|hipFree|hipHostFree|hipFreeArray|hipMemFree|hipStreamDestroy|hipEventDestroy|hipArrayDestroy|hipCtxDestroy|hipDestroyTextureObject|hipDestroySurfaceObject|miirDestroyHandle) \(</pattern>
     <message>
         <id>useManagePointer</id>
         <severity>style</severity>
         <summary>Use manage pointer for resource management</summary>
     </message>
 </rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[new \w+]]></pattern>
+    <message>
+        <id>useSmartPointer</id>
+        <severity>style</severity>
+        <summary>Use make_shared or make_unique instead of new</summary>
+    </message>
+</rule>
+<!-- <rule>
+    <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[ \|\| ]]></pattern>
+    <message>
+        <id>UseNamedLogicOperator</id>
+        <severity>style</severity>
+        <summary>Use 'or' instead of ||</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>raw</tokenlist>
+    <pattern><![CDATA[ ! ]]></pattern>
+    <message>
+        <id>UseNamedLogicOperator</id>
+        <severity>style</severity>
+        <summary>Use 'not' instead of !</summary>
+    </message>
+</rule> -->
 <!-- <rule>
     <tokenlist>raw</tokenlist>
     <pattern><![CDATA[] (__device__ |__host__ )+(\(|{)]]></pattern>

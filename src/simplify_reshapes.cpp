@@ -431,7 +431,6 @@ struct find_where_op
         auto ins     = r.result;
         auto concat  = r.instructions["data"];
         auto ins_ind = r.instructions["ind"];
-        // if ind is not constant, cannot optimize
         std::vector<bool> vec_ind;
         auto arg_ind = ins_ind->eval();
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });

@@ -34,32 +34,32 @@ void pack_int8_args::apply(module& p) const
                 inputs = pad_inputs(p, ins);
             }
 
-std::cout << "loc20" << std::endl;
+            std::cout << "loc20" << std::endl;
             bool transa = inputs[0]->get_shape().transposed();
             bool transb = inputs[1]->get_shape().transposed();
 
             if(!transb)
             {
-std::cout << "loc21" << std::endl;
+                std::cout << "loc21" << std::endl;
                 auto packed_b = p.insert_instruction(ins, hip_allocate{inputs[1]->get_shape()});
-std::cout << "loc22" << std::endl;
+                std::cout << "loc22" << std::endl;
                 auto output_b =
                     p.insert_instruction(ins, hip_int8_gemm_pack_a{}, {inputs[1], packed_b});
-std::cout << "loc23" << std::endl;
+                std::cout << "loc23" << std::endl;
                 instruction::replace_argument(ins, inputs[1], output_b);
-std::cout << "loc24" << std::endl;
+                std::cout << "loc24" << std::endl;
             }
 
             if(transa)
             {
-std::cout << "loc25" << std::endl;
+                std::cout << "loc25" << std::endl;
                 auto packed_a = p.insert_instruction(ins, hip_allocate{inputs[0]->get_shape()});
-std::cout << "loc26" << std::endl;
+                std::cout << "loc26" << std::endl;
                 auto output_a =
                     p.insert_instruction(ins, hip_int8_gemm_pack_b{}, {inputs[0], packed_a});
-std::cout << "loc27" << std::endl;
+                std::cout << "loc27" << std::endl;
                 instruction::replace_argument(ins, inputs[0], output_a);
-std::cout << "loc28" << std::endl;
+                std::cout << "loc28" << std::endl;
             }
         }
         else if(ins->name() == "gpu::quant_convolution")
@@ -102,10 +102,10 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
     auto sa     = inputs.at(0)->get_shape();
     auto alens  = sa.lens();
     bool transa = sa.transposed();
-std::cout << "loc1" << std::endl;
+    std::cout << "loc1" << std::endl;
     if(transa)
     {
-std::cout << "loc2" << std::endl;
+        std::cout << "loc2" << std::endl;
         auto perm  = find_permutation(sa);
         auto r_in  = inputs.at(0);
         auto t_in  = r_in->inputs().front();
@@ -123,11 +123,11 @@ std::cout << "loc2" << std::endl;
             r_in       = p.insert_instruction(ins, make_op("transpose", {{"dims", perm1}}), t_in);
         }
         ret_inputs.push_back(r_in);
-std::cout << "loc3" << std::endl;
+        std::cout << "loc3" << std::endl;
     }
     else
     {
-std::cout << "loc4" << std::endl;
+        std::cout << "loc4" << std::endl;
         auto k     = alens.back();
         auto pad_k = (k + 3) / 4 * 4;
         std::vector<int64_t> pad_dims(alens.size() * 2, 0);
@@ -135,11 +135,11 @@ std::cout << "loc4" << std::endl;
         auto inp_0                 = inputs.at(0);
         if(pad_k != k)
         {
-std::cout << "loc5" << std::endl;
+            std::cout << "loc5" << std::endl;
             inp_0 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_0);
         }
         ret_inputs.push_back(inp_0);
-std::cout << "loc6" << std::endl;
+        std::cout << "loc6" << std::endl;
     }
 
     auto sb     = inputs.at(1)->get_shape();
@@ -156,22 +156,22 @@ std::cout << "loc6" << std::endl;
         std::vector<int64_t> pad_dims(tlens.size() * 2, 0);
         pad_dims[perm.size() - 2] = pad_k - k;
         auto val                  = inputs.at(0)->get_operator().to_value();
-std::cout << "loc7" << std::endl;
+        std::cout << "loc7" << std::endl;
         assert(val.contains("dims"));
         if(pad_k != k)
         {
-std::cout << "loc8" << std::endl;
+            std::cout << "loc8" << std::endl;
             auto perm1 = val.at("dims").to_vector<int64_t>();
             t_in       = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), t_in);
             r_in       = p.insert_instruction(ins, make_op("transpose", {{"dims", perm1}}), t_in);
-std::cout << "loc9" << std::endl;
+            std::cout << "loc9" << std::endl;
         }
         ret_inputs.push_back(r_in);
-std::cout << "loc10" << std::endl;
+        std::cout << "loc10" << std::endl;
     }
     else
     {
-std::cout << "loc11" << std::endl;
+        std::cout << "loc11" << std::endl;
         auto k     = blens[blens.size() - 2];
         auto pad_k = (k + 3) / 4 * 4;
         std::vector<int64_t> pad_dims(blens.size() * 2, 0);
@@ -179,11 +179,11 @@ std::cout << "loc11" << std::endl;
         auto inp_1                 = inputs.at(1);
         if(pad_k != k)
         {
-std::cout << "loc12" << std::endl;
+            std::cout << "loc12" << std::endl;
             inp_1 = p.insert_instruction(ins, make_op("pad", {{"pads", pad_dims}}), inp_1);
         }
         ret_inputs.push_back(inp_1);
-std::cout << "loc13" << std::endl;
+        std::cout << "loc13" << std::endl;
     }
 
     std::cout << "p = " << std::endl;

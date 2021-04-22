@@ -486,6 +486,12 @@ TEST_CASE(value_emplace_object)
     EXPECT(v["three"].get_key() == "three");
 }
 
+TEST_CASE(value_bracket_convert_throws)
+{
+    migraphx::value v1;
+    EXPECT(test::throws([&] { v1["key"].to<std::string>(); }));
+}
+
 TEST_CASE(value_construct_object_string_value)
 {
     migraphx::value v = {{"one", "onev"}, {"two", "twov"}};
@@ -796,6 +802,37 @@ TEST_CASE(value_binary_object_conv)
     EXPECT(v["data"].is_binary());
     EXPECT(v["data"].get_binary().size() == data.size());
     EXPECT(migraphx::equal(v["data"].get_binary(), data));
+}
+
+template <class T>
+bool is_null_type(T)
+{
+    return false;
+}
+
+bool is_null_type(std::nullptr_t) { return true; }
+
+TEST_CASE(visit_null)
+{
+    migraphx::value v;
+    EXPECT(v.is_null());
+    bool visited = false;
+    v.visit([&](auto&& x) { visited = is_null_type(x); });
+    EXPECT(visited);
+}
+
+TEST_CASE(value_or_convert)
+{
+    migraphx::value v = 1;
+    EXPECT(v.is_int64());
+    EXPECT(v.value_or(3) == 1);
+}
+
+TEST_CASE(value_or_null)
+{
+    migraphx::value v;
+    EXPECT(v.is_null());
+    EXPECT(v.value_or(3) == 3);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

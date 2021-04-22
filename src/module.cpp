@@ -24,18 +24,18 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
-    std::unordered_set<instruction*> instruction_set; 
+    std::unordered_set<instruction*> instruction_set;
     std::vector<std::string> input_names;
     std::string name;
 
     bool contains(instruction_ref ins) const
     {
-        if (ins == instructions.end())
+        if(ins == instructions.end())
             return false;
         return instruction_set.count(std::addressof(*ins)) > 0;
     }
 
-    template<class... Ts>
+    template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
@@ -47,23 +47,17 @@ struct module_impl
         return emplace(pos, ins);
     }
 
-    void push_front(const instruction& ins)
-    {
-        insert(instructions.begin(), ins);
-    }
+    void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
 
-    void push_back(const instruction& ins)
-    {
-        insert(instructions.end(), ins);
-    }
+    void push_back(const instruction& ins) { insert(instructions.end(), ins); }
 
-    template<class... Ts>
+    template <class... Ts>
     void emplace_front(Ts&&... xs)
     {
         emplace(instructions.begin(), std::forward<Ts>(xs)...);
     }
 
-    template<class... Ts>
+    template <class... Ts>
     void emplace_back(Ts&&... xs)
     {
         emplace(instructions.end(), std::forward<Ts>(xs)...);
@@ -131,14 +125,13 @@ void module::assign(const module& m)
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
             auto s      = ins->get_shape();
-            copy_ins    = impl->insert(impl->instructions.end(),
-                                                 {builtin::param{name}, std::move(s), {}});
+            copy_ins =
+                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {
-            auto s = ins->get_shape();
-            copy_ins =
-                impl->insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
+            auto s   = ins->get_shape();
+            copy_ins = impl->insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
         }
         else
         {
@@ -202,8 +195,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 {
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    auto result =
-        impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
+    auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -404,10 +396,7 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
     return result;
 }
 
-bool module::has_instruction(instruction_ref ins) const
-{
-    return impl->contains(ins);
-}
+bool module::has_instruction(instruction_ref ins) const { return impl->contains(ins); }
 
 std::size_t module::size() const { return impl->instructions.size(); }
 instruction_ref module::begin() const { return impl->instructions.begin(); }

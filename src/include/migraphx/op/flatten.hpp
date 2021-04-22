@@ -50,6 +50,7 @@ struct flatten
     {
         return {std::move(output_shape), std::move(args.front().data)};
     }
+    bool is_borrowed() const { return true; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

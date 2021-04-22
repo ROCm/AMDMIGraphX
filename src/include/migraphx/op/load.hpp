@@ -36,6 +36,7 @@ struct load
             MIGRAPHX_THROW("Load access is out of bounds");
         return {s, args[0].data() + offset};
     }
+    bool is_borrowed() const { return true; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 
     friend std::ostream& operator<<(std::ostream& os, const load& op)

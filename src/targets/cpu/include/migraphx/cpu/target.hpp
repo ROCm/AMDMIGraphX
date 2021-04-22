@@ -15,7 +15,7 @@ namespace cpu {
 struct target
 {
     std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
+    std::vector<pass> get_passes(migraphx::context& gctx, const compile_options&) const;
     migraphx::context get_context() const { return context{}; }
 
     argument copy_to(const argument& arg) const { return arg; }

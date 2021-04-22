@@ -124,6 +124,7 @@ struct module
     std::vector<shape> get_output_shapes() const;
 
     instruction_ref validate() const;
+    instruction_ref find_dangling_reference() const;
 
     void finalize(context& ctx);
 

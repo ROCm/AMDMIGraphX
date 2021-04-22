@@ -351,7 +351,7 @@ struct cpu_apply
                            std::back_inserter(inputs),
                            [&](const auto& s) { return r.instructions.at(s); });
             inputs.push_back(this->insert_allocation(ins, ins->get_shape()));
-            this->modl->replace_instruction(ins, op, inputs);
+            modl->replace_instruction(ins, op, inputs);
         });
     }
 

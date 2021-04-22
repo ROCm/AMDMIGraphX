@@ -160,13 +160,13 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
     assert(not starts_with(op.name(), "@"));
-std::cout << "loc31" << std::endl;
+    std::cout << "loc31" << std::endl;
     shape r = compute_shape(op, args);
-std::cout << "loc32" << std::endl;
+    std::cout << "loc32" << std::endl;
     instruction::replace(ins, op, r, std::move(args));
-std::cout << "loc33" << std::endl;
+    std::cout << "loc33" << std::endl;
     assert(ins->valid(begin()));
-std::cout << "loc34" << std::endl;
+    std::cout << "loc34" << std::endl;
     return ins;
 }
 

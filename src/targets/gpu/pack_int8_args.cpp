@@ -67,7 +67,7 @@ void pack_int8_args::apply(module& p) const
 
             std::cout << "p1 = " << std::endl;
             std::cout << p << std::endl;
-            if (inputs != old_inputs)
+            if(inputs != old_inputs)
             {
                 std::cout << "loc27, input_size = " << inputs.size() << std::endl;
                 p.replace_instruction(ins, ins->get_operator(), inputs);

@@ -265,8 +265,19 @@ endif()
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
-target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
-target_link_libraries(migraphx_gpu PUBLIC MLIRMIOpenThin)
+set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
+if(MIGRAPHX_ENABLE_MLIR)
+    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
+    # REQUIRED is not supported before cmake 3.18
+    if(NOT LIBMLIRMIOPEN)
+        message(FATAL_ERROR "libMLIRMIOpenThin not found")
+    else()
+        message(STATUS "Build with libMLIRMIOpenThin: " ${LIBMLIRMIOPEN})
+    endif()
+
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
+    target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
+endif()
 
 # Get flags needed to compile hip
 include(TargetFlags)

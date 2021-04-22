@@ -46,8 +46,11 @@ struct mlir_apply
       migraphx::value::binary binary;
       size_t global_size;
       size_t local_size;
+      execution_spec(migraphx::value::binary &&_binary, size_t _global_size, size_t _local_size)
+        : binary(std::move(_binary)), global_size(_global_size), local_size(_local_size) {}
     };
-    std::unordered_map<std::string, execution_spec*> binary_map{};
+  
+    std::unordered_map<std::string, std::shared_ptr<execution_spec>> binary_map{};
 
     context& get_context() const
     {
@@ -62,9 +65,9 @@ struct mlir_apply
         assert(pass != nullptr);
     }
 
-    execution_spec *make_mlir_binary(instruction_ref op_r)
+    std::shared_ptr<execution_spec> make_mlir_binary(instruction_ref op_r)
     {
-        execution_spec *result = nullptr;
+        std::shared_ptr<execution_spec> result;
 
 #ifdef    MIGRAPHX_MLIR_MIOPEN_SUPPORT
         auto conv  = any_cast<op::convolution>(op_r->get_operator());
@@ -76,7 +79,17 @@ struct mlir_apply
           switch (s.type()) {
           case shape::float_type: return "f32";
           case shape::half_type: return "f16";
-          default: break;
+          case shape::bool_type:
+          case shape::double_type:
+          case shape::uint8_type:
+          case shape::int8_type:
+          case shape::uint16_type:
+          case shape::int16_type:
+          case shape::int32_type:
+          case shape::int64_type:
+          case shape::uint32_type:
+          case shape::uint64_type:
+          break;
           }
           return nullptr;
         };
@@ -86,7 +99,7 @@ struct mlir_apply
         auto *out_t_s = get_type_str(out_t);
 
         if (out_t_s == nullptr || inp_t_s == nullptr || flt_t_s == nullptr)
-          return nullptr;
+          return result;
 
         std::string mlir_options =
           " --kernel_name " + std::string(mlir_kernel_name);
@@ -111,7 +124,7 @@ struct mlir_apply
 
         // Input spec
         mlir_options += 
-          " --in_layout "     "NGCHW"
+          " --in_layout "     "NCHWG"
           " --in_type "     + std::string(inp_t_s) +
           " --in_channels " + std::to_string(inp_t.lens()[1]) +
           " --in_h "        + std::to_string(inp_t.lens()[2]) +
@@ -119,14 +132,14 @@ struct mlir_apply
         
         // Filter spec
         mlir_options += 
-          " --fil_layout "    "NGCHW"
+          " --fil_layout "    "NCHWG"
           " --fil_type "    + std::string(flt_t_s) +
           " --fil_h "       + std::to_string(flt_t.lens()[2]) +
           " --fil_w "       + std::to_string(flt_t.lens()[3]);
         
         // Output spec
         mlir_options += 
-          " --out_layout "     "NGCHW"
+          " --out_layout "     "NCHWG"
           " --out_type "     + std::string(out_t_s) +
           " --out_channels " + std::to_string(out_t.lens()[1]) +
           " --out_h "        + std::to_string(out_t.lens()[2]) +
@@ -135,22 +148,21 @@ struct mlir_apply
         auto bin_i = binary_map.find(mlir_options);
         if (bin_i == binary_map.end()) {
           size_t bin_size = 0;
-          char *bin_buffer = nullptr;
 
-          auto mlir_handle = miirCreateHandle(mlir_options.c_str());
-
-          if (miirLowerBin(mlir_handle) == MIIR_SUCCESS &&
-              miirBufferGet(mlir_handle, nullptr, &bin_size) == MIIR_SUCCESS) {
-            bin_buffer = new char[bin_size];
-            if (miirBufferGet(mlir_handle, bin_buffer, &bin_size) == MIIR_SUCCESS) {
+          using mlir_handle = MIGRAPHX_MANAGE_PTR(MiirHandle, miirDestroyHandle);
+          auto handle = mlir_handle(miirCreateHandle(mlir_options.c_str()));
+          
+          if (miirLowerBin(handle.get()) == MIIR_SUCCESS &&
+              miirBufferGet(handle.get(), nullptr, &bin_size) == MIIR_SUCCESS) {
+            migraphx::value::binary bin(bin_size);
+            if (miirBufferGet(handle.get(), reinterpret_cast<char*>(bin.data()), &bin_size) == MIIR_SUCCESS) {
               size_t global_size, block_size;
-              if (miirGetExecutionDims(mlir_handle, &global_size, &block_size) == MIIR_SUCCESS) {
+              if (miirGetExecutionDims(handle.get(), &global_size, &block_size) == MIIR_SUCCESS) {
                 printf("MLIR - %s\n", mlir_options.c_str());
-                result = new execution_spec{{bin_buffer, bin_size}, global_size, block_size};
+                result = std::make_shared<execution_spec>(std::move(bin), global_size, block_size);
               }
             }
           }
-          miirDestroyHandle(mlir_handle);
         
           binary_map[mlir_options] = result;
         } else {
@@ -170,7 +182,7 @@ struct mlir_apply
       return lit;
     }
   
-    operation make_code_object_op(instruction_ref op_r, execution_spec *spec)
+    operation make_code_object_op(instruction_ref op_r, std::shared_ptr<execution_spec> spec)
     {
       // each pointer is expanded out to a MemRefDescriptor
       auto inp_t = op_r->inputs().at(0)->get_shape();
@@ -180,9 +192,9 @@ struct mlir_apply
       auto i64 = shape(shape::uint64_type);
 
       std::vector<shape> expected_inputs = {
-        flt_t, flt_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
-        inp_t, inp_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
-        out_t, out_t, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        flt_t, flt_t, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        inp_t, inp_t, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64,
+        out_t, out_t, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64,
         out_t
       };
 
@@ -204,14 +216,19 @@ struct mlir_apply
       refs.push_back(inst);
       refs.push_back(get_literal(offset)); // offset
 
-      auto &lens = inst_t.lens();
-      for (int i = 0; i < lens.size(); ++i) {
-        refs.push_back(get_literal(lens[i]));
-      }
-      auto &strides = inst_t.strides();
-      for (int i = 0; i < strides.size(); ++i) {
-        refs.push_back(get_literal(strides[i]));
-      }
+      // dim sizes
+      std::for_each(inst_t.lens().begin(), inst_t.lens().end(),
+                    [this, &refs](const auto lval) {
+                      refs.push_back(get_literal(lval));
+                    });
+      refs.push_back(get_literal(1)); // G
+
+      // dim strides
+      std::for_each(inst_t.strides().begin(), inst_t.strides().end(),
+                    [this, &refs](const auto lval) {
+                      refs.push_back(get_literal(lval));
+                    });
+      refs.push_back(get_literal(1)); // G
     }
   
     instruction_ref insert_allocation(instruction_ref ins, const shape& s)
@@ -222,7 +239,7 @@ struct mlir_apply
     void replace_conv_op(instruction_ref ins)
     {
       auto conv_bin = make_mlir_binary(ins);
-      if (conv_bin != nullptr) {
+      if (conv_bin) {
         auto conv = make_code_object_op(ins, conv_bin);
 
         auto inp = ins->inputs().at(0);
@@ -230,7 +247,7 @@ struct mlir_apply
         auto out = insert_allocation(ins, ins->get_shape());
               
         std::vector<instruction_ref> refs;
-        refs.reserve(3*11 + 1);
+        refs.reserve(3*13 + 1);
         add_memref_descriptor(refs, flt);
         add_memref_descriptor(refs, inp);
         add_memref_descriptor(refs, out);

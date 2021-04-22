@@ -29,6 +29,7 @@ void pack_int8_args::apply(module& p) const
             auto inputs = ins->inputs();
             auto lens   = inputs.at(0)->get_shape().lens();
             // gemm need the k to be multiple of 4, so need packing that dimension
+            auto old_inputs = inputs;
             if((lens.back() % 4) != 0)
             {
                 inputs = pad_inputs(p, ins);
@@ -45,9 +46,10 @@ void pack_int8_args::apply(module& p) const
                 std::cout << "loc22" << std::endl;
                 auto output_b =
                     p.insert_instruction(ins, hip_int8_gemm_pack_a{}, {inputs[1], packed_b});
-                std::cout << "loc23" << std::endl;
-                instruction::replace_argument(ins, inputs[1], output_b);
-                std::cout << "loc24" << std::endl;
+                inputs[1] = output_b;
+                // std::cout << "loc23" << std::endl;
+                // instruction::replace_argument(ins, old_inputs[1], output_b);
+                // std::cout << "loc24" << std::endl;
             }
 
             if(transa)
@@ -57,9 +59,19 @@ void pack_int8_args::apply(module& p) const
                 std::cout << "loc26" << std::endl;
                 auto output_a =
                     p.insert_instruction(ins, hip_int8_gemm_pack_b{}, {inputs[0], packed_a});
+                inputs[0] = output_a;
+                // std::cout << "loc27" << std::endl;
+                // instruction::replace_argument(ins, old_inputs[0], output_a);
+                // std::cout << "loc28" << std::endl;
+            }
+
+            std::cout << "p1 = " << std::endl;
+            std::cout << p << std::endl;
+            if (inputs != old_inputs)
+            {
+                std::cout << "loc27, input_size = " << inputs.size() << std::endl;
+                p.replace_instruction(ins, ins->get_operator(), inputs);
                 std::cout << "loc27" << std::endl;
-                instruction::replace_argument(ins, inputs[0], output_a);
-                std::cout << "loc28" << std::endl;
             }
         }
         else if(ins->name() == "gpu::quant_convolution")

@@ -55,7 +55,6 @@ struct pooling
         check_shapes{inputs, *this}.has(1);
 
         const shape& input = inputs.at(0);
-        auto t             = input.type();
 
         auto input_lens   = input.lens();
         size_t kdims      = input_lens.size() - 2;

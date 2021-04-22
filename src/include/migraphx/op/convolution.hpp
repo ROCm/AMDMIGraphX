@@ -64,7 +64,6 @@ struct convolution
 
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
-        auto t               = input.type();
         size_t kdims         = input_size - 2;
         if(kdims != this->kdims())
         {

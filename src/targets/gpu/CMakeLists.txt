@@ -6,10 +6,6 @@ find_package(miopen)
 find_package(rocblas REQUIRED PATHS /opt/rocm)
 message(STATUS "Build with rocblas")
 
-# mlir-miopen
-find_package(mlir REQUIRED)
-message(STATUS "Build with mlir-miopen")
-
 if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
@@ -269,11 +265,8 @@ endif()
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
-if(HAS_MLIR_MIOPEN_SUPPORT)
-    target_include_directories(migraphx_gpu PRIVATE ${mlir_INCLUDE_DIRS})
-    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
-    target_link_libraries(migraphx_gpu PUBLIC ${mlir_LIBRARIES})
-endif()
+target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
+target_link_libraries(migraphx_gpu PUBLIC MLIRMIOpenThin)
 
 # Get flags needed to compile hip
 include(TargetFlags)

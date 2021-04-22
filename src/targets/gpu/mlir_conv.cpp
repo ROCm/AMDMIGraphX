@@ -72,15 +72,20 @@ struct mlir_apply
         auto flt_t = op_r->inputs().at(1)->get_shape();
         auto out_t = op_r->get_shape();
 
-        auto check_type = [](const shape &s) {
+        auto get_type_str = [](const shape &s) -> const char * {
           switch (s.type()) {
-          case shape::float_type: return true;
+          case shape::float_type: return "f32";
+          case shape::half_type: return "f16";
           default: break;
           }
-          return false;
+          return nullptr;
         };
 
-        if (!check_type(out_t) || !check_type(inp_t) || !check_type(flt_t))
+        auto *inp_t_s = get_type_str(inp_t);
+        auto *flt_t_s = get_type_str(flt_t);
+        auto *out_t_s = get_type_str(out_t);
+
+        if (out_t_s == nullptr || inp_t_s == nullptr || flt_t_s == nullptr)
           return nullptr;
 
         std::string mlir_options =
@@ -94,8 +99,9 @@ struct mlir_apply
 
         // Conv spec
         mlir_options += 
-          " --operation conv2d"
+          " --operation "   "conv2d"
           " --batchsize " + std::to_string(conv.group) +
+          " --groupsize " + std::to_string(1) +
           " --padding_h " + std::to_string(conv.padding[0]) +
           " --padding_w " + std::to_string(conv.padding[1]) +
           " --conv_stride_h " + std::to_string(conv.stride[0]) +
@@ -105,23 +111,23 @@ struct mlir_apply
 
         // Input spec
         mlir_options += 
-          " --in_layout NCHW"
-          " --in_type "       "fp32"
+          " --in_layout "     "NGCHW"
+          " --in_type "     + std::string(inp_t_s) +
           " --in_channels " + std::to_string(inp_t.lens()[1]) +
           " --in_h "        + std::to_string(inp_t.lens()[2]) +
           " --in_w "        + std::to_string(inp_t.lens()[3]);
         
         // Filter spec
         mlir_options += 
-          " --fil_layout NCHW"
-          " --fil_type "      "fp32"
+          " --fil_layout "    "NGCHW"
+          " --fil_type "    + std::string(flt_t_s) +
           " --fil_h "       + std::to_string(flt_t.lens()[2]) +
           " --fil_w "       + std::to_string(flt_t.lens()[3]);
         
         // Output spec
         mlir_options += 
-          " --out_layout NCHW"
-          " --out_type "       "fp32"
+          " --out_layout "     "NGCHW"
+          " --out_type "     + std::string(out_t_s) +
           " --out_channels " + std::to_string(out_t.lens()[1]) +
           " --out_h "        + std::to_string(out_t.lens()[2]) +
           " --out_w "        + std::to_string(out_t.lens()[3]);

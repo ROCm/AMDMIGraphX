@@ -13,6 +13,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     build-essential \
     clang-format-5.0 \
+    clang \
     cmake \
     curl \
     doxygen \
@@ -74,7 +75,7 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1
 
 # Install newer cmake for onnx runtime
-RUN cget -p /opt/cmake install kitware/cmake@v3.13.0
+RUN cget -p /opt/cmake install kitware/cmake@v3.13.4
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime
 ARG ONNXRUNTIME_BRANCH=master
@@ -85,6 +86,8 @@ RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXR
     /bin/sh dockerfiles/scripts/install_common_deps.sh
 
 ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
+
+RUN PATH=/opt/cmake/bin:$PATH cget -p /usr/local install ROCmSoftwarePlatform/llvm-project-mlir@02078ce236ad90e3aec04c0c770ef5bfc99e49c2
 
 ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
 ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db

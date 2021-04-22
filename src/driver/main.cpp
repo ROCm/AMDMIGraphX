@@ -312,10 +312,7 @@ struct compiler
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
-        ap(enable_mlir,
-           {"--enable-mlir"},
-           ap.help("Enable MLIR compilation"),
-           ap.set_value(true));
+        ap(enable_mlir, {"--enable-mlir"}, ap.help("Enable MLIR compilation"), ap.set_value(true));
         ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
         ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
     }
@@ -396,10 +393,7 @@ struct verify : command<verify>
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
-        ap(enable_mlir,
-           {"--enable-mlir"},
-           ap.help("Enable MLIR compilation"),
-           ap.set_value(true));
+        ap(enable_mlir, {"--enable-mlir"}, ap.help("Enable MLIR compilation"), ap.set_value(true));
         ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
         ap(per_instruction,
            {"-i", "--per-instruction"},

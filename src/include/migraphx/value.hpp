@@ -160,9 +160,7 @@ struct value
         binary(T* data, std::size_t s) : base(data, data + s)
         {
         }
-        explicit binary(std::size_t s) : base(s)
-        {
-        }
+        explicit binary(std::size_t s) : base(s) {}
     };
 
     value() = default;

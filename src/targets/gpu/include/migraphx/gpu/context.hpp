@@ -23,7 +23,7 @@ struct hip_device
 {
     hip_device()
     {
-        device_props.gcnArchName[0] = '\0';
+        device_props.gcnArchName[0]      = '\0';
         device_props.multiProcessorCount = 0;
         add_stream();
     }
@@ -33,7 +33,7 @@ struct hip_device
         auto status = hipGetDeviceProperties(&device_props, device_id);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to allocate stream");
-        
+
         for(std::size_t i = 0; i < n; i++)
             add_stream();
     }
@@ -132,7 +132,7 @@ struct hip_device
     std::size_t stream_id() const { return current_stream; }
 
     const std::string get_device_name() const { return device_props.gcnArchName; }
-  
+
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 
     private:

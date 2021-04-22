@@ -185,6 +185,8 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        useSmartPointer:*src/api/api.cpp
+        useSmartPointer:*make_shared_array.hpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -195,7 +197,9 @@ rocm_enable_cppcheck(
     INCLUDE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1

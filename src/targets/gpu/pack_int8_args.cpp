@@ -95,15 +95,15 @@ shape pack_int8_args::pack_int8_shape(const shape& s) const
 
 instruction_ref pack_int8_args::pad_ins(module& p, instruction_ref ins, int offset) const
 {
-    auto s = ins->get_shape();
-    auto lens = s.lens();
-    auto k = lens[lens.size() + offset];
-    auto pad_k = (k + 3) / 4 * 4;
-    auto pad_lens = lens;
+    auto s                         = ins->get_shape();
+    auto lens                      = s.lens();
+    auto k                         = lens[lens.size() + offset];
+    auto pad_k                     = (k + 3) / 4 * 4;
+    auto pad_lens                  = lens;
     pad_lens[lens.size() + offset] = pad_k;
     std::vector<int64_t> pad_dims(lens.size() * 2, 0);
     auto ret_ins = ins;
-    if (pad_k != k)
+    if(pad_k != k)
     {
         pad_dims[lens.size() + offset] = pad_k - k;
         shape ps{s.type(), pad_lens};
@@ -119,16 +119,16 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
 {
     std::vector<instruction_ref> ret_inputs;
     auto inputs = ins->inputs();
-    auto in0  = inputs.at(0);
-    auto sa = in0->get_shape();
+    auto in0    = inputs.at(0);
+    auto sa     = in0->get_shape();
     bool transa = sa.transposed();
     if(transa)
     {
         auto perm  = find_permutation(sa);
         auto t_in  = in0->inputs().front();
         int offset = static_cast<int>(perm.back()) - static_cast<int>(perm.size());
-        auto p_in = pad_ins(p, t_in, offset);
-        auto val = in0->get_operator().to_value();
+        auto p_in  = pad_ins(p, t_in, offset);
+        auto val   = in0->get_operator().to_value();
         assert(val.contains("dims"));
         auto dims = val.at("dims").to_vector<int64_t>();
         auto r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
@@ -139,7 +139,7 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
         ret_inputs.push_back(pad_ins(p, in0, -1));
     }
 
-    auto in1 = inputs.at(1);
+    auto in1    = inputs.at(1);
     auto sb     = in1->get_shape();
     bool transb = sb.transposed();
     if(transb)
@@ -147,8 +147,8 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
         auto perm  = find_permutation(sb);
         auto t_in  = in1->inputs().front();
         int offset = static_cast<int>(perm[perm.size() - 2]) - static_cast<int>(perm.size());
-        auto p_in = pad_ins(p, t_in, offset);
-        auto val = in1->get_operator().to_value();
+        auto p_in  = pad_ins(p, t_in, offset);
+        auto val   = in1->get_operator().to_value();
         assert(val.contains("dims"));
         auto dims = val.at("dims").to_vector<int64_t>();
         auto r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);

@@ -82,7 +82,7 @@ void gemm_impl(context& ctx,
         rocblas_int n   = out_lens[dim_1];
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0)
+        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8X4_format)
         {
             MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
         }

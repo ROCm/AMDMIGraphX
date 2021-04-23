@@ -7,12 +7,6 @@ namespace cpu {
 
 struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
 {
-    template <class Self, class F>
-    static auto reflect(Self&, F)
-    {
-        return pack();
-    }
-
     std::string name() const { return "dnnl::reorder"; }
 
     shape adjust_shape(const shape& x, int) const { return x; }
@@ -20,7 +14,10 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        return inputs.back();
+        auto r = inputs.back();
+        // Call to get_primitive to make sure an algo is available
+        this->get_primitive(this->to_memory_desc(r, inputs));
+        return r;
     }
     // Custom desc class since its missing in dnnl
     struct desc
@@ -33,10 +30,10 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
         return {m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_DST)};
     }
 
-    auto get_primitive_desc(const desc& d) const
+    auto get_primitive_desc(const desc& d, const dnnl::primitive_attr& attr) const
     {
         auto& engine = get_dnnl_context().engine;
-        return dnnl::reorder::primitive_desc(engine, d.src, engine, d.dst);
+        return dnnl::reorder::primitive_desc(engine, d.src, engine, d.dst, attr);
     }
 };
 

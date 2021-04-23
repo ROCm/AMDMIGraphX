@@ -227,7 +227,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
     {
-        auto version = get_opset_version(model);
+        auto version  = get_opset_version(model);
         opset_version = (version == -1) ? opset_version : version;
 
         if(model.has_graph())
@@ -247,9 +247,9 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {
-        auto version = get_opset_version(model);
+        auto version  = get_opset_version(model);
         opset_version = (version == -1) ? opset_version : version;
-        
+
         if(model.has_graph())
         {
             this->parse_graph(mm, model.graph());

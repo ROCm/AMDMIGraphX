@@ -261,7 +261,7 @@ endif()
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
-set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
+set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
     find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
     # REQUIRED is not supported before cmake 3.18

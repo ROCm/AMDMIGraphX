@@ -50,8 +50,12 @@ RUN update-locale LANG=en_US.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install rbuild
-RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+# Install dependencies
+ADD dev-requirements.txt /dev-requirements.txt
+ADD requirements.txt /requirements.txt
+
+COPY ./tools/install_prereqs.sh /
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
@@ -64,12 +68,6 @@ RUN pip3 install -r /doc-requirements.txt
 ENV ONNX_HOME=$HOME
 COPY ./tools/download_models.sh /
 RUN /download_models.sh && rm /download_models.sh
-
-# Install dependencies
-ADD dev-requirements.txt /dev-requirements.txt
-ADD requirements.txt /requirements.txt
-COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

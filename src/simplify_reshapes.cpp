@@ -394,17 +394,19 @@ struct find_resize
 
         // wrap up shapes for multibroadcast
         std::vector<std::pair<std::size_t, std::size_t>> dim_scales;
-        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), std::back_inserter(dim_scales), [](auto x, auto y) {
-            return std::make_pair(x, y / x);
-        });
-        
+        std::transform(in_lens.begin(),
+                       in_lens.end(),
+                       out_lens.begin(),
+                       std::back_inserter(dim_scales),
+                       [](auto x, auto y) { return std::make_pair(x, y / x); });
+
         std::vector<int64_t> in_dims;
         std::vector<int64_t> out_dims;
-        for (auto& isp : dim_scales)
+        for(auto& isp : dim_scales)
         {
             in_dims.push_back(isp.first);
             out_dims.push_back(isp.first * isp.second);
-            if (isp.first == 1 or isp.second == 1)
+            if(isp.first == 1 or isp.second == 1)
             {
                 continue;
             }

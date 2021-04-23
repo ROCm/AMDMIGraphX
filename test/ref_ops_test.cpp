@@ -3766,7 +3766,95 @@ TEST_CASE(softmax_test)
 
     migraphx::shape a_shape{migraphx::shape::float_type, {5, 3, 4, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
-    mm->add_instruction(migraphx::make_op("softmax"), al);
+    mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), al);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(120);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(sqdiff_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1 = mm->add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2 = mm->add_literal(migraphx::literal{s, {1, 2, 3}});
+    mm->add_instruction(migraphx::make_op("sqdiff"), l1, l2);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {4, 4, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(sqrt_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    auto l = mm->add_literal(
+        migraphx::literal{s, {1.02481645, 0.85643062, 0.03404123, 0.92791926, 0.10569184}});
+    mm->add_instruction(migraphx::make_op("sqrt"), l);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.01233218, 0.92543537, 0.18450265, 0.96328566, 0.32510282};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
+TEST_CASE(squeeze_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(4 * 3 * 3);
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        EXPECT(result.get_shape() == s2);
+    }
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(4 * 3 * 3);
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        EXPECT(result.get_shape() == s2);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(4 * 3 * 3);
+        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 3}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        mm->add_instruction(migraphx::make_op("squeeze"), l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        EXPECT(result.get_shape() == s2);
+    }
+}
+
+TEST_CASE(sub_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1 = mm->add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2 = mm->add_literal(migraphx::literal{s, {1, 2, 3}});
+    mm->add_instruction(migraphx::make_op("sub"), l1, l2);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(120);

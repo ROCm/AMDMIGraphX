@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -392,18 +393,25 @@ struct find_resize
         }
 
         // wrap up shapes for multibroadcast
-        std::vector<int64_t> in_dims(in_lens.begin(), in_lens.end());
-        std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());
-        for(int ii = static_cast<int>(scales.size()) - 1; ii >= 0; --ii)
+        std::vector<std::pair<std::size_t, std::size_t>> dim_scales;
+        std::transform(in_lens.begin(), in_lens.end(), out_lens.begin(), std::back_inserter(dim_scales), [](auto x, auto y) {
+            return std::make_pair(x, y / x);
+        });
+        
+        std::vector<int64_t> in_dims;
+        std::vector<int64_t> out_dims;
+        for (auto& isp : dim_scales)
         {
-            if(scales[ii] == 1 or in_dims[ii] == 1)
+            in_dims.push_back(isp.first);
+            out_dims.push_back(isp.first * isp.second);
+            if (isp.first == 1 or isp.second == 1)
             {
                 continue;
             }
 
-            out_dims[ii] = in_dims[ii];
-            in_dims.insert(in_dims.begin() + ii + 1, 1);
-            out_dims.insert(out_dims.begin() + ii + 1, scales[ii]);
+            out_dims.back() = isp.first;
+            in_dims.push_back(1);
+            out_dims.push_back(isp.second);
         }
 
         auto in_rsp   = ins_rsp->inputs().front();

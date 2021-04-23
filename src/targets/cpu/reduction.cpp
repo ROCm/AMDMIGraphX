@@ -12,7 +12,8 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.algo, "algo"), f(self.axes, "axes"));
+        return pack_join(self.reflect_base(self, f),
+                         pack(f(self.algo, "algo"), f(self.axes, "axes")));
     }
 
     std::string name() const { return "dnnl::reduction"; }
@@ -21,7 +22,7 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{inputs, *this}.has(1).standard();
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1).standard();
         auto s    = inputs.at(0);
         auto lens = s.lens();
         for(auto axis : axes)

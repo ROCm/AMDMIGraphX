@@ -342,6 +342,29 @@ auto has_finalize_op(const T&) -> decltype(has_finalize_op(rank<1>{},
 }
 
 template <class T>
+auto compile_op(
+    rank<1>, T& x, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(x.compile(auto_any_cast(ctx), output_shape, input))
+{
+    return x.compile(auto_any_cast(ctx), output_shape, input);
+}
+
+template <class T>
+value compile_op(rank<0>, T&, context&, const shape&, const std::vector<shape>&)
+{
+    return value::object{};
+}
+
+template <class T>
+value compile_op(const T& x,
+                 context& ctx,
+                 const shape& output_shape,
+                 const std::vector<shape>& input)
+{
+    return compile_op(rank<1>{}, x, ctx, output_shape, input);
+}
+
+template <class T>
 value attributes_op(const T&)
 {
     return value::object{};
@@ -361,6 +384,12 @@ void from_value_op(T& x, const value& v)
     return migraphx::from_value(v, x);
 }
 
+template <class T>
+bool is_borrowed_op(const T&)
+{
+    return false;
+}
+
 } // namespace detail
 
 <%
@@ -374,11 +403,18 @@ void from_value_op(T& x, const value& v)
              const   = True,
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
+     virtual('is_borrowed', returns = 'bool', const = True, default = 'detail::is_borrowed_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',
              const   = True,
              default = 'detail::output_alias_op'),
+     virtual('compile',
+             returns = 'value',
+             ctx     = 'context&',
+             output  = 'const shape&',
+             input   = 'const std::vector<shape>&',
+             default = 'detail::compile_op'),
      virtual('finalize',
              ctx     = 'context&',
              output  = 'const shape&',
@@ -436,6 +472,24 @@ void from_value_op(T& x, const value& v)
     return !(x == y);
 }
 
+inline value
+compile(operation& op, context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    return op.compile(ctx, output_shape, input);
+}
+template <class Context>
+inline value
+compile(operation& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+{
+    dependent_type<context, Context> ctx2 = std::ref(ctx);
+    return compile(op, ctx2, output_shape, input);
+}
+template <class T, class Context>
+inline auto compile(T& op, Context& ctx, const shape& output_shape, const std::vector<shape>& input)
+    -> decltype(op.compile(ctx, ctx, output_shape, input))
+{
+    return op.compile(ctx, ctx, output_shape, input);
+}
 inline shape compute_shape(const operation& op, const std::vector<shape>& inputs)
 {
     return op.compute_shape(inputs);

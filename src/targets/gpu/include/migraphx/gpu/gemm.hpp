@@ -19,7 +19,7 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
-    bool int8X4_format = true;
+    bool int8_x4_format = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -44,22 +44,13 @@ struct rocblas_gemm
         batch_not_transposed(inputs[0].strides());
         batch_not_transposed(inputs[1].strides());
 
-        // std::size_t kdim = inputs[0].lens().size() - 1;
-        // k be multiple of 4
-        // if(op.name() == "quant_dot" && (inputs[0].lens()[kdim] % 4) != 0)
-        // {
-        //     MIGRAPHX_THROW("GPU_GEMM: size of A {" + to_string_range(inputs[0].lens()) +
-        //                    "} and B {" + to_string_range(inputs[1].lens()) +
-        //                    "} must be multiple of 4 for int8 type");
-        // }
-
         return op.compute_shape(in_shapes);
     }
 
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        gemm(ctx, output_shape, args, op.alpha, op.beta, int8X4_format);
+        gemm(ctx, output_shape, args, op.alpha, op.beta, int8_x4_format);
         return args.back();
     }
 

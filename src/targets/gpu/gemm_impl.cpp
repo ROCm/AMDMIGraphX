@@ -41,7 +41,7 @@ void gemm_impl(context& ctx,
                const std::vector<argument>& args,
                T alpha,
                T beta,
-               bool int8X4_format)
+               bool int8_x4_format)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -66,9 +66,9 @@ void gemm_impl(context& ctx,
     auto compute_type = output_type;
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-    flag = int8X4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+    flag = int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 #else
-    (void)int8X4_format;
+    (void)int8_x4_format;
     rocblas_gemm_flags flag = rocblas_gemm_flags_none;
 #endif
 
@@ -82,7 +82,7 @@ void gemm_impl(context& ctx,
         rocblas_int n   = out_lens[dim_1];
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8X4_format)
+        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
         {
             MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
         }
@@ -162,9 +162,9 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           float alpha,
           float beta,
-          bool int8X4_format)
+          bool int8_x4_format)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8X4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
 }
 
 void gemm(context& ctx,
@@ -172,9 +172,9 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
-          bool int8X4_format)
+          bool int8_x4_format)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8X4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
 }
 
 } // namespace gpu

@@ -284,10 +284,7 @@ struct mlir_apply
 
 void mlir_conv::apply(module& m) const
 {
-    if(enable_mlir)
-    {
-        mlir_apply{&m, this}.apply();
-    }
+    mlir_apply{&m, this}.apply();
 }
 
 } // namespace gpu

@@ -13,7 +13,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     build-essential \
     clang-format-5.0 \
-    clang \
     cmake \
     curl \
     doxygen \

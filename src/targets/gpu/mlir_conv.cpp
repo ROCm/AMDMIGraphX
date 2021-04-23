@@ -35,7 +35,7 @@ namespace gpu {
 
 struct mlir_apply
 {
-    module* prog          = nullptr;
+    module* mod           = nullptr;
     const mlir_conv* pass = nullptr;
 
     const char* mlir_kernel_name = "migraphx_conv2d";
@@ -64,7 +64,7 @@ struct mlir_apply
 
     void init()
     {
-        assert(prog != nullptr);
+        assert(mod != nullptr);
         assert(pass != nullptr);
     }
 
@@ -187,7 +187,7 @@ struct mlir_apply
         auto fi = literal_map.find(value);
         if(fi != literal_map.end())
             return fi->second;
-        auto lit = prog->add_literal(value);
+        auto lit = mod->add_literal(value);
         literal_map.emplace(value, lit);
         return lit;
     }
@@ -226,21 +226,23 @@ struct mlir_apply
         refs.push_back(get_literal(offset)); // offset
 
         // dim sizes
-        std::for_each(inst_t.lens().begin(), inst_t.lens().end(), [this, &refs](const auto lval) {
-            refs.push_back(get_literal(lval));
-        });
+        std::transform(inst_t.lens().begin(),
+                       inst_t.lens().end(),
+                       std::back_inserter(refs),
+                       [&](const auto& lval) { return get_literal(lval); });
         refs.push_back(get_literal(1)); // G
 
         // dim strides
-        std::for_each(inst_t.strides().begin(),
-                      inst_t.strides().end(),
-                      [this, &refs](const auto lval) { refs.push_back(get_literal(lval)); });
+        std::transform(inst_t.strides().begin(),
+                       inst_t.strides().end(),
+                       std::back_inserter(refs),
+                       [&](const auto& lval) { return get_literal(lval); });
         refs.push_back(get_literal(1)); // G
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s)
     {
-        return prog->insert_instruction(ins, hip_allocate{s});
+        return mod->insert_instruction(ins, hip_allocate{s});
     }
 
     void replace_conv_op(instruction_ref ins)
@@ -261,14 +263,14 @@ struct mlir_apply
             add_memref_descriptor(refs, out);
             refs.push_back(out);
 
-            prog->replace_instruction(ins, conv, refs);
+            mod->replace_instruction(ins, conv, refs);
         }
     }
 
     void apply()
     {
         init();
-        for(auto it = prog->begin(); it != prog->end(); it++)
+        for(auto it : iterator_for(*mod))
         {
             if(it->name() == "convolution")
             {
@@ -278,11 +280,11 @@ struct mlir_apply
     }
 };
 
-void mlir_conv::apply(module& p) const
+void mlir_conv::apply(module& m) const
 {
     if(enable_mlir)
     {
-        mlir_apply{&p, this}.apply();
+        mlir_apply{&m, this}.apply();
     }
 }
 

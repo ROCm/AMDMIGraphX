@@ -131,7 +131,7 @@ struct hip_device
 
     std::size_t stream_id() const { return current_stream; }
 
-    const std::string get_device_name() const { return device_props.gcnArchName; }
+    std::string get_device_name() const { return device_props.gcnArchName; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 

@@ -147,9 +147,9 @@ struct value
     using const_pointer   = const value_type*;
     using array           = std::vector<value>;
     using object          = std::unordered_map<std::string, value>;
-    struct binary : std::vector<std::int8_t>
+    struct binary : std::vector<std::uint8_t>
     {
-        using base = std::vector<std::int8_t>;
+        using base = std::vector<std::uint8_t>;
         binary() {}
         template <class Container,
                   MIGRAPHX_REQUIRES(sizeof(*std::declval<Container>().begin()) == 1)>

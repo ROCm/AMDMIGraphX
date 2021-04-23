@@ -714,6 +714,7 @@ TEST_CASE(test39)
     CHECK(no_allocate(*else_mod));
 }
 
+// NOLINTNEXTLINE
 TEST_CASE(rnn_dom)
 {
     migraphx::module m;

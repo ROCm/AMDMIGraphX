@@ -72,7 +72,7 @@ struct onnx_parser
 
     void parse_undefined(module* mod, const std::string& name);
 
-    void parse_opset_version(const onnx::ModelProto& model);
+    static int64_t get_opset_version(const onnx::ModelProto& model);
 
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);

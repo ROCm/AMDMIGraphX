@@ -133,15 +133,11 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     lrn.cpp
     leaky_relu.cpp
+    mlir_conv.cpp
     pack_args.cpp
     pack_int8_args.cpp
     pad.cpp
     pooling.cpp
-    clip.cpp
-    int8_gemm_pack.cpp
-    int8_conv_pack.cpp
-    mlir_conv.cpp
-    gemm_impl.cpp
     preallocate_param.cpp
     quant_convolution.cpp
     rnn_variable_seq_lens.cpp

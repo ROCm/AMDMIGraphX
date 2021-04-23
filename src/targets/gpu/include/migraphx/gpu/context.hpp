@@ -24,6 +24,7 @@ struct hip_device
     hip_device()
     {
         device_props.gcnArchName[0]      = '\0';
+        device_props.gcnArch             = 0;
         device_props.multiProcessorCount = 0;
         add_stream();
     }
@@ -132,6 +133,10 @@ struct hip_device
     std::size_t stream_id() const { return current_stream; }
 
     std::string get_device_name() const { return device_props.gcnArchName; }
+
+    std::size_t get_device_major() const { return device_props.major; }
+
+    std::size_t get_device_minor() const { return device_props.minor; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 

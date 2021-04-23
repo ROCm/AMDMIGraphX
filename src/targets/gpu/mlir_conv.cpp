@@ -104,11 +104,13 @@ struct mlir_apply
         if(out_t_s == nullptr || inp_t_s == nullptr || flt_t_s == nullptr)
             return result;
 
-        std::string mlir_options = " --kernel_name " + std::string(mlir_kernel_name);
+        std::string mlir_options = "--kernel_name " + std::string(mlir_kernel_name);
 
         // platform spec
         auto& device = get_context().get_current_device();
-        mlir_options += " --arch " + device.get_device_name() + " --num_cu " +
+        char dev_name[64];
+        sprintf(dev_name, "gfx%lu%02lu", device.get_device_major(), device.get_device_minor());
+        mlir_options += " --arch " + std::string(dev_name) + " --num_cu " +
                         std::to_string(device.get_cu_count()); // ???
 
         // Conv spec

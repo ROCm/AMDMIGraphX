@@ -443,5 +443,19 @@ shape compute_shape(const operation& op,
         return op.compute_shape(to_shapes(args), mods);
     }
 }
+
+std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs)
+{
+    shape new_shape;
+    try
+    {
+        new_shape = op.compute_shape(inputs);
+    }
+    catch(...)
+    {
+        return {};
+    }
+    return {new_shape};
+}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

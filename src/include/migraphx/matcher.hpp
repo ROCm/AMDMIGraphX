@@ -183,6 +183,17 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
     return {{p}};
 }
 
+/// Create a typed-erased matcher
+using any_matcher_base = basic_matcher<
+    function_matcher<std::function<instruction_ref(matcher_context&, instruction_ref)>>>;
+struct any_matcher : any_matcher_base
+{
+    template <class M>
+    any_matcher(M mm) : any_matcher_base({[=](auto& ctx, auto ins) { return mm.match(ctx, ins); }})
+    {
+    }
+};
+
 /// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
     struct name##_m                                                           \

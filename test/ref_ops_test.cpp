@@ -3401,7 +3401,7 @@ TEST_CASE(softmax_test)
 
     migraphx::shape a_shape{migraphx::shape::float_type, {5, 3, 4, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
-    mm->add_instruction(migraphx::make_op("softmax"), al);
+    mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), al);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(120);

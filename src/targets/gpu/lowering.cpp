@@ -319,9 +319,7 @@ struct miopen_apply
                 auto& ctx = get_context();
                 rocblas_gemm_flags flag;
                 rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-                std::cout << "flag1 = " << flag << std::endl;
                 int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-                std::cout << "int8X4 = " << int8_x4_format << std::endl;
 #endif
             }
 

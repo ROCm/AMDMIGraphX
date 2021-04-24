@@ -1434,11 +1434,13 @@ TEST_CASE(if_literal_test)
     auto* then_mod           = p.create_module("If_1_if");
     std::vector<float> data1 = {1, 2, 3, 4, 5};
     auto l1                  = then_mod->add_literal(migraphx::literal(s, data1));
+    then_mod->add_literal({});
     then_mod->add_return({l1});
 
     auto* else_mod           = p.create_module("If_1_else");
     std::vector<float> data2 = {5, 4, 3, 2, 1};
     auto l2                  = else_mod->add_literal(migraphx::literal(s, data2));
+    else_mod->add_literal({});
     else_mod->add_return({l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -1763,7 +1765,9 @@ TEST_CASE(lessorequal_test)
     auto input1 = mm->add_parameter("x1", migraphx::shape{migraphx::shape::float_type, {3}});
     auto input2 = mm->add_parameter("x2", migraphx::shape{migraphx::shape::float_type, {3}});
     auto temp   = mm->add_instruction(migraphx::make_op("greater"), input1, input2);
-    auto le     = mm->add_instruction(migraphx::make_op("not"), temp);
+    auto bt     = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), temp);
+    auto le = mm->add_instruction(migraphx::make_op("not"), bt);
 
     mm->add_return({le});
 
@@ -1847,7 +1851,7 @@ TEST_CASE(logsoftmax_nonstd_input_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {6, 9}});
     auto l1  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {4, 4}}}), l0);
-    auto l2 = mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", 1}}), l1);
+    auto l2 = mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("logsoftmax_nonstd_input_test.onnx");
@@ -2322,7 +2326,11 @@ TEST_CASE(quantizelinear_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         round);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), max_val);
     auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_val, max_val);
     mm->add_instruction(
         migraphx::make_op("convert",
@@ -2361,7 +2369,11 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         round);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    min_val  = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), min_val);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 1, 5, 1}}}), max_val);
     auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_val, max_val);
     mm->add_instruction(
         migraphx::make_op("convert",
@@ -2543,6 +2555,33 @@ TEST_CASE(reducesum_test)
     auto l1  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), l1);
     auto prog = optimize_onnx("reducesum_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_empty_axes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal({});
+    auto x  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0, 1, 2, 3}}}), x);
+    auto r  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), l1);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("reducesum_empty_axes_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reducesum_noop_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal({});
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    mm->add_return({x});
+    auto prog = migraphx::parse_onnx("reducesum_noop_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -2967,7 +3006,7 @@ TEST_CASE(softmax_nonstd_input_test)
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {6, 8}});
     auto l1  = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {4, 4}}}), l0);
-    auto l2 = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), l1);
+    auto l2 = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("softmax_nonstd_input_test.onnx");
@@ -3047,6 +3086,34 @@ TEST_CASE(squeeze_unsqueeze_test)
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), l1);
     auto prog = optimize_onnx("squeeze_unsqueeze_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(squeeze_axes_input_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal({migraphx::shape::int64_type, {2}}, {1, 3}));
+    auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3}}}), l0);
+    mm->add_return({l1});
+
+    auto prog = migraphx::parse_onnx("squeeze_axes_input_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(squeeze_empty_axes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal({});
+    auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
+    mm->add_return({l1});
+
+    auto prog = migraphx::parse_onnx("squeeze_empty_axes_test.onnx");
 
     EXPECT(p == prog);
 }

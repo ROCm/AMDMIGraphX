@@ -178,7 +178,7 @@ shape normalize_compute_shape_op(const T& x,
 }
 
 template <class T>
-auto compute_op(rank<2>,
+auto compute_op(rank<1>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -186,14 +186,6 @@ auto compute_op(rank<2>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
-}
-
-template <class T>
-auto compute_op(
-    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -207,7 +199,7 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, ctx, output_shape, input);
+    return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
 template <class T>
@@ -231,7 +223,7 @@ argument compute_op(const T& x, const shape& output_shape, const std::vector<arg
 }
 
 template <class T, class F>
-auto compute_op(rank<2>,
+auto compute_op(rank<1>,
                 const T& x,
                 const shape& output,
                 const std::vector<argument>& inputs,
@@ -239,17 +231,6 @@ auto compute_op(rank<2>,
                 F f) -> decltype(x.compute(output, inputs, module_args, f))
 {
     return x.compute(output, inputs, module_args, f);
-}
-
-template <class T, class F>
-auto compute_op(rank<1>,
-                const T& x,
-                const shape& output,
-                const std::vector<argument>& inputs,
-                const std::vector<module_ref>&,
-                F) -> decltype(x.compute(output, inputs))
-{
-    return x.compute(output, inputs);
 }
 
 template <class T, class F>
@@ -271,7 +252,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<2>{}, x, output, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
 }
 
 template <class T, class F>

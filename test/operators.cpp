@@ -72,6 +72,43 @@ TEST_CASE(make_op_invalid_key)
     EXPECT(test::throws([] { migraphx::make_op("convolution", {{"paddings", {1, 1}}}); }));
 }
 
+TEST_CASE(load_offset)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape bs{migraphx::shape::int8_type, {32}};
+    auto op = migraphx::make_op("load", {{"offset", 4}, {"shape", migraphx::to_value(s)}});
+    EXPECT(op.compute_shape({bs}) == s);
+
+    migraphx::argument a{bs};
+    EXPECT(op.compute(bs, {a}).data() == a.data() + 4);
+}
+
+TEST_CASE(load_out_of_bounds)
+{
+    migraphx::shape s{migraphx::shape::float_type, {4}};
+    migraphx::shape bs{migraphx::shape::int8_type, {16}};
+    auto op = migraphx::make_op("load", {{"offset", 4}, {"shape", migraphx::to_value(s)}});
+
+    migraphx::argument a{bs};
+    EXPECT(test::throws([&] { op.compute(bs, {a}); }));
+}
+
+TEST_CASE(load_tuple)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::int8_type, {3}},
+                       migraphx::shape{migraphx::shape::float_type, {4}}}};
+    migraphx::shape bs{migraphx::shape::int8_type, {32}};
+    auto op = migraphx::make_op("load", {{"offset", 4}, {"shape", migraphx::to_value(s)}});
+    EXPECT(op.compute_shape({bs}) == s);
+
+    migraphx::argument a{bs};
+    auto r = op.compute(bs, {a});
+    EXPECT(r.get_sub_objects().size() == 2);
+    auto* start = a.data() + 4;
+    EXPECT(r.get_sub_objects()[0].data() == start + 16);
+    EXPECT(r.get_sub_objects()[1].data() == start);
+}
+
 TEST_CASE(ops)
 {
     auto names = migraphx::get_operators();

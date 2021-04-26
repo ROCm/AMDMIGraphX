@@ -204,7 +204,7 @@ const std::string& value::get_key() const { return key; }
 
 std::vector<value>* if_array_impl(const std::shared_ptr<value_base_impl>& x)
 {
-    if(!x)
+    if(x == nullptr)
         return nullptr;
     return x->if_array();
 }
@@ -286,10 +286,26 @@ const value* value::begin() const
 value* value::end() { return begin() + size(); }
 const value* value::end() const { return begin() + size(); }
 
-value& value::front() { return *begin(); }
-const value& value::front() const { return *begin(); }
-value& value::back() { return *std::prev(end()); }
-const value& value::back() const { return *std::prev(end()); }
+value& value::front()
+{
+    assert(this->size() > 0);
+    return *begin();
+}
+const value& value::front() const
+{
+    assert(this->size() > 0);
+    return *begin();
+}
+value& value::back()
+{
+    assert(this->size() > 0);
+    return *std::prev(end());
+}
+const value& value::back() const
+{
+    assert(this->size() > 0);
+    return *std::prev(end());
+}
 value& value::at(std::size_t i)
 {
     auto* a = if_array_impl(x);
@@ -322,8 +338,16 @@ const value& value::at(const std::string& pkey) const
         MIGRAPHX_THROW("Key not found: " + pkey);
     return *r;
 }
-value& value::operator[](std::size_t i) { return *(begin() + i); }
-const value& value::operator[](std::size_t i) const { return *(begin() + i); }
+value& value::operator[](std::size_t i)
+{
+    assert(i < this->size());
+    return *(begin() + i);
+}
+const value& value::operator[](std::size_t i) const
+{
+    assert(i < this->size());
+    return *(begin() + i);
+}
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
 void value::clear() { get_array_throw(x).clear(); }
@@ -409,8 +433,8 @@ template <class F>
 bool compare(const value& x, const value& y, F f)
 {
     bool result = false;
-    x.visit([&](auto&& a) {
-        y.visit([&](auto&& b) {
+    x.visit_value([&](auto&& a) {
+        y.visit_value([&](auto&& b) {
             result = compare_common_impl(rank<1>{}, f, x.get_key(), a, y.get_key(), b);
         });
     });
@@ -436,6 +460,8 @@ bool operator<=(const value& x, const value& y) { return x == y or x < y; }
 bool operator>(const value& x, const value& y) { return y < x; }
 bool operator>=(const value& x, const value& y) { return x == y or x > y; }
 
+void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
+
 template <class T>
 void print_value(std::ostream& os, const T& x)
 {
@@ -450,7 +476,6 @@ void print_value(std::ostream& os, const std::pair<T, U>& x)
     print_value(os, x.second);
 }
 
-void print_value(std::ostream& os, const std::nullptr_t&) { os << "null"; }
 void print_value(std::ostream& os, const std::vector<value>& x)
 {
     os << "{";

@@ -30,7 +30,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Identity", "identity"},
                 {"LeakyRelu", "leaky_relu"},
                 {"Log", "log"},
-                {"LogSoftmax", "logsoftmax"},
                 {"LRN", "lrn"},
                 {"Neg", "neg"},
                 {"Reciprocal", "recip"},
@@ -40,18 +39,15 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Sign", "sign"},
                 {"Sin", "sin"},
                 {"Sinh", "sinh"},
-                {"Softmax", "softmax"},
                 {"Sqrt", "sqrt"},
-                {"Squeeze", "squeeze"},
                 {"Tan", "tan"},
                 {"Tanh", "tanh"},
-                {"Not", "not"},
-                {"Unsqueeze", "unsqueeze"}};
+                {"Not", "not"}};
     }
 
     bool needs_contiguous(const std::string& op_name) const
     {
-        return contains({"gather", "squeeze", "unsqueeze"}, op_name);
+        return contains({"gather"}, op_name);
     }
 
     instruction_ref parse(const op_desc& opd,

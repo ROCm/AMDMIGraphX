@@ -158,10 +158,12 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                                  detach_async([=] { return run_target(t, p, m); }, ti.parallel));
         }
 
+        assert(gold_f.valid());
         auto gold = gold_f.get();
 
         for(auto&& pp : results)
         {
+            assert(pp.second.valid());
             auto tname  = pp.first;
             auto x      = pp.second.get();
             auto cp     = x.first;

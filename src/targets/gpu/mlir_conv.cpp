@@ -180,6 +180,8 @@ struct mlir_apply
         {
             result = bin_i->second;
         }
+#else // MIGRAPHX_MLIR_MIOPEN_SUPPORT
+        (void)op_r;
 #endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
         return result;
     }

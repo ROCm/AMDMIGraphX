@@ -65,8 +65,6 @@ void gemm_impl(
         if(args[0].get_shape().type() == shape::half_type)
             compute_type = rocblas_datatype_f32_r;
     }
-    
-	    
 
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();

@@ -87,6 +87,17 @@ struct hip_device
             return rbhandle.get();
         }
 
+        std::string get_device_name()
+        {
+            hipDeviceProp_t props{};
+            // int device;
+            // if (not (hipGetDevice(&device) == hipSuccess))
+            //     MIGRAPHX_THROW("Unable to get hip device");
+            // if (not (hipGetDeviceProperties(&props, device) == hipSuccess))
+            //     MIGRAPHX_THROW("Unable to get hip device properties");
+            return "gfx" + std::to_string(props.gcnArch);
+        }
+
         void wait(hipEvent_t event)
         {
             setup();

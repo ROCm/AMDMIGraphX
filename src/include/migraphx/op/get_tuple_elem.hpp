@@ -20,7 +20,7 @@ struct get_tuple_elem
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "index"));
+        return pack(f(self.index, "index"));
     }
 
     std::string name() const { return "get_tuple_elem"; }

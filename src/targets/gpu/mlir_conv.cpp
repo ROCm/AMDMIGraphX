@@ -180,7 +180,7 @@ struct mlir_apply
         {
             result = bin_i->second;
         }
-#else // MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#else  // MIGRAPHX_MLIR_MIOPEN_SUPPORT
         (void)op_r;
 #endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
         return result;
@@ -284,10 +284,7 @@ struct mlir_apply
     }
 };
 
-void mlir_conv::apply(module& m) const
-{
-    mlir_apply{&m, this}.apply();
-}
+void mlir_conv::apply(module& m) const { mlir_apply{&m, this}.apply(); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

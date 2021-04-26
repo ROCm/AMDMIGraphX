@@ -29,10 +29,10 @@ struct get_tuple_elem
     {
         check_shapes{inputs, *this}.has(1).tuple_type();
         const auto& sub_shapes = inputs.at(0).sub_shapes();
-        if (index < sub_shapes.size())
+        if(index < sub_shapes.size())
         {
-            MIGRAPHX_THROW("GET_TUPLE_ELEM: index " + std::to_string(index) + 
-                    " is out of range " + std::to_string(sub_shapes.size()));
+            MIGRAPHX_THROW("GET_TUPLE_ELEM: index " + std::to_string(index) + " is out of range " +
+                           std::to_string(sub_shapes.size()));
         }
 
         return sub_shapes.at(index);

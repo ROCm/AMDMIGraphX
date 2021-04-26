@@ -38,10 +38,10 @@ void inline_subgraph::apply(module& p) const
                 }
 
                 // only one output is considered for now
-                for (const auto& out : mod_outputs)
+                for(const auto& out : mod_outputs)
                 {
                     auto mod_out = out->eval();
-                    if (mod_out.empty())
+                    if(mod_out.empty())
                     {
                         return;
                     }

@@ -63,7 +63,7 @@ struct if_op
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
         auto results = run(mod, params);
-        return results[0];
+        return argument{results};
     }
 };
 

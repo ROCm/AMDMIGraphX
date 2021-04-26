@@ -1,3 +1,4 @@
+#include "migraphx/instruction_ref.hpp"
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
@@ -48,9 +49,19 @@ struct parse_if : op_parser<parse_if>
             MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
         }
 
-        auto ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
+        auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
+        auto out_s = if_ret->get_shape();
+        assert(out_s.type() == shape::tuple_type);
+        
+        auto vec_shapes = out_s.sub_shapes();
+        std::vector<instruction_ref> out_inss;
+        for (std::size_t i = 0; i < vec_shapes.size(); ++i)
+        {
+            auto ret = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), if_ret);
+            out_inss.push_back(ret);
+        }
 
-        return {ret};
+        return out_inss;
     }
 };
 

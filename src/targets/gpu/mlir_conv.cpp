@@ -27,7 +27,7 @@
 #include <Miir.h>
 #endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
 
-#include <stdio.h>
+#include <cstdio>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,8 +47,8 @@ struct mlir_apply
         migraphx::value::binary binary;
         size_t global_size;
         size_t local_size;
-        execution_spec(migraphx::value::binary&& _binary, size_t _global_size, size_t _local_size)
-            : binary(std::move(_binary)), global_size(_global_size), local_size(_local_size)
+        execution_spec(migraphx::value::binary&& binary_m, size_t global_s, size_t local_s)
+            : binary(std::move(binary_m)), global_size(global_s), local_size(local_s)
         {
         }
     };
@@ -62,7 +62,7 @@ struct mlir_apply
         return *pass->ctx;
     }
 
-    void init()
+    void init() const
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
@@ -97,9 +97,9 @@ struct mlir_apply
             return nullptr;
         };
 
-        auto* inp_t_s = get_type_str(inp_t);
-        auto* flt_t_s = get_type_str(flt_t);
-        auto* out_t_s = get_type_str(out_t);
+        const auto* inp_t_s = get_type_str(inp_t);
+        const auto* flt_t_s = get_type_str(flt_t);
+        const auto* out_t_s = get_type_str(out_t);
 
         if(out_t_s == nullptr || inp_t_s == nullptr || flt_t_s == nullptr)
             return result;
@@ -163,11 +163,11 @@ struct mlir_apply
                 if(miirBufferGet(handle.get(), reinterpret_cast<char*>(bin.data()), &bin_size) ==
                    MIIR_SUCCESS)
                 {
-                    size_t global_size, block_size;
+                    size_t global_size;
+                    size_t block_size;
                     if(miirGetExecutionDims(handle.get(), &global_size, &block_size) ==
                        MIIR_SUCCESS)
                     {
-                        printf("MLIR - %s\n", mlir_options.c_str());
                         result = std::make_shared<execution_spec>(
                             std::move(bin), global_size, block_size);
                     }
@@ -196,7 +196,7 @@ struct mlir_apply
         return lit;
     }
 
-    operation make_code_object_op(instruction_ref op_r, std::shared_ptr<execution_spec> spec)
+    operation make_code_object_op(instruction_ref op_r, const std::shared_ptr<execution_spec>& spec)
     {
         // each pointer is expanded out to a MemRefDescriptor
         auto inp_t = op_r->inputs().at(0)->get_shape();
@@ -244,7 +244,7 @@ struct mlir_apply
         refs.push_back(get_literal(1)); // G
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
         return mod->insert_instruction(ins, hip_allocate{s});
     }

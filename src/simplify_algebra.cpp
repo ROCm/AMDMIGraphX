@@ -17,7 +17,6 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/algorithm.hpp>
@@ -38,13 +37,6 @@ auto conv_const_weights()
 {
     return match::name("convolution")(match::used_once(),
                                       match::args(match::any(), match::is_constant().bind("w")));
-}
-
-template <class... Ms>
-auto pointwise(Ms... ms)
-{
-    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
-                                             ms...);
 }
 
 auto reduction() { return match::name_contains("reduce"); }
@@ -288,7 +280,7 @@ struct find_concat_op
     auto matcher() const
     {
         return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(pointwise(), match::name("broadcast")), match::used_once()));
+            match::any_of(match::pointwise(), match::name("broadcast")), match::used_once()));
     }
 
     template <class Iterator>
@@ -408,8 +400,8 @@ struct find_splits
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::any_of[match::outputs()](pointwise(), reduction()))));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(
+            match::any_of[match::outputs()](match::pointwise(), reduction()))));
     }
 
     static bool is_dependent(instruction_ref ins1, instruction_ref ins2)

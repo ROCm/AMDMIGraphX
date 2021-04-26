@@ -273,10 +273,7 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    assert(std::all_of(
-               args.begin(), args.end(), [&](instruction_ref x) { return has_instruction(x); }) &&
-           "Argument is not an exisiting instruction");
-    impl->instructions.push_back({builtin::returns{}, {}, args});
+    impl->instructions.push_back({builtin::returns{}, {}, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
@@ -298,6 +295,7 @@ shape module::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
+
         return ins->get_shape();
     else
         return {};
@@ -354,18 +352,10 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 
 bool module::has_instruction(instruction_ref ins) const
 {
-    if(std::find_if(
-           impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-               return std::addressof(*ins) == std::addressof(x);
-           }) != impl->instructions.end())
-    {
-        return true;
-    }
-
-    auto parent_modules = get_sub_modules();
-    return std::any_of(parent_modules.begin(), parent_modules.end(), [&](auto mod) {
-        return mod->has_instruction(ins);
-    });
+    return std::find_if(
+               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
+                   return std::addressof(*ins) == std::addressof(x);
+               }) != impl->instructions.end();
 }
 
 std::size_t module::size() const { return impl->instructions.size(); }
@@ -406,6 +396,40 @@ instruction_ref module::validate() const
         });
 }
 
+bool is_borrowed(instruction_ref ins)
+{
+    auto alias = instruction::get_output_alias(ins, true);
+    if(alias == ins)
+        return false;
+    if(alias->get_operator().is_borrowed())
+        return true;
+    return is_borrowed(alias);
+}
+
+bool is_param_alias(instruction_ref ins)
+{
+    return instruction::get_output_alias(ins)->name() == "@param";
+}
+
+bool is_dangling(instruction_ref ins) { return not is_param_alias(ins) and is_borrowed(ins); }
+
+instruction_ref module::find_dangling_reference() const
+{
+    auto last = std::prev(end());
+    if(last->name() == "@return")
+    {
+        auto dangling = std::find_if(
+            last->inputs().begin(), last->inputs().end(), [](auto x) { return is_dangling(x); });
+        if(dangling != last->inputs().end())
+            return *dangling;
+    }
+    else if(is_dangling(last))
+    {
+        return last;
+    }
+    return end();
+}
+
 void module::finalize(context& ctx)
 {
     for(auto ins : iterator_for(*this))
@@ -427,7 +451,7 @@ void module::finalize(context& ctx)
 void module::debug_print() const { std::cout << *this << std::endl; }
 
 void module::debug_print(instruction_ref ins,
-                         const std::unordered_map<instruction_ref, std::string>& names) const
+                         std::unordered_map<instruction_ref, std::string>& names) const
 {
     if(ins == this->end())
     {
@@ -440,7 +464,7 @@ void module::debug_print(instruction_ref ins,
         return;
     }
     std::stringstream ss;
-    this->print(
+    names = this->print(
         [&](auto x, auto ins_names) {
             if(x == ins)
             {
@@ -479,7 +503,9 @@ std::unordered_map<instruction_ref, std::string> module::print(
         }
         else
         {
-            var_name = this->name() + ":@" + std::to_string(count);
+            var_name = this->name();
+            var_name.append((this->name().empty() ? "@" : ":@"));
+            var_name.append(std::to_string(count));
             count++;
         }
         names.emplace(ins, var_name);
@@ -674,6 +700,55 @@ module& module::sort()
     })(std::prev(this->end()));
     assert(this->validate() == this->end());
     return *this;
+}
+
+void module::calc_implicit_deps(const module& smod,
+                                const module& pmod,
+                                instruction_ref ins,
+                                ins_dep_map& deps) const
+{
+    const auto& ins_inputs = ins->inputs();
+    for(auto ii : iterator_for(smod))
+    {
+        const auto& ii_inputs = ii->inputs();
+        for(auto iii : ii_inputs)
+        {
+            if(pmod.has_instruction(iii))
+            {
+                if(not contains(ins_inputs, iii))
+                    deps[ins].insert(iii);
+            }
+        }
+
+        const auto& mod_args = ii->module_inputs();
+        if(not mod_args.empty())
+        {
+            for(const auto* ssmod : mod_args)
+            {
+                calc_implicit_deps(*ssmod, pmod, ins, deps);
+            }
+        }
+    }
+}
+
+ins_dep_map module::calc_implicit_deps() const
+{
+    ins_dep_map mod_implicit_deps;
+    for(auto ins : iterator_for(*this))
+    {
+        const auto& mod_args = ins->module_inputs();
+        if(mod_args.empty())
+        {
+            continue;
+        }
+
+        for(const auto* mod : mod_args)
+        {
+            calc_implicit_deps(*mod, *this, ins, mod_implicit_deps);
+        }
+    }
+
+    return mod_implicit_deps;
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

@@ -72,6 +72,21 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                 make_op("convert", {{"target_type", shape::int32_type}}), add_zero_point);
             add_zero_point = info.add_broadcastable_binary_op("add", add_zero_point, zero_point);
         }
+
+        auto s           = add_zero_point->get_shape();
+        const auto& lens = s.lens();
+        std::vector<int64_t> out_lens(lens.begin(), lens.end());
+        if(min_arg->get_shape() != s)
+        {
+            min_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
+                                           min_arg);
+        }
+        if(max_arg->get_shape() != s)
+        {
+            max_arg = info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
+                                           max_arg);
+        }
+
         auto saturated = info.add_instruction(make_op("clip"), add_zero_point, min_arg, max_arg);
         return info.add_instruction(make_op("convert", {{"target_type", quant_type}}), saturated);
     }

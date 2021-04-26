@@ -92,6 +92,7 @@ rocm_enable_clang_tidy(
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
+        -cert-str34-c
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
         # Enable some alpha checks
@@ -136,6 +137,7 @@ rocm_enable_clang_tidy(
         -readability-braces-around-statements
         -readability-convert-member-functions-to-static
         -readability-else-after-return
+        -readability-function-cognitive-complexity
         -readability-named-parameter
         -readability-redundant-string-init
         -readability-uppercase-literal-suffix
@@ -183,6 +185,8 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        useSmartPointer:*src/api/api.cpp
+        useSmartPointer:*make_shared_array.hpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -193,7 +197,9 @@ rocm_enable_cppcheck(
     INCLUDE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1

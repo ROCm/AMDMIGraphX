@@ -29,6 +29,14 @@ static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 static literal
 create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const char* data)
 {
+    // empty input
+    auto elem_num =
+        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if(elem_num == 0)
+    {
+        return {};
+    }
+
     // in case of scalar constants in onnx file, use dims=1 to fill initializer data
     if(dims.empty())
         return literal{{shape_type}, data};
@@ -38,6 +46,15 @@ create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, const 
 template <class T, MIGRAPHX_REQUIRES(not std::is_pointer<T>{})>
 static literal create_literal(shape::type_t shape_type, const std::vector<size_t>& dims, T data)
 {
+    // empty input
+    auto elem_num =
+        std::accumulate(dims.begin(), dims.end(), std::size_t(1), std::multiplies<std::size_t>());
+    if(elem_num == 0)
+    {
+        return {};
+    }
+
+    // scalar input
     if(dims.empty())
         return literal{{shape_type}, data.begin(), data.end()};
     return literal{{shape_type, dims}, data.begin(), data.end()};
@@ -143,6 +160,13 @@ onnx_parser::node_info::add_instruction(const operation& op,
     return mod->add_instruction(op, args);
 }
 
+instruction_ref onnx_parser::node_info::add_instruction(const operation& op,
+                                                        const std::vector<instruction_ref>& args,
+                                                        const std::vector<module_ref>& mods) const
+{
+    return mod->add_instruction(op, args, mods);
+}
+
 instruction_ref onnx_parser::node_info::add_literal(literal l) const
 {
     return mod->add_literal(std::move(l));
@@ -203,6 +227,9 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
     {
+        auto version  = get_opset_version(model);
+        opset_version = (version == -1) ? opset_version : version;
+
         if(model.has_graph())
         {
             this->parse_graph(mm, model.graph());
@@ -220,6 +247,9 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {
+        auto version  = get_opset_version(model);
+        opset_version = (version == -1) ? opset_version : version;
+
         if(model.has_graph())
         {
             this->parse_graph(mm, model.graph());
@@ -229,6 +259,21 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
     {
         MIGRAPHX_THROW("Failed reading onnx file.");
     }
+}
+
+int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
+{
+    const auto& opset_import = model.opset_import();
+    int64_t version          = -1;
+    for(const auto& opset : opset_import)
+    {
+        if(opset.has_version())
+        {
+            version = std::max(version, opset.version());
+        }
+    }
+
+    return version;
 }
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
@@ -283,8 +328,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
         else
         {
-            result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node.op_type(), mod}, args);
+            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
+            result                = ops[node.op_type()](
+                *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());

@@ -50,12 +50,12 @@ struct parse_if : op_parser<parse_if>
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
-        auto out_s = if_ret->get_shape();
+        auto out_s  = if_ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
-        
+
         auto vec_shapes = out_s.sub_shapes();
         std::vector<instruction_ref> out_inss;
-        for (std::size_t i = 0; i < vec_shapes.size(); ++i)
+        for(std::size_t i = 0; i < vec_shapes.size(); ++i)
         {
             auto ret = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), if_ret);
             out_inss.push_back(ret);

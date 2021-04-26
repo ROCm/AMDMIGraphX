@@ -77,6 +77,7 @@ struct squeeze
     {
         return args[0].reshape(output_shape);
     }
+    bool is_borrowed() const { return true; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

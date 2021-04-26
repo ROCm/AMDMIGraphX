@@ -1,5 +1,22 @@
 #include <migraphx/cpu/dnnl.hpp>
 
+#if defined(__GNUC__) && __GNUC__ <= 5
+namespace std {
+template <>
+struct hash<dnnl::algorithm>
+{
+    using argument_type = dnnl::algorithm;
+    using result_type   = std::size_t;
+    result_type operator()(const argument_type& x) const noexcept
+    {
+        return std::hash<underlying_type_t<argument_type>>{}(
+            static_cast<underlying_type_t<argument_type>>(x));
+    }
+};
+
+} // namespace std
+#endif
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
@@ -137,6 +154,23 @@ dnnl::algorithm to_dnnl_algo(const std::string& name)
     if(dnnl_algo_map().count(name) == 0)
         MIGRAPHX_THROW("Missing dnnl algo: " + name);
     return dnnl_algo_map().at(name);
+}
+
+const std::unordered_map<dnnl::algorithm, std::string>& dnnl_algo_string_map()
+{
+    static const std::unordered_map<dnnl::algorithm, std::string> m = {
+#define MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR(x) {dnnl::algorithm::x, #x},
+        MIGRAPHX_VISIT_DNNL_ALGO(MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR)
+#undef MIGRAPHX_DNNL_ALGO_GENERATE_VISITOR
+    };
+    return m;
+}
+
+std::string to_string(const dnnl::algorithm& algo)
+{
+    if(dnnl_algo_string_map().count(algo) == 0)
+        return "unknown_" + std::to_string(static_cast<int>(algo));
+    return dnnl_algo_string_map().at(algo);
 }
 
 } // namespace cpu

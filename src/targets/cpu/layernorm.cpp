@@ -20,7 +20,7 @@ struct dnnl_layernorm : dnnl_op<dnnl_layernorm, dnnl::layer_normalization_forwar
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1);
         auto s = inputs.at(0);
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(s, inputs));

@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <dnnl.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/assert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,10 +42,49 @@ dnnl::memory to_dnnl_memory(const argument& a);
 
 dnnl::algorithm to_dnnl_algo(const std::string& name);
 
+std::string to_string(const dnnl::algorithm& algo);
+
+struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
+{
+    std::string algo;
+    float alpha = 0;
+    float beta  = 0;
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.algo, "algo"), f(self.alpha, "alpha"), f(self.beta, "beta"));
+    }
+};
+
 template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
 {
+    std::vector<post_op> post_ops;
     std::function<argument(context& ctx, const std::vector<argument>& args)> execute;
+
+    template <class Self, class F>
+    static auto reflect_base(Self& self, F f)
+    {
+        return pack(f(self.post_ops, "post_ops"));
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return reflect_base(self, f);
+    }
+
+    std::size_t get_extra_post_op_args() const
+    {
+        return std::count_if(post_ops.begin(), post_ops.end(), [](const auto& po) {
+            return contains(po.algo, "binary");
+        });
+    }
+
+    static std::size_t get_binary_post_op_arg(std::size_t pos)
+    {
+        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(pos) | DNNL_ARG_SRC_1; // NOLINT
+    }
 
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
     {
@@ -53,6 +93,13 @@ struct dnnl_op : auto_register_op<Derived>
             return a.get_shape();
         });
         return shapes;
+    }
+    static std::string impl(const Primitive& prim)
+    {
+        auto desc       = prim.get_primitive_desc();
+        const char* str = nullptr;
+        dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
+        return str == nullptr ? "" : str;
     }
     // Map arg index to arg in dnnl
     std::vector<int> arg_map(int size) const
@@ -81,14 +128,44 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return s;
     }
+    template <class F>
+    void for_each_post_op(F f) const
+    {
+        int i = 0;
+        for(auto&& op : post_ops)
+        {
+            if(contains(op.algo, "binary"))
+            {
+                f(op, get_binary_post_op_arg(i));
+            }
+            else
+            {
+                f(op, -1);
+            }
+            i++;
+        }
+    }
     shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
+    std::vector<int> create_arg_map(std::size_t input_size) const
+    {
+        const auto& self     = static_cast<const Derived&>(*this);
+        auto npost_ops       = get_extra_post_op_args();
+        auto prim_input_size = input_size - npost_ops;
+        auto m               = self.arg_map(prim_input_size);
+        for_each_post_op([&](auto&&, auto arg) {
+            if(arg < 0)
+                return;
+            m.push_back(arg);
+        });
+        return m;
+    }
     std::unordered_map<int, dnnl::memory::desc>
     to_memory_desc(const shape& output_shape, const std::vector<shape>& inputs) const
     {
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
         result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
-        auto m               = self.arg_map(inputs.size());
+        auto m               = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
@@ -96,17 +173,44 @@ struct dnnl_op : auto_register_op<Derived>
         }
         return result;
     }
-    template <class T>
-    auto get_primitive_desc(const T& desc) const
-        -> decltype(typename Primitive::primitive_desc(desc, get_dnnl_context().engine))
+    dnnl::primitive_attr
+    get_primitive_attr(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return typename Primitive::primitive_desc(desc, get_dnnl_context().engine);
+        dnnl::primitive_attr result;
+        dnnl::post_ops po;
+        for_each_post_op([&](auto&& op, auto arg) {
+            if(contains(op.algo, "binary_add"))
+            {
+                auto desc = m.at(arg);
+                if(desc == m.at(DNNL_ARG_DST))
+                    po.append_sum(1.0f);
+                else
+                    po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
+            }
+            else if(contains(op.algo, "binary"))
+            {
+                po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
+            }
+            else if(contains(op.algo, "eltwise"))
+                po.append_eltwise(1.0f, to_dnnl_algo(op.algo), op.alpha, op.beta);
+            else
+                MIGRAPHX_THROW("Unknown post op algo: " + op.algo);
+        });
+        result.set_post_ops(po);
+        return result;
+    }
+    template <class T>
+    auto get_primitive_desc(const T& desc, const dnnl::primitive_attr& attr) const
+        -> decltype(typename Primitive::primitive_desc(desc, attr, get_dnnl_context().engine))
+    {
+        return typename Primitive::primitive_desc(desc, attr, get_dnnl_context().engine);
     }
     Primitive get_primitive(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         const auto& self = static_cast<const Derived&>(*this);
         auto desc        = self.get_desc(m);
-        auto pd          = self.get_primitive_desc(desc);
+        auto attr        = MIGRAPHX_ASSERT_NO_THROW(this->get_primitive_attr(m));
+        auto pd          = self.get_primitive_desc(desc, attr);
         return Primitive(pd);
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
@@ -118,6 +222,15 @@ struct dnnl_op : auto_register_op<Derived>
     {
         return shapes.size() - 1;
     }
+    value compile(context&, const shape& output_shape, std::vector<shape> inputs)
+    {
+        // Compensate for allocation
+        inputs.pop_back();
+        auto md        = to_memory_desc(output_shape, inputs);
+        auto prim      = get_primitive(md);
+        auto impl_name = impl(prim);
+        return {{"impl", impl_name}};
+    }
 
     void finalize(context&, const shape& output_shape, std::vector<shape> inputs)
     {
@@ -127,8 +240,11 @@ struct dnnl_op : auto_register_op<Derived>
         auto name        = self.name();
         auto md          = to_memory_desc(output_shape, inputs);
         auto prim        = get_primitive(md);
-        auto arg_lookup  = self.arg_map(inputs.size());
-        execute          = [=](context&, const std::vector<argument>& args) {
+        auto arg_lookup  = create_arg_map(inputs.size());
+#ifndef NDEBUG
+        auto prim_attr = get_primitive_attr(md);
+#endif
+        execute = [=](context&, const std::vector<argument>& args) {
 #ifndef NDEBUG
             // Check that the memory descriptors have not changed
             auto debug_args = args;
@@ -144,6 +260,53 @@ struct dnnl_op : auto_register_op<Derived>
                 MIGRAPHX_THROW(name +
                                ": Memory descriptor has changed for: " + std::to_string(p.first));
             }
+            // Check post_ops args are correct
+            auto pos             = prim_attr.get_post_ops();
+            auto prim_input_size = inputs.size() - this->get_extra_post_op_args();
+            int j                = 0;
+            for(int i = 0; i < pos.len(); i++)
+            {
+                auto arg  = j + prim_input_size;
+                auto kind = pos.kind(i);
+                std::string mesg =
+                    "Post op " + std::to_string(i) + "@" + std::to_string(arg) + ": ";
+                try
+                {
+                    dnnl::algorithm algo;
+                    dnnl::memory::desc mdesc;
+                    float scale = 0;
+                    float alpha = 0;
+                    float beta  = 0;
+                    if(kind == dnnl::primitive::kind::binary)
+                    {
+                        pos.get_params_binary(i, algo, mdesc);
+                        if(mdesc != md.at(arg_lookup.at(arg)))
+                            MIGRAPHX_THROW(mesg +
+                                           "Memory descriptor doesn't match for binary post op");
+                        j++;
+                    }
+                    else if(kind == dnnl::primitive::kind::eltwise)
+                    {
+                        pos.get_params_eltwise(i, scale, algo, alpha, beta);
+                    }
+                    else if(kind == dnnl::primitive::kind::sum)
+                    {
+                        pos.get_params_sum(i, scale);
+                        algo = dnnl::algorithm::binary_add;
+                    }
+                    else
+                    {
+                        MIGRAPHX_THROW("Unknown kind");
+                    }
+                    if(to_dnnl_algo(post_ops[i].algo) != algo)
+                        MIGRAPHX_THROW(mesg + "Algorithm doesn't match for post op " +
+                                       post_ops[i].algo + " != " + to_string(algo));
+                }
+                catch(const dnnl::error& e)
+                {
+                    MIGRAPHX_THROW(mesg + "Failed to get post ops argument " + ": " + e.what());
+                }
+            }
 #endif
             std::unordered_map<int, dnnl::memory> m;
             m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), args.back());
@@ -152,6 +315,11 @@ struct dnnl_op : auto_register_op<Derived>
             prim.execute(get_dnnl_context().stream, m);
             return args.back();
         };
+    }
+    std::vector<shape> trim_post_op_inputs(const std::vector<shape>& inputs) const
+    {
+        auto prim_input_size = inputs.size() - this->get_extra_post_op_args();
+        return {inputs.begin(), inputs.begin() + prim_input_size};
     }
 };
 
@@ -163,7 +331,7 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::reflect(self.op, f);
+        return pack_join(self.reflect_base(self, f), migraphx::reflect(self.op, f));
     }
 
     // dnnl has some issues with non-packed inputs
@@ -176,7 +344,7 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
         // Compensate for allocation
         inputs.pop_back();
         self.required(check_shapes(inputs, self));
-        auto r = migraphx::compute_shape(op, inputs);
+        auto r = migraphx::compute_shape(op, this->trim_post_op_inputs(inputs));
         // Call to get_primitive to make sure an algo is available
         this->get_primitive(this->to_memory_desc(r, inputs));
         return r;

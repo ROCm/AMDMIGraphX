@@ -38,15 +38,16 @@ void inline_subgraph::apply(module& p) const
                 }
 
                 // only one output is considered for now
-                auto out     = mod_outputs.front();
-                auto mod_out = out->eval();
-                if(mod_out.empty())
+                for (const auto& out : mod_outputs)
                 {
-                    return;
+                    auto mod_out = out->eval();
+                    if (mod_out.empty())
+                    {
+                        return;
+                    }
+                    arg_outs.push_back(mod_out);
                 }
-                arg_outs.push_back(mod_out);
             }
-            assert(arg_outs.size() == 2);
 
             auto l0    = p.add_literal(literal(arg_outs.at(0).get_shape(), arg_outs.at(0).data()));
             auto l1    = p.add_literal(literal(arg_outs.at(1).get_shape(), arg_outs.at(1).data()));

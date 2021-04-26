@@ -3857,9 +3857,10 @@ TEST_CASE(sub_test)
     mm->add_instruction(migraphx::make_op("sub"), l1, l2);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
-    std::vector<float> results_vector(120);
+    std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(results_vector, s));
+    std::vector<float> gold = {-2, -2, -2};
+    EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
 TEST_CASE(tan_test)

@@ -243,7 +243,7 @@ TEST_CASE(calc_implict_deps)
     else_mod->add_return({a3, l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
     auto implicit_deps = mm->calc_implicit_deps();

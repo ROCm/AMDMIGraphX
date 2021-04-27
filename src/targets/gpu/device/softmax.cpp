@@ -20,7 +20,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
-        const index_int max_block_size = 256;
+        const index_int max_block_size = 120;
         const index_int block_size     = compute_block_size(batch_item_num, max_block_size);
         gs_launch(stream,
                   batch_shape.elements() * block_size,

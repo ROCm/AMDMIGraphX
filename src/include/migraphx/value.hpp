@@ -7,6 +7,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/rank.hpp>
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <sstream>
 #include <type_traits>
@@ -58,8 +59,6 @@ struct value_converter<std::string>
 {
     static const std::string& apply(const std::string& x) { return x; }
 
-    static std::string apply(const std::nullptr_t&) { return "null"; }
-
     template <class From>
     static auto apply(const From& x)
         -> decltype(std::declval<std::stringstream&>() << x, std::string())
@@ -83,18 +82,26 @@ struct value_converter<std::pair<T, U>>
     }
 };
 
+template <class To, class From>
+To try_convert_value(const From& x);
+
 namespace detail {
 template <class To, class Key, class From>
-auto try_convert_value_impl(rank<2>, const std::pair<Key, From>& x)
-    -> decltype(value_converter<To>::apply(x.second))
+To try_convert_value_impl(rank<1>, const std::pair<Key, From>& x)
 {
-    return value_converter<To>::apply(x.second);
+    return try_convert_value<To>(x.second);
 }
 
 template <class To, class From>
-auto try_convert_value_impl(rank<1>, const From& x) -> decltype(value_converter<To>::apply(x))
+auto try_convert_value_impl(rank<2>, const From& x) -> decltype(value_converter<To>::apply(x))
 {
     return value_converter<To>::apply(x);
+}
+
+template <class To, MIGRAPHX_REQUIRES(not std::is_same<To, std::nullptr_t>{})>
+To try_convert_value_impl(rank<3>, std::nullptr_t)
+{
+    MIGRAPHX_THROW("Incompatible values: null -> " + get_type_name<To>());
 }
 
 template <class To, class From>
@@ -107,7 +114,7 @@ To try_convert_value_impl(rank<0>, const From& x)
 template <class To, class From>
 To try_convert_value(const From& x)
 {
-    return detail::try_convert_value_impl<To>(rank<2>{}, x);
+    return detail::try_convert_value_impl<To>(rank<3>{}, x);
 }
 
 struct value
@@ -309,7 +316,11 @@ struct value
         {
         case null_type:
         {
-            v(std::nullptr_t{});
+            std::nullptr_t null{};
+            if(this->key.empty())
+                v(null);
+            else
+                v(std::make_pair(this->get_key(), std::ref(null)));
             return;
         }
 #define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                          \
@@ -328,12 +339,45 @@ struct value
         MIGRAPHX_THROW("Unknown type");
     }
 
+    // Visit value without key
+    template <class Visitor>
+    void visit_value(Visitor v) const
+    {
+        switch(this->get_type())
+        {
+        case null_type:
+        {
+            std::nullptr_t null{};
+            v(null);
+            return;
+        }
+#define MIGRAPHX_VALUE_GENERATE_CASE_VALUE(vt, cpp_type) \
+    case vt##_type:                                      \
+    {                                                    \
+        v(this->get_##vt());                             \
+        return;                                          \
+    }
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE)
+            MIGRAPHX_VALUE_GENERATE_CASE(array, )
+            MIGRAPHX_VALUE_GENERATE_CASE(object, )
+        }
+        MIGRAPHX_THROW("Unknown type");
+    }
+
     template <class To>
     To to() const
     {
         To result;
         this->visit([&](auto y) { result = try_convert_value<To>(y); });
         return result;
+    }
+
+    template <class To>
+    To value_or(const To& default_value) const
+    {
+        if(this->is_null())
+            return default_value;
+        return to<To>();
     }
 
     template <class To>

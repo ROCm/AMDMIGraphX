@@ -10,6 +10,7 @@ import onnx
 import onnx.backend.test
 import numpy as np
 from onnx_migraphx.backend import MIGraphXBackend as c2
+from packaging import version
 
 pytest_plugins = 'onnx.backend.test.report',
 
@@ -38,6 +39,36 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
                                            rtol=1e-3,
                                            atol=1e-5,
                                            err_msg=prog_string)
+
+
+def disabled_tests_onnx_1_7_0(backend_test):
+    backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
+    backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
+    backend_test.exclude(r'test_logsoftmax_default_axis_cpu')
+    backend_test.exclude(r'test_softmax_axis_0_cpu')
+    backend_test.exclude(r'test_softmax_axis_1_cpu')
+    backend_test.exclude(r'test_softmax_default_axis_cpu')
+
+
+def disabled_tests_onnx_1_8_1(backend_test):
+    backend_test.exclude(r'test_if_seq_cpu')
+    backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_unsqueeze_axis_0_cpu')
+    backend_test.exclude(r'test_unsqueeze_axis_1_cpu')
+    backend_test.exclude(r'test_unsqueeze_axis_2_cpu')
+    backend_test.exclude(r'test_unsqueeze_negative_axes_cpu')
+    backend_test.exclude(r'test_unsqueeze_three_axes_cpu')
+    backend_test.exclude(r'test_unsqueeze_two_axes_cpu')
+    backend_test.exclude(r'test_unsqueeze_unsorted_axes_cpu')
 
 
 def create_backend_test(testname=None, target_device=None):
@@ -203,9 +234,6 @@ def create_backend_test(testname=None, target_device=None):
         )
         backend_test.exclude(
             r'test_argmin_no_keepdims_example_select_last_index_cpu')
-        backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
-        backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
-        backend_test.exclude(r'test_logsoftmax_default_axis_cpu')
         backend_test.exclude(r'test_lrn_cpu')
         backend_test.exclude(r'test_lrn_default_cpu')
         backend_test.exclude(r'test_maxpool_2d_dilations_cpu')
@@ -213,9 +241,6 @@ def create_backend_test(testname=None, target_device=None):
             r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
         backend_test.exclude(
             r'test_maxpool_with_argmax_2d_precomputed_strides_cpu')
-        backend_test.exclude(r'test_softmax_axis_0_cpu')
-        backend_test.exclude(r'test_softmax_axis_1_cpu')
-        backend_test.exclude(r'test_softmax_default_axis_cpu')
 
         # error cases
         backend_test.exclude(r'test_constant_pad_cpu')
@@ -228,6 +253,10 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_depthtospace_example_cpu')
         backend_test.exclude(r'test_expand_dim_changed_cpu')
         backend_test.exclude(r'test_expand_dim_unchanged_cpu')
+        backend_test.exclude(r'test_expand_shape_model1_cpu')
+        backend_test.exclude(r'test_expand_shape_model2_cpu')
+        backend_test.exclude(r'test_expand_shape_model3_cpu')
+        backend_test.exclude(r'test_expand_shape_model4_cpu')
         backend_test.exclude(r'test_gathernd_example_float32_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_batch_dim1_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_cpu')
@@ -238,18 +267,13 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_hardsigmoid_cpu')
         backend_test.exclude(r'test_hardsigmoid_default_cpu')
         backend_test.exclude(r'test_hardsigmoid_example_cpu')
-        backend_test.exclude(r'test_less_equal_bcast_cpu')
-        backend_test.exclude(r'test_less_equal_bcast_expanded_cpu')
-        backend_test.exclude(r'test_less_equal_cpu')
-        backend_test.exclude(r'test_less_equal_expanded_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_mean_example_cpu')
         backend_test.exclude(r'test_mean_one_input_cpu')
         backend_test.exclude(r'test_mean_two_inputs_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
-        backend_test.exclude(r'test_not_2d_cpu')
-        backend_test.exclude(r'test_not_3d_cpu')
-        backend_test.exclude(r'test_not_4d_cpu')
+
+        # all reduce ops have dynamic axes inputs
         backend_test.exclude(r'test_size_cpu')
         backend_test.exclude(r'test_size_example_cpu')
         backend_test.exclude(r'test_softmax_cross_entropy_*')
@@ -262,17 +286,18 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_thresholdedrelu_example_cpu')
         backend_test.exclude(r'test_Embedding_cpu')
         backend_test.exclude(r'test_Softplus_cpu')
-        backend_test.exclude(r'test_operator_selu_cpu')
-        backend_test.exclude(r'test_expand_shape_model1_cpu')
-        backend_test.exclude(r'test_expand_shape_model2_cpu')
-        backend_test.exclude(r'test_expand_shape_model3_cpu')
-        backend_test.exclude(r'test_expand_shape_model4_cpu')
 
-        # These three tests failed because of bugs in fuse_ops related to conv
-        # to be investigated later
+        # real model tests
         backend_test.exclude(r'test_inception_v1_cpu')
         backend_test.exclude(r'test_resnet50_cpu')
         backend_test.exclude(r'test_squeezenet_cpu')
+
+        # additional cases disabled for a specific onnx version
+        if version.parse(onnx.__version__) <= version.parse("1.7.0"):
+            disabled_tests_onnx_1_7_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.8.0"):
+            disabled_tests_onnx_1_8_1(backend_test)
 
 
 # import all test cases at global scope to make

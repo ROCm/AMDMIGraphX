@@ -11,7 +11,7 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.algo, "algo"));
+        return pack_join(self.reflect_base(self, f), pack(f(self.algo, "algo")));
     }
 
     std::string name() const { return "dnnl::binary"; }
@@ -20,7 +20,7 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{inputs, *this}.has(2);
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(2);
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         auto r  = s0;

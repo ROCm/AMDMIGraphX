@@ -239,10 +239,12 @@ TEST_CASE(calc_implict_deps)
     auto* else_mod = p.create_module("If_5_else");
     auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
     auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-    else_mod->add_return({a2, l2});
+    auto a3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
+    else_mod->add_return({a3, l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
     auto implicit_deps = mm->calc_implicit_deps();
     EXPECT(migraphx::contains(implicit_deps, ret));

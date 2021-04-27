@@ -103,7 +103,8 @@ TEST_CASE(inline_subgraph)
         else_mod->add_return({l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     };
@@ -164,7 +165,8 @@ TEST_CASE(inline_if_test)
         auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
         else_mod->add_return({re});
 
-        auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
         mm->add_return({r});
         return p;
     };
@@ -217,7 +219,8 @@ TEST_CASE(inline_else_test)
         auto re = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
         else_mod->add_return({re});
 
-        auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
         mm->add_return({r});
         return p;
     };
@@ -281,10 +284,12 @@ TEST_CASE(if_recursive_test)
         auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
         auto a2 =
             else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-        else_mod->add_return({a2, l2});
+        auto a3 = else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
+        else_mod->add_return({a3, l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     };
@@ -317,7 +322,8 @@ TEST_CASE(if_recursive_test)
         else_mod1->add_return({l21, a21});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-        mm->add_return({ret});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     };

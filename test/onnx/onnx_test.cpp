@@ -1399,7 +1399,8 @@ TEST_CASE(if_else_test)
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({re});
 
-    auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
     std::ifstream ifs("if_else_test.onnx", std::ios::binary);
@@ -1436,7 +1437,8 @@ TEST_CASE(if_literal_test)
     else_mod->add_return({l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_literal_test.onnx");
     EXPECT(p == prog);
@@ -1475,7 +1477,8 @@ TEST_CASE(if_param_test)
     else_mod->add_return({a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_param_test.onnx");
     EXPECT(p == prog);
@@ -1508,7 +1511,9 @@ TEST_CASE(if_pl_test)
     else_mod->add_return({l2, a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_pl_test.onnx");
     EXPECT(p == prog);
@@ -1536,7 +1541,8 @@ TEST_CASE(if_then_test)
     auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
     else_mod->add_return({re});
 
-    auto r = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_then_test.onnx");

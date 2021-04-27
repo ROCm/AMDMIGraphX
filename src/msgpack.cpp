@@ -135,7 +135,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
         template <class Stream>
         packer<Stream>& operator()(msgpack::packer<Stream>& o, const migraphx::value& v) const
         {
-            v.visit([&](auto&& x) { this->write(o, x); });
+            v.visit_value([&](auto&& x) { this->write(o, x); });
             return o;
         }
     };

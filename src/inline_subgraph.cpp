@@ -49,20 +49,25 @@ void inline_subgraph::apply(module& p) const
                 }
             }
 
-            auto l0    = p.add_literal(literal(arg_outs.at(0).get_shape(), arg_outs.at(0).data()));
-            auto l1    = p.add_literal(literal(arg_outs.at(1).get_shape(), arg_outs.at(1).data()));
-            auto lens  = l0->get_shape().lens();
+            auto out_num = arg_outs.size() / 2;
             auto cond  = ins->inputs().front();
-            auto icond = p.insert_instruction(
-                ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
-            auto mcond = p.insert_instruction(
-                ins, make_op("multibroadcast", {{"output_lens", lens}}), icond);
-            auto ccond = p.insert_instruction(ins, make_op("contiguous"), mcond);
-            auto l01   = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
-            auto rl    = p.insert_instruction(
-                ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
-            auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, ccond);
-            p.replace_instruction(ins, r);
+            const auto& ins_outputs = ins->outputs();
+            for (std::size_t i = 0; i < out_num; ++i)
+            {
+                auto l0    = p.add_literal(literal(arg_outs.at(0).get_shape(), arg_outs.at(i).data()));
+                auto l1    = p.add_literal(literal(arg_outs.at(1).get_shape(), arg_outs.at(i + out_num).data()));
+                auto lens  = l0->get_shape().lens();
+                auto icond = p.insert_instruction(
+                    ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
+                auto mcond = p.insert_instruction(
+                    ins, make_op("multibroadcast", {{"output_lens", lens}}), icond);
+                auto ccond = p.insert_instruction(ins, make_op("contiguous"), mcond);
+                auto l01   = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
+                auto rl    = p.insert_instruction(
+                    ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
+                auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, ccond);
+                p.replace_instruction(ins_outputs.at(i), r);
+            }
         }
         // cond is constant, inline the corresponding subgraph and discard the other one
         else
@@ -131,9 +136,11 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
         mod_outputs   = {copy_ins};
     }
 
-    if(not mod_outputs.empty())
+    auto ins_outputs = ins->outputs();
+    assert(mod_outputs.size() == ins_outputs.size());
+    for (std::size_t i = 0; i < ins_outputs.size(); ++i)
     {
-        p.replace_instruction(ins, mod_outputs.front());
+        p.replace_instruction(ins_outputs.at(i), mod_outputs.at(i));
     }
 }
 

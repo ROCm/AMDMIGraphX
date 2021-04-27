@@ -60,7 +60,7 @@ void module::assign(const module& m)
     {
         impl->instructions.clear();
     }
-    impl->name        = m.impl->name;
+    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))

@@ -35,7 +35,7 @@ struct if_op
             MIGRAPHX_THROW("IF: output shapes of submodules must be the same.");
         }
 
-        return out_shapes0.front();
+        return shape(out_shapes0);
     }
 
     argument compute(const shape&,

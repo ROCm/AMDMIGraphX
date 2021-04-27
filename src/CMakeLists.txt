@@ -99,6 +99,7 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    get_tuple_elem
     greater
     gru
     identity

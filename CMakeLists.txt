@@ -60,7 +60,11 @@ endif()
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options(-std=c++14)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-std=c++17)
+else()
+    add_compile_options(-std=c++14)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)

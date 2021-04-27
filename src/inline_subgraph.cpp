@@ -49,13 +49,14 @@ void inline_subgraph::apply(module& p) const
                 }
             }
 
-            auto out_num = arg_outs.size() / 2;
-            auto cond  = ins->inputs().front();
+            auto out_num            = arg_outs.size() / 2;
+            auto cond               = ins->inputs().front();
             const auto& ins_outputs = ins->outputs();
-            for (std::size_t i = 0; i < out_num; ++i)
+            for(std::size_t i = 0; i < out_num; ++i)
             {
-                auto l0    = p.add_literal(literal(arg_outs.at(0).get_shape(), arg_outs.at(i).data()));
-                auto l1    = p.add_literal(literal(arg_outs.at(1).get_shape(), arg_outs.at(i + out_num).data()));
+                auto l0 = p.add_literal(literal(arg_outs.at(0).get_shape(), arg_outs.at(i).data()));
+                auto l1 = p.add_literal(
+                    literal(arg_outs.at(1).get_shape(), arg_outs.at(i + out_num).data()));
                 auto lens  = l0->get_shape().lens();
                 auto icond = p.insert_instruction(
                     ins, make_op("convert", {{"target_type", shape::int32_type}}), cond);
@@ -138,7 +139,7 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
 
     auto ins_outputs = ins->outputs();
     assert(mod_outputs.size() == ins_outputs.size());
-    for (std::size_t i = 0; i < ins_outputs.size(); ++i)
+    for(std::size_t i = 0; i < ins_outputs.size(); ++i)
     {
         p.replace_instruction(ins_outputs.at(i), mod_outputs.at(i));
     }

@@ -38,6 +38,7 @@ struct module_impl
     template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
+        // cppcheck-suppress redundantInitialization
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
         instruction_set.insert(std::addressof(*r));
         return r;

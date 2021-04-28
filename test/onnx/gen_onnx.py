@@ -1908,35 +1908,35 @@ def if_tuple_test():
                                                     onnx.TensorProto.BOOL, [])
 
     then_out0 = onnx.helper.make_tensor_value_info('then_out0',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [1, 4])
+                                                   onnx.TensorProto.FLOAT,
+                                                   [1, 4])
     then_out1 = onnx.helper.make_tensor_value_info('then_out1',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [3, 4])
+                                                   onnx.TensorProto.FLOAT,
+                                                   [3, 4])
     else_out0 = onnx.helper.make_tensor_value_info('else_out0',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [1, 4])
+                                                   onnx.TensorProto.FLOAT,
+                                                   [1, 4])
     else_out1 = onnx.helper.make_tensor_value_info('else_out1',
-                                                  onnx.TensorProto.FLOAT,
-                                                  [3, 4])
+                                                   onnx.TensorProto.FLOAT,
+                                                   [3, 4])
 
     one = np.ones([1]).astype(np.float)
     one_tensor = helper.make_tensor(name='one',
-                                   data_type=TensorProto.FLOAT,
-                                   dims=one.shape,
-                                   vals=one.flatten().astype(np.float32))
+                                    data_type=TensorProto.FLOAT,
+                                    dims=one.shape,
+                                    vals=one.flatten().astype(np.float32))
 
     two = np.array([2]).astype(np.float)
     two_tensor = helper.make_tensor(name='two',
-                                   data_type=TensorProto.FLOAT,
-                                   dims=two.shape,
-                                   vals=two.flatten().astype(np.float32))
+                                    data_type=TensorProto.FLOAT,
+                                    dims=two.shape,
+                                    vals=two.flatten().astype(np.float32))
 
     three = np.array([3]).astype(np.float)
     three_tensor = helper.make_tensor(name='three',
-                                   data_type=TensorProto.FLOAT,
-                                   dims=three.shape,
-                                   vals=three.flatten().astype(np.float32))
+                                      data_type=TensorProto.FLOAT,
+                                      dims=three.shape,
+                                      vals=three.flatten().astype(np.float32))
 
     then_add_node = onnx.helper.make_node('Add',
                                           inputs=['x', 'one'],
@@ -1952,11 +1952,11 @@ def if_tuple_test():
                                           inputs=['y', 'three'],
                                           outputs=['else_out1'])
 
-    then_body = onnx.helper.make_graph([then_add_node, then_mul_node], 'then_body', [],
-                                       [then_out0, then_out1])
+    then_body = onnx.helper.make_graph([then_add_node, then_mul_node],
+                                       'then_body', [], [then_out0, then_out1])
 
-    else_body = onnx.helper.make_graph([else_mul_node, else_add_node], 'else_body', [],
-                                       [else_out0, else_out1])
+    else_body = onnx.helper.make_graph([else_mul_node, else_add_node],
+                                       'else_body', [], [else_out0, else_out1])
 
     cond = np.array([1]).astype(np.bool)
     cond_tensor = helper.make_tensor(name="cond",
@@ -1972,7 +1972,8 @@ def if_tuple_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res0, res1], [cond_tensor, one_tensor, two_tensor, three_tensor])
+    return ([node], [x, y], [res0, res1],
+            [cond_tensor, one_tensor, two_tensor, three_tensor])
 
 
 @onnx_test

@@ -258,12 +258,12 @@ TEST_CASE(if_recursive_test)
         std::vector<float> datax = {1, 2, 3, 4, 5, 6};
         std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
 
-        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
-        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
-        auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
-        auto x1   = mm->add_parameter("x1", xs);
-        auto x2   = mm->add_parameter("x2", xs);
-        auto y2   = mm->add_parameter("y2", ys);
+        auto lx    = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly    = mm->add_literal(migraphx::literal(ys, datay));
+        auto cond  = mm->add_literal(migraphx::literal(cond_s, {0}));
+        auto x1    = mm->add_parameter("x1", xs);
+        auto x2    = mm->add_parameter("x2", xs);
+        auto y2    = mm->add_parameter("y2", ys);
         auto cond1 = mm->add_parameter("cond", cond_s);
 
         auto* then_mod = p.create_module("If_5_if");
@@ -305,11 +305,11 @@ TEST_CASE(if_recursive_test)
         std::vector<float> datax = {1, 2, 3, 4, 5, 6};
         std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
 
-        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
-        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        auto lx = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly = mm->add_literal(migraphx::literal(ys, datay));
         mm->add_parameter("x1", xs);
-        auto x2 = mm->add_parameter("x2", xs);
-        auto y2 = mm->add_parameter("y2", ys);
+        auto x2    = mm->add_parameter("x2", xs);
+        auto y2    = mm->add_parameter("y2", ys);
         auto cond1 = mm->add_parameter("cond", cond_s);
 
         auto* then_mod1 = p.create_module("If_6_if");

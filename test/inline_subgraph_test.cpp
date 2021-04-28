@@ -464,8 +464,7 @@ TEST_CASE(inline_tuple_true_test)
         return p;
     };
 
-    auto create_inline = []
-    {
+    auto create_inline = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
@@ -479,11 +478,11 @@ TEST_CASE(inline_tuple_true_test)
         auto x = mm->add_parameter("x", sx);
         auto y = mm->add_parameter("y", sy);
 
-        auto m1        = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
+        auto m1 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, m1);
-        auto m2   = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
+        auto m2 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), y, m2);
         mm->add_return({add, mul});
 
@@ -494,7 +493,6 @@ TEST_CASE(inline_tuple_true_test)
     auto* mm = p.get_main_module();
     run_pass(*mm);
     EXPECT(p == create_inline());
-
 }
 
 TEST_CASE(inline_tuple_false_test)
@@ -539,8 +537,7 @@ TEST_CASE(inline_tuple_false_test)
         return p;
     };
 
-    auto create_inline = []
-    {
+    auto create_inline = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
@@ -554,11 +551,11 @@ TEST_CASE(inline_tuple_false_test)
         auto x = mm->add_parameter("x", sx);
         auto y = mm->add_parameter("y", sy);
 
-        auto m1        = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
+        auto m1 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), x, m1);
-        auto m2   = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
+        auto m2 =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
         auto add = mm->add_instruction(migraphx::make_op("add"), y, m2);
         mm->add_return({mul, add});
 
@@ -569,7 +566,6 @@ TEST_CASE(inline_tuple_false_test)
     auto* mm = p.get_main_module();
     run_pass(*mm);
     EXPECT(p == create_inline());
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

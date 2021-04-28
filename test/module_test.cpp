@@ -253,5 +253,4 @@ TEST_CASE(submodule_copy)
     EXPECT(mm.get_sub_modules() == mm2.get_sub_modules());
 }
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

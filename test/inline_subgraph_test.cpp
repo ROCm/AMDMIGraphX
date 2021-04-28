@@ -463,12 +463,10 @@ TEST_CASE(inline_tuple_true_test)
 
         return p;
     };
-
     auto create_inline = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape sc{migraphx::shape::bool_type, {1}};
         migraphx::shape sd{migraphx::shape::float_type, {1}};
         auto l1 = mm->add_literal(migraphx::literal(sd, {1}));
         auto l2 = mm->add_literal(migraphx::literal(sd, {2}));
@@ -500,8 +498,8 @@ TEST_CASE(inline_tuple_false_test)
     auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sc{migraphx::shape::bool_type, {0}};
-        auto cond = mm->add_literal(migraphx::literal(sc, {1}));
+        migraphx::shape sc{migraphx::shape::bool_type, {1}};
+        auto cond = mm->add_literal(migraphx::literal(sc, {0}));
         migraphx::shape sd{migraphx::shape::float_type, {1}};
         auto l1 = mm->add_literal(migraphx::literal(sd, {1}));
         auto l2 = mm->add_literal(migraphx::literal(sd, {2}));

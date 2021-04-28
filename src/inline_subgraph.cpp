@@ -138,10 +138,13 @@ void inline_subgraph::inline_submodule(module& p, instruction_ref ins) const
     }
 
     auto ins_outputs = ins->outputs();
-    assert(mod_outputs.size() == ins_outputs.size());
+    assert(mod_outputs.size() >= ins_outputs.size());
     for(std::size_t i = 0; i < ins_outputs.size(); ++i)
     {
-        p.replace_instruction(ins_outputs.at(i), mod_outputs.at(i));
+        auto val = ins_outputs.at(i)->get_operator().to_value();
+        assert(val.contains("index"));
+        auto index = val.at("index").to<std::size_t>();
+        p.replace_instruction(ins_outputs.at(i), mod_outputs.at(index));
     }
 }
 

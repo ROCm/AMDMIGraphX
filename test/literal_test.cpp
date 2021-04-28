@@ -135,21 +135,4 @@ TEST_CASE(value_literal)
     EXPECT(l4 == l2);
 }
 
-TEST_CASE(value_argument)
-{
-    migraphx::shape s{migraphx::shape::int64_type, {3}};
-    migraphx::literal l1{s, {1, 2, 3}};
-    auto a1 = l1.get_argument();
-    auto v1 = migraphx::to_value(a1);
-    migraphx::literal l2{1};
-    auto a2 = l2.get_argument();
-    auto v2 = migraphx::to_value(a2);
-    EXPECT(v1 != v2);
-
-    auto a3 = migraphx::from_value<migraphx::argument>(v1);
-    EXPECT(a3 == a1);
-    auto a4 = migraphx::from_value<migraphx::argument>(v2);
-    EXPECT(a4 == a2);
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

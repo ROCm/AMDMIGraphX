@@ -181,7 +181,7 @@ TEST_CASE(if_tuple_test)
 
         auto results = p.eval(pp);
         std::vector<std::vector<float>> rets;
-        for (const auto& arg : results)
+        for(const auto& arg : results)
         {
             std::vector<float> vec;
             arg.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
@@ -193,7 +193,7 @@ TEST_CASE(if_tuple_test)
 
     // then branch
     {
-        auto results      = run_prog(true);
+        auto results = run_prog(true);
         std::vector<float> gold0(4, 2.0f);
         std::vector<float> gold1(12, 4.0f);
         EXPECT(migraphx::verify_range(results.at(0), gold0));
@@ -202,7 +202,7 @@ TEST_CASE(if_tuple_test)
 
     // else branch
     {
-        auto results      = run_prog(false);
+        auto results = run_prog(false);
         std::vector<float> gold0(4, 3.0f);
         std::vector<float> gold1(12, 5.0f);
         EXPECT(migraphx::verify_range(results.at(0), gold0));

@@ -1561,8 +1561,8 @@ TEST_CASE(if_tuple_test)
     migraphx::shape sy{migraphx::shape::float_type, {3, 4}};
     migraphx::shape sc{migraphx::shape::bool_type};
     auto cond = mm->add_parameter("cond", sc);
-    auto x = mm->add_parameter("x", sx);
-    auto y = mm->add_parameter("y", sy);
+    auto x    = mm->add_parameter("x", sx);
+    auto y    = mm->add_parameter("y", sy);
 
     auto* then_mod = p.create_module("If_6_if");
     auto m1        = then_mod->add_instruction(

@@ -1967,8 +1967,8 @@ def if_tuple_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [cond_input, x, y], [res0, res1],
-            [one_tensor, two_tensor, three_tensor])
+    return ([node], [cond_input, x,
+                     y], [res0, res1], [one_tensor, two_tensor, three_tensor])
 
 
 @onnx_test

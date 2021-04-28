@@ -168,6 +168,12 @@ void copy(Range&& r, Iterator it)
     std::copy(r.begin(), r.end(), it);
 }
 
+template <class Range>
+auto reverse(Range& r)
+{
+    return range(std::make_reverse_iterator(r.end()), std::make_reverse_iterator(r.begin()));
+}
+
 template <class Range, class T>
 void replace(Range&& r, const T& old, const T& new_x)
 {

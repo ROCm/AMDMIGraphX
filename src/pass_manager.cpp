@@ -15,25 +15,42 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void run_passes(module& modl, const std::vector<pass>& passes, tracer trace)
+void run_pass(module& mod, const pass& p, tracer trace)
+{
+    trace("Module: ", mod.name(), ", Pass: ", p.name());
+    assert(mod->validate() == mod->end());
+    p.apply(mod);
+    trace(mod);
+
+#ifndef NDEBUG
+    trace("Validate ...");
+    auto invalid = mod.validate();
+    if(invalid != mod.end())
+    {
+        auto index = std::distance(mod.begin(), invalid);
+        MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
+                       std::to_string(index) + ": " + invalid->name());
+    }
+    trace();
+#endif
+}
+void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     for(const auto& p : passes)
     {
-        trace("Module: ", modl.name(), ", Pass: ", p.name());
-        p.apply(modl);
-        trace(modl);
+        run_pass(mod, p, trace);
+    }
+}
 
-#ifndef NDEBUG
-        trace("Validate ...");
-        auto invalid = modl.validate();
-        if(invalid != modl.end())
+void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+{
+    for(const auto& p : passes)
+    {
+        auto mods = prog.get_modules();
+        for(const auto& mod : reverse(mods))
         {
-            auto index = std::distance(modl.begin(), invalid);
-            MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
-                           std::to_string(index) + ": " + invalid->name());
+            run_pass(*mod, p, trace);
         }
-        trace();
-#endif
     }
 }
 

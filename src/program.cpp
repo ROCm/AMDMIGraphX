@@ -144,14 +144,14 @@ void program::compile(const target& t, compile_options options)
     options.trace(*this);
     options.trace();
 
-    auto mods = this->get_modules();
-    std::reverse(mods.begin(), mods.end());
     auto&& passes = t.get_passes(this->impl->ctx, options);
+    run_passes(*this, passes, options.trace);
 
-    for(const auto& mod : mods)
+    auto mods = this->get_modules();
+
+    // Validate and finalize
+    for(const auto& mod : reverse(mods))
     {
-        assert(mod->validate() == mod->end());
-        run_passes(*mod, passes, options.trace);
         auto invalid = mod->validate();
         if(invalid != mod->end())
         {

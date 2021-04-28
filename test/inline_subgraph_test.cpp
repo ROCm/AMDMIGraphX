@@ -264,6 +264,7 @@ TEST_CASE(if_recursive_test)
         auto x1   = mm->add_parameter("x1", xs);
         auto x2   = mm->add_parameter("x2", xs);
         auto y2   = mm->add_parameter("y2", ys);
+        auto cond1 = mm->add_parameter("cond", cond_s);
 
         auto* then_mod = p.create_module("If_5_if");
         auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
@@ -281,15 +282,102 @@ TEST_CASE(if_recursive_test)
         else_mod1->add_return({l21, a21});
 
         auto* else_mod = p.create_module("If_5_else");
-        auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
+        auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
+        auto a2 =
+            else_mod->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto a3 =
+            else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), a2);
+        else_mod->add_return({l2, a3});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+        mm->add_return({r});
+
+        return p;
+    };
+
+    auto create_inline = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+        std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        mm->add_parameter("x1", xs);
+        auto x2 = mm->add_parameter("x2", xs);
+        auto y2 = mm->add_parameter("y2", ys);
+        auto cond1 = mm->add_parameter("cond", cond_s);
+
+        auto* then_mod1 = p.create_module("If_6_if");
+        auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+        auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+        then_mod1->add_return({a11, l11});
+
+        auto* else_mod1 = p.create_module("If_6_else");
+        auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+        auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+        else_mod1->add_return({l21, a21});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond1}, {then_mod1, else_mod1});
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+        mm->add_return({r});
+
+        return p;
+    };
+
+    auto p   = create_program();
+    auto* mm = p.get_main_module();
+    run_pass(*mm);
+    EXPECT(p == create_inline());
+}
+
+TEST_CASE(if_recursive_cond0_test)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape cond_s{migraphx::shape::bool_type};
+        migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+        std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
+
+        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
+        auto x1   = mm->add_parameter("x1", xs);
+        auto x2   = mm->add_parameter("x2", xs);
+        auto y2   = mm->add_parameter("y2", ys);
+
+        auto* then_mod = p.create_module("If_5_if");
+        auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
+        auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x1, lx);
+        then_mod->add_return({a1, l1});
+
+        auto* then_mod1 = p.create_module("If_6_if");
+        auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+        auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+        then_mod1->add_return({a11, l11});
+
+        auto* else_mod1 = p.create_module("If_6_else");
+        auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+        auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+        else_mod1->add_return({l21, a21});
+
+        auto* else_mod = p.create_module("If_5_else");
+        auto l2        = else_mod->add_literal(migraphx::literal(xs, datax));
         auto a2 =
             else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
         auto a3 =
-            else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
-        else_mod->add_return({a3, l2});
+            else_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), a2);
+        else_mod->add_return({l2, a3});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
         mm->add_return({r});
 
         return p;
@@ -310,7 +398,6 @@ TEST_CASE(if_recursive_test)
         mm->add_parameter("x1", xs);
         auto x2 = mm->add_parameter("x2", xs);
         auto y2 = mm->add_parameter("y2", ys);
-        // auto l2   = mm->add_literal(migraphx::literal(ys, datay));
 
         auto* then_mod1 = p.create_module("If_6_if");
         auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
@@ -323,7 +410,7 @@ TEST_CASE(if_recursive_test)
         else_mod1->add_return({l21, a21});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
         mm->add_return({r});
 
         return p;

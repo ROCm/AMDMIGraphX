@@ -89,7 +89,7 @@ struct hip_device
 
         void wait() const
         {
-            if (s == nullptr)
+            if(s == nullptr)
                 return;
             setup();
             auto status = hipStreamSynchronize(s.get());
@@ -168,7 +168,10 @@ struct context
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
     const hip_device::stream& get_stream() const { return get_current_device().get_stream(); }
-    const hip_device::stream& get_stream(std::size_t n) const{ return get_current_device().get_stream(n); }
+    const hip_device::stream& get_stream(std::size_t n) const
+    {
+        return get_current_device().get_stream(n);
+    }
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
 

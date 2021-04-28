@@ -92,7 +92,8 @@ struct mlir_apply
             case shape::int32_type:
             case shape::int64_type:
             case shape::uint32_type:
-            case shape::uint64_type: break;
+            case shape::uint64_type:
+            case shape::tuple_type: break;
             }
             return nullptr;
         };

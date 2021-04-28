@@ -1958,11 +1958,6 @@ def if_tuple_test():
     else_body = onnx.helper.make_graph([else_mul_node, else_add_node],
                                        'else_body', [], [else_out0, else_out1])
 
-    cond = np.array([1]).astype(np.bool)
-    cond_tensor = helper.make_tensor(name="cond",
-                                     data_type=TensorProto.BOOL,
-                                     dims=cond.shape,
-                                     vals=cond.astype(bool))
     res0 = onnx.helper.make_tensor_value_info('res0', TensorProto.FLOAT, [])
     res1 = onnx.helper.make_tensor_value_info('res1', TensorProto.FLOAT, [])
 
@@ -1972,8 +1967,8 @@ def if_tuple_test():
                                  then_branch=then_body,
                                  else_branch=else_body)
 
-    return ([node], [x, y], [res0, res1],
-            [cond_tensor, one_tensor, two_tensor, three_tensor])
+    return ([node], [cond_input, x, y], [res0, res1],
+            [one_tensor, two_tensor, three_tensor])
 
 
 @onnx_test

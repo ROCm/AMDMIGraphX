@@ -1553,14 +1553,14 @@ TEST_CASE(if_tuple_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape sd{migraphx::shape::float_type, {1}};
     auto l1 = mm->add_literal(migraphx::literal(sd, {1}));
     auto l2 = mm->add_literal(migraphx::literal(sd, {2}));
     auto l3 = mm->add_literal(migraphx::literal(sd, {3}));
     migraphx::shape sx{migraphx::shape::float_type, {1, 4}};
     migraphx::shape sy{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape sc{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", sc);
     auto x = mm->add_parameter("x", sx);
     auto y = mm->add_parameter("y", sy);
 

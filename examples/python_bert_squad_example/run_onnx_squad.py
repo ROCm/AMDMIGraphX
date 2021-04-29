@@ -38,7 +38,8 @@ from timeit import default_timer as timer
 import numpy as np
 import onnxruntime as onnxrt
 import six
-import tokenization
+from tokenizers import BertWordPieceTokenizer
+from tokenizers import pre_tokenizers
 
 RawResult = collections.namedtuple("RawResult",
                                    ["unique_id", "start_logits", "end_logits"])
@@ -70,9 +71,8 @@ class SquadExample(object):
 
     def __repr__(self):
         s = []
-        s.append("qas_id: %s" % (tokenization.printable_text(self.qas_id)))
-        s.append("question_text: %s" %
-                 (tokenization.printable_text(self.question_text)))
+        s.append("qas_id: %s" % (self.qas_id))
+        s.append("question_text: %s" % (self.question_text))
         s.append("doc_tokens: [%s]" % (" ".join(self.doc_tokens)))
         if self.start_position:
             s.append("start_position: %d" % (self.start_position))
@@ -439,9 +439,13 @@ def get_final_text(pred_text, orig_text, do_lower_case):
     # and `pred_text`, and check if they are the same length. If they are
     # NOT the same length, the heuristic has failed. If they are the same
     # length, we assume the characters are one-to-one aligned.
-    tokenizer = tokenization.BasicTokenizer(do_lower_case=do_lower_case)
+    tokenizer = pre_tokenizers.Sequence([pre_tokenizers.Whitespace(), pre_tokenizers.Punctuation()])
+     
+    tok_text = []
+    for item in tokenizer.pre_tokenize_str(orig_text):
+        tok_text.append(item[0])
 
-    tok_text = " ".join(tokenizer.tokenize(orig_text))
+    tok_text = " ".join(tok_text)
 
     start_position = tok_text.find(pred_text)
     if start_position == -1:
@@ -561,8 +565,7 @@ def main():
         sess_options = onnxrt.SessionOptions()
         sess_options.session_log_verbosity_level = args.log
 
-    tokenizer = tokenization.FullTokenizer(vocab_file=args.vocab_file,
-                                           do_lower_case=True)
+    tokenizer = BertWordPieceTokenizer(vocab_file)
 
     eval_examples = read_squad_examples(input_file=args.predict_file)
     input_ids, input_mask, segment_ids, extra_data = \

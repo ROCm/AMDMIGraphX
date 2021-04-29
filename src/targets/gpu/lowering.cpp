@@ -57,7 +57,7 @@ struct miopen_apply
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
-    bool offload_copy = false;
+    bool offload_copy   = false;
     bool int8_x4_format = true;
 
     context& get_context() const

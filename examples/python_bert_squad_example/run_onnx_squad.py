@@ -130,7 +130,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     unique_id = 0
 
     for (example_index, example) in enumerate(examples):
-        query_tokens = tokenizer.tokenize(example.question_text)
+        query_tokens = tokenizer.encode(example.question_text)
 
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
@@ -140,8 +140,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         all_doc_tokens = []
         for (i, token) in enumerate(example.doc_tokens):
             orig_to_tok_index.append(len(all_doc_tokens))
-            sub_tokens = tokenizer.tokenize(token)
-            for sub_token in sub_tokens:
+            sub_tokens = tokenizer.encode(token, add_special_tokens=False)
+            for sub_token in sub_tokens.tokens:
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
 
@@ -172,7 +172,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             segment_ids = []
             tokens.append("[CLS]")
             segment_ids.append(0)
-            for token in query_tokens:
+            for token in query_tokens.tokens:
                 tokens.append(token)
                 segment_ids.append(0)
             tokens.append("[SEP]")
@@ -192,7 +192,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             tokens.append("[SEP]")
             segment_ids.append(1)
 
-            input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            input_ids = []
+            for token in tokens:
+                input_ids.append(tokenizer.token_to_id(token))
 
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.

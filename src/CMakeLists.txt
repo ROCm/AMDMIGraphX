@@ -7,6 +7,7 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    argument.cpp
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
     decompose.cpp
@@ -122,6 +123,7 @@ register_migraphx_ops(
     pad
     pooling
     pow
+    prefix_scan_sum
     prelu
     quant_convolution
     quant_dot

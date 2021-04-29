@@ -1,4 +1,3 @@
-#include "migraphx/instruction_ref.hpp"
 #include <iterator>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/int8_gemm_pack.hpp>
@@ -7,6 +6,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/pad.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>

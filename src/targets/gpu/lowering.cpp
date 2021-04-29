@@ -58,6 +58,7 @@ struct miopen_apply
     instruction_ref last{};
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy = false;
+    bool int8_x4_format = true;
 
     context& get_context() const
     {
@@ -98,6 +99,16 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
+
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+        if(contains(op.name(), "quant_"))
+        {
+            auto& ctx = get_context();
+            rocblas_gemm_flags flag;
+            rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+            int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+        }
+#endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
         create_output_names();
@@ -311,17 +322,6 @@ struct miopen_apply
                     refs.push_back(refs.back());
                 }
             }
-
-            bool int8_x4_format = true;
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-            if(contains(op.name(), "quant_"))
-            {
-                auto& ctx = get_context();
-                rocblas_gemm_flags flag;
-                rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-                int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-            }
-#endif
 
             return mod->replace_instruction(
                 ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format}, refs);

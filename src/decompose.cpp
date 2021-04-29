@@ -16,7 +16,7 @@ namespace {
 struct alpha_beta
 {
     float alpha = 0.0;
-    float beta = 0.0;
+    float beta  = 0.0;
 };
 
 alpha_beta get_alpha_beta(const operation& op)
@@ -31,8 +31,8 @@ struct find_dot_add
 
     void apply(module& p, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto dot = get_alpha_beta(ins->get_operator());
+        auto ins   = r.result;
+        auto dot   = get_alpha_beta(ins->get_operator());
         auto a_ins = ins->inputs()[0];
         auto b_ins = ins->inputs()[1];
         if(not float_equal(dot.alpha, 1))

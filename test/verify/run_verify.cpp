@@ -37,7 +37,7 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
     migraphx::compile_options options;
-    if (show_trace)
+    if(show_trace)
         options.trace = migraphx::tracer{std::cout};
     p.compile(t, options);
     if(shapes.size() != p.get_output_shapes().size())

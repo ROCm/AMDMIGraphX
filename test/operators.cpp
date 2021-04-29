@@ -131,20 +131,21 @@ TEST_CASE(rnn)
 
 TEST_CASE(if_op)
 {
-    migraphx::shape s{migraphx::shape::bool_type, {}};
-
+    migraphx::shape s{migraphx::shape::bool_type, {1}};
     std::vector<char> data = {1};
+    migraphx::argument cond(s, data.data());
+    migraphx::shape sd{migraphx::shape::float_type, {2, 1}};
     std::vector<float> data1(2, 2.0f);
     std::vector<float> data2(2, 3.0f);
-    migraphx::argument a1(s, data1.data());
-    migraphx::argument a2(s, data2.data());
+    migraphx::argument a1(sd, data1.data());
+    migraphx::argument a2(sd, data2.data());
 
     migraphx::module m("name");
-    auto l = m.add_literal(migraphx::literal(s, data1));
+    auto l = m.add_literal(migraphx::literal(sd, data1));
     m.add_return({l});
 
     auto op = migraphx::make_op("add");
-    EXPECT(test::throws([&] { op.compute(s, {a1, a2}, {&m, &m}, {}); }));
+    EXPECT(test::throws([&] { op.compute(s, {cond, a1, a2}, {&m, &m}, {}); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

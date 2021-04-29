@@ -9,7 +9,7 @@ There are two ways to run the example:
 1) Install MIGraphX to your environment. Please follow the steps to build MIGraphX given at https://github.com/ROCmSoftwarePlatform/AMDMIGraphX
 2) Install the requirements file
 ```
-pip3 install -r requirements_migraphx.txt
+pip3 install -r requirements_bertsquad.txt
 ```
 3) Install `unzip` and fetch the uncased file (vocabulary):
 ```

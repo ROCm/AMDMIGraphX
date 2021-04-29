@@ -2643,6 +2643,23 @@ def pow_i64_fp32_test():
 
 
 @onnx_test
+def prefix_scan_sum_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2])
+    axis_val = np.array([0])
+    axis_tensor = helper.make_tensor(name="axis",
+                                     data_type=TensorProto.INT32,
+                                     dims=axis_val.shape,
+                                     vals=axis_val.astype(int))
+    node = onnx.helper.make_node('CumSum',
+                                 inputs=['x', 'axis'],
+                                 outputs=['y'],
+                                 exclusive=1,
+                                 reverse=1)
+    return ([node], [x], [y], [axis_tensor])
+
+
+@onnx_test
 def prelu_brcst_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 5])

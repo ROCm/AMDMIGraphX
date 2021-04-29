@@ -439,8 +439,10 @@ def get_final_text(pred_text, orig_text, do_lower_case):
     # and `pred_text`, and check if they are the same length. If they are
     # NOT the same length, the heuristic has failed. If they are the same
     # length, we assume the characters are one-to-one aligned.
-    tokenizer = pre_tokenizers.Sequence([pre_tokenizers.Whitespace(), pre_tokenizers.Punctuation()])
-     
+    tokenizer = pre_tokenizers.Sequence(
+        [pre_tokenizers.Whitespace(),
+         pre_tokenizers.Punctuation()])
+
     tok_text = []
     for item in tokenizer.pre_tokenize_str(orig_text):
         tok_text.append(item[0])

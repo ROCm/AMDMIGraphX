@@ -13,8 +13,8 @@ void contiguous(hipStream_t stream, const argument& result, const argument& arg)
     visit_all(result, arg)([&](auto output_v, auto input_v) {
         hip_visit_views(output_v, input_v, s)([&](auto output, auto input, auto standard_shape) {
             mi_gs_launch(stream,
-                     standard_shape)([=](auto idx) __device__ { output[idx] = input[idx]; });
-                 });
+                         standard_shape)([=](auto idx) __device__ { output[idx] = input[idx]; });
+        });
     });
 }
 

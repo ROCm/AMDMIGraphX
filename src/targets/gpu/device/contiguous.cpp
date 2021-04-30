@@ -30,7 +30,7 @@ void contiguous_packed(hipStream_t stream, const argument& result, const argumen
 
 void contiguous(hipStream_t stream, const argument& result, const argument& arg)
 {
-    if (result.get_shape() == arg.get_shape() and result.get_shape().packed())
+    if(result.get_shape() == arg.get_shape() and result.get_shape().packed())
         contiguous_packed(stream, result, arg);
     else
         contiguous_nonstandard(stream, result, arg);

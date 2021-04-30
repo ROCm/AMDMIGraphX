@@ -147,10 +147,7 @@ void gpu_sync()
         MIGRAPHX_THROW("hip device synchronization failed: " + hip_error(status));
 }
 
-void gpu_sync(const context& ctx)
-{
-    ctx.finish();
-}
+void gpu_sync(const context& ctx) { ctx.finish(); }
 
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {

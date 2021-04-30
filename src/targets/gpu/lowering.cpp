@@ -232,7 +232,8 @@ struct miopen_apply
         // Instruction's output is an input of the ret instruction
         if(offload_copy)
         {
-            auto result = mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+            auto result = mod->insert_instruction(
+                ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
             return result;
         }
 
@@ -246,7 +247,8 @@ struct miopen_apply
             return mod->add_parameter("output", s);
         }
 
-        return mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+        return mod->insert_instruction(
+            ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
 
     void add_convolution_op()
@@ -299,9 +301,10 @@ struct miopen_apply
                 auto c_alias = instruction::get_output_alias(refs.back());
                 if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
-                    auto output   = insert_allocation(ins, ins->get_shape());
-                    auto copy_out = mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
-                    refs.back()   = copy_out;
+                    auto output = insert_allocation(ins, ins->get_shape());
+                    auto copy_out =
+                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
+                    refs.back() = copy_out;
                     refs.push_back(copy_out);
                 }
                 else
@@ -412,7 +415,8 @@ struct miopen_apply
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto cpu_cond  = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
             auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
             inputs.front() = sync_cond;
 
@@ -436,7 +440,8 @@ struct miopen_apply
                 }
                 else
                 {
-                    output = mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(s)}}));
+                    output = mod->insert_instruction(
+                        ins, make_op("hip::allocate", {{"shape", to_value(s)}}));
                 }
                 inputs.push_back(output);
             }

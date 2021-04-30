@@ -1,5 +1,6 @@
 #include <migraphx/gpu/device/add_clip.hpp>
 #include <migraphx/gpu/device/nary.hpp>
+#include <migraphx/gpu/device/math.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -14,8 +15,8 @@ void add_clip(hipStream_t stream,
               const argument& max_arg)
 {
     nary(stream, result, arg1, arg2, min_arg, max_arg)(
-        [](auto x, auto y, auto min, auto max)
-            __device__ { return ::min<decltype(x + y)>(::max<decltype(x)>(min, x + y), max); });
+        [](auto x, auto y, auto min_val, auto max_val)
+            __device__ { return min<decltype(x + y)>(max<decltype(x)>(min_val, x + y), max_val); });
 }
 
 void add_clip(hipStream_t stream,
@@ -27,8 +28,8 @@ void add_clip(hipStream_t stream,
               const argument& max_arg)
 {
     nary(stream, result, arg1, arg2, arg3, min_arg, max_arg)(
-        [](auto x, auto y, auto z, auto min, auto max) __device__ {
-            return ::min<decltype(x + y + z)>(::max<decltype(x)>(min, x + y + z), max);
+        [](auto x, auto y, auto z, auto min_val, auto max_val) __device__ {
+            return min<decltype(x + y + z)>(max<decltype(x)>(min_val, x + y + z), max_val);
         });
 }
 

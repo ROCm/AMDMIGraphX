@@ -2,6 +2,7 @@
 #include <migraphx/gpu/device/nary.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <cmath>
+#include <migraphx/gpu/device/math.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,7 +13,7 @@ namespace device {
 template <class T>
 auto gelu_fn(T x) __device__
 {
-    return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
+    return x * 0.5 * (1 + erf(x * M_SQRT1_2));
 }
 
 // 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))

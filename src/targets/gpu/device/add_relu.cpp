@@ -1,5 +1,6 @@
 #include <migraphx/gpu/device/add_relu.hpp>
 #include <migraphx/gpu/device/nary.hpp>
+#include <migraphx/gpu/device/math.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -12,7 +13,7 @@ void add_relu(hipStream_t stream,
               const argument& arg2)
 {
     nary(stream, result, arg1, arg2)([](auto x, auto y)
-                                         __device__ { return ::max<decltype(x + y)>(0, x + y); });
+                                         __device__ { return max<decltype(x + y)>(0, x + y); });
 }
 
 void add_relu(hipStream_t stream,
@@ -22,7 +23,7 @@ void add_relu(hipStream_t stream,
               const argument& arg3)
 {
     nary(stream, result, arg1, arg2, arg3)(
-        [](auto x, auto y, auto z) __device__ { return ::max<decltype(x + y + z)>(0, x + y + z); });
+        [](auto x, auto y, auto z) __device__ { return max<decltype(x + y + z)>(0, x + y + z); });
 }
 
 } // namespace device

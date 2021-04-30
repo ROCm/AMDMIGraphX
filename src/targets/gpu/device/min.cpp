@@ -10,8 +10,7 @@ namespace device {
 
 void min(hipStream_t stream, const argument& result, const argument& arg1, const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)(
-        [](auto x, auto y) __device__ { return min(x, y); });
+    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ { return min(x, y); });
 }
 
 } // namespace device

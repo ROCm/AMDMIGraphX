@@ -82,10 +82,7 @@ def add_test():
         outputs=['2'],
     )
 
-    return (
-        [node],
-        [x, y],
-        [z])
+    return ([node], [x, y], [z])
 
 
 @onnx_test
@@ -100,10 +97,7 @@ def add_fp16_test():
         outputs=['2'],
     )
 
-    return (
-        [node],
-        [x, y],
-        [z])
+    return ([node], [x, y], [z])
 
 
 @onnx_test

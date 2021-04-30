@@ -21,10 +21,20 @@ using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
 {
-    hip_device() { add_stream(); }
+    hip_device()
+    {
+        device_props.gcnArchName[0]      = '\0';
+        device_props.gcnArch             = 0;
+        device_props.multiProcessorCount = 0;
+        add_stream();
+    }
 
     hip_device(std::size_t id, std::size_t n) : device_id(id)
     {
+        auto status = hipGetDeviceProperties(&device_props, device_id);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to allocate stream");
+
         for(std::size_t i = 0; i < n; i++)
             add_stream();
     }
@@ -136,10 +146,19 @@ struct hip_device
 
     std::size_t stream_id() const { return current_stream; }
 
+    std::string get_device_name() const { return device_props.gcnArchName; }
+
+    std::size_t get_device_major() const { return device_props.major; }
+
+    std::size_t get_device_minor() const { return device_props.minor; }
+
+    std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;
     std::vector<stream> streams;
+    hipDeviceProp_t device_props;
 
     public:
     std::unordered_map<std::string, argument> preallocations{};

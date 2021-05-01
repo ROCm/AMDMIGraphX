@@ -133,6 +133,7 @@ add_library(migraphx_gpu
     logsoftmax.cpp
     lrn.cpp
     leaky_relu.cpp
+    mlir_conv.cpp
     pack_args.cpp
     pack_int8_args.cpp
     pad.cpp
@@ -148,6 +149,7 @@ add_library(migraphx_gpu
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
         register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
@@ -258,6 +260,20 @@ endif()
 
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
+
+set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
+if(MIGRAPHX_ENABLE_MLIR)
+    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
+    # REQUIRED is not supported before cmake 3.18
+    if(NOT LIBMLIRMIOPEN)
+        message(FATAL_ERROR "libMLIRMIOpenThin not found")
+    else()
+        message(STATUS "Build with libMLIRMIOpenThin: " ${LIBMLIRMIOPEN})
+    endif()
+
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
+    target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
+endif()
 
 # Get flags needed to compile hip
 include(TargetFlags)

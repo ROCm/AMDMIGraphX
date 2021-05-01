@@ -306,7 +306,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 4;
+const int program_file_version = 5;
 
 value program::to_value() const
 {

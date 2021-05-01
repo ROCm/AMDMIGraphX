@@ -417,13 +417,7 @@ struct find_splits
 
             traversed.insert(ins);
             const auto& inputs = ins->inputs();
-            for(auto in : inputs)
-            {
-                if(self(in))
-                    return true;
-            }
-
-            return false;
+            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) { return self(in); });
         })(ins1);
     }
 

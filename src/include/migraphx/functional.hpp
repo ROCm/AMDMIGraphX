@@ -226,6 +226,9 @@ struct id
     }
 };
 
+template<class... Ts>
+void nop(Ts&&...) {}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

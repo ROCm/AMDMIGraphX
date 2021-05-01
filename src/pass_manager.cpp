@@ -15,13 +15,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void run_pass(module& mod, const pass& p, tracer trace)
+void validate_pass(module& mod, const pass& p, tracer trace)
 {
-    trace("Module: ", mod.name(), ", Pass: ", p.name());
-    assert(mod->validate() == mod->end());
-    p.apply(mod);
-    trace(mod);
-
 #ifndef NDEBUG
     trace("Validate ...");
     auto invalid = mod.validate();
@@ -34,6 +29,22 @@ void run_pass(module& mod, const pass& p, tracer trace)
     trace();
 #endif
 }
+void run_pass(module& mod, const pass& p, tracer trace)
+{
+    trace("Module: ", mod.name(), ", Pass: ", p.name());
+    assert(mod->validate() == mod->end());
+    p.apply(mod);
+    trace(mod);
+    validate_pass(mod, p, trace);
+}
+void run_pass(program& prog, const pass& p, tracer trace)
+{
+    trace("Pass: ", p.name());
+    p.apply(prog);
+    trace(prog);
+}
+
+
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     for(const auto& p : passes)
@@ -51,6 +62,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         {
             run_pass(*mod, p, trace);
         }
+        run_pass(prog, p, trace);
     }
 }
 

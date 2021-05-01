@@ -10,15 +10,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Iterator, class Output, class Predicate, class F>
 void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f)
 {
-   while (start != last)
-   {
-      if (pred(*start))
-      {
-         *out = f(*start);
-         ++out;
-      }
-      ++start;
-   }
+    while(start != last)
+    {
+        if(pred(*start))
+        {
+            *out = f(*start);
+            ++out;
+        }
+        ++start;
+    }
 }
 
 template <class Iterator, class Output, class Predicate>

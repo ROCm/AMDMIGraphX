@@ -65,10 +65,11 @@ void program::assign(const program& p)
     // build a map from old ins to new ins
     // Build a map from old module to new module
     std::unordered_map<module_ref, module_ref> mod_map;
-    std::transform(impl->modules.begin(),
-                   impl->modules.end(),
-                   std::inserter(mod_map, mod_map.begin()),
-                   [&](auto&& xp) { return std::make_pair(&p.impl->modules.at(xp.first), &xp.second); });
+    std::transform(
+        impl->modules.begin(),
+        impl->modules.end(),
+        std::inserter(mod_map, mod_map.begin()),
+        [&](auto&& xp) { return std::make_pair(&p.impl->modules.at(xp.first), &xp.second); });
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto&& pp : mod_map)
@@ -457,9 +458,10 @@ void program::from_value(const value& v)
         impl->modules.emplace(name, name);
     }
     std::unordered_map<std::string, module_ref> map_mods;
-    std::transform(impl->modules.begin(), impl->modules.end(), std::inserter(map_mods, map_mods.end()), [&](auto&& pp) {
-        return std::make_pair(pp.first, &pp.second);
-    });
+    std::transform(impl->modules.begin(),
+                   impl->modules.end(),
+                   std::inserter(map_mods, map_mods.end()),
+                   [&](auto&& pp) { return std::make_pair(pp.first, &pp.second); });
 
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
@@ -650,10 +652,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
     }
 }
 
-const module* program::get_module(const std::string& name) const
-{
-    return &impl->modules.at(name);
-}
+const module* program::get_module(const std::string& name) const { return &impl->modules.at(name); }
 
 module* program::create_module(const std::string& name)
 {
@@ -661,16 +660,13 @@ module* program::create_module(const std::string& name)
     return &(r.first->second);
 }
 
-module* program::get_module(const std::string& name)
-{
-    return &impl->modules.at(name);
-}
+module* program::get_module(const std::string& name) { return &impl->modules.at(name); }
 
 module* program::get_main_module() { return get_module("main"); }
 
 const module* program::get_main_module() const { return get_module("main"); }
 
-template<class T>
+template <class T>
 std::vector<T*> generic_get_modules(T* mm)
 {
     std::vector<T*> vec_modules;
@@ -680,14 +676,18 @@ std::vector<T*> generic_get_modules(T* mm)
     return vec_modules;
 }
 
-template<class Map, class T, class OutputIterator>
+template <class Map, class T, class OutputIterator>
 void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputIterator out)
 {
     std::unordered_set<std::string> used;
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(), m.end(), out, [&](auto&& pp){ return not contains(used, pp.first); }, [](auto&& pp) {return &pp.second; });
+    transform_if(m.begin(),
+                 m.end(),
+                 out,
+                 [&](auto&& pp) { return not contains(used, pp.first); },
+                 [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const

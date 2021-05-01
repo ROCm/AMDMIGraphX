@@ -66,10 +66,7 @@ void dead_code_elimination::apply(module& m) const
     }
     m.remove_instructions(std::next(last), m.end());
 }
-void dead_code_elimination::apply(program& p) const
-{
-
-}
+void dead_code_elimination::apply(program& p) const {}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

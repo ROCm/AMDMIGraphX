@@ -44,7 +44,6 @@ void run_pass(program& prog, const pass& p, tracer trace)
     trace(prog);
 }
 
-
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     for(const auto& p : passes)

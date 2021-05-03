@@ -61,7 +61,7 @@ struct loop
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         auto iter_num  = args.at(0).at<int64_t>();
-        auto cond = args.at(1).at<bool>();
+        auto cond      = args.at(1).at<bool>();
         module_ref mod = mods.at(0);
 
         std::vector<argument> scan_out;
@@ -78,10 +78,10 @@ struct loop
 
             assert(pnames.size() < mod_args.size());
             std::transform(pnames.begin(),
-                        pnames.end(),
-                        mod_args.begin() + 1,
-                        std::inserter(params, params.end()),
-                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
+                           pnames.end(),
+                           mod_args.begin() + 1,
+                           std::inserter(params, params.end()),
+                           [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
             auto results = run(mod, params);
         }

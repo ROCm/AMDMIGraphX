@@ -24,8 +24,57 @@ struct module_impl
 {
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
+    std::unordered_set<instruction*> instruction_set;
     std::vector<std::string> input_names;
     std::string name;
+
+    bool contains(instruction_ref ins) const
+    {
+        if(ins == instructions.end())
+            return false;
+        return instruction_set.count(std::addressof(*ins)) > 0;
+    }
+
+    template <class... Ts>
+    instruction_ref emplace(instruction_ref pos, Ts&&... xs)
+    {
+        // cppcheck-suppress redundantInitialization
+        auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
+        instruction_set.insert(std::addressof(*r));
+        return r;
+    }
+    instruction_ref insert(instruction_ref pos, const instruction& ins)
+    {
+        return emplace(pos, ins);
+    }
+
+    void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
+
+    void push_back(const instruction& ins) { insert(instructions.end(), ins); }
+
+    template <class... Ts>
+    void emplace_front(Ts&&... xs)
+    {
+        emplace(instructions.begin(), std::forward<Ts>(xs)...);
+    }
+
+    template <class... Ts>
+    void emplace_back(Ts&&... xs)
+    {
+        emplace(instructions.end(), std::forward<Ts>(xs)...);
+    }
+
+    instruction_ref erase(instruction_ref pos)
+    {
+        instruction_set.erase(std::addressof(*pos));
+        return instructions.erase(pos);
+    }
+
+    instruction_ref erase(instruction_ref start, instruction_ref last)
+    {
+        std::for_each(start, last, [&](auto& ins) { instruction_set.erase(std::addressof(ins)); });
+        return instructions.erase(start, last);
+    }
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
@@ -71,20 +120,19 @@ void module::assign(const module& m)
         if(ins->name() == "@literal")
         {
             auto l   = ins->get_literal();
-            copy_ins = impl->instructions.insert(impl->instructions.end(), instruction{l});
+            copy_ins = impl->insert(impl->instructions.end(), instruction{l});
         }
         else if(ins->name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
             auto s      = ins->get_shape();
-            copy_ins    = impl->instructions.insert(impl->instructions.end(),
-                                                 {builtin::param{name}, std::move(s), {}});
+            copy_ins =
+                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {
-            auto s = ins->get_shape();
-            copy_ins =
-                impl->instructions.insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
+            auto s   = ins->get_shape();
+            copy_ins = impl->insert(impl->instructions.end(), {builtin::outline{s}, s, {}});
         }
         else
         {
@@ -127,7 +175,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 {
     assert(not starts_with(op.name(), "@"));
     shape r     = compute_shape(op, args);
-    auto result = impl->instructions.insert(ins, {op, r, std::move(args)});
+    auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -148,8 +196,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
 {
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
-    auto result =
-        impl->instructions.insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
+    auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
     assert(result->valid(begin()));
     return result;
@@ -222,7 +269,7 @@ instruction_ref module::remove_instruction(instruction_ref ins)
     assert(has_instruction(ins));
     assert(ins->outputs().empty());
     ins->clear_arguments();
-    return impl->instructions.erase(ins);
+    return impl->erase(ins);
 }
 
 instruction_ref module::remove_instructions(instruction_ref first, instruction_ref last)
@@ -233,7 +280,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
     assert(has_instruction(first));
     std::for_each(first, last, [&](instruction& ins) { ins.clear_arguments(); });
     assert(std::all_of(first, last, [&](const instruction& ins) { return ins.outputs().empty(); }));
-    return impl->instructions.erase(first, last);
+    return impl->erase(first, last);
 }
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
@@ -252,13 +299,13 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 instruction_ref module::add_literal(literal l)
 {
-    impl->instructions.emplace_front(std::move(l));
+    impl->emplace_front(std::move(l));
     return impl->instructions.begin();
 }
 
 instruction_ref module::add_outline(const shape& s)
 {
-    impl->instructions.push_front({builtin::outline{s}, s, {}});
+    impl->push_front({builtin::outline{s}, s, {}});
     return impl->instructions.begin();
 }
 
@@ -267,13 +314,13 @@ instruction_ref module::add_parameter(std::string name, shape s)
     assert(get_parameter_shape(name) == shape{});
     impl->input_names.push_back(name);
 
-    impl->instructions.push_front({builtin::param{std::move(name)}, std::move(s), {}});
+    impl->push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
 }
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    impl->instructions.push_back({builtin::returns{}, {}, std::move(args)});
+    impl->push_back({builtin::returns{}, {}, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
@@ -350,13 +397,7 @@ std::unordered_map<std::string, shape> module::get_parameter_shapes() const
     return result;
 }
 
-bool module::has_instruction(instruction_ref ins) const
-{
-    return std::find_if(
-               impl->instructions.begin(), impl->instructions.end(), [&](const instruction& x) {
-                   return std::addressof(*ins) == std::addressof(x);
-               }) != impl->instructions.end();
-}
+bool module::has_instruction(instruction_ref ins) const { return impl->contains(ins); }
 
 std::size_t module::size() const { return impl->instructions.size(); }
 instruction_ref module::begin() const { return impl->instructions.begin(); }

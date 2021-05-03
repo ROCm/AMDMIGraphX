@@ -128,8 +128,21 @@ TEST_CASE(dot_add_beta_int)
             m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1.0}, {"beta", 0.5}}), x, y, z);
         m1.add_instruction(migraphx::make_op("identity"), dot);
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
+        auto y   = m2.add_parameter("y", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
+        auto z   = m2.add_parameter("z", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
+        auto dot = m2.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), x, y);
+        auto beta =
+            m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0.5}});
+        auto beta_broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
+        auto add = m2.add_instruction(migraphx::make_op("add"), dot, mul);
+        m2.add_instruction(migraphx::make_op("identity"), add);
+    }
     EXPECT(m1 == m2);
 }
 

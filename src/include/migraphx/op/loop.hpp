@@ -60,25 +60,32 @@ struct loop
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto cond      = args.front().at<bool>();
-        module_ref mod = cond ? mods[0] : mods[1];
-        std::unordered_map<std::string, argument> params;
+        auto iter_num  = args.at(0).at<int64_t>();
+        auto cond = args.at(1).at<bool>();
+        module_ref mod = mods.at(0);
 
-        std::set<std::string> pnames;
-        for(const auto& smod : mods)
+        std::vector<argument> scan_out;
+        std::vector<argument> mod_args = args;
+        for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
         {
-            auto names = smod->get_parameter_names();
-            pnames.insert(names.begin(), names.end());
+            std::unordered_map<std::string, argument> params;
+            std::set<std::string> pnames;
+            for(const auto& smod : mods)
+            {
+                auto names = smod->get_parameter_names();
+                pnames.insert(names.begin(), names.end());
+            }
+
+            assert(pnames.size() < mod_args.size());
+            std::transform(pnames.begin(),
+                        pnames.end(),
+                        mod_args.begin() + 1,
+                        std::inserter(params, params.end()),
+                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
+
+            auto results = run(mod, params);
         }
 
-        assert(pnames.size() < args.size());
-        std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin() + 1,
-                       std::inserter(params, params.end()),
-                       [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
-
-        auto results = run(mod, params);
         return argument{results};
     }
 };

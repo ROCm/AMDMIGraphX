@@ -25,29 +25,30 @@ struct loop
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
         check_shapes{inputs, *this}.standard();
-        if (mods.size() != 1)
+        if(mods.size() != 1)
         {
             MIGRAPHX_THROW("LOOP: operator should have one submodule.");
         }
 
-        const auto& mod = mods.front();
+        const auto& mod     = mods.front();
         auto mod_out_shapes = mod->get_output_shapes();
-        auto param_names = mod->get_parameter_names();
+        auto param_names    = mod->get_parameter_names();
         // remove the first two names -- iter_num and cond_var
         param_names.erase(param_names.begin(), param_names.begin() + 2);
         std::vector<shape> ins_out_shapes;
-        for (const auto& name : param_names)
+        for(const auto& name : param_names)
         {
             const auto& s = mod->get_parameter_shape(name);
-            if (s == shape{})
+            if(s == shape{})
             {
                 MIGRAPHX_THROW("LOOP: mode shape does not exist for parameter: " + name);
             }
             ins_out_shapes.push_back(s);
         }
 
-        mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + ins_out_shapes.size() + 1);
-        for (const auto& out_s : mod_out_shapes)
+        mod_out_shapes.erase(mod_out_shapes.begin(),
+                             mod_out_shapes.begin() + ins_out_shapes.size() + 1);
+        for(const auto& out_s : mod_out_shapes)
         {
             auto lens = out_s.lens();
             lens.insert(lens.begin(), max_iters);

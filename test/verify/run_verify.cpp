@@ -37,7 +37,8 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
     migraphx::compile_options options;
-    options.trace = migraphx::tracer{ss};
+    if(show_trace)
+        options.trace = migraphx::tracer{std::cout};
     p.compile(t, options);
     if(shapes.size() != p.get_output_shapes().size())
     {
@@ -54,11 +55,6 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
             std::cout << ss.str() << std::endl;
             throw std::runtime_error("Compiling program with " + name + " alters its shape");
         }
-    }
-
-    if(show_trace)
-    {
-        std::cout << ss.str() << std::endl;
     }
 }
 

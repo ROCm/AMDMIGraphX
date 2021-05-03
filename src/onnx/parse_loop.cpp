@@ -21,7 +21,7 @@ struct parse_loop : op_parser<parse_loop>
     {
         const auto& sub_graph = info.attributes.at("body").g();
 
-        //if(args.front()->get_shape().elements() != 1)
+        // if(args.front()->get_shape().elements() != 1)
         //{
         //    MIGRAPHX_THROW("PARSE_LOOP: condition input can have only one element!");
         //}
@@ -32,8 +32,8 @@ struct parse_loop : op_parser<parse_loop>
         // parse the sub_graph
         parser.parse_graph(sub_mod, sub_graph);
 
-        auto ret = info.add_instruction(make_op("loop", {{"max_iters", 10}}), args, {sub_mod});
-        auto out_s  = ret->get_shape();
+        auto ret   = info.add_instruction(make_op("loop", {{"max_iters", 10}}), args, {sub_mod});
+        auto out_s = ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
 
         const auto& vec_shapes = out_s.sub_shapes();

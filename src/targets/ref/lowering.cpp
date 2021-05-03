@@ -10,7 +10,6 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/elu.hpp>
-#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>

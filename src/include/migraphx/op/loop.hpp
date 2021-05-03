@@ -20,6 +20,12 @@ struct loop
 {
     int64_t max_iters = 0;
 
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.max_iters, "max_iters"));
+    }
+
     std::string name() const { return "loop"; }
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
@@ -32,22 +38,11 @@ struct loop
 
         const auto& mod     = mods.front();
         auto mod_out_shapes = mod->get_output_shapes();
-        auto param_names    = mod->get_parameter_names();
-        // remove the first two names -- iter_num and cond_var
-        param_names.erase(param_names.begin(), param_names.begin() + 2);
-        std::vector<shape> ins_out_shapes;
-        for(const auto& name : param_names)
-        {
-            const auto& s = mod->get_parameter_shape(name);
-            if(s == shape{})
-            {
-                MIGRAPHX_THROW("LOOP: mode shape does not exist for parameter: " + name);
-            }
-            ins_out_shapes.push_back(s);
-        }
-
-        mod_out_shapes.erase(mod_out_shapes.begin(),
-                             mod_out_shapes.begin() + ins_out_shapes.size() + 1);
+        auto dep_param_num = mod->get_parameter_names().size() - 2;
+        // first two names -- iter_num and cond_var -- are not counted
+        mod_out_shapes.erase(mod_out_shapes.begin());
+        std::vector<shape> ins_out_shapes(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);
+        mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);
         for(const auto& out_s : mod_out_shapes)
         {
             auto lens = out_s.lens();

@@ -7,6 +7,7 @@
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/inline_subgraph.hpp>
@@ -44,12 +45,19 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
+    std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
+    unsupported_types.erase(shape::type_t::float_type);
+    unsupported_types.erase(shape::type_t::half_type);
+    unsupported_types.erase(shape::type_t::bool_type);
+    unsupported_types.erase(shape::type_t::int8_type);
+    unsupported_types.erase(shape::type_t::uint8_type);
     // clang-format off
     return
     {
         normalize_ops{},
         decompose{},
         dead_code_elimination{},
+        eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
         eliminate_pad{},

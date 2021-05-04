@@ -21,15 +21,15 @@ struct parse_loop : op_parser<parse_loop>
     {
         if(not(args.at(0)->get_shape().scalar() and args.at(1)->get_shape().scalar()))
         {
-            MIGRAPHX_THROW("PARSE_LOOP: iter_num and cond inputs must be scalar!");
+            MIGRAPHX_THROW("PARSE_LOOP: max_iter_num and cond inputs must be scalar!");
         }
 
         // default value of the max_iter_num
-        int64_t max_iters = 10;
+        int64_t max_iter_num = parser.max_iter_num;
         auto arg_iters    = args.at(0)->eval();
         if(not arg_iters.empty())
         {
-            max_iters = arg_iters.at<int64_t>();
+            max_iter_num = arg_iters.at<int64_t>();
         }
 
         // retrieve the subgraph
@@ -41,7 +41,7 @@ struct parse_loop : op_parser<parse_loop>
         parser.parse_graph(sub_mod, sub_graph);
 
         auto ret =
-            info.add_instruction(make_op("loop", {{"max_iters", max_iters}}), args, {sub_mod});
+            info.add_instruction(make_op("loop", {{"max_iters", max_iter_num}}), args, {sub_mod});
         auto out_s = ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
 

@@ -20,6 +20,7 @@ program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.map_input_dims         = options.map_input_dims;
     parser.default_dim_value      = options.default_dim_value;
     parser.skip_unknown_operators = options.skip_unknown_operators;
+    parser.max_iter_num           = options.max_loop_num;
 
     if(options.print_program_on_error)
     {

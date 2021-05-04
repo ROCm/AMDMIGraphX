@@ -1,4 +1,5 @@
 
+#include "migraphx/module_ref.hpp"
 #include <migraphx/ref/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
@@ -13,6 +14,7 @@
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>
+#include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -969,6 +971,20 @@ struct ref_apply
             mod->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
         else if(op.mode == "average")
             mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
+    }
+
+    void apply_loop(instruction ins) const
+    {
+        auto&& op = any_cast<op::loop>(ins.get_operator());
+        auto max_iter_num = op.max_iter_num;
+        auto mod = ins.module_inputs().front();
+        std::size_t carry_dep_num = mod->get_parameter_names().size() - 2;
+        auto ins_s = ins->get_shape();
+        if (ins_s.type() != shape::tuple_type)
+        {
+
+        }
+        auto out_s = mod->get_output_shapes();
     }
 };
 

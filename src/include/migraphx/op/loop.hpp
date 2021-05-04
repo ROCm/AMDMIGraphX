@@ -18,12 +18,12 @@ namespace op {
 
 struct loop
 {
-    int64_t max_iters = 0;
+    int64_t max_iter_num = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.max_iters, "max_iters"));
+        return pack(f(self.max_iter_num, "max_iter_num"));
     }
 
     std::string name() const { return "loop"; }
@@ -47,7 +47,7 @@ struct loop
         for(const auto& out_s : mod_out_shapes)
         {
             auto lens = out_s.lens();
-            lens.insert(lens.begin(), max_iters);
+            lens.insert(lens.begin(), max_iter_num);
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
@@ -63,30 +63,33 @@ struct loop
         auto iter_num  = args.at(0).at<int64_t>();
         auto cond      = args.at(1).at<bool>();
         module_ref mod = mods.at(0);
+        std::vector<std::string> pnames = mod->get_parameter_names();
+        std::size_t dep_var_num = pnames.size() - 1;
 
-        std::vector<argument> scan_out;
-        std::vector<argument> mod_args = args;
+        std::vector<argument> scan_outputs(dep_var_num);
+        std::vector<argument> mod_args(args.begin() + 1, args.end());
+        shape s_iter{shape::int64_type};
         for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
         {
             std::unordered_map<std::string, argument> params;
-            std::set<std::string> pnames;
-            for(const auto& smod : mods)
-            {
-                auto names = smod->get_parameter_names();
-                pnames.insert(names.begin(), names.end());
-            }
+            // iter index
+            params[pnames.at(0)] = argument(s_iter, &iter);
+            // cond variable
+            params[pnames.at(1)] = mod_args.at(0);
 
-            assert(pnames.size() < mod_args.size());
-            std::transform(pnames.begin(),
+            // carry dependencies
+            std::transform(pnames.begin() + 2,
                            pnames.end(),
                            mod_args.begin() + 1,
                            std::inserter(params, params.end()),
                            [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
-            auto results = run(mod, params);
+            mod_args = run(mod, params);
         }
+        // remove the cond variable
+        mod_args.erase(mod_args.begin());
 
-        return argument{results};
+        return argument{mod_args};
     }
 };
 

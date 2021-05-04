@@ -89,17 +89,17 @@ struct invert_pass
 {
     std::string name() const { return "invert_pass"; }
 
-    void apply(migraphx::module& p) const
+    void apply(migraphx::module& m) const
     {
-        for(auto ins : migraphx::iterator_for(p))
+        for(auto ins : migraphx::iterator_for(m))
         {
             if(ins->name() == "sum")
             {
-                p.replace_instruction(ins, minus_op{}, ins->inputs());
+                m.replace_instruction(ins, minus_op{}, ins->inputs());
             }
             else if(ins->name() == "minus")
             {
-                p.replace_instruction(ins, sum_op{}, ins->inputs());
+                m.replace_instruction(ins, sum_op{}, ins->inputs());
             }
         }
     }

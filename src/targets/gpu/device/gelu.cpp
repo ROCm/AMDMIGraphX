@@ -38,9 +38,7 @@ void add_gelu(hipStream_t stream,
               const argument& arg1,
               const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ {
-        return gelu_fn(x + y);
-    });
+    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ { return gelu_fn(x + y); });
 }
 
 void add_gelu_new(hipStream_t stream,
@@ -48,9 +46,7 @@ void add_gelu_new(hipStream_t stream,
                   const argument& arg1,
                   const argument& arg2)
 {
-    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ {
-        return gelu_fn(x + y);
-    });
+    nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ { return gelu_fn(x + y); });
 }
 
 } // namespace device

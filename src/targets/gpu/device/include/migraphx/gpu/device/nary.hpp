@@ -272,9 +272,8 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
         const index_int vec_size = 4;
         auto data                = pack_vec<4>(device_cast(inputs.data())...);
         auto* outp               = as_vec<4>(device_cast(output.data()));
-        gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) __device__ {
-            data([&](auto... xs) { outp[i] = f(xs[i]...); }, i);
-        });
+        gs_launch(stream, output_shape.elements() / vec_size)(
+            [=](auto i) __device__ { data([&](auto... xs) { outp[i] = f(xs[i]...); }, i); });
     });
 }
 

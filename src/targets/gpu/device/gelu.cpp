@@ -25,12 +25,12 @@ auto gelu_fn_new(T x) __device__
 
 void gelu(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) __device__ { return gelu_fn(to_hip_type(x)); });
+    nary(stream, result, arg)([](auto x) __device__ { return gelu_fn(x); });
 }
 
 void gelu_new(hipStream_t stream, const argument& result, const argument& arg)
 {
-    nary(stream, result, arg)([](auto x) __device__ { return gelu_fn_new(to_hip_type(x)); });
+    nary(stream, result, arg)([](auto x) __device__ { return gelu_fn_new(x); });
 }
 
 void add_gelu(hipStream_t stream,
@@ -39,8 +39,7 @@ void add_gelu(hipStream_t stream,
               const argument& arg2)
 {
     nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ {
-        auto sum = to_hip_type(x + y);
-        return gelu_fn(sum);
+        return gelu_fn(x + y);
     });
 }
 
@@ -50,8 +49,7 @@ void add_gelu_new(hipStream_t stream,
                   const argument& arg2)
 {
     nary(stream, result, arg1, arg2)([](auto x, auto y) __device__ {
-        auto sum = to_hip_type(x + y);
-        return gelu_fn(sum);
+        return gelu_fn(x + y);
     });
 }
 

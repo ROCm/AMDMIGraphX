@@ -269,30 +269,12 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
     MIGRAPHX_TRACE_NARY_FUNCTION
     const auto& output_shape = result.get_shape();
     visit_all(result, args...)([&](auto output, auto... inputs) {
-        // using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
         const index_int vec_size = 4;
         auto data                = pack_vec<4>(device_cast(inputs.data())...);
         auto* outp               = as_vec<4>(device_cast(output.data()));
         gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) __device__ {
-            // vec<type, 4> out = outp[i];
             data([&](auto... xs) { outp[i] = f(xs[i]...); }, i);
-            // outp[i] = out;
         });
-    });
-}
-
-template <class F, class... Arguments>
-void nary_standard_vec2_impl(hipStream_t stream, F f, argument result, Arguments... args)
-{
-    MIGRAPHX_TRACE_NARY_FUNCTION
-    const auto& output_shape = result.get_shape();
-    visit_all(result, args...)([&](auto output, auto... inputs) {
-        // using type = device_type<std::remove_cv_t<typename decltype(output)::value_type>>;
-        const index_int vec_size = 2;
-        auto data                = pack_vec<2>(device_cast(inputs.data())...);
-        auto* outp               = as_vec<2>(device_cast(output.data()));
-        gs_launch(stream, output_shape.elements() / vec_size)(
-            [=](auto i) __device__ { data([&](auto... xs) { outp[i] = f(xs[i]...); }, i); });
     });
 }
 
@@ -317,11 +299,8 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
     const bool same_shapes =
         all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
     const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
-    // const bool is_fp16 = all_of(shapes, [](const shape& s) { return s.type() == s.half_type; });
     const bool divisible_by_2 =
         all_of(shapes, [](const shape& s) { return s.elements() % 2 == 0; });
-    // if(is_fp16 and ((result.get_shape().standard() and standard) or (packed and same_shapes)))
-    //     nary_standard_vec2_impl(stream, f, result, args...);
     if((result.get_shape().standard() and standard) or (packed and same_shapes))
     {
         if(divisible_by_2)

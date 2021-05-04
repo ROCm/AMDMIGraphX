@@ -4,6 +4,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/type_name.hpp>
@@ -181,6 +182,17 @@ basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p)
 {
     return {{p}};
 }
+
+/// Create a typed-erased matcher
+using any_matcher_base = basic_matcher<
+    function_matcher<std::function<instruction_ref(matcher_context&, instruction_ref)>>>;
+struct any_matcher : any_matcher_base
+{
+    template <class M>
+    any_matcher(M mm) : any_matcher_base({[=](auto& ctx, auto ins) { return mm.match(ctx, ins); }})
+    {
+    }
+};
 
 /// This macro takes care of the boilerplate for defining a matcher
 #define MIGRAPHX_BASIC_MATCHER(name, ...)                                     \
@@ -687,6 +699,13 @@ inline auto has_attribute(const std::string& name)
 {
     return make_basic_pred_matcher(
         [=](instruction_ref ins) { return ins->get_operator().attributes().contains(name); });
+}
+
+template <class... Ms>
+auto pointwise(Ms... ms)
+{
+    return match::has_attribute("pointwise")(match::any_of(match::nargs(1), match::nargs(2)),
+                                             ms...);
 }
 
 } // namespace match

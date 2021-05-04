@@ -367,6 +367,14 @@ struct parse_resize : op_parser<parse_resize>
                 return info.add_instruction(make_op("add"), dydiff, ins_yf);
             }
         }
+
+//        // reshape input to one-dimension
+//        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+//        shape ind_s{shape::int32_type, out_lens};
+//        auto arg_cont = info.make_contiguous(args[0]);
+//        auto rsp      = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), arg_cont);
+//        auto ins_ind  = info.add_literal(literal(ind_s, ind));
+//        return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 };
 

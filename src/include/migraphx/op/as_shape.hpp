@@ -33,8 +33,9 @@ struct as_shape
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        return {std::move(output_shape), std::move(args.front().data)};
+        return args.front().reshape(output_shape);
     }
+    bool is_borrowed() const { return true; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

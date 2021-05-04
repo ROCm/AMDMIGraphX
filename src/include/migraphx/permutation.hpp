@@ -20,29 +20,22 @@ inline Vector reorder_dims(const Vector& dims, const std::vector<int64_t>& permu
     return result;
 }
 
-inline shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
-{
-    return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
-}
+shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation);
 
 template <class Vector, class Op>
 inline std::vector<int64_t> sort_permutation(const Vector& data, Op op)
 {
     std::vector<std::int64_t> result(data.size());
     std::iota(result.begin(), result.end(), 0);
-    std::sort(result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
+    std::stable_sort(
+        result.begin(), result.end(), [&](auto x, auto y) { return op(data[x], data[y]); });
     return result;
 }
 
-inline std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
-{
-    return sort_permutation(permutation, std::less<>{});
-}
+std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation);
 
-inline std::vector<int64_t> find_permutation(const shape& s)
-{
-    return sort_permutation(s.strides(), std::greater<>{});
-}
+std::vector<int64_t> find_permutation(const shape& s);
+std::vector<int64_t> find_permutation(const std::vector<shape>& shapes);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

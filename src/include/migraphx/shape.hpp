@@ -40,7 +40,7 @@ struct shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -61,6 +61,9 @@ struct shape
 
     static const std::vector<type_t>& types();
 
+    static std::string name(type_t t);
+    static std::string cpp_type(type_t t);
+
     shape();
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);
@@ -79,6 +82,10 @@ struct shape
     {
     }
 
+    shape(const std::vector<shape>& subs);
+
+    static shape
+    from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
     const std::vector<std::size_t>& strides() const;
@@ -120,6 +127,9 @@ struct shape
     bool scalar() const;
 
     shape normalize_standard() const;
+
+    shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
+    shape with_lens(const std::vector<std::size_t>& l) const;
 
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
@@ -171,11 +181,16 @@ struct shape
         type_t type_enum() const { return get_type<type>{}; }
     };
 
-    template <class Visitor>
-    static void visit(type_t t, Visitor v)
+    template <class Visitor, class TupleVisitor>
+    static void visit(type_t t, Visitor v, TupleVisitor tv)
     {
         switch(t)
         {
+        case tuple_type:
+        {
+            tv();
+            return;
+        }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
             MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE)
@@ -185,9 +200,15 @@ struct shape
     }
 
     template <class Visitor>
-    void visit_type(Visitor v) const
+    static void visit(type_t t, Visitor v)
     {
-        visit(this->type(), v);
+        return visit(t, v, [] { MIGRAPHX_THROW("Tuple cannot be visited."); });
+    }
+
+    template <class... Visitors>
+    void visit_type(Visitors... vs) const
+    {
+        visit(this->type(), vs...);
     }
 
     template <class Visitor>
@@ -200,6 +221,8 @@ struct shape
 
     std::string type_string() const;
     static type_t parse_type(const std::string& s);
+
+    const std::vector<shape>& sub_shapes() const;
 
     private:
     std::shared_ptr<const shape_impl> impl;

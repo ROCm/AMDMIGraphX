@@ -38,6 +38,7 @@ add_library(migraphx_device
     device/cos.cpp
     device/cosh.cpp
     device/div.cpp
+    device/equal.cpp
     device/erf.cpp
     device/exp.cpp
     device/floor.cpp
@@ -67,6 +68,7 @@ add_library(migraphx_device
     device/reduce_sum.cpp
     device/reduce_prod.cpp
     device/relu.cpp
+    device/rnn_variable_seq_lens.cpp
     device/round.cpp
     device/rsqrt.cpp
     device/sigmoid.cpp
@@ -79,9 +81,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
-    device/rnn_variable_seq_lens.cpp
     device/unary_not.cpp
-    device/equal.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -106,48 +106,50 @@ target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURR
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 
 add_library(migraphx_gpu
+    abs.cpp
     analyze_streams.cpp
     allocation_model.cpp
     argmax.cpp
     argmin.cpp
+    batch_norm_inference.cpp
+    clip.cpp
     code_object_op.cpp
+    compile_hip.cpp
     compile_hip_code_object.cpp
-    eliminate_workspace.cpp
-    fuse_ops.cpp
-    hip.cpp
-    target.cpp
-    lowering.cpp
-    pooling.cpp
+    concat.cpp
+    convert.cpp
     convolution.cpp
     deconvolution.cpp
-    quant_convolution.cpp
-    softmax.cpp
-    logsoftmax.cpp
-    concat.cpp
-    leaky_relu.cpp
-    batch_norm_inference.cpp
-    kernel.cpp
-    write_literals.cpp
-    rocblas.cpp
-    abs.cpp
+    eliminate_workspace.cpp
     elu.cpp
-    pad.cpp
+    fuse_ops.cpp
     gather.cpp
-    convert.cpp
-    lrn.cpp
-    schedule_model.cpp
-    pack_int8_args.cpp
-    clip.cpp
-    int8_gemm_pack.cpp
-    int8_conv_pack.cpp
     gemm_impl.cpp
-    preallocate_param.cpp
-    rnn_variable_seq_lens.cpp
-    sync_device.cpp
+    hip.cpp
+    int8_conv_pack.cpp
+    int8_gemm_pack.cpp
+    kernel.cpp
+    lowering.cpp
+    logsoftmax.cpp
+    lrn.cpp
+    leaky_relu.cpp
+    mlir_conv.cpp
     pack_args.cpp
-    compile_hip.cpp
+    pack_int8_args.cpp
+    pad.cpp
+    pooling.cpp
+    preallocate_param.cpp
+    quant_convolution.cpp
+    rnn_variable_seq_lens.cpp
+    rocblas.cpp
+    softmax.cpp
+    schedule_model.cpp
+    sync_device.cpp
+    target.cpp
+    write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
+
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
         register_op(migraphx_gpu HEADER migraphx/gpu/${OP}.hpp OPERATORS gpu::${PREFIX}${OP} INCLUDES migraphx/gpu/context.hpp)
@@ -259,11 +261,26 @@ endif()
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
+set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
+if(MIGRAPHX_ENABLE_MLIR)
+    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
+    # REQUIRED is not supported before cmake 3.18
+    if(NOT LIBMLIRMIOPEN)
+        message(FATAL_ERROR "libMLIRMIOpenThin not found")
+    else()
+        message(STATUS "Build with libMLIRMIOpenThin: " ${LIBMLIRMIOPEN})
+    endif()
+
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
+    target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
+endif()
+
 # Get flags needed to compile hip
 include(TargetFlags)
 target_flags(HIP_COMPILER_FLAGS hip::device)
 # Remove cuda arch flags
-string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE "--cuda-gpu-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE "--offload-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
 target_compile_definitions(migraphx_gpu PRIVATE 
     "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}" 
@@ -285,7 +302,6 @@ endif()
 
 # Workaround broken rocblas headers
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
-target_compile_options(migraphx_gpu PRIVATE -std=c++17)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 

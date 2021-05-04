@@ -58,10 +58,11 @@
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
+#include <migraphx/op/pow.hpp>
+#include <migraphx/op/prefix_scan_sum.hpp>
 #include <migraphx/op/prelu.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/pow.hpp>
 #include <migraphx/op/recip.hpp>
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/op/reduce_mean.hpp>

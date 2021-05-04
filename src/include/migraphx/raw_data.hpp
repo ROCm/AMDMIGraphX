@@ -5,6 +5,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -28,7 +29,15 @@ struct raw_data : raw_data_base
     friend Stream& operator<<(Stream& os, const Derived& d)
     {
         if(not d.empty())
-            d.visit([&](auto x) { os << x; });
+            d.visit([&](auto x) { os << x; },
+                    [&](auto&& xs) {
+                        for(auto&& x : xs)
+                        {
+                            os << "{ ";
+                            os << x;
+                            os << " }, ";
+                        }
+                    });
         return os;
     }
 
@@ -44,9 +53,19 @@ struct raw_data : raw_data_base
         auto&& derived = static_cast<const Derived&>(*this);
         if(derived.empty())
             MIGRAPHX_THROW("Visiting empty data!");
-        auto&& s      = derived.get_shape();
-        auto&& buffer = derived.data();
-        s.visit_type([&](auto as) { v(*(as.from(buffer) + s.index(n))); });
+        auto&& s = derived.get_shape();
+        s.visit_type([&](auto as) { v(*(as.from(derived.data()) + s.index(n))); });
+    }
+
+    template <class Visitor, class TupleVisitor>
+    void visit(Visitor v, TupleVisitor tv) const
+    {
+        auto&& derived = static_cast<const Derived&>(*this);
+        if(derived.empty())
+            MIGRAPHX_THROW("Visiting empty data!");
+        auto&& s = derived.get_shape();
+        s.visit_type([&](auto as) { v(make_view(s, as.from(derived.data()))); },
+                     [&] { tv(derived.get_sub_objects()); });
     }
 
     /**
@@ -59,12 +78,7 @@ struct raw_data : raw_data_base
     template <class Visitor>
     void visit(Visitor v) const
     {
-        auto&& derived = static_cast<const Derived&>(*this);
-        if(derived.empty())
-            MIGRAPHX_THROW("Visiting empty data!");
-        auto&& s      = derived.get_shape();
-        auto&& buffer = derived.data();
-        s.visit_type([&](auto as) { v(make_view(s, as.from(buffer))); });
+        visit(v, [&](const auto&) { MIGRAPHX_THROW("Invalid tuple type"); });
     }
 
     /// Returns true if the raw data is only one element
@@ -146,45 +160,36 @@ struct raw_data : raw_data_base
                migraphx::shape::get_type<T>{});
         return reinterpret_cast<T*>(buffer);
     }
+
+    std::string to_string() const
+    {
+        std::stringstream ss;
+        ss << static_cast<const Derived&>(*this);
+        return ss.str();
+    }
 };
 
-template <class T,
-          class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                            std::is_base_of<raw_data_base, U>{})>
-bool operator==(const T& x, const U& y)
-{
-    auto&& xshape = x.get_shape();
-    auto&& yshape = y.get_shape();
-    bool result   = x.empty() && y.empty();
-    if(not result && xshape == yshape)
-    {
-        auto&& xbuffer = x.data();
-        auto&& ybuffer = y.data();
-        // TODO: Dont use tensor view for single values
-        xshape.visit_type([&](auto as) {
-            auto xview = make_view(xshape, as.from(xbuffer));
-            auto yview = make_view(yshape, as.from(ybuffer));
-            result     = xview == yview;
-        });
-    }
-    return result;
-}
-
-template <class T,
-          class U,
-          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
-                            std::is_base_of<raw_data_base, U>{})>
-bool operator!=(const T& x, const U& y)
-{
-    return !(x == y);
-}
-
 namespace detail {
-template <class V, class... Ts>
-void visit_all_impl(const shape& s, V&& v, Ts&&... xs)
+template <class V1, class V2, class... Ts>
+void visit_all_flatten(const shape& s, V1&& v1, V2&& v2, Ts&&... xs)
 {
-    s.visit_type([&](auto as) { v(make_view(xs.get_shape(), as.from(xs.data()))...); });
+    s.visit_type([&](auto as) { v1(make_view(xs.get_shape(), as.from(xs.data()))...); },
+                 [&] { v2(xs.get_sub_objects()...); });
+}
+
+template <class V1, class V2, class... Ts>
+auto visit_all_pack(const shape& s, V1&& v1, V2&& v2)
+{
+    return [&](auto&&... xs) {
+        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
+        visit_all_flatten(s, v1, v2, xs...);
+    };
+}
+
+template <class V1, class... Ts>
+auto visit_all_pack(const shape& s, V1&& v1)
+{
+    return visit_all_pack(s, v1, [](auto&&...) { MIGRAPHX_THROW("Invalid tuple type"); });
 }
 } // namespace detail
 
@@ -207,10 +212,7 @@ auto visit_all(T&& x, Ts&&... xs)
     std::initializer_list<shape::type_t> types = {xs.get_shape().type()...};
     if(!std::all_of(types.begin(), types.end(), [&](shape::type_t t) { return t == s.type(); }))
         MIGRAPHX_THROW("Types must be the same");
-    return [&](auto v) {
-        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        detail::visit_all_impl(s, v, x, xs...);
-    };
+    return [&](auto... vs) { detail::visit_all_pack(s, vs...)(x, xs...); };
 }
 
 template <class T>
@@ -230,6 +232,34 @@ auto visit_all(const std::vector<T>& x)
             v(result);
         });
     };
+}
+
+template <class T,
+          class U,
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+                            std::is_base_of<raw_data_base, U>{})>
+bool operator==(const T& x, const U& y)
+{
+    auto&& xshape = x.get_shape();
+    auto&& yshape = y.get_shape();
+    bool result   = x.empty() and y.empty();
+    if(not result and xshape == yshape)
+    {
+        visit_all(x, y)([&](auto xview, auto yview) { result = xview == yview; },
+                        [&](auto&& xs, auto&& ys) {
+                            result = std::equal(xs.begin(), xs.end(), ys.begin(), ys.end());
+                        });
+    }
+    return result;
+}
+
+template <class T,
+          class U,
+          MIGRAPHX_REQUIRES(std::is_base_of<raw_data_base, T>{} &&
+                            std::is_base_of<raw_data_base, U>{})>
+bool operator!=(const T& x, const U& y)
+{
+    return !(x == y);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

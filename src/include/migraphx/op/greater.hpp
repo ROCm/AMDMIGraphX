@@ -12,6 +12,7 @@ namespace op {
 
 struct greater : binary<greater>
 {
+    std::string point_function() const { return ">"; }
     auto apply() const
     {
         return [](auto x, auto y) { return x > y; };

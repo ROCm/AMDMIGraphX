@@ -133,7 +133,8 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    if(std::tie(x.result, x.op, x.arguments) != std::tie(y.result, y.op, y.arguments))
+    if(std::tie(x.result, x.op, x.arguments, x.module_args) !=
+       std::tie(y.result, y.op, y.arguments, y.module_args))
         return false;
     if(x.name() == "@literal")
         return x.lit == y.lit;
@@ -441,6 +442,20 @@ shape compute_shape(const operation& op,
     {
         return op.compute_shape(to_shapes(args), mods);
     }
+}
+
+std::vector<shape> try_compute_shape(const operation& op, const std::vector<shape>& inputs)
+{
+    shape new_shape;
+    try
+    {
+        new_shape = op.compute_shape(inputs);
+    }
+    catch(...)
+    {
+        return {};
+    }
+    return {new_shape};
 }
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

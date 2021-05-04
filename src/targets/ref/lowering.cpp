@@ -979,7 +979,7 @@ struct ref_apply
         auto max_iter_num         = op.max_iter_num;
         auto mod                  = ins->module_inputs().front();
         std::size_t mod_input_num = mod->get_parameter_names().size();
-        const auto& ins_s                = ins->get_shape();
+        const auto& ins_s         = ins->get_shape();
         if(ins_s.type() != shape::tuple_type)
         {
             MIGRAPHX_THROW("Loop output shape is not a tuple type!");
@@ -987,12 +987,13 @@ struct ref_apply
         auto vec_s = ins_s.sub_shapes();
         vec_s.erase(vec_s.begin(), vec_s.begin() + mod_input_num);
         std::vector<argument> arg_outs;
-        for (const auto& s : vec_s)
+        for(const auto& s : vec_s)
         {
             argument arg_out(s);
-            for (int64_t i = 0; i < max_iter_num; ++i)
+            for(int64_t i = 0; i < max_iter_num; ++i)
             {
-                mod->add_instruction(ins, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), )
+                mod->add_instruction(
+                    ins, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), )
             }
             arg_outs.push_back({s});
         }

@@ -71,6 +71,29 @@ def add_bcast_test():
 
 
 @onnx_test
+def add_fp16_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [1])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1])
+    z = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1])
+
+    node = onnx.helper.make_node(
+        'Add',
+        inputs=['0', '1'],
+        outputs=['2'],
+    )
+
+    return (
+        [node],
+        [x, y],
+        [z],
+        # '0' -> 1.5, '1' -> 2.5
+        [
+            onnx.helper.make_tensor('0', TensorProto.FLOAT16, [1], [15872]),
+            onnx.helper.make_tensor('1', TensorProto.FLOAT16, [1], [16640])
+        ])
+
+
+@onnx_test
 def add_scalar_test():
     x = helper.make_tensor_value_info('0', TensorProto.UINT8, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('1', TensorProto.UINT8, [])

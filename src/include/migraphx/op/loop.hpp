@@ -60,11 +60,11 @@ struct loop
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto iter_num  = args.at(0).at<int64_t>();
-        auto cond      = args.at(1).at<bool>();
-        module_ref mod = mods.at(0);
+        auto iter_num                   = args.at(0).at<int64_t>();
+        auto cond                       = args.at(1).at<bool>();
+        module_ref mod                  = mods.at(0);
         std::vector<std::string> pnames = mod->get_parameter_names();
-        std::size_t dep_var_num = pnames.size() - 1;
+        std::size_t dep_var_num         = pnames.size() - 1;
 
         std::vector<argument> scan_outputs(dep_var_num);
         std::vector<argument> mod_args(args.begin() + 1, args.end());

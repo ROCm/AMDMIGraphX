@@ -975,14 +975,13 @@ struct ref_apply
 
     void apply_loop(instruction ins) const
     {
-        auto&& op = any_cast<op::loop>(ins.get_operator());
-        auto max_iter_num = op.max_iter_num;
-        auto mod = ins.module_inputs().front();
+        auto&& op                 = any_cast<op::loop>(ins.get_operator());
+        auto max_iter_num         = op.max_iter_num;
+        auto mod                  = ins.module_inputs().front();
         std::size_t carry_dep_num = mod->get_parameter_names().size() - 2;
-        auto ins_s = ins->get_shape();
-        if (ins_s.type() != shape::tuple_type)
+        auto ins_s                = ins->get_shape();
+        if(ins_s.type() != shape::tuple_type)
         {
-
         }
         auto out_s = mod->get_output_shapes();
     }

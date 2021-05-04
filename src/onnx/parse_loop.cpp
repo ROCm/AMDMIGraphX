@@ -26,7 +26,7 @@ struct parse_loop : op_parser<parse_loop>
 
         // default value of the max_iter_num
         int64_t max_iter_num = parser.max_iter_num;
-        auto arg_iters    = args.at(0)->eval();
+        auto arg_iters       = args.at(0)->eval();
         if(not arg_iters.empty())
         {
             max_iter_num = arg_iters.at<int64_t>();

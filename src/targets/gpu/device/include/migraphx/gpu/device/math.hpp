@@ -50,7 +50,6 @@ MIGRAPHX_DEVICE_MATH(tanh, ::tanh)
 
 // vec<half, 2> __device__ cos(vec<half, 2> x) { return h2cos(x); }
 
-
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

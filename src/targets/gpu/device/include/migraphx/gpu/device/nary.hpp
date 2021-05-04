@@ -275,11 +275,7 @@ void nary_standard_vec_impl(hipStream_t stream, F f, argument result, Arguments.
         auto* outp               = as_vec<4>(device_cast(output.data()));
         gs_launch(stream, output_shape.elements() / vec_size)([=](auto i) __device__ {
             // vec<type, 4> out = outp[i];
-            data(
-                [&](auto... xs) {
-                    outp[i] = f(xs[i]...);
-                },
-                i);
+            data([&](auto... xs) { outp[i] = f(xs[i]...); }, i);
             // outp[i] = out;
         });
     });
@@ -322,7 +318,8 @@ void nary_impl(hipStream_t stream, F f, argument result, Arguments... args)
         all_of(shapes, [&](const shape& s) { return s == result.get_shape(); });
     const bool same_input_shapes = all_of(shapes, [&](const shape& s) { return s == shapes[0]; });
     // const bool is_fp16 = all_of(shapes, [](const shape& s) { return s.type() == s.half_type; });
-    const bool divisible_by_2 = all_of(shapes, [](const shape& s) { return s.elements() % 2 == 0; });
+    const bool divisible_by_2 =
+        all_of(shapes, [](const shape& s) { return s.elements() % 2 == 0; });
     // if(is_fp16 and ((result.get_shape().standard() and standard) or (packed and same_shapes)))
     //     nary_standard_vec2_impl(stream, f, result, args...);
     if((result.get_shape().standard() and standard) or (packed and same_shapes))
@@ -409,7 +406,7 @@ inline auto nary(hipStream_t stream, argument result, argument arg, argument bar
         bool divisible_by_4 = false;
         if(broadcastable(divisible_by_4, 2048, result, barg, arg))
         {
-            const auto shapes   = make_array(arg.get_shape(), barg.get_shape());
+            const auto shapes = make_array(arg.get_shape(), barg.get_shape());
             if(divisible_by_4)
                 nary_broadcast_vec_impl(stream, f, result, barg, arg);
             else

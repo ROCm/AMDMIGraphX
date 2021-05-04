@@ -2414,6 +2414,28 @@ def min_test():
 
 
 @onnx_test
+def mul_add_test():
+    w = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 16, 384, 384])
+    x = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 16, 384, 384])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [1, 16, 384, 384])
+    z = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 16, 384, 384])
+
+    mul = onnx.helper.make_node(
+        'Mul',
+        inputs=['0', '1'],
+        outputs=['mul_out'],
+    )
+
+    add = onnx.helper.make_node(
+        'Add',
+        inputs=['mul_out', '2'],
+        outputs=['3'],
+    )
+
+    return ([mul, add], [w, x, y], [z])
+
+
+@onnx_test
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])

@@ -29,14 +29,19 @@ std::ptrdiff_t bidistance(const Range& r, Iterator start, Iterator last)
         return -n;
 }
 
-void dead_code_elimination::apply(module& p) const
+void dead_code_elimination::apply(program& p) const
 {
-    auto last = std::prev(p.end());
-    for(auto ins : iterator_for(p))
+    p.remove_unused_modules();
+}
+
+void dead_code_elimination::apply(module& m) const
+{
+    auto last = std::prev(m.end());
+    for(auto ins : iterator_for(m))
     {
         // Skip the first instruction, since we always process the previous
         // instruction
-        if(ins == p.begin())
+        if(ins == m.begin())
             continue;
         const auto i = std::prev(ins);
         // Skip the last instruction
@@ -46,9 +51,9 @@ void dead_code_elimination::apply(module& p) const
         if(i->get_shape().elements() == 0 and i->name().front() != '@' and
            i->name() != "undefined" and i->name() != "identity")
             continue;
-        assert(bidistance(p, i, last) > 0);
+        assert(bidistance(m, i, last) > 0);
         fix([&](auto self, auto leaf) {
-            if(not p.has_instruction(leaf))
+            if(not m.has_instruction(leaf))
                 return;
 
             if(leaf->outputs().empty())
@@ -56,15 +61,15 @@ void dead_code_elimination::apply(module& p) const
                 std::unordered_set<instruction_ref> args(leaf->inputs().begin(),
                                                          leaf->inputs().end());
                 leaf->clear_arguments();
-                assert(bidistance(p, last, leaf) < 0);
+                assert(bidistance(m, last, leaf) < 0);
                 assert(leaf != ins);
-                p.move_instruction(leaf, p.end());
+                m.move_instruction(leaf, m.end());
                 for(auto arg : args)
                     self(arg);
             }
         })(i);
     }
-    p.remove_instructions(std::next(last), p.end());
+    m.remove_instructions(std::next(last), m.end());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

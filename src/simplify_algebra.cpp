@@ -420,13 +420,7 @@ struct find_splits
 
             traversed.insert(ins);
             const auto& inputs = ins->inputs();
-            for(auto in : inputs)
-            {
-                if(self(in))
-                    return true;
-            }
-
-            return false;
+            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) { return self(in); });
         })(ins1);
     }
 
@@ -496,9 +490,7 @@ struct find_splits
 
     void apply(module& p, const match::matcher_result& r) const
     {
-        std::cout << "find_splits = " << p << std::endl;
-        auto ins = r.result;
-
+        auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
             return;

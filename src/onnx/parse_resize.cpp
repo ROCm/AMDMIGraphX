@@ -93,30 +93,30 @@ std::vector<int> wrapup_points(const vvv& vvv_ind,
     const auto& vv_ind = vvv_ind[i_dim];
     const auto& vv_lo  = vv_ind.at(0);
     std::vector<std::vector<std::size_t>> vec_dims1;
-    for (std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
+    for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
         std::transform(vv_lo.begin(),
-                    vv_lo.end(),
-                    vec_dims.begin() + start,
-                    std::back_inserter(vec_dims1),
-                    [](auto i, auto dim) {
-                        dim.push_back(i);
-                        return dim;
-                    });
+                       vv_lo.end(),
+                       vec_dims.begin() + start,
+                       std::back_inserter(vec_dims1),
+                       [](auto i, auto dim) {
+                           dim.push_back(i);
+                           return dim;
+                       });
     }
 
     const auto& vv_hi = vv_ind.at(1);
 
-    for (std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
+    for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
         std::transform(vv_hi.begin(),
-                    vv_hi.end(),
-                    vec_dims.begin() + start,
-                    std::back_inserter(vec_dims1),
-                    [](auto i, auto dim) {
-                        dim.push_back(i);
-                        return dim;
-                    });
+                       vv_hi.end(),
+                       vec_dims.begin() + start,
+                       std::back_inserter(vec_dims1),
+                       [](auto i, auto dim) {
+                           dim.push_back(i);
+                           return dim;
+                       });
     }
 
     return wrapup_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
@@ -291,13 +291,13 @@ struct parse_resize : op_parser<parse_resize>
                 shape dim_s{shape::float_type, dim_lens};
                 const auto& dim_delta = delta[i];
                 std::vector<float> delta_data;
-                for (std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
+                for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
                 {
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 }
 
-                auto ins_delta        = info.add_literal(dim_s, delta_data);
-                auto mb_delta         = info.add_instruction(
+                auto ins_delta = info.add_literal(dim_s, delta_data);
+                auto mb_delta  = info.add_instruction(
                     make_op("multibroadcast", {{"output_lens", dim_lens}}), ins_delta);
 
                 // slice the data

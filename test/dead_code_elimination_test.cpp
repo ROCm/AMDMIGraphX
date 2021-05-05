@@ -7,7 +7,7 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple_test)
@@ -175,6 +175,17 @@ TEST_CASE(duplicate_args3)
     EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(unused_module)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto m1 = p.create_module("unused");
+    auto m2 = p.create_module("used");
+    mm->add_instruction(pass_op{}, {}, {m2});
+    run_pass(p);
+
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

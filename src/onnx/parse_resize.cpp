@@ -74,12 +74,15 @@ const auto& get_original_idx_op(const std::string& mode)
 }
 
 using vvv = std::vector<std::vector<std::vector<std::size_t>>>;
-std::vector<int> wrapup_points(const vvv& vvv_ind, int i_dim, const std::vector<std::vector<std::size_t>>& vec_dims, const shape& in_s)
+std::vector<int> wrapup_points(const vvv& vvv_ind,
+                               int i_dim,
+                               const std::vector<std::vector<std::size_t>>& vec_dims,
+                               const shape& in_s)
 {
-    if (i_dim == vvv_ind.size())
+    if(i_dim == vvv_ind.size())
     {
         std::vector<int> vec_ind;
-        for (const auto& vd : vec_dims)
+        for(const auto& vd : vec_dims)
         {
             vec_ind.push_back(static_cast<int>(in_s.index(vd)));
         }
@@ -88,18 +91,26 @@ std::vector<int> wrapup_points(const vvv& vvv_ind, int i_dim, const std::vector<
     }
 
     const auto& vv_ind = vvv_ind[i_dim];
-    const auto& vv_lo = vv_ind.at(0);
+    const auto& vv_lo  = vv_ind.at(0);
     std::vector<std::vector<std::size_t>> vec_dims1;
-    std::transform(vv_lo.begin(), vv_lo.end(), vec_dims.begin(), std::back_inserter(vec_dims1), [](auto i, auto dim) {
-        dim.push_back(i);
-        return dim;
-    });
+    std::transform(vv_lo.begin(),
+                   vv_lo.end(),
+                   vec_dims.begin(),
+                   std::back_inserter(vec_dims1),
+                   [](auto i, auto dim) {
+                       dim.push_back(i);
+                       return dim;
+                   });
 
     const auto& vv_hi = vv_ind.at(1);
-    std::transform(vv_hi.begin(), vv_hi.end(), vec_dims.begin(), std::back_inserter(vec_dims), [](auto i, auto dim) {
-        dim.push_back(i);
-        return dim;
-    });
+    std::transform(vv_hi.begin(),
+                   vv_hi.end(),
+                   vec_dims.begin(),
+                   std::back_inserter(vec_dims),
+                   [](auto i, auto dim) {
+                       dim.push_back(i);
+                       return dim;
+                   });
 
     return wrapup_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
 }
@@ -266,30 +277,36 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            auto ind = wrapup_points(vvv_ind, 0, {}, in_s);
+            auto ind      = wrapup_points(vvv_ind, 0, {}, in_s);
             auto ind_lens = out_lens;
             ind_lens[0] *= (1 << n_dim);
             shape ind_s{shape::int32_type, ind_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
-            auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+            auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
             auto dim_lens = out_lens;
             dim_lens[0] *= (1 << (n_dim - 1));
             shape delta_s{shape::float_type, out_lens};
-            for (std::size_t i = 0; i < n_dim; ++i)
+            for(std::size_t i = 0; i < n_dim; ++i)
             {
                 shape dim_s{shape::float_type, dim_lens};
                 const auto& dim_delta = delta[i];
-                auto ins_delta = info.add_literal(delta_s, dim_delta);
-                auto mb_delta = info.add_instruction(make_op("multibroadcast", {{"output_lens", dim_lens}}), ins_delta);
+                auto ins_delta        = info.add_literal(delta_s, dim_delta);
+                auto mb_delta         = info.add_instruction(
+                    make_op("multibroadcast", {{"output_lens", dim_lens}}), ins_delta);
 
                 // slice the data
                 int64_t slc_stride = static_cast<int64_t>(dim_lens[0]);
-                auto low = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}), data);
-                auto hi = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}), data);
+                auto low           = info.add_instruction(
+                    make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
+                    data);
+                auto hi = info.add_instruction(
+                    make_op("slice",
+                            {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
+                    data);
                 auto diff = info.add_instruction(make_op("sub"), hi, low);
-                auto ddf = info.add_instruction(make_op("mul"), diff, mb_delta);
-                data = info.add_instruction(make_op("add"), ddf, low);
+                auto ddf  = info.add_instruction(make_op("mul"), diff, mb_delta);
+                data      = info.add_instruction(make_op("add"), ddf, low);
             }
 
             return data;
@@ -331,7 +348,8 @@ struct parse_resize : op_parser<parse_resize>
             //     auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
             //     int64_t slc_size = static_cast<int64_t>(out_lens[0]);
             //     auto ins_ceil    = info.add_instruction(
-            //         make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
+            //         make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}),
+            //         data);
             //     auto ins_floor = info.add_instruction(
             //         make_op("slice",
             //                 {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}),
@@ -426,7 +444,8 @@ struct parse_resize : op_parser<parse_resize>
 
             //     int64_t slc_size = static_cast<int64_t>(out_lens[0] * 2);
             //     auto ins_xf      = info.add_instruction(
-            //         make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}), data);
+            //         make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_size}}}),
+            //         data);
             //     auto ins_xc = info.add_instruction(
             //         make_op("slice",
             //                 {{"axes", {0}}, {"starts", {slc_size}}, {"ends", {2 * slc_size}}}),
@@ -447,11 +466,11 @@ struct parse_resize : op_parser<parse_resize>
             //     auto dydiff = info.add_instruction(make_op("mul"), ydiff, delta_y);
 
             //     return info.add_instruction(make_op("add"), dydiff, ins_yf);
-            }
         }
     }
-};
+}
+}; // namespace onnx
 
-} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 } // namespace migraphx

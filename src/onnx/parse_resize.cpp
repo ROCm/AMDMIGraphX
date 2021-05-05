@@ -93,24 +93,31 @@ std::vector<int> wrapup_points(const vvv& vvv_ind,
     const auto& vv_ind = vvv_ind[i_dim];
     const auto& vv_lo  = vv_ind.at(0);
     std::vector<std::vector<std::size_t>> vec_dims1;
-    std::transform(vv_lo.begin(),
-                   vv_lo.end(),
-                   vec_dims.begin(),
-                   std::back_inserter(vec_dims1),
-                   [](auto i, auto dim) {
-                       dim.push_back(i);
-                       return dim;
-                   });
+    for (std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
+    {
+        std::transform(vv_lo.begin(),
+                    vv_lo.end(),
+                    vec_dims.begin() + start,
+                    std::back_inserter(vec_dims1),
+                    [](auto i, auto dim) {
+                        dim.push_back(i);
+                        return dim;
+                    });
+    }
 
     const auto& vv_hi = vv_ind.at(1);
-    std::transform(vv_hi.begin(),
-                   vv_hi.end(),
-                   vec_dims.begin(),
-                   std::back_inserter(vec_dims1),
-                   [](auto i, auto dim) {
-                       dim.push_back(i);
-                       return dim;
-                   });
+
+    for (std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
+    {
+        std::transform(vv_hi.begin(),
+                    vv_hi.end(),
+                    vec_dims.begin() + start,
+                    std::back_inserter(vec_dims1),
+                    [](auto i, auto dim) {
+                        dim.push_back(i);
+                        return dim;
+                    });
+    }
 
     return wrapup_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
 }
@@ -246,14 +253,6 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
-            // at most 4 dimensions
-            if(out_lens.size() > 4)
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_RESIZE: linear mode can support at most 4 dimensions, input has " +
-                    std::to_string(out_lens.size()) + " dimensions!");
-            }
-
             auto nearest_floor = get_nearest_op("floor");
             auto nearest_ceil  = get_nearest_op("ceil");
 
@@ -277,7 +276,8 @@ struct parse_resize : op_parser<parse_resize>
                 }
             });
 
-            auto ind      = wrapup_points(vvv_ind, 0, {}, in_s);
+            std::vector<std::vector<std::size_t>> vec_dims(out_elements);
+            auto ind      = wrapup_points(vvv_ind, 0, vec_dims, in_s);
             auto ind_lens = out_lens;
             ind_lens[0] *= (1 << n_dim);
             shape ind_s{shape::int32_type, ind_lens};
@@ -286,12 +286,17 @@ struct parse_resize : op_parser<parse_resize>
 
             auto dim_lens = out_lens;
             dim_lens[0] *= (1 << (n_dim - 1));
-            shape delta_s{shape::float_type, out_lens};
             for(std::size_t i = 0; i < n_dim; ++i)
             {
                 shape dim_s{shape::float_type, dim_lens};
                 const auto& dim_delta = delta[i];
-                auto ins_delta        = info.add_literal(delta_s, dim_delta);
+                std::vector<float> delta_data;
+                for (std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
+                {
+                    delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
+                }
+
+                auto ins_delta        = info.add_literal(dim_s, delta_data);
                 auto mb_delta         = info.add_instruction(
                     make_op("multibroadcast", {{"output_lens", dim_lens}}), ins_delta);
 
@@ -307,6 +312,7 @@ struct parse_resize : op_parser<parse_resize>
                 auto diff = info.add_instruction(make_op("sub"), hi, low);
                 auto ddf  = info.add_instruction(make_op("mul"), diff, mb_delta);
                 data      = info.add_instruction(make_op("add"), ddf, low);
+                dim_lens[0] /= 2;
             }
 
             return data;

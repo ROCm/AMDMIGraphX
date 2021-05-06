@@ -172,7 +172,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_reduce.*')
         backend_test.include(r'.*test_ReLU*')
         backend_test.include(r'.*test_relu.*')
-        backend_test.include(r'.*test_resize.*')
         backend_test.include(r'.*test_selu.*')
         backend_test.include(r'.*test_shape.*')
         backend_test.include(r'.*test_Sigmoid*')

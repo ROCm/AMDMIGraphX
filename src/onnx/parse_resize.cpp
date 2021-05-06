@@ -160,7 +160,8 @@ struct parse_resize : op_parser<parse_resize>
         }
 
         // check exclude_outside, only support 0
-        if(contains(info.attributes, "exclude_outside") and info.attributes.at("exclude_outside").i() == 1)
+        if(contains(info.attributes, "exclude_outside") and
+           info.attributes.at("exclude_outside").i() == 1)
         {
             MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
         }

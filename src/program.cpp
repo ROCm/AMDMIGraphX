@@ -733,9 +733,8 @@ bool references_instruction(Map& m, const instruction& ins, const std::string& n
 
 void program::remove_module(const std::string& name)
 {
-    assert(
-        is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
-        "Module used in program");
+    assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
+           "Module used in program");
     assert(std::none_of(
                impl->modules.at(name).begin(),
                impl->modules.at(name).end(),
@@ -748,10 +747,8 @@ void program::remove_unused_modules()
 {
     std::vector<module*> unused;
     generic_get_unused_modules(
-        impl->modules,
-        generic_get_modules(this->get_main_module()),
-        std::back_inserter(unused));
-    for(auto* m:unused)
+        impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
+    for(auto* m : unused)
         this->remove_module(m->name());
 }
 

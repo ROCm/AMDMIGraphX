@@ -8,7 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
-struct function_output_iterator 
+struct function_output_iterator
 {
     F f;
 
@@ -35,7 +35,7 @@ struct function_output_iterator
     self& operator++(int) { return *this; }
 };
 
-template<class F>
+template <class F>
 function_output_iterator<F> make_function_output_iterator(F f)
 {
     return {std::move(f)};

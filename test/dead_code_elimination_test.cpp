@@ -181,10 +181,10 @@ TEST_CASE(duplicate_args3)
 TEST_CASE(unused_module)
 {
     migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto * m1 = p.create_module("unused");
-    auto * m2 = p.create_module("used");
-    auto l0   = mm->add_literal(0);
+    auto* mm = p.get_main_module();
+    auto* m1 = p.create_module("unused");
+    auto* m2 = p.create_module("used");
+    auto l0  = mm->add_literal(0);
     m1->add_literal(0);
     m2->add_literal(0);
     mm->add_instruction(mod_pass_op{}, {l0}, {m2});

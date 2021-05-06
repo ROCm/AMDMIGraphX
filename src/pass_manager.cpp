@@ -32,7 +32,7 @@ void validate_pass(module& mod, const pass& p, tracer trace)
 void run_pass(module& mod, const pass& p, tracer trace)
 {
     trace("Module: ", mod.name(), ", Pass: ", p.name());
-    assert(mod->validate() == mod->end());
+    assert(mod.validate() == mod.end());
     p.apply(mod);
     trace(mod);
     validate_pass(mod, p, trace);

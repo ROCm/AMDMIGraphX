@@ -2,6 +2,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 
 #include <test.hpp>
 
@@ -181,11 +182,17 @@ TEST_CASE(unused_module)
 {
     migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto m1 = p.create_module("unused");
-    auto m2 = p.create_module("used");
-    mm->add_instruction(pass_op{}, {}, {m2});
+    auto * m1 = p.create_module("unused");
+    auto * m2 = p.create_module("used");
+    auto l0   = mm->add_literal(0);
+    m1->add_literal(0);
+    m2->add_literal(0);
+    mm->add_instruction(mod_pass_op{}, {l0}, {m2});
+    EXPECT(migraphx::contains(p.get_modules(), m1));
+    EXPECT(migraphx::contains(p.get_modules(), m2));
     run_pass(p);
-
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    EXPECT(not migraphx::contains(p.get_modules(), m1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,5 +1,3 @@
-#include <c++/7/bits/c++config.h>
-#include <iterator>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
@@ -74,7 +72,7 @@ const auto& get_original_idx_op(const std::string& mode)
 }
 
 using vvv = std::vector<std::vector<std::vector<std::size_t>>>;
-std::vector<int> wrapup_points(const vvv& vvv_ind,
+std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
                                int i_dim,
                                const std::vector<std::vector<std::size_t>>& vec_dims,
                                const shape& in_s)
@@ -119,7 +117,7 @@ std::vector<int> wrapup_points(const vvv& vvv_ind,
                        });
     }
 
-    return wrapup_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
+    return calc_neighbor_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
 }
 
 struct parse_resize : op_parser<parse_resize>
@@ -277,7 +275,7 @@ struct parse_resize : op_parser<parse_resize>
             });
 
             std::vector<std::vector<std::size_t>> vec_dims(out_elements);
-            auto ind      = wrapup_points(vvv_ind, 0, vec_dims, in_s);
+            auto ind      = calc_neighbor_points(vvv_ind, 0, vec_dims, in_s);
             auto ind_lens = out_lens;
             ind_lens[0] *= (1 << n_dim);
             shape ind_s{shape::int32_type, ind_lens};

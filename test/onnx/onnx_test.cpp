@@ -2729,7 +2729,7 @@ TEST_CASE(resize_downsample_linear_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
     migraphx::shape s16{migraphx::shape::int32_type, {16, 1, 5, 10}};
-    auto l16 = 
+    auto l16 =
 }
 
 TEST_CASE(resize_outsize_test)

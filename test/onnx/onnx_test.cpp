@@ -2729,8 +2729,13 @@ TEST_CASE(resize_downsample_linear_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
     auto x = mm->add_parameter("X", sx);
     migraphx::shape s16{migraphx::shape::int32_type, {16, 1, 3, 3}};
-    std::vector<int> d16 = {0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3};
-    auto l16 = mm->add_literal(migraphx::literal(s16, d16));
+    std::vector<int> d16 = {0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1,
+                            2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1,
+                            2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3,
+                            0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1,
+                            2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1,
+                            2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3};
+    auto l16             = mm->add_literal(migraphx::literal(s16, d16));
 
     migraphx::shape s8{migraphx::shape::float_type, {8, 1, 3, 3}};
     std::vector<float> d8(72, 0.0f);
@@ -2741,36 +2746,61 @@ TEST_CASE(resize_downsample_linear_test)
     auto l4 = mm->add_literal(migraphx::literal(s4, d4));
 
     migraphx::shape s2{migraphx::shape::float_type, {2, 1, 3, 3}};
-    std::vector<float> d2 = {0, 0, 0, 0.625, 0.625, 0.625, 0.25, 0.25, 0.25, 0, 0, 0, 0.625, 0.625, 0.625, 0.25, 0.25, 0.25};
-    auto l2 = mm->add_literal(migraphx::literal(s2, d2));
+    std::vector<float> d2 = {0,
+                             0,
+                             0,
+                             0.625,
+                             0.625,
+                             0.625,
+                             0.25,
+                             0.25,
+                             0.25,
+                             0,
+                             0,
+                             0,
+                             0.625,
+                             0.625,
+                             0.625,
+                             0.25,
+                             0.25,
+                             0.25};
+    auto l2               = mm->add_literal(migraphx::literal(s2, d2));
 
     migraphx::shape s1{migraphx::shape::float_type, {1, 1, 3, 3}};
-    std::vector<float> d1 = {0, 2.0f/3, 1.0f/3, 0, 2.0f/3, 1.0f/3, 0, 2.0f/3, 1.0f/3};
-    auto l1 = mm->add_literal(migraphx::literal(s1, d1));
+    std::vector<float> d1 = {0, 2.0f / 3, 1.0f / 3, 0, 2.0f / 3, 1.0f / 3, 0, 2.0f / 3, 1.0f / 3};
+    auto l1               = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
-    auto data = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l16);
-    auto slc80 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
-    auto slc81 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {16}}}), data);
+    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
+    auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l16);
+    auto slc80 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
+    auto slc81 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {16}}}), data);
     auto diff8 = mm->add_instruction(migraphx::make_op("sub"), slc81, slc80);
-    auto mul8 = mm->add_instruction(migraphx::make_op("mul"), diff8, l8);
-    auto add8 = mm->add_instruction(migraphx::make_op("add"), mul8, slc80);
-    auto slc40 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), add8);
-    auto slc41 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), add8);
+    auto mul8  = mm->add_instruction(migraphx::make_op("mul"), diff8, l8);
+    auto add8  = mm->add_instruction(migraphx::make_op("add"), mul8, slc80);
+    auto slc40 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), add8);
+    auto slc41 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), add8);
     auto diff4 = mm->add_instruction(migraphx::make_op("sub"), slc41, slc40);
-    auto mul4 = mm->add_instruction(migraphx::make_op("mul"), diff4, l4);
-    auto add4 = mm->add_instruction(migraphx::make_op("add"), mul4, slc40);
-    auto slc20 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), add4);
-    auto slc21 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), add4);
+    auto mul4  = mm->add_instruction(migraphx::make_op("mul"), diff4, l4);
+    auto add4  = mm->add_instruction(migraphx::make_op("add"), mul4, slc40);
+    auto slc20 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), add4);
+    auto slc21 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), add4);
     auto diff2 = mm->add_instruction(migraphx::make_op("sub"), slc21, slc20);
-    auto mul2 = mm->add_instruction(migraphx::make_op("mul"), diff2, l2);
-    auto add2 = mm->add_instruction(migraphx::make_op("add"), mul2, slc20);
-    auto slc10 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), add2);
-    auto slc11 = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), add2);
+    auto mul2  = mm->add_instruction(migraphx::make_op("mul"), diff2, l2);
+    auto add2  = mm->add_instruction(migraphx::make_op("add"), mul2, slc20);
+    auto slc10 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), add2);
+    auto slc11 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), add2);
     auto diff1 = mm->add_instruction(migraphx::make_op("sub"), slc11, slc10);
-    auto mul1 = mm->add_instruction(migraphx::make_op("mul"), diff1, l1);
-    auto add1 = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
+    auto mul1  = mm->add_instruction(migraphx::make_op("mul"), diff1, l1);
+    auto add1  = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
     mm->add_return({add1});
 
     auto prog = migraphx::parse_onnx("resize_downsample_linear_test.onnx");

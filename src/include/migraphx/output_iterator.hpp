@@ -32,7 +32,7 @@ struct function_output_iterator
     };
     output_proxy operator*() { return output_proxy{&f}; }
     self& operator++() { return *this; }
-    self& operator++(int) { return *this; }
+    self& operator++(int) { return *this; } // NOLINT
 };
 
 template <class F>

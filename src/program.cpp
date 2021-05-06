@@ -733,6 +733,7 @@ bool references_instruction(Map& m, const instruction& ins, const std::string& n
 
 void program::remove_module(const std::string& name)
 {
+    // cppcheck-suppress assertWithSideEffect
     assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
            "Module used in program");
     assert(std::none_of(

@@ -17,6 +17,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
+    (void)mod;
+    (void)p;
+    (void)trace;
 #ifndef NDEBUG
     trace("Validate ...");
     auto invalid = mod.validate();

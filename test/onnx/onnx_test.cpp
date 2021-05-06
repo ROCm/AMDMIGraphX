@@ -14,6 +14,7 @@
 
 #include <migraphx/serialize.hpp>
 
+#include "migraphx/shape.hpp"
 #include "test.hpp"
 
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)
@@ -2715,6 +2716,20 @@ TEST_CASE(resize_downsample_c_test)
     auto prog = migraphx::parse_onnx("resize_downsample_c_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(resize_downsample_linear_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    std::vector<float> ds = {1, 1, 2.6, 2.6};
+    mm->add_literal(migraphx::literal(ss, ds));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    auto x = mm->add_parameter("X", sx);
+    migraphx::shape s16{migraphx::shape::int32_type, {16, 1, 5, 10}};
+    auto l16 = 
 }
 
 TEST_CASE(resize_outsize_test)

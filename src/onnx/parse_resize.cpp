@@ -295,10 +295,7 @@ struct parse_resize : op_parser<parse_resize>
                 {
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 }
-
                 auto ins_delta = info.add_literal(dim_s, delta_data);
-                auto mb_delta  = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", dim_lens}}), ins_delta);
 
                 // slice the data
                 int64_t slc_stride = static_cast<int64_t>(dim_lens[0]);
@@ -310,7 +307,7 @@ struct parse_resize : op_parser<parse_resize>
                             {{"axes", {0}}, {"starts", {slc_stride}}, {"ends", {2 * slc_stride}}}),
                     data);
                 auto diff = info.add_instruction(make_op("sub"), hi, low);
-                auto ddf  = info.add_instruction(make_op("mul"), diff, mb_delta);
+                auto ddf  = info.add_instruction(make_op("mul"), diff, ins_delta);
                 data      = info.add_instruction(make_op("add"), ddf, low);
                 dim_lens[0] /= 2;
             }

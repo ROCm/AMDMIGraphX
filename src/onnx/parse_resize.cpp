@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
@@ -80,11 +81,10 @@ std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
     if(i_dim == vvv_ind.size())
     {
         std::vector<int> vec_ind;
-        vec_ind.reserve(vec_dims.size());
-        for(const auto& vd : vec_dims)
-        {
-            vec_ind.push_back(static_cast<int>(in_s.index(vd)));
-        }
+        vec_ind.resize(vec_dims.size());
+        std::transform(vec_dims.begin(), vec_dims.end(), vec_ind.begin(), [&](auto idx) {
+            return static_cast<int>(in_s.index(idx));
+        });
 
         return vec_ind;
     }

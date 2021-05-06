@@ -191,6 +191,8 @@ rocm_enable_cppcheck(
         definePrefix:*test/include/test.hpp
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
+        constParameter:*src/targets/gpu/*.cpp
+        constParameter:*src/targets/gpu/*.hpp
     FORCE
     INCONCLUSIVE
     RULE_FILE

@@ -80,6 +80,7 @@ std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
     if(i_dim == vvv_ind.size())
     {
         std::vector<int> vec_ind;
+        vec_ind.reserve(vec_dims.size());
         for(const auto& vd : vec_dims)
         {
             vec_ind.push_back(static_cast<int>(in_s.index(vd)));
@@ -159,13 +160,9 @@ struct parse_resize : op_parser<parse_resize>
         }
 
         // check exclude_outside, only support 0
-        if(contains(info.attributes, "exclude_outside"))
+        if(contains(info.attributes, "exclude_outside") and info.attributes.at("exclude_outside").i() == 1)
         {
-            int exclude_outside = info.attributes.at("exclude_outside").i();
-            if(exclude_outside == 1)
-            {
-                MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
-            }
+            MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
         }
 
         // input data shape info
@@ -277,13 +274,13 @@ struct parse_resize : op_parser<parse_resize>
             std::vector<std::vector<std::size_t>> vec_dims(out_elements);
             auto ind      = calc_neighbor_points(vvv_ind, 0, vec_dims, in_s);
             auto ind_lens = out_lens;
-            ind_lens[0] *= (1 << n_dim);
+            ind_lens[0] *= (std::size_t{1} << n_dim);
             shape ind_s{shape::int32_type, ind_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
             auto dim_lens = out_lens;
-            dim_lens[0] *= (1 << (n_dim - 1));
+            dim_lens[0] *= (std::size_t{1} << (n_dim - 1));
             for(std::size_t i = 0; i < n_dim; ++i)
             {
                 shape dim_s{shape::float_type, dim_lens};

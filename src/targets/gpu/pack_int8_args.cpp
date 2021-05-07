@@ -22,7 +22,7 @@ void pack_int8_args::apply(module& p) const
         {
             auto val = ins->get_operator().to_value();
             assert(val.contains("int8_x4_format"));
-            if (not val.at("int8_x4_format").to<bool>())
+            if(not val.at("int8_x4_format").to<bool>())
             {
                 return;
             }
@@ -40,17 +40,19 @@ void pack_int8_args::apply(module& p) const
             bool transb = inputs[1]->get_shape().transposed();
             if(!transb)
             {
-                auto packed_b = p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(inputs[1]->get_shape())}}));
-                auto output_b =
-                    p.insert_instruction(ins, make_op("gpu::int8_gemm_pack_a"), {inputs[1], packed_b});
+                auto packed_b = p.insert_instruction(
+                    ins, make_op("hip::allocate", {{"shape", to_value(inputs[1]->get_shape())}}));
+                auto output_b = p.insert_instruction(
+                    ins, make_op("gpu::int8_gemm_pack_a"), {inputs[1], packed_b});
                 inputs[1] = output_b;
             }
 
             if(transa)
             {
-                auto packed_a = p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(inputs[0]->get_shape())}}));
-                auto output_a =
-                    p.insert_instruction(ins, make_op("gpu::int8_gemm_pack_b"), {inputs[0], packed_a});
+                auto packed_a = p.insert_instruction(
+                    ins, make_op("hip::allocate", {{"shape", to_value(inputs[0]->get_shape())}}));
+                auto output_a = p.insert_instruction(
+                    ins, make_op("gpu::int8_gemm_pack_b"), {inputs[0], packed_a});
                 inputs[0] = output_a;
             }
 
@@ -61,15 +63,19 @@ void pack_int8_args::apply(module& p) const
         }
         else if(ins->name() == "gpu::quant_convolution")
         {
-            auto inputs = ins->inputs();
-            auto packed_x =
-                p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(pack_int8_shape(inputs[0]->get_shape()))}}));
+            auto inputs   = ins->inputs();
+            auto packed_x = p.insert_instruction(
+                ins,
+                make_op("hip::allocate",
+                        {{"shape", to_value(pack_int8_shape(inputs[0]->get_shape()))}}));
             auto output_x =
                 p.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[0], packed_x});
             instruction::replace_argument(ins, inputs[0], output_x);
 
-            auto packed_w =
-                p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(pack_int8_shape(inputs[1]->get_shape()))}}));
+            auto packed_w = p.insert_instruction(
+                ins,
+                make_op("hip::allocate",
+                        {{"shape", to_value(pack_int8_shape(inputs[1]->get_shape()))}}));
             auto output_w =
                 p.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[1], packed_w});
             instruction::replace_argument(ins, inputs[1], output_w);
@@ -106,9 +112,11 @@ instruction_ref pack_int8_args::pad_ins(module& p, instruction_ref ins, int offs
     {
         pad_dims[lens.size() + offset] = pad_k - k;
         shape ps{s.type(), pad_lens};
-        auto ins_out = p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(ps)}}));
+        auto ins_out =
+            p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(ps)}}));
         auto pad = make_op("pad", {{"pads", pad_dims}});
-        ret_ins = p.insert_instruction(std::next(ins), make_op("gpu::pad", pad.to_value()), ins, ins_out);
+        ret_ins =
+            p.insert_instruction(std::next(ins), make_op("gpu::pad", pad.to_value()), ins, ins_out);
     }
 
     return ret_ins;

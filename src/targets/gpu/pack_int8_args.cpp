@@ -14,9 +14,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-void pack_int8_args::apply(module& p) const
+void pack_int8_args::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "gpu::quant_gemm")
         {
@@ -33,51 +33,51 @@ void pack_int8_args::apply(module& p) const
             auto old_inputs = inputs;
             if((lens.back() % 4) != 0)
             {
-                inputs = pad_inputs(p, ins);
+                inputs = pad_inputs(m, ins);
             }
 
             bool transa = inputs[0]->get_shape().transposed();
             bool transb = inputs[1]->get_shape().transposed();
             if(!transb)
             {
-                auto packed_b = p.insert_instruction(
+                auto packed_b = m.insert_instruction(
                     ins, make_op("hip::allocate", {{"shape", to_value(inputs[1]->get_shape())}}));
-                auto output_b = p.insert_instruction(
+                auto output_b = m.insert_instruction(
                     ins, make_op("gpu::int8_gemm_pack_a"), {inputs[1], packed_b});
                 inputs[1] = output_b;
             }
 
             if(transa)
             {
-                auto packed_a = p.insert_instruction(
+                auto packed_a = m.insert_instruction(
                     ins, make_op("hip::allocate", {{"shape", to_value(inputs[0]->get_shape())}}));
-                auto output_a = p.insert_instruction(
+                auto output_a = m.insert_instruction(
                     ins, make_op("gpu::int8_gemm_pack_b"), {inputs[0], packed_a});
                 inputs[0] = output_a;
             }
 
             if(inputs != old_inputs)
             {
-                p.replace_instruction(ins, ins->get_operator(), inputs);
+                m.replace_instruction(ins, ins->get_operator(), inputs);
             }
         }
         else if(ins->name() == "gpu::quant_convolution")
         {
             auto inputs   = ins->inputs();
-            auto packed_x = p.insert_instruction(
+            auto packed_x = m.insert_instruction(
                 ins,
                 make_op("hip::allocate",
                         {{"shape", to_value(pack_int8_shape(inputs[0]->get_shape()))}}));
             auto output_x =
-                p.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[0], packed_x});
+                m.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[0], packed_x});
             instruction::replace_argument(ins, inputs[0], output_x);
 
-            auto packed_w = p.insert_instruction(
+            auto packed_w = m.insert_instruction(
                 ins,
                 make_op("hip::allocate",
                         {{"shape", to_value(pack_int8_shape(inputs[1]->get_shape()))}}));
             auto output_w =
-                p.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[1], packed_w});
+                m.insert_instruction(ins, make_op("gpu::int8_conv_pack"), {inputs[1], packed_w});
             instruction::replace_argument(ins, inputs[1], output_w);
         }
     }
@@ -98,7 +98,7 @@ shape pack_int8_args::pack_int8_shape(const shape& s) const
     return {s.type(), lens, strides};
 }
 
-instruction_ref pack_int8_args::pad_ins(module& p, instruction_ref ins, int offset) const
+instruction_ref pack_int8_args::pad_ins(module& m, instruction_ref ins, int offset) const
 {
     auto s                         = ins->get_shape();
     auto lens                      = s.lens();
@@ -113,16 +113,16 @@ instruction_ref pack_int8_args::pad_ins(module& p, instruction_ref ins, int offs
         pad_dims[lens.size() + offset] = pad_k - k;
         shape ps{s.type(), pad_lens};
         auto ins_out =
-            p.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(ps)}}));
+            m.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(ps)}}));
         auto pad = make_op("pad", {{"pads", pad_dims}});
         ret_ins =
-            p.insert_instruction(std::next(ins), make_op("gpu::pad", pad.to_value()), ins, ins_out);
+            m.insert_instruction(std::next(ins), make_op("gpu::pad", pad.to_value()), ins, ins_out);
     }
 
     return ret_ins;
 }
 
-std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_ref ins) const
+std::vector<instruction_ref> pack_int8_args::pad_inputs(module& m, instruction_ref ins) const
 {
     std::vector<instruction_ref> ret_inputs;
     auto inputs = ins->inputs();
@@ -134,16 +134,16 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
         auto perm  = find_permutation(sa);
         auto t_in  = in0->inputs().front();
         int offset = static_cast<int>(perm.back()) - static_cast<int>(perm.size());
-        auto p_in  = pad_ins(p, t_in, offset);
+        auto p_in  = pad_ins(m, t_in, offset);
         auto val   = in0->get_operator().to_value();
         assert(val.contains("dims"));
         auto dims = val.at("dims").to_vector<int64_t>();
-        auto r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+        auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
         ret_inputs.push_back(r_in);
     }
     else
     {
-        ret_inputs.push_back(pad_ins(p, in0, -1));
+        ret_inputs.push_back(pad_ins(m, in0, -1));
     }
 
     auto in1    = inputs.at(1);
@@ -154,16 +154,16 @@ std::vector<instruction_ref> pack_int8_args::pad_inputs(module& p, instruction_r
         auto perm  = find_permutation(sb);
         auto t_in  = in1->inputs().front();
         int offset = static_cast<int>(perm[perm.size() - 2]) - static_cast<int>(perm.size());
-        auto p_in  = pad_ins(p, t_in, offset);
+        auto p_in  = pad_ins(m, t_in, offset);
         auto val   = in1->get_operator().to_value();
         assert(val.contains("dims"));
         auto dims = val.at("dims").to_vector<int64_t>();
-        auto r_in = p.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+        auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
         ret_inputs.push_back(r_in);
     }
     else
     {
-        ret_inputs.push_back(pad_ins(p, in1, -2));
+        ret_inputs.push_back(pad_ins(m, in1, -2));
     }
     std::copy(inputs.begin() + 2, inputs.end(), std::back_inserter(ret_inputs));
 

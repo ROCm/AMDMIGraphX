@@ -70,14 +70,15 @@ struct loop
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
         std::vector<argument> outputs;
-        std::transform(vec_out_shapes.begin(), vec_out_shapes.end(), std::back_inserter(outputs), [&](auto& s) {
-            return argument{s};
-        });
+        std::transform(vec_out_shapes.begin(),
+                       vec_out_shapes.end(),
+                       std::back_inserter(outputs),
+                       [&](auto& s) { return argument{s}; });
 
         // dependency carry outputs
-        std::vector<argument> dep_outputs(outputs.begin(), outputs.begin()+dep_var_num);
+        std::vector<argument> dep_outputs(outputs.begin(), outputs.begin() + dep_var_num);
         // scan outputs
-        std::vector<argument> scan_outputs(outputs.begin()+dep_var_num, outputs.end());
+        std::vector<argument> scan_outputs(outputs.begin() + dep_var_num, outputs.end());
 
         // sub graph inputs for each iteration
         std::vector<argument> mod_args(args.begin() + 1, args.end());
@@ -98,15 +99,22 @@ struct loop
                            [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
             mod_args = run(mod, params);
-            cond = mod_args.at(0).at<bool>();
+            cond     = mod_args.at(0).at<bool>();
 
             // concat scan outputs
-            std::vector<argument> mod_scan_outputs(mod_args.begin()+1+dep_var_num, mod_args.end());
-            std::transform(mod_scan_outputs.begin(), mod_scan_outputs.end(), scan_outputs.begin(), scan_outputs.begin(), [&](auto arg_in, auto arg_out) {
-                visit_all(arg_in, arg_out)([&](auto in, auto out) {
-                    std::copy(in.begin(), in.end(), out.begin() + iter * arg_in.get_shape().elements());
-                });
-            });
+            std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
+                                                   mod_args.end());
+            std::transform(mod_scan_outputs.begin(),
+                           mod_scan_outputs.end(),
+                           scan_outputs.begin(),
+                           scan_outputs.begin(),
+                           [&](auto arg_in, auto arg_out) {
+                               visit_all(arg_in, arg_out)([&](auto in, auto out) {
+                                   std::copy(in.begin(),
+                                             in.end(),
+                                             out.begin() + iter * arg_in.get_shape().elements());
+                               });
+                           });
         }
         // remove the cond variable
         mod_args.erase(mod_args.begin());

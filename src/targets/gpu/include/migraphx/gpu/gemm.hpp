@@ -24,7 +24,7 @@ struct rocblas_gemm
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return migraphx::reflect(self.op, f);
+        return pack_join(migraphx::reflect(self.op, f), pack(f(self.int8_x4_format, "int8_x4_format")));
     }
 
     std::string name() const

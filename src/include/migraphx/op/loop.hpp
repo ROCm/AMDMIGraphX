@@ -2,7 +2,9 @@
 #define MIGRAPHX_GUARD_OPERATORS_LOOP_HPP
 
 #include "migraphx/errors.hpp"
+#include "migraphx/raw_data.hpp"
 #include <array>
+#include <iterator>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
@@ -54,7 +56,7 @@ struct loop
         return shape(ins_out_shapes);
     }
 
-    argument compute(const shape&,
+    argument compute(const shape& out_shape,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& mods,
                      const std::function<std::vector<argument>(
@@ -64,9 +66,20 @@ struct loop
         auto cond                       = args.at(1).at<bool>();
         module_ref mod                  = mods.at(0);
         std::vector<std::string> pnames = mod->get_parameter_names();
-        std::size_t dep_var_num         = pnames.size() - 1;
+        std::size_t dep_var_num         = pnames.size() - 2;
 
-        std::vector<argument> scan_outputs(dep_var_num);
+        std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
+        std::vector<argument> outputs;
+        std::transform(vec_out_shapes.begin(), vec_out_shapes.end(), std::back_inserter(outputs), [&](auto& s) {
+            return argument{s};
+        });
+
+        // dependency carry outputs
+        std::vector<argument> dep_outputs(outputs.begin(), outputs.begin()+dep_var_num);
+        // scan outputs
+        std::vector<argument> scan_outputs(outputs.begin()+dep_var_num, outputs.end());
+
+        // sub graph inputs for each iteration
         std::vector<argument> mod_args(args.begin() + 1, args.end());
         shape s_iter{shape::int64_type};
         for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
@@ -85,11 +98,22 @@ struct loop
                            [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
             mod_args = run(mod, params);
+            cond = mod_args.at(0).at<bool>();
+
+            // concat scan outputs
+            std::vector<argument> mod_scan_outputs(mod_args.begin()+1+dep_var_num, mod_args.end());
+            std::transform(mod_scan_outputs.begin(), mod_scan_outputs.end(), scan_outputs.begin(), scan_outputs.begin(), [&](auto arg_in, auto arg_out) {
+                visit_all(arg_in, arg_out)([&](auto in, auto out) {
+                    std::copy(in.begin(), in.end(), out.begin() + iter * arg_in.get_shape().elements());
+                });
+            });
         }
         // remove the cond variable
         mod_args.erase(mod_args.begin());
+        outputs = mod_args;
+        outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
 
-        return argument{mod_args};
+        return argument{outputs};
     }
 };
 

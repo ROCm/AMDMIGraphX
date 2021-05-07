@@ -15,6 +15,7 @@ namespace gpu {
 
 MIGRAPHX_REGISTER_OP(hip_allocate)
 MIGRAPHX_REGISTER_OP(hip_sync_device)
+MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy)
@@ -145,6 +146,8 @@ void gpu_sync()
     if(status != hipSuccess)
         MIGRAPHX_THROW("hip device synchronization failed: " + hip_error(status));
 }
+
+void gpu_sync(const context& ctx) { ctx.finish(); }
 
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {

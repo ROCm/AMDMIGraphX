@@ -38,7 +38,8 @@ from timeit import default_timer as timer
 import numpy as np
 import onnxruntime as onnxrt
 import six
-import tokenization
+from tokenizers import BertWordPieceTokenizer
+from tokenizers import pre_tokenizers
 
 RawResult = collections.namedtuple("RawResult",
                                    ["unique_id", "start_logits", "end_logits"])
@@ -70,9 +71,8 @@ class SquadExample(object):
 
     def __repr__(self):
         s = []
-        s.append("qas_id: %s" % (tokenization.printable_text(self.qas_id)))
-        s.append("question_text: %s" %
-                 (tokenization.printable_text(self.question_text)))
+        s.append("qas_id: %s" % (self.qas_id))
+        s.append("question_text: %s" % (self.question_text))
         s.append("doc_tokens: [%s]" % (" ".join(self.doc_tokens)))
         if self.start_position:
             s.append("start_position: %d" % (self.start_position))
@@ -130,7 +130,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     unique_id = 0
 
     for (example_index, example) in enumerate(examples):
-        query_tokens = tokenizer.tokenize(example.question_text)
+        query_tokens = tokenizer.encode(example.question_text)
 
         if len(query_tokens) > max_query_length:
             query_tokens = query_tokens[0:max_query_length]
@@ -140,8 +140,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         all_doc_tokens = []
         for (i, token) in enumerate(example.doc_tokens):
             orig_to_tok_index.append(len(all_doc_tokens))
-            sub_tokens = tokenizer.tokenize(token)
-            for sub_token in sub_tokens:
+            sub_tokens = tokenizer.encode(token, add_special_tokens=False)
+            for sub_token in sub_tokens.tokens:
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
 
@@ -172,7 +172,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             segment_ids = []
             tokens.append("[CLS]")
             segment_ids.append(0)
-            for token in query_tokens:
+            for token in query_tokens.tokens:
                 tokens.append(token)
                 segment_ids.append(0)
             tokens.append("[SEP]")
@@ -192,7 +192,9 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             tokens.append("[SEP]")
             segment_ids.append(1)
 
-            input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            input_ids = []
+            for token in tokens:
+                input_ids.append(tokenizer.token_to_id(token))
 
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.
@@ -437,9 +439,15 @@ def get_final_text(pred_text, orig_text, do_lower_case):
     # and `pred_text`, and check if they are the same length. If they are
     # NOT the same length, the heuristic has failed. If they are the same
     # length, we assume the characters are one-to-one aligned.
-    tokenizer = tokenization.BasicTokenizer(do_lower_case=do_lower_case)
+    tokenizer = pre_tokenizers.Sequence(
+        [pre_tokenizers.Whitespace(),
+         pre_tokenizers.Punctuation()])
 
-    tok_text = " ".join(tokenizer.tokenize(orig_text))
+    tok_text = []
+    for item in tokenizer.pre_tokenize_str(orig_text):
+        tok_text.append(item[0])
+
+    tok_text = " ".join(tok_text)
 
     start_position = tok_text.find(pred_text)
     if start_position == -1:
@@ -559,8 +567,7 @@ def main():
         sess_options = onnxrt.SessionOptions()
         sess_options.session_log_verbosity_level = args.log
 
-    tokenizer = tokenization.FullTokenizer(vocab_file=args.vocab_file,
-                                           do_lower_case=True)
+    tokenizer = BertWordPieceTokenizer(vocab_file)
 
     eval_examples = read_squad_examples(input_file=args.predict_file)
     input_ids, input_mask, segment_ids, extra_data = \

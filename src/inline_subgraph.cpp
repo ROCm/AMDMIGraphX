@@ -50,7 +50,7 @@ void inline_subgraph::apply(module& p) const
             auto out_num            = arg_outs.size() / 2;
             auto cond               = ins->inputs().front();
             const auto& ins_outputs = ins->outputs();
-            auto icond = p.insert_instruction(
+            auto icond              = p.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::float_type}}), cond);
             for(std::size_t i = 0; i < out_num; ++i)
             {
@@ -65,13 +65,14 @@ void inline_subgraph::apply(module& p) const
                 std::vector<float> vec_ind(elem_num);
                 shape sidx{shape::float_type, lens};
                 std::iota(vec_ind.begin(), vec_ind.end(), elem_num);
-                auto lidx = p.add_literal(literal(sidx, vec_ind));
+                auto lidx    = p.add_literal(literal(sidx, vec_ind));
                 auto loffset = p.add_literal(literal(sidx, vec_offset));
                 auto moffset = p.insert_instruction(ins, make_op("mul"), mcond, loffset);
-                auto f_ind = p.insert_instruction(ins, make_op("sub"), lidx, moffset);
-                auto ins_ind = p.insert_instruction(ins, make_op("convert", {{"target_type", shape::int32_type}}), f_ind);
-                auto l01   = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
-                auto rl    = p.insert_instruction(
+                auto f_ind   = p.insert_instruction(ins, make_op("sub"), lidx, moffset);
+                auto ins_ind = p.insert_instruction(
+                    ins, make_op("convert", {{"target_type", shape::int32_type}}), f_ind);
+                auto l01 = p.insert_instruction(ins, make_op("concat", {{"axis", 0}}), l0, l1);
+                auto rl  = p.insert_instruction(
                     ins, make_op("reshape", {{"dims", {l0->get_shape().elements() * 2}}}), l01);
                 auto r = p.insert_instruction(ins, make_op("gather", {{"axis", 0}}), rl, ins_ind);
                 p.replace_instruction(ins_outputs.at(i), r);

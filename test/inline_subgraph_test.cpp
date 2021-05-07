@@ -8,9 +8,11 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(m, {migraphx::inline_subgraph{}, migraphx::dead_code_elimination{}});
+    auto* mm = p.get_main_module();
+    migraphx::run_passes(*mm, {migraphx::inline_subgraph{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(cannot_inline_both)
@@ -43,8 +45,7 @@ TEST_CASE(cannot_inline_both)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
 
     EXPECT(p == create_program());
 }
@@ -77,8 +78,7 @@ TEST_CASE(cannot_inline_one)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
 
     EXPECT(p == create_program());
 }
@@ -113,6 +113,8 @@ TEST_CASE(inline_subgraph)
         migraphx::shape s{migraphx::shape::float_type, {5}};
         std::vector<float> data1 = {1, 2, 3, 4, 5};
         std::vector<float> data2 = {5, 4, 3, 2, 1};
+        std::vector<float> vec_offset = {5, 5, 5, 5, 5};
+        std::vector<float> vec_idx = {5, 6, 7, 8, 9};
         migraphx::shape cond_s{migraphx::shape::bool_type};
 
         migraphx::program pi;
@@ -120,22 +122,25 @@ TEST_CASE(inline_subgraph)
         auto cond  = mm->add_parameter("cond", cond_s);
         auto l1    = mm->add_literal(migraphx::literal(s, data1));
         auto l2    = mm->add_literal(migraphx::literal(s, data2));
+        auto lidx  = mm->add_literal(migraphx::literal(s, vec_idx));
+        auto loff  = mm->add_literal(migraphx::literal(s, vec_offset));
         auto icond = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), cond);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), cond);
         auto mcond =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), icond);
-        auto ccond = mm->add_instruction(migraphx::make_op("contiguous"), mcond);
+        auto co = mm->add_instruction(migraphx::make_op("mul"), mcond, loff);
+        auto fcond = mm->add_instruction(migraphx::make_op("sub"), lidx, co);
+        auto ins_cond = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fcond);
         auto cl    = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l1, l2);
         auto rl    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {10}}}), cl);
-        auto r     = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rl, ccond);
+        auto r     = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rl, ins_cond);
         mm->add_return({r});
 
         return pi;
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
 
     EXPECT(p == create_inlined());
 }
@@ -189,8 +194,7 @@ TEST_CASE(inline_if_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 
@@ -242,8 +246,7 @@ TEST_CASE(inline_else_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 
@@ -330,8 +333,7 @@ TEST_CASE(if_recursive_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 
@@ -417,8 +419,7 @@ TEST_CASE(if_recursive_cond0_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 
@@ -488,8 +489,7 @@ TEST_CASE(inline_tuple_true_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 
@@ -561,8 +561,7 @@ TEST_CASE(inline_tuple_false_test)
     };
 
     auto p   = create_program();
-    auto* mm = p.get_main_module();
-    run_pass(*mm);
+    run_pass(p);
     EXPECT(p == create_inline());
 }
 

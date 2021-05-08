@@ -15,8 +15,6 @@ struct pack_int8_args
     std::string name() const { return "gpu::pack_int8_args"; }
     void apply(module& m) const;
     shape pack_int8_shape(const shape& s) const;
-    std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins) const;
-    instruction_ref pad_ins(module& m, instruction_ref ins, int offset) const;
 };
 
 } // namespace gpu

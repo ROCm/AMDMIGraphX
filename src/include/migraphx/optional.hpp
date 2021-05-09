@@ -31,14 +31,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 #if MIGRAPHX_HAS_OPTIONAL
-template<class T>
-using optional = std::optional<T>;
-using nullopt_t = std::nullopt_t;
+template <class T>
+using optional         = std::optional<T>;
+using nullopt_t        = std::nullopt_t;
 constexpr auto nullopt = std::nullopt;
 #elif MIGRAPHX_HAS_OPTIONAL_TS
-template<class T>
-using optional = std::experimental::optional<T>;
-using nullopt_t = std::experimental::nullopt_t;
+template <class T>
+using optional         = std::experimental::optional<T>;
+using nullopt_t        = std::experimental::nullopt_t;
 constexpr auto nullopt = std::experimental::nullopt;
 #endif
 

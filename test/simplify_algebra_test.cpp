@@ -426,11 +426,11 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides1)
 TEST_CASE(simplify_add_conv_1x1_diff_strides1_transpose)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 14, 128, 14}});
+    auto x  = m.add_parameter("x", {migraphx::shape::float_type, {1, 14, 128, 14}});
     auto tx = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 1, 3}}}), x);
     auto w =
         m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
-    auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
+    auto y  = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 28, 28}});
     auto ty = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), y);
     auto v =
         m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
@@ -470,11 +470,11 @@ TEST_CASE(simplify_add_conv_1x1_diff_strides2)
 TEST_CASE(simplify_add_conv_1x1_diff_strides2_transpose)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 28, 128, 28}});
+    auto x  = m.add_parameter("x", {migraphx::shape::float_type, {1, 28, 128, 28}});
     auto tx = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 1, 3}}}), x);
     auto w =
         m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
-    auto y = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
+    auto y  = m.add_parameter("y", {migraphx::shape::float_type, {1, 128, 14, 14}});
     auto ty = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), y);
     auto v =
         m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));

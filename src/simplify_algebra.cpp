@@ -686,6 +686,11 @@ struct find_add_convs
                     if(n == 0)
                         return;
                     new_op  = a_op;
+		    if(not b_input->get_shape().standard())
+		    {
+                        b_input =
+                            p.insert_instruction(ins, make_op("contiguous"), b_input);
+		    }
                     b_input = p.insert_instruction(
                         ins,
                         make_op(
@@ -699,6 +704,11 @@ struct find_add_convs
                     if(n == 0)
                         return;
                     new_op  = b_op;
+		    if(not a_input->get_shape().standard())
+		    {
+                        a_input =
+                            p.insert_instruction(ins, make_op("contiguous"), a_input);
+		    }
                     a_input = p.insert_instruction(
                         ins,
                         make_op(

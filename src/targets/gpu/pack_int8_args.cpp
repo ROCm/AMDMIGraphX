@@ -47,15 +47,15 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
     bool transa = sa.transposed();
     if(transa)
     {
-        auto perm  = find_permutation(sa);
-        auto val   = in0->get_operator().to_value();
+        auto perm = find_permutation(sa);
+        auto val  = in0->get_operator().to_value();
         if(val.contains("dims"))
         {
             int offset = static_cast<int>(perm.back()) - static_cast<int>(perm.size());
             auto t_in  = in0->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
-            auto dims = val.at("dims").to_vector<int64_t>();
-            auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto dims  = val.at("dims").to_vector<int64_t>();
+            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
@@ -77,15 +77,15 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
     bool transb = sb.transposed();
     if(transb)
     {
-        auto perm  = find_permutation(sb);
-        auto val   = in1->get_operator().to_value();
+        auto perm = find_permutation(sb);
+        auto val  = in1->get_operator().to_value();
         if(val.contains("dims"))
         {
             int offset = static_cast<int>(perm[perm.size() - 2]) - static_cast<int>(perm.size());
             auto t_in  = in1->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
-            auto dims = val.at("dims").to_vector<int64_t>();
-            auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto dims  = val.at("dims").to_vector<int64_t>();
+            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else

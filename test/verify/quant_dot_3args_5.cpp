@@ -17,8 +17,7 @@ struct quant_dot_3args_5 : verify_program<quant_dot_3args_5>
         auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
         auto l2  = mm->add_parameter("b", m2_shape);
         auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l2);
-        mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2);
+        mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2);
         return p;
     }
 };

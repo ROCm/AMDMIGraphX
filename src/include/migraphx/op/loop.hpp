@@ -104,13 +104,13 @@ struct loop
             // concat scan outputs
             std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
                                                    mod_args.end());
-            for (std::size_t i = 0; i < mod_scan_outputs.size(); ++i)
+            for(std::size_t i = 0; i < mod_scan_outputs.size(); ++i)
             {
-                auto& mod_out = mod_scan_outputs.at(i);
+                auto& mod_out  = mod_scan_outputs.at(i);
                 auto& scan_out = scan_outputs.at(i);
 
-                auto in_data = mod_out.data();
-                auto out_data = scan_out.data();
+                auto in_data         = mod_out.data();
+                auto out_data        = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
                 memcpy(out_data + iter * out_size, in_data, out_size);
             }
@@ -122,7 +122,8 @@ struct loop
             //                    visit_all(arg_in, arg_out)([&](auto in, auto out) {
             //                        std::copy(in.begin(), in.end(),
             //                                  out.begin());
-            //                                 //  out.begin() + static_cast<int>(iter * arg_in.get_shape().elements()));
+            //                                 //  out.begin() + static_cast<int>(iter *
+            //                                 arg_in.get_shape().elements()));
             //                    });
             //                });
         }

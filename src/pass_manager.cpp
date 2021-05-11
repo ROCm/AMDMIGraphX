@@ -36,13 +36,13 @@ void validate_pass(module& mod, const pass& p, tracer trace)
 void run_pass(module& mod, const pass& p, tracer trace)
 {
     trace("Module: ", mod.name(), ", Pass: ", p.name());
-std::cout << "loc10" << std::endl;
+    std::cout << "loc10" << std::endl;
     assert(mod.validate() == mod.end());
-std::cout << "loc11" << std::endl;
+    std::cout << "loc11" << std::endl;
     p.apply(mod);
-std::cout << "loc12" << std::endl;
+    std::cout << "loc12" << std::endl;
     trace(mod);
-std::cout << "loc13" << std::endl;
+    std::cout << "loc13" << std::endl;
     validate_pass(mod, p, trace);
 }
 void run_pass(program& prog, const pass& p, tracer trace)

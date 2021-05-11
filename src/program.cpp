@@ -10,6 +10,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
@@ -144,14 +145,14 @@ void program::compile(const target& t, compile_options options)
     options.trace(*this);
     options.trace();
 
-    auto mods = this->get_modules();
-    std::reverse(mods.begin(), mods.end());
     auto&& passes = t.get_passes(this->impl->ctx, options);
+    run_passes(*this, passes, options.trace);
 
-    for(const auto& mod : mods)
+    auto mods = this->get_modules();
+
+    // Validate and finalize
+    for(const auto& mod : reverse(mods))
     {
-        assert(mod->validate() == mod->end());
-        run_passes(*mod, passes, options.trace);
         auto invalid = mod->validate();
         if(invalid != mod->end())
         {
@@ -296,7 +297,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 4;
+const int program_file_version = 5;
 
 value program::to_value() const
 {
@@ -646,6 +647,7 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+    assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
@@ -692,6 +694,53 @@ std::vector<module*> program::get_modules()
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
     return result;
+}
+
+template <class Map, class T>
+bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
+{
+    bool is_unused = false;
+    generic_get_unused_modules(m, mods, make_function_output_iterator([&](auto* mod) {
+                                   if(mod->name() == name)
+                                       is_unused = true;
+                               }));
+    return is_unused;
+}
+
+template <class Map>
+bool references_instruction(Map& m, const instruction& ins, const std::string& name)
+{
+    return std::any_of(m.begin(), m.end(), [&](auto&& p) {
+        if(p.first == name)
+            return false;
+        return std::any_of(p.second.begin(), p.second.end(), [&](auto&& i) {
+            return std::any_of(i.inputs().begin(), i.inputs().end(), [&](auto&& j) {
+                return std::addressof(*j) == std::addressof(ins);
+            });
+        });
+    });
+}
+
+void program::remove_module(const std::string& name)
+{
+    // cppcheck-suppress assertWithSideEffect
+    assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
+           "Module used in program");
+    assert(std::none_of(
+               impl->modules.at(name).begin(),
+               impl->modules.at(name).end(),
+               [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) &&
+           "Instruction referenced in another module");
+    impl->modules.erase(name);
+}
+
+void program::remove_unused_modules()
+{
+    std::vector<module*> unused;
+    generic_get_unused_modules(
+        impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
+    for(auto* m : unused)
+        this->remove_module(m->name());
 }
 
 program& program::sort()

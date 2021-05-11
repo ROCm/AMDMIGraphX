@@ -101,6 +101,9 @@ struct program
     std::vector<const module*> get_modules() const;
     std::vector<module*> get_modules();
 
+    void remove_module(const std::string& name);
+    void remove_unused_modules();
+
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;

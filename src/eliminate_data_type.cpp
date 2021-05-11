@@ -13,6 +13,8 @@ void eliminate_data_type::apply(module& m) const
     {
         if(ins->name()[0] == '@')
             continue;
+        if(ins->name() == "convert")
+            continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {
             if(types.count(i->get_shape().type()) == 0)

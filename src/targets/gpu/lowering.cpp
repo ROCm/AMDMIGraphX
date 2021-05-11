@@ -26,7 +26,6 @@
 #include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/greater.hpp>
-#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/int8_conv_pack.hpp>
 #include <migraphx/gpu/leaky_relu.hpp>
 #include <migraphx/gpu/less.hpp>
@@ -188,7 +187,7 @@ struct miopen_apply
 
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
-            auto c   = mod->insert_instruction(pos, hip_copy_to_gpu{}, ins, a);
+            auto c   = mod->insert_instruction(pos, make_op("hip::copy_to_gpu"), ins, a);
             mod->replace_instruction(ins, c);
         }
 
@@ -202,14 +201,14 @@ struct miopen_apply
             // output with copy output
             for(const auto& in : inputs)
             {
-                auto p_output = mod->insert_instruction(ret, hip_copy_from_gpu{}, in);
+                auto p_output = mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
                 instruction::replace_argument(ret, in, p_output);
             }
         }
         // else branch to handle legacy program without the return instruction
         else
         {
-            mod->add_instruction(hip_copy_from_gpu{}, ret);
+            mod->add_instruction(make_op("hip::copy_from_gpu"), ret);
         }
     }
 
@@ -233,7 +232,8 @@ struct miopen_apply
         // Instruction's output is an input of the ret instruction
         if(offload_copy)
         {
-            auto result = mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
+            auto result = mod->insert_instruction(
+                ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
             return result;
         }
 
@@ -247,7 +247,8 @@ struct miopen_apply
             return mod->add_parameter("output", s);
         }
 
-        return mod->insert_instruction(ins, hip_allocate{s, std::move(tag)});
+        return mod->insert_instruction(
+            ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
 
     void add_convolution_op()
@@ -300,9 +301,10 @@ struct miopen_apply
                 auto c_alias = instruction::get_output_alias(refs.back());
                 if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
                 {
-                    auto output   = insert_allocation(ins, ins->get_shape());
-                    auto copy_out = mod->insert_instruction(ins, hip_copy{}, refs.back(), output);
-                    refs.back()   = copy_out;
+                    auto output = insert_allocation(ins, ins->get_shape());
+                    auto copy_out =
+                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
+                    refs.back() = copy_out;
                     refs.push_back(copy_out);
                 }
                 else
@@ -413,8 +415,9 @@ struct miopen_apply
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto cpu_cond  = mod->insert_instruction(ins, hip_copy_from_gpu{}, inputs.front());
-            auto sync_cond = mod->insert_instruction(ins, hip_sync_device{}, cpu_cond);
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
+            auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
             inputs.front() = sync_cond;
 
             std::vector<module_ref> mod_args = ins->module_inputs();
@@ -437,7 +440,8 @@ struct miopen_apply
                 }
                 else
                 {
-                    output = mod->insert_instruction(ins, hip_allocate{s});
+                    output = mod->insert_instruction(
+                        ins, make_op("hip::allocate", {{"shape", to_value(s)}}));
                 }
                 inputs.push_back(output);
             }

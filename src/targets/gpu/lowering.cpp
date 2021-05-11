@@ -42,7 +42,6 @@
 #include <utility>
 #include <functional>
 #include <algorithm>
-#include <rocblas.h>
 #include <map>
 
 namespace migraphx {

@@ -48,19 +48,22 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
     if(transa)
     {
         auto perm  = find_permutation(sa);
-        auto t_in  = in0->inputs().front();
-        int offset = static_cast<int>(perm.back()) - static_cast<int>(perm.size());
-        auto p_in  = pad_ins(m, t_in, offset);
         auto val   = in0->get_operator().to_value();
         if(val.contains("dims"))
         {
+            int offset = static_cast<int>(perm.back()) - static_cast<int>(perm.size());
+            auto t_in  = in0->inputs().front();
+            auto p_in  = pad_ins(m, t_in, offset);
             auto dims = val.at("dims").to_vector<int64_t>();
             auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
         {
-            auto cin0 = m.insert_instruction(ins, make_op("contiguous"), in0);
+            shape cs{in0->get_shape().type(), in0->get_shape().lens()};
+            auto con_out =
+                m.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(cs)}}));
+            auto cin0 = m.insert_instruction(ins, make_op("gpu::contiguous"), in0, con_out);
             ret_inputs.push_back(pad_ins(m, cin0, -1));
         }
     }
@@ -75,19 +78,22 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
     if(transb)
     {
         auto perm  = find_permutation(sb);
-        auto t_in  = in1->inputs().front();
-        int offset = static_cast<int>(perm[perm.size() - 2]) - static_cast<int>(perm.size());
-        auto p_in  = pad_ins(m, t_in, offset);
         auto val   = in1->get_operator().to_value();
         if(val.contains("dims"))
         {
+            int offset = static_cast<int>(perm[perm.size() - 2]) - static_cast<int>(perm.size());
+            auto t_in  = in1->inputs().front();
+            auto p_in  = pad_ins(m, t_in, offset);
             auto dims = val.at("dims").to_vector<int64_t>();
             auto r_in = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
         {
-            auto cin1 = m.insert_instruction(ins, make_op("contiguous"), in1);
+            shape cs{in1->get_shape().type(), in1->get_shape().lens()};
+            auto con_out =
+                m.insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(cs)}}));
+            auto cin1 = m.insert_instruction(ins, make_op("gpu::contiguous"), in1, con_out);
             ret_inputs.push_back(pad_ins(m, cin1, -2));
         }
     }
@@ -112,7 +118,6 @@ void pack_int8_args::apply(module& m) const
             {
                 return;
             }
-
             auto inputs = ins->inputs();
             auto lens   = inputs.at(0)->get_shape().lens();
             // gemm need the k to be multiple of 4, so need packing that dimension

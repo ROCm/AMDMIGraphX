@@ -13,7 +13,7 @@ target_include_directories(migraphx_onnx PRIVATE include)
 set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_onnx)
-target_link_libraries(migraphx_onnx PRIVATE onnx-proto)
+target_link_libraries(migraphx_onnx PRIVATE onnx-proto "-Wl,--exclude-libs,ALL")
 target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
 rocm_install_targets(

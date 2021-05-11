@@ -19,10 +19,10 @@ struct parse_loop : op_parser<parse_loop>
                                        const onnx_parser::node_info& info,
                                        std::vector<instruction_ref> args) const
     {
-        if(not(args.at(0)->get_shape().scalar() and args.at(1)->get_shape().scalar()))
-        {
-            MIGRAPHX_THROW("PARSE_LOOP: max_iter_num and cond inputs must be scalar!");
-        }
+        // if(not(args.at(0)->get_shape().scalar() and args.at(1)->get_shape().scalar()))
+        // {
+        //     MIGRAPHX_THROW("PARSE_LOOP: max_iter_num and cond inputs must be scalar!");
+        // }
 
         // default value of the max_iter_num
         int64_t max_iter_num = parser.max_iter_num;
@@ -41,7 +41,7 @@ struct parse_loop : op_parser<parse_loop>
         parser.parse_graph(sub_mod, sub_graph);
 
         auto ret =
-            info.add_instruction(make_op("loop", {{"max_iters", max_iter_num}}), args, {sub_mod});
+            info.add_instruction(make_op("loop", {{"max_iter_num", max_iter_num}}), args, {sub_mod});
         auto out_s = ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
 

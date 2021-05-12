@@ -53,6 +53,7 @@ ENV LANG=C.UTF-8
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
+ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh

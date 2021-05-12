@@ -11,9 +11,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static void update_op(const instruction_ref& input,
-                           const instruction_ref& ins,
-                           module& m)
+static void update_op(const instruction_ref& input, const instruction_ref& ins, module& m)
 {
     auto op         = ins->get_operator();
     auto val        = op.to_value();
@@ -37,15 +35,13 @@ static void update_op(const instruction_ref& input,
 
     auto pad_op = m.insert_instruction(ins, op::pad{padding}, input);
 
-    auto new_inputs = ins->inputs();
+    auto new_inputs    = ins->inputs();
     new_inputs.front() = pad_op;
 
     m.replace_instruction(ins, op, new_inputs);
 }
 
-static void update_pooling(const instruction_ref& input,
-                                const instruction_ref& ins,
-                                module& m)
+static void update_pooling(const instruction_ref& input, const instruction_ref& ins, module& m)
 {
     auto op = any_cast<op::pooling>(ins->get_operator());
     if(op.mode == "average")
@@ -70,7 +66,7 @@ static void update_pooling(const instruction_ref& input,
     float pad_val = std::numeric_limits<float>::lowest();
     auto pad_op   = m.insert_instruction(ins, op::pad{padding, pad_val}, input);
 
-    auto new_inputs = ins->inputs();
+    auto new_inputs    = ins->inputs();
     new_inputs.front() = pad_op;
 
     m.replace_instruction(ins, op, new_inputs);
@@ -90,8 +86,6 @@ void insert_pad::apply(module& m) const
             update_pooling(input, ins, m);
     }
 }
-
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

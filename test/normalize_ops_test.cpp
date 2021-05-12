@@ -80,8 +80,7 @@ migraphx::module create_padded_op(const std::vector<size_t>& pad_vals)
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
     auto si = m.add_parameter("data", s);
-    auto r  = m.add_instruction(
-        migraphx::make_op("pooling", {{"padding", pad_vals}}), si);
+    auto r  = m.add_instruction(migraphx::make_op("pooling", {{"padding", pad_vals}}), si);
     m.add_return({r});
 
     return m;

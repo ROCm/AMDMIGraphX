@@ -134,7 +134,7 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        auto padding = val.at(attrs.at("normalize_padding").to<std::string>());
+        auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
         auto padding_size = padding.size();
         // for now, assume the dimensions to pad start at dim 2
         auto padding_start = 2;
@@ -150,7 +150,6 @@ bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
             op.from_value(val);
             tuned = true;
         }
-            
     }
     if(!attrs.contains("normalize_axes"))
     {

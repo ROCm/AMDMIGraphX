@@ -21,7 +21,6 @@ struct eliminate_pad
     std::string name() const { return "eliminate_pad"; }
 
     void apply(module& m) const;
-    
 };
 
 } // namespace MIGRAPHX_INLINE_NS

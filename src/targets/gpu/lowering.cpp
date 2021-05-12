@@ -99,13 +99,10 @@ struct miopen_apply
         assert(pass != nullptr);
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        if(contains(op.name(), "quant_"))
-        {
-            auto& ctx = get_context();
-            rocblas_gemm_flags flag;
-            rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-            int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
-        }
+        auto& ctx = get_context();
+        rocblas_gemm_flags flag;
+        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;

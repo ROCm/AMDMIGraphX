@@ -44,9 +44,6 @@ RUN ldconfig
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install rbuild
-RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-
 # Install yapf
 RUN pip3 install yapf==0.28.0
 

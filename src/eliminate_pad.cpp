@@ -12,26 +12,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void eliminate_pad::apply(module& p) const
-{
-    for(auto ins : iterator_for(p))
-    {
-        const std::string& op_name = ins->name();
-        if(op_name != "convolution" and op_name != "im2col" and op_name != "pooling")
-            continue;
-        auto input = ins->inputs().front();
-        if(input->name() != "pad")
-            continue;
-        if(op_name == "convolution" or op_name == "im2col")
-            update_op(input, ins, p);
-        else if(op_name == "pooling")
-            update_pooling(input, ins, p);
-    }
-}
-
-void eliminate_pad::update_op(const instruction_ref& input,
+static void update_op(const instruction_ref& input,
                               const instruction_ref& ins,
-                              module& p) const
+                              module& m) 
 {
     auto pad_op = any_cast<op::pad>(input->get_operator());
 
@@ -57,12 +40,12 @@ void eliminate_pad::update_op(const instruction_ref& input,
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = input->inputs().front();
 
-    p.replace_instruction(ins, op, new_inputs);
+    m.replace_instruction(ins, op, new_inputs);
 }
 
-void eliminate_pad::update_pooling(const instruction_ref& input,
+static void update_pooling(const instruction_ref& input,
                                    const instruction_ref& ins,
-                                   module& p) const
+                                   module& m) 
 {
     auto op = any_cast<op::pooling>(ins->get_operator());
     if(op.mode == "average")
@@ -88,7 +71,24 @@ void eliminate_pad::update_pooling(const instruction_ref& input,
     std::vector<instruction_ref> new_inputs{ins->inputs()};
     new_inputs.front() = input->inputs().front();
 
-    p.replace_instruction(ins, op, new_inputs);
+    m.replace_instruction(ins, op, new_inputs);
+}
+
+void eliminate_pad::apply(module& m) const
+{
+    for(auto ins : iterator_for(m))
+    {
+        const std::string& op_name = ins->name();
+        if(op_name != "convolution" and op_name != "im2col" and op_name != "pooling")
+            continue;
+        auto input = ins->inputs().front();
+        if(input->name() != "pad")
+            continue;
+        if(op_name == "convolution" or op_name == "im2col")
+            update_op(input, ins, m);
+        else if(op_name == "pooling")
+            update_pooling(input, ins, m);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

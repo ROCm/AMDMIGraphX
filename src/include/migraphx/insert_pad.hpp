@@ -19,10 +19,7 @@ struct insert_pad
 {
     std::string name() const { return "insert_pad"; }
 
-    void apply(module& p) const;
-    void update_op(const instruction_ref& input, const instruction_ref& ins, module& p) const;
-
-    void update_pooling(const instruction_ref& input, const instruction_ref& ins, module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

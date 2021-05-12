@@ -10,7 +10,6 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -96,14 +95,6 @@ struct quant_convolution
     {
         check_attribute_size();
         return stride.size();
-    }
-
-    std::vector<size_t> expand_pads()
-    {
-        size_t dims = padding.size();
-        std::vector<size_t> new_padding(padding.begin(), padding.end());
-        std::copy(padding.begin(), padding.begin() + dims, std::back_inserter(new_padding));
-        return new_padding;
     }
 };
 

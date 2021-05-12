@@ -47,7 +47,7 @@ The compilation process performs multiple optimization passes on the input model
 Enabling FP16 quantization will convert data and weight tensors to 16-bit floating points values to reduce the model's size and to improve performance on hardware that supports half-precision operations. 
 
 ### INT8 Quantization
-Enabling INT8 quantization will similarly convert data and weight tensors to 8-bit integer values. Calibration is not currently supported by this tool, but can be implemented using either of MIGraphX's Python or C++ APIs. Please refer to [this example](../cpp_api_inference/) to see how calibration is set up with the C++ API. 
+Enabling INT8 quantization will similarly convert data and weight tensors to 8-bit integer values. Calibration is not currently supported by this tool, but can be implemented using either of MIGraphX's Python or C++ APIs. Please refer to [this example](../cpp_api_inference/README.md) to see how calibration is set up with the C++ API. 
 
 ## Serialization
 Finally, once all of the optimizations and compilation have taken place, the model can be serialized to either Messagepack (.msgpack) or JSON (.json) format for future use. The default format is Messagepack, but can be switched to JSON using the `-j, --json` option. Once a model has been compiled and serialized, it can be quickly loaded and executed to perform inference without the latency of re-compiling. 

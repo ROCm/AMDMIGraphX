@@ -97,6 +97,16 @@ struct hip_device
             return rbhandle.get();
         }
 
+        void wait() const
+        {
+            if(s == nullptr)
+                return;
+            setup();
+            auto status = hipStreamSynchronize(s.get());
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to wait.");
+        }
+
         void wait(hipEvent_t event)
         {
             setup();
@@ -125,6 +135,10 @@ struct hip_device
     stream& get_stream() { return streams.at(current_stream); }
 
     stream& get_stream(std::size_t n) { return streams.at(n); }
+
+    const stream& get_stream() const { return streams.at(current_stream); }
+
+    const stream& get_stream(std::size_t n) const { return streams.at(n); }
 
     void set_stream(std::size_t n) { current_stream = n; }
 
@@ -163,8 +177,20 @@ struct context
         return *current_device;
     }
 
+    const hip_device& get_current_device() const
+    {
+        assert(current_device != nullptr);
+        return *current_device;
+    }
+
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
+
+    const hip_device::stream& get_stream() const { return get_current_device().get_stream(); }
+    const hip_device::stream& get_stream(std::size_t n) const
+    {
+        return get_current_device().get_stream(n);
+    }
 
     void set_stream(std::size_t n) { get_current_device().set_stream(n); }
 
@@ -177,7 +203,7 @@ struct context
     hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
 
     std::vector<argument> literals{};
-    void finish() const { gpu_sync(); }
+    void finish() const { get_stream().wait(); }
 
     static hip_event_ptr create_event()
     {

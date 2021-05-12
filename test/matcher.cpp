@@ -23,9 +23,9 @@ migraphx::match::matcher_result find_match(migraphx::module& modl, M&& m)
 void match1()
 {
     migraphx::module mm;
-    auto l   = mm.add_literal(1);
-    auto m   = match::standard_shape();
-    auto r   = find_match(mm, m);
+    auto l = mm.add_literal(1);
+    auto m = match::standard_shape();
+    auto r = find_match(mm, m);
     EXPECT(bool{r.result == l});
 }
 

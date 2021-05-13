@@ -417,7 +417,9 @@ struct find_splits
 
             traversed.insert(ins);
             const auto& inputs = ins->inputs();
-            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) { return m.has_instruction(in) and self(in); });
+            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) {
+                return m.has_instruction(in) and self(in);
+            });
         })(ins1);
     }
 

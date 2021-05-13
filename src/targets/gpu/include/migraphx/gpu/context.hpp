@@ -107,7 +107,7 @@ struct hip_device
             //     MIGRAPHX_THROW("Unable to get hip device properties");
             return "gfx" + std::to_string(props.gcnArch);
         }
-        
+
         void wait() const
         {
             if(s == nullptr)

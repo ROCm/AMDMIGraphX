@@ -167,8 +167,8 @@ jobs:
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
         key: 
-          ${{ matrix.os }}-cget-3-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
-          ${{ matrix.os }}-cget-3-
+          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+          ${{ matrix.os }}-cget-4-
 
 
     - name: Install dependencies

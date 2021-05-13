@@ -767,6 +767,53 @@ TEST_CASE(match_bind1)
     EXPECT(bool{r.result == pass});
 }
 
+TEST_CASE(match_bind_modules1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one  = mm->add_literal(1);
+    auto* child = p.create_module("child");
+    auto two  = child->add_literal(2);
+    auto sum  = child->add_instruction(sum_op{}, one, two);
+    child->add_instruction(pass_op{}, sum);
+    mm->add_instruction(mod_pass_op{}, {one}, {child});
+    auto m    = match::name("pass")(
+                 match::args(match::name("sum")(match::args(match::name("@literal").bind("one"),
+                                                            match::name("@literal").bind("two")))
+                                 .bind("sum")),
+                 match::standard_shape())
+                 .bind("pass");
+    auto r = find_match(*child, m);
+    EXPECT(not migraphx::contains(r.instructions, "one"));
+    EXPECT(not migraphx::contains(r.instructions, "two"));
+    EXPECT(not migraphx::contains(r.instructions, "sum"));
+    EXPECT(not migraphx::contains(r.instructions, "pass"));
+    EXPECT(bool{r.result == child->end()});
+}
+
+TEST_CASE(match_bind_modules2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one  = mm->add_literal(1);
+    auto* child = p.create_module("child");
+    auto two  = child->add_literal(2);
+    auto sum  = child->add_instruction(sum_op{}, one, two);
+    auto pass = child->add_instruction(pass_op{}, sum);
+    mm->add_instruction(mod_pass_op{}, {one}, {child});
+    auto m    = match::name("pass")(
+                 match::args(match::name("sum")(match::args(match::name("@literal"),
+                                                            match::name("@literal").bind("two")))
+                                 .bind("sum")),
+                 match::standard_shape())
+                 .bind("pass");
+    auto r = find_match(*child, m);
+    EXPECT(bool{r.instructions.at("two") == two});
+    EXPECT(bool{r.instructions.at("sum") == sum});
+    EXPECT(bool{r.instructions.at("pass") == pass});
+    EXPECT(bool{r.result == pass});
+}
+
 TEST_CASE(match_has_value1)
 {
     migraphx::module mm;

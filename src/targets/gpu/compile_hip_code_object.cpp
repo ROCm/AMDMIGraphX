@@ -48,17 +48,6 @@ std::string generate_index_ints(const std::vector<T>& v)
     return "index_ints<" + to_string_range(v) + ">{}";
 }
 
-std::string generate_cpp_type(shape::type_t t)
-{
-    switch(t)
-    {
-#define MIGRAPHX_GPU_GENERATE_TYPE_STRING(x, t) \
-    case shape::x: return #t;
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GPU_GENERATE_TYPE_STRING)
-    }
-    MIGRAPHX_THROW("Invalid type");
-}
-
 std::string generate_make_shape(const shape& s)
 {
     return "make_shape(" + generate_index_ints(s.lens()) + ", " + generate_index_ints(s.strides()) +
@@ -80,7 +69,7 @@ std::string generate_make_tensor(std::size_t n, const shape& s)
 {
     return interpolate_string(make_tensor_template,
                               {{"n", std::to_string(n)},
-                               {"type", generate_cpp_type(s.type())},
+                               {"type", shape::cpp_type(s.type())},
                                {"lens", generate_index_ints(s.lens())},
                                {"strides", generate_index_ints(s.strides())}});
 }

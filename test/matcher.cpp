@@ -770,14 +770,14 @@ TEST_CASE(match_bind1)
 TEST_CASE(match_bind_modules1)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto one  = mm->add_literal(1);
+    auto* mm    = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto* child = p.create_module("child");
-    auto two  = child->add_literal(2);
-    auto sum  = child->add_instruction(sum_op{}, one, two);
+    auto two    = child->add_literal(2);
+    auto sum    = child->add_instruction(sum_op{}, one, two);
     child->add_instruction(pass_op{}, sum);
     mm->add_instruction(mod_pass_op{}, {one}, {child});
-    auto m    = match::name("pass")(
+    auto m = match::name("pass")(
                  match::args(match::name("sum")(match::args(match::name("@literal").bind("one"),
                                                             match::name("@literal").bind("two")))
                                  .bind("sum")),
@@ -794,14 +794,14 @@ TEST_CASE(match_bind_modules1)
 TEST_CASE(match_bind_modules2)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto one  = mm->add_literal(1);
+    auto* mm    = p.get_main_module();
+    auto one    = mm->add_literal(1);
     auto* child = p.create_module("child");
-    auto two  = child->add_literal(2);
-    auto sum  = child->add_instruction(sum_op{}, one, two);
-    auto pass = child->add_instruction(pass_op{}, sum);
+    auto two    = child->add_literal(2);
+    auto sum    = child->add_instruction(sum_op{}, one, two);
+    auto pass   = child->add_instruction(pass_op{}, sum);
     mm->add_instruction(mod_pass_op{}, {one}, {child});
-    auto m    = match::name("pass")(
+    auto m = match::name("pass")(
                  match::args(match::name("sum")(match::args(match::name("@literal"),
                                                             match::name("@literal").bind("two")))
                                  .bind("sum")),

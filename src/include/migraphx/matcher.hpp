@@ -101,16 +101,17 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins) -> optional<instruction_ref> {
-            auto result = m.match(ctx, ins);
-            if(result)
-            {
-                if(not ctx.has_instruction(ins))
-                    return nullopt;
-                ctx.instructions[name] = ins;
-            }
-            return result;
-        });
+        [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins)
+            ->optional<instruction_ref> {
+                auto result = m.match(ctx, ins);
+                if(result)
+                {
+                    if(not ctx.has_instruction(ins))
+                        return nullopt;
+                    ctx.instructions[name] = ins;
+                }
+                return result;
+            });
 }
 
 /// Convert a matcher to a bindable matcher

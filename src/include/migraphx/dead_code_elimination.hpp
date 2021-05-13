@@ -9,6 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
+struct program;
 
 /**
  * Remove instructions where the output is not used.
@@ -16,7 +17,8 @@ struct module;
 struct dead_code_elimination
 {
     std::string name() const { return "dead_code_elimination"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
+    void apply(program& p) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

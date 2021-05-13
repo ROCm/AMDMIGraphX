@@ -405,7 +405,7 @@ instruction_ref module::end() const { return impl->instructions.end(); }
 
 std::vector<shape> module::get_output_shapes() const
 {
-    if(this->size() == 0)
+    if(impl->instructions.empty())
         return {};
     auto last_ins = impl->instructions.back();
     if(last_ins.name() == "@return")

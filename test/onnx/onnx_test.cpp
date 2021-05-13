@@ -2729,7 +2729,8 @@ TEST_CASE(resize_downsample_linear_test)
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
     migraphx::shape s_ind{migraphx::shape::int32_type, {16, 1, 1, 2}};
-    std::vector<int> d_ind = {0, 2, 0, 2, 0, 2, 0, 2, 4, 6, 4, 6, 4, 6, 4, 6, 1, 3, 1, 3, 1, 3, 1, 3, 5, 7, 5, 7, 5, 7, 5, 7};
+    std::vector<int> d_ind = {0, 2, 0, 2, 0, 2, 0, 2, 4, 6, 4, 6, 4, 6, 4, 6,
+                              1, 3, 1, 3, 1, 3, 1, 3, 5, 7, 5, 7, 5, 7, 5, 7};
     auto l_ind             = mm->add_literal(migraphx::literal(s_ind, d_ind));
 
     migraphx::shape s8{migraphx::shape::float_type, {8, 1, 1, 2}};
@@ -2737,16 +2738,16 @@ TEST_CASE(resize_downsample_linear_test)
     auto l8 = mm->add_literal(migraphx::literal(s8, d8));
 
     migraphx::shape s4{migraphx::shape::float_type, {4, 1, 1, 2}};
-    std::vector<float> d4(8, 1.0f/3.0f);
+    std::vector<float> d4(8, 1.0f / 3.0f);
     auto l4 = mm->add_literal(migraphx::literal(s4, d4));
 
     migraphx::shape s2{migraphx::shape::float_type, {2, 1, 1, 2}};
     std::vector<float> d2(4, 0);
-    auto l2               = mm->add_literal(migraphx::literal(s2, d2));
+    auto l2 = mm->add_literal(migraphx::literal(s2, d2));
 
     migraphx::shape s1{migraphx::shape::float_type, {1, 1, 1, 2}};
     std::vector<float> d1(2, 0.0f);
-    auto l1               = mm->add_literal(migraphx::literal(s1, d1));
+    auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
     auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);

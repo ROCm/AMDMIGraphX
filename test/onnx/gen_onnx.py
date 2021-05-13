@@ -3205,10 +3205,10 @@ def resize_outsize_test():
 def resize_upsample_linear_ac_test():
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     scales_tensor = helper.make_tensor(name='scales',
-                                         data_type=TensorProto.FLOAT,
-                                         dims=scales.shape,
-                                         vals=scales.flatten().astype(
-                                             np.float32))
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(
+                                           np.float32))
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
@@ -3226,18 +3226,17 @@ def resize_upsample_linear_ac_test():
 def resize_upsample_linear_test():
     scales = np.array([1.0, 1.0, 2.0, 2.0], dtype=np.float32)
     scales_tensor = helper.make_tensor(name='scales',
-                                         data_type=TensorProto.FLOAT,
-                                         dims=scales.shape,
-                                         vals=scales.flatten().astype(
-                                             np.float32))
+                                       data_type=TensorProto.FLOAT,
+                                       dims=scales.shape,
+                                       vals=scales.flatten().astype(
+                                           np.float32))
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
-    node = onnx.helper.make_node(
-        'Resize',
-        inputs=['X', '', 'scales'],
-        outputs=['Y'],
-        mode='linear')
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='linear')
 
     return ([node], [X], [Y], [scales_tensor])
 

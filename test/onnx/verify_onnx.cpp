@@ -282,7 +282,6 @@ TEST_CASE(resize_linear_test)
 
     // EXPECT(migraphx::verify_range(result_vector, gold));
 
-
     // 2 dimension
     migraphx::program p = migraphx::parse_onnx("resize_upsample_linear_test.onnx");
     p.compile(migraphx::ref::target{});
@@ -301,8 +300,6 @@ TEST_CASE(resize_linear_test)
     std::vector<float> gold = {3, 4, 4, 4};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
-
-
 
     // 4 dimension
     // migraphx::program p = migraphx::parse_onnx("resize_upsample_linear_test.onnx");

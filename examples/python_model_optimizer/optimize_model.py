@@ -15,6 +15,11 @@ parser.add_argument("-p", "--output_path", type=str, help="Specify file name and
 args = parser.parse_args()
 
 model_name = args.model
+if not os.path.isabs(model_name):
+    dirname = os.path.abspath(os.path.dirname(__file__))
+    model_name = os.path.join(dirname, model_name)
+    model_name = os.path.abspath(model_name)
+
 if ".onnx" in model_name:
     model = migraphx.parse_onnx(model_name)
 elif ".pb" in model_name:

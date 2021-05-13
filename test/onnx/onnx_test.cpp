@@ -14,7 +14,6 @@
 
 #include <migraphx/serialize.hpp>
 
-#include "migraphx/shape.hpp"
 #include "test.hpp"
 
 migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)

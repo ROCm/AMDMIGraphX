@@ -276,7 +276,22 @@ TEST_CASE(resize_upsample_linear_ac_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {1, 4.0f/3, 5.0f/3, 2, 5.0f/3, 2, 7.0f/3, 8.0f/3, 7.0f/3, 8.0f/3, 3, 10.0f/3, 3, 10.0f/3, 11.0f/3, 4};
+    std::vector<float> gold = {1,
+                               4.0f / 3,
+                               5.0f / 3,
+                               2,
+                               5.0f / 3,
+                               2,
+                               7.0f / 3,
+                               8.0f / 3,
+                               7.0f / 3,
+                               8.0f / 3,
+                               3,
+                               10.0f / 3,
+                               3,
+                               10.0f / 3,
+                               11.0f / 3,
+                               4};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
@@ -296,7 +311,8 @@ TEST_CASE(resize_upsample_linear_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {1, 1.25, 1.75, 2, 1.5, 1.75, 2.25, 2.5, 2.5, 2.75, 3.25, 3.5, 3, 3.25, 3.75, 4};
+    std::vector<float> gold = {
+        1, 1.25, 1.75, 2, 1.5, 1.75, 2.25, 2.5, 2.5, 2.75, 3.25, 3.5, 3, 3.25, 3.75, 4};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

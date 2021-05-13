@@ -1,3 +1,6 @@
+# All pre- and post-processing methods used below are borrowed from the ONNX MOdel Zoo
+# https://github.com/onnx/models/tree/master/vision/object_detection_segmentation/yolov4
+
 import numpy as np
 import cv2
 from scipy import special

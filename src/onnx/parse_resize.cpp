@@ -265,11 +265,7 @@ struct parse_resize : op_parser<parse_resize>
                     auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
                     vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
                     vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
-                    std::cout << "{val, floor, ceil} = {" << idx_val << ", "
-                              << vvv_ind[ii][0][out_idx] << ", " << vvv_ind[ii][1][out_idx] << "}"
-                              << std::endl;
                     delta[ii][out_idx] = idx_val - vvv_ind[ii][0][out_idx];
-                    std::cout << "delta = " << delta[ii][out_idx] << std::endl;
                 }
             });
 
@@ -279,7 +275,6 @@ struct parse_resize : op_parser<parse_resize>
             ind_lens[0] *= (std::size_t{1} << n_dim);
             shape ind_s{shape::int32_type, ind_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
-            std::cout << "arg_ind = " << ins_ind->get_literal() << std::endl;
             auto data = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
             auto dim_lens = out_lens;
@@ -294,7 +289,6 @@ struct parse_resize : op_parser<parse_resize>
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 }
                 auto ins_delta = info.add_literal(dim_s, delta_data);
-                std::cout << "arg_scale = " << ins_delta->get_literal() << std::endl;
 
                 // slice the data
                 int64_t slc_stride = static_cast<int64_t>(dim_lens[0]);

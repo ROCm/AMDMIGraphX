@@ -2665,32 +2665,6 @@ TEST_CASE(reshape_non_standard_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(resize_downsample_f_test)
-{
-    migraphx::program p;
-    auto* mm              = p.get_main_module();
-    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
-    migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal{ss, ds});
-
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
-    auto inx = mm->add_parameter("X", sx);
-
-    mm->add_instruction(migraphx::make_op("undefined"));
-
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
-    std::vector<int> ind = {4, 7};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
-
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-    mm->add_return({r});
-
-    auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
-
-    EXPECT(p == prog);
-}
-
 TEST_CASE(resize_downsample_c_test)
 {
     migraphx::program p;
@@ -2718,61 +2692,65 @@ TEST_CASE(resize_downsample_c_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(resize_downsample_f_test)
+{
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    mm->add_literal(migraphx::literal{ss, ds});
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    auto inx = mm->add_parameter("X", sx);
+
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
+    std::vector<int> ind = {0, 3};
+    auto li              = mm->add_literal(migraphx::literal(si, ind));
+
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
+    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(resize_downsample_linear_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    std::vector<float> ds = {1, 1, 1.6, 1.5};
+    std::vector<float> ds = {1, 1, 0.6, 0.5};
     mm->add_literal(migraphx::literal(ss, ds));
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
     auto x = mm->add_parameter("X", sx);
-    migraphx::shape s16{migraphx::shape::int32_type, {16, 1, 3, 3}};
-    std::vector<int> d16 = {0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 0, 0, 1,
-                            2, 2, 3, 0, 0, 1, 0, 0, 1, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1,
-                            2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3, 0, 0, 1, 2, 2, 3, 2, 2, 3,
-                            0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 0, 1, 1,
-                            2, 3, 3, 0, 1, 1, 0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1,
-                            2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3, 0, 1, 1, 2, 3, 3, 2, 3, 3};
-    auto l16             = mm->add_literal(migraphx::literal(s16, d16));
+    migraphx::shape s_ind{migraphx::shape::int32_type, {16, 1, 1, 2}};
+    std::vector<int> d_ind = {0, 2, 0, 2, 0, 2, 0, 2, 4, 6, 4, 6, 4, 6, 4, 6, 1, 3, 1, 3, 1, 3, 1, 3, 5, 7, 5, 7, 5, 7, 5, 7};
+    auto l_ind             = mm->add_literal(migraphx::literal(s_ind, d_ind));
 
-    migraphx::shape s8{migraphx::shape::float_type, {8, 1, 3, 3}};
-    std::vector<float> d8(72, 0.0f);
+    migraphx::shape s8{migraphx::shape::float_type, {8, 1, 1, 2}};
+    std::vector<float> d8(16, 0.5f);
     auto l8 = mm->add_literal(migraphx::literal(s8, d8));
 
-    migraphx::shape s4{migraphx::shape::float_type, {4, 1, 3, 3}};
-    std::vector<float> d4(36, 0.0f);
+    migraphx::shape s4{migraphx::shape::float_type, {4, 1, 1, 2}};
+    std::vector<float> d4(8, 1.0f/3.0f);
     auto l4 = mm->add_literal(migraphx::literal(s4, d4));
 
-    migraphx::shape s2{migraphx::shape::float_type, {2, 1, 3, 3}};
-    std::vector<float> d2 = {0,
-                             0,
-                             0,
-                             0.625,
-                             0.625,
-                             0.625,
-                             0.25,
-                             0.25,
-                             0.25,
-                             0,
-                             0,
-                             0,
-                             0.625,
-                             0.625,
-                             0.625,
-                             0.25,
-                             0.25,
-                             0.25};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 1, 1, 2}};
+    std::vector<float> d2(4, 0);
     auto l2               = mm->add_literal(migraphx::literal(s2, d2));
 
-    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 3, 3}};
-    std::vector<float> d1 = {0, 2.0f / 3, 1.0f / 3, 0, 2.0f / 3, 1.0f / 3, 0, 2.0f / 3, 1.0f / 3};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 1, 2}};
+    std::vector<float> d1(2, 0.0f);
     auto l1               = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
-    auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l16);
+    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
+    auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
     auto slc81 = mm->add_instruction(

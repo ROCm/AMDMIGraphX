@@ -56,7 +56,7 @@ const auto& get_original_idx_op(const std::string& mode)
          }},
         {"align_corners",
          [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-             return 1.0 * idx * (l_in - 1.0) / (l_out - 1.0);
+             return (l_out == 1) ? 0.0 : (1.0 * idx * (l_in - 1.0) / (l_out - 1.0));
          }},
         {"asymmetric",
          [=](std::size_t, std::size_t, std::size_t idx, double scale) { return idx / scale; }},
@@ -105,7 +105,6 @@ std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
     }
 
     const auto& vv_hi = vv_ind.at(1);
-
     for(std::size_t start = 0; start < vec_dims.size(); start += vv_lo.size())
     {
         std::transform(vv_hi.begin(),
@@ -256,7 +255,6 @@ struct parse_resize : op_parser<parse_resize>
             std::size_t n_dim = out_lens.size();
             std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
             std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
-            std::vector<std::vector<float>> ind_val(n_dim, std::vector<float>(out_elements));
             std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
             shape_for_each(out_s, [&](auto idx) {
@@ -267,8 +265,9 @@ struct parse_resize : op_parser<parse_resize>
                     auto idx_val = idx_op(in_lens[ii], out_lens[ii], idx[ii], vec_scale[ii]);
                     vvv_ind[ii][0][out_idx] = nearest_floor(in_lens[ii], idx_val);
                     vvv_ind[ii][1][out_idx] = nearest_ceil(in_lens[ii], idx_val);
-                    ind_val[ii][out_idx]    = idx_val;
+                    std::cout << "{val, floor, ceil} = {" << idx_val << ", " << vvv_ind[ii][0][out_idx] << ", " << vvv_ind[ii][1][out_idx] << "}" << std::endl;
                     delta[ii][out_idx]      = idx_val - vvv_ind[ii][0][out_idx];
+                    std::cout << "delta = " << delta[ii][out_idx] << std::endl;
                 }
             });
 
@@ -278,6 +277,7 @@ struct parse_resize : op_parser<parse_resize>
             ind_lens[0] *= (std::size_t{1} << n_dim);
             shape ind_s{shape::int32_type, ind_lens};
             auto ins_ind = info.add_literal(literal(ind_s, ind));
+            std::cout << "arg_ind = " << ins_ind->get_literal() << std::endl;
             auto data    = info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
 
             auto dim_lens = out_lens;
@@ -285,13 +285,14 @@ struct parse_resize : op_parser<parse_resize>
             for(std::size_t i = 0; i < n_dim; ++i)
             {
                 shape dim_s{shape::float_type, dim_lens};
-                const auto& dim_delta = delta[i];
+                const auto& dim_delta = delta[n_dim - i - 1];
                 std::vector<float> delta_data;
                 for(std::size_t j = 0; j < dim_lens[0] / out_lens[0]; ++j)
                 {
                     delta_data.insert(delta_data.begin(), dim_delta.begin(), dim_delta.end());
                 }
                 auto ins_delta = info.add_literal(dim_s, delta_data);
+                std::cout << "arg_scale = " << ins_delta->get_literal() << std::endl;
 
                 // slice the data
                 int64_t slc_stride = static_cast<int64_t>(dim_lens[0]);

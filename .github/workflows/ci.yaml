@@ -174,7 +174,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install https://github.com/RadeonOpenCompute/rbuild/archive/default-dirs.tar.gz
+        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
         rbuild prepare -d cget -s gh
     - name: Prepare timestamp
       id: cache_timestamp

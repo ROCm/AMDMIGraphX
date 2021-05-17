@@ -3,10 +3,10 @@
 
 #include <cassert>
 #include <string>
-#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -23,8 +23,10 @@ struct pass
 {
     /// A unique name used to identify the pass
     std::string name() const;
+    /// Run the pass on the module
+    void apply(module& m) const;
     /// Run the pass on the program
-    void apply(module& p) const;
+    void apply(program& p) const;
 };
 
 #else
@@ -32,7 +34,8 @@ struct pass
 <%
 interface('pass',
     virtual('name', returns='std::string', const=True),
-    virtual('apply', returns='void', p='module &', const=True)
+    virtual('apply', returns='void', m='module &', const=True, default='migraphx::nop'),
+    virtual('apply', returns='void', p='program &', const=True, default='migraphx::nop')
 )
 %>
 

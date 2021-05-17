@@ -2,12 +2,13 @@
 #include <migraphx/pass_manager.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple_test)
@@ -175,6 +176,23 @@ TEST_CASE(duplicate_args3)
     EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(unused_module)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto* m1 = p.create_module("unused");
+    auto* m2 = p.create_module("used");
+    auto l0  = mm->add_literal(0);
+    m1->add_literal(0);
+    m2->add_literal(0);
+    mm->add_instruction(mod_pass_op{}, {l0}, {m2});
+    EXPECT(migraphx::contains(p.get_modules(), m1));
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    run_pass(p);
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    EXPECT(not migraphx::contains(p.get_modules(), m1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

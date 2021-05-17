@@ -7,6 +7,7 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    argument.cpp
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
     decompose.cpp

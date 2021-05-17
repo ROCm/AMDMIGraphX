@@ -51,6 +51,50 @@ auto get_shape(const T& x) -> decltype(x.get_shape())
     return x.get_shape();
 }
 
+template <class T>
+struct is_hip_type : std::false_type
+{
+};
+
+template <>
+struct is_hip_type<float> : std::true_type
+{
+};
+template <>
+struct is_hip_type<half> : std::true_type
+{
+};
+template <>
+struct is_hip_type<bool> : std::true_type
+{
+};
+template <>
+struct is_hip_type<std::int8_t> : std::true_type
+{
+};
+template <>
+struct is_hip_type<std::uint8_t> : std::true_type
+{
+};
+
+template <class T, class V, MIGRAPHX_REQUIRES(is_hip_type<typename T::type>{})>
+void hip_visitor_invoke(T as, V&& v)
+{
+    v(as);
+}
+
+template <class T, class V, MIGRAPHX_REQUIRES(not is_hip_type<typename T::type>{})>
+void hip_visitor_invoke(T, V&&)
+{
+    MIGRAPHX_THROW(std::string("Unsupported data type on GPU: ") + __PRETTY_FUNCTION__);
+}
+
+template <class V>
+auto hip_visitor(V v)
+{
+    return [=](auto as) { hip_visitor_invoke(as, v); };
+}
+
 template <class V, class F, class... Ts>
 void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
 {
@@ -62,8 +106,9 @@ void hip_visit_all_impl(const shape& s, F f, V&& v, Ts&&... xs)
         static_cast<index_int>(get_shape(xs).lens().size())...};
     if(!std::all_of(ranks.begin(), ranks.end(), [&](index_int r) { return r == s.lens().size(); }))
         MIGRAPHX_THROW("Ranks must be the same");
-    visit_tensor_size(s.lens().size(),
-                      [&](auto ndim) { s.visit_type([&](auto as) { v(f(xs, ndim, as)...); }); });
+    visit_tensor_size(s.lens().size(), [&](auto ndim) {
+        s.visit_type(hip_visitor([&](auto as) { v(f(xs, ndim, as)...); }));
+    });
 }
 
 template <class V, class F, class... Ts>

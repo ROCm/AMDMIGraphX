@@ -5,7 +5,7 @@ import os.path
 from os import path
 import sys
 
-import tokenization
+import tokenizers
 from run_onnx_squad import *
 
 import migraphx
@@ -30,8 +30,7 @@ n_best_size = 20
 max_answer_length = 30
 
 vocab_file = os.path.join('uncased_L-12_H-768_A-12', 'vocab.txt')
-tokenizer = tokenization.FullTokenizer(vocab_file=vocab_file,
-                                       do_lower_case=True)
+tokenizer = tokenizers.BertWordPieceTokenizer(vocab_file)
 
 # Use convert_examples_to_features method from run_onnx_squad to get parameters from the input
 input_ids, input_mask, segment_ids, extra_data = convert_examples_to_features(

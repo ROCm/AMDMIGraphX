@@ -3,17 +3,19 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_data_type::apply(module& m) const
 {
+    static std::vector<std::string> skip_op_names = {"convert", "get_tuple_elem", "if", "loop"};
     for(auto ins : iterator_for(m))
     {
         if(ins->name()[0] == '@')
             continue;
-        if(ins->name() == "convert")
+        if(contains(skip_op_names, ins->name()))
             continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {

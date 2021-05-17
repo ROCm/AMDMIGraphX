@@ -40,7 +40,7 @@ struct loop
 
         const auto& mod     = mods.front();
         auto mod_out_shapes = mod->get_output_shapes();
-        auto dep_param_num  = mod->get_parameter_names().size() - 2;
+        auto dep_param_num  = inputs.size() - 2;
         // first two names -- iter_num and cond_var -- are not counted
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),

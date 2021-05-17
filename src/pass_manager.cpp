@@ -36,13 +36,9 @@ void validate_pass(module& mod, const pass& p, tracer trace)
 void run_pass(module& mod, const pass& p, tracer trace)
 {
     trace("Module: ", mod.name(), ", Pass: ", p.name());
-    std::cout << "loc10" << std::endl;
     assert(mod.validate() == mod.end());
-    std::cout << "loc11" << std::endl;
     p.apply(mod);
-    std::cout << "loc12" << std::endl;
     trace(mod);
-    std::cout << "loc13" << std::endl;
     validate_pass(mod, p, trace);
 }
 void run_pass(program& prog, const pass& p, tracer trace)
@@ -67,9 +63,6 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         auto mods = prog.get_modules();
         for(const auto& mod : reverse(mods))
         {
-            std::cout << "mod_name = " << mod->name() << std::endl;
-            std::cout << "mod = " << std::endl;
-            std::cout << *mod << std::endl;
             run_pass(*mod, p, trace);
         }
         run_pass(prog, p, trace);

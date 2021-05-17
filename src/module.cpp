@@ -428,15 +428,15 @@ std::vector<shape> module::get_output_shapes() const
 
 instruction_ref module::validate() const
 {
-    return std::find_if(
+    auto ret_ins = std::find_if(
         impl->instructions.begin(), impl->instructions.end(), [&](const instruction& i) {
             auto inputs      = i.inputs();
             bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
                 return contains(impl->instructions, *in);
             });
-
             return !i.valid(impl->instructions.begin(), check_order);
         });
+    return ret_ins;
 }
 
 bool is_borrowed(instruction_ref ins)

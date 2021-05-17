@@ -33,11 +33,9 @@ void dead_code_elimination::apply(program& p) const { p.remove_unused_modules();
 
 void dead_code_elimination::apply(module& m) const
 {
-    std::cout << "module = " << m.name() << std::endl;
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        std::cout << "loc1, ins_name = " << ins->name() << std::endl;
         // Skip the first instruction, since we always process the previous
         // instruction
         if(ins == m.begin())

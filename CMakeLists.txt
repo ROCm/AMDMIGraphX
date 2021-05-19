@@ -60,7 +60,11 @@ endif()
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options(-std=c++14)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-std=c++17)
+else()
+    add_compile_options(-std=c++14)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
@@ -185,6 +189,10 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        useSmartPointer:*src/api/api.cpp
+        useSmartPointer:*make_shared_array.hpp
+        constParameter:*src/targets/gpu/*.cpp
+        constParameter:*src/targets/gpu/*.hpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -195,7 +203,9 @@ rocm_enable_cppcheck(
     INCLUDE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/cpu/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/miopen/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         CPPCHECK=1

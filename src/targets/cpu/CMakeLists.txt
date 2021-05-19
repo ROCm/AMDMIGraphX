@@ -12,6 +12,7 @@ add_library(migraphx_cpu
     dnnl.cpp
     eltwise.cpp
     erf.cpp
+    fuse_ops.cpp
     gather.cpp
     gemm.cpp
     layernorm.cpp

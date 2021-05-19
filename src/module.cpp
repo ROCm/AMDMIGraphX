@@ -414,12 +414,30 @@ void module::finalize(context& ctx)
                   << std::endl;
 }
 
+template <class Iterator>
+auto is_end(rank<2>, Iterator it, Iterator) -> decltype(!it._M_dereferenceable())
+{
+    return !it._M_dereferenceable();
+}
+
+template <class Iterator>
+auto is_end(rank<1>, Iterator it, Iterator last)
+{
+    return it == last;
+}
+
+template <class Iterator>
+bool is_end(Iterator it, Iterator last)
+{
+    return is_end(rank<2>{}, it, last);
+}
+
 void module::debug_print() const { std::cout << *this << std::endl; }
 
 void module::debug_print(instruction_ref ins,
                          std::unordered_map<instruction_ref, std::string>& names) const
 {
-    if(ins == this->end())
+    if(is_end(ins, this->end()))
     {
         std::cout << "End instruction" << std::endl;
         return;

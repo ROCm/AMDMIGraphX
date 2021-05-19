@@ -20,6 +20,24 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+template <class Iterator, class EndIterator>
+auto is_end(rank<2>, Iterator it, EndIterator) -> decltype(!it._M_dereferenceable())
+{
+    return !it._M_dereferenceable();
+}
+
+template <class Iterator, class EndIterator>
+auto is_end(rank<1>, Iterator it, EndIterator last)
+{
+    return it == last;
+}
+
+template <class Iterator, class EndIterator>
+bool is_end(Iterator it, EndIterator last)
+{
+    return is_end(rank<2>{}, it, last);
+}
+
 struct module_impl
 {
     // A list is used to keep references to an instruction stable
@@ -30,7 +48,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(ins == instructions.end())
+        if(is_end(ins, instructions.end()))
             return false;
         return instruction_set.count(std::addressof(*ins)) > 0;
     }
@@ -489,24 +507,6 @@ void module::finalize(context& ctx)
     if(ins != end())
         std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
-}
-
-template <class Iterator>
-auto is_end(rank<2>, Iterator it, Iterator) -> decltype(!it._M_dereferenceable())
-{
-    return !it._M_dereferenceable();
-}
-
-template <class Iterator>
-auto is_end(rank<1>, Iterator it, Iterator last)
-{
-    return it == last;
-}
-
-template <class Iterator>
-bool is_end(Iterator it, Iterator last)
-{
-    return is_end(rank<2>{}, it, last);
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }

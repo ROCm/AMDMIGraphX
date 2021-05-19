@@ -113,15 +113,16 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto one   = mm->add_literal(1);
-    auto two   = mm->add_literal(2);
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_instruction(sum_op{}, one, two);
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(std::distance(mm->begin(), mm->end()) == count - 1);
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "undefined"; }));
+    EXPECT(
+        std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "undefined"; }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});

@@ -6,6 +6,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
@@ -19,24 +20,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <class Iterator, class EndIterator>
-auto is_end(rank<2>, Iterator it, EndIterator) -> decltype(!it._M_dereferenceable())
-{
-    return !it._M_dereferenceable();
-}
-
-template <class Iterator, class EndIterator>
-auto is_end(rank<1>, Iterator it, EndIterator last)
-{
-    return it == last;
-}
-
-template <class Iterator, class EndIterator>
-bool is_end(Iterator it, EndIterator last)
-{
-    return is_end(rank<2>{}, it, last);
-}
 
 struct module_impl
 {

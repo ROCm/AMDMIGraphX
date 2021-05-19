@@ -7,12 +7,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class T>
+template <class T>
 auto equal_to(const T& x)
 {
-    return [&](const T& y) {
-        return std::equal_to<T>{}(x, y);
-    };
+    return [&](const T& y) { return std::equal_to<T>{}(x, y); };
 }
 
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
@@ -141,10 +139,13 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    if(not std::equal(x.arguments.begin(), x.arguments.end(), y.arguments.begin(), y.arguments.end(), std::equal_to<instruction_ref>{}))
+    if(not std::equal(x.arguments.begin(),
+                      x.arguments.end(),
+                      y.arguments.begin(),
+                      y.arguments.end(),
+                      std::equal_to<instruction_ref>{}))
         return false;
-    if(std::tie(x.result, x.op, x.module_args) !=
-       std::tie(y.result, y.op, y.module_args))
+    if(std::tie(x.result, x.op, x.module_args) != std::tie(y.result, y.op, y.module_args))
         return false;
     if(x.name() == "@literal")
         return x.lit == y.lit;

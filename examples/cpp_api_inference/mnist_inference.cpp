@@ -124,10 +124,12 @@ int main(int argc, char** argv)
     auto param_shapes = prog.get_parameter_shapes();
     for(auto&& name : param_shapes.names())
     {
-        if (std::string(name).find("Input3") != std::string::npos){
+        if(std::string(name).find("Input3") != std::string::npos)
+        {
             prog_params.add(name, migraphx::argument(param_shapes[name], digit.data()));
         }
-        else if (std::string(name).find("Input3") == std::string::npos){
+        else if(std::string(name).find("Input3") == std::string::npos)
+        {
             prog_params.add(name, migraphx::argument::generate(param_shapes[name]));
         }
     }

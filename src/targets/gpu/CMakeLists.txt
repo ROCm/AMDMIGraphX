@@ -263,7 +263,7 @@ message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
-    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
+    find_library(LIBMLIRMIOPEN MLIRMIOpen REQUIRED)
     # REQUIRED is not supported before cmake 3.18
     if(NOT LIBMLIRMIOPEN)
         message(FATAL_ERROR "libMLIRMIOpenThin not found")

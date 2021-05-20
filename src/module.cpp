@@ -110,8 +110,7 @@ void module::assign(const module& m)
     {
         impl->instructions.clear();
     }
-    impl->input_names = m.impl->input_names;
-    impl->name        = m.impl->name;
+    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))
@@ -312,7 +311,6 @@ instruction_ref module::add_outline(const shape& s)
 instruction_ref module::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
-    impl->input_names.push_back(name);
 
     impl->push_front({builtin::param{std::move(name)}, std::move(s), {}});
     return impl->instructions.begin();
@@ -350,17 +348,15 @@ shape module::get_parameter_shape(std::string name) const
 
 std::vector<std::string> module::get_parameter_names() const
 {
-    std::vector<std::string> result = impl->input_names;
-    std::unordered_set<std::string> params;
+    std::vector<std::string> result;
     for(auto&& ins : impl->instructions)
     {
         if(ins.name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
-            params.insert(name);
+            result.push_back(name);
         }
     }
-    erase_if(result, [&](auto&& name) { return params.count(name) == 0; });
     return result;
 }
 

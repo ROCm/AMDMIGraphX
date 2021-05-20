@@ -25,8 +25,8 @@ struct module_impl
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
     std::unordered_set<instruction*> instruction_set;
-    std::vector<std::string> input_names;
     std::string name;
+    uint32_t nparams = 0;
 
     bool contains(instruction_ref ins) const
     {
@@ -311,8 +311,8 @@ instruction_ref module::add_outline(const shape& s)
 instruction_ref module::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
-
-    impl->push_front({builtin::param{std::move(name)}, std::move(s), {}});
+    impl->push_front({builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
+    impl->nparams++;
     return impl->instructions.begin();
 }
 
@@ -349,14 +349,19 @@ shape module::get_parameter_shape(std::string name) const
 std::vector<std::string> module::get_parameter_names() const
 {
     std::vector<std::string> result;
+    std::vector<builtin::param> params;
     for(auto&& ins : impl->instructions)
     {
         if(ins.name() == "@param")
         {
-            auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
-            result.push_back(name);
+            auto&& param = any_cast<builtin::param>(ins.get_operator());
+            params.push_back(param);
         }
     }
+    std::stable_sort(params.begin(), params.end(), by(std::less<>{}, [](auto&& p) { return p.order; }));
+    std::transform(params.begin(), params.end(), std::back_inserter(result), [&](auto&& p) {
+        return p.parameter;
+    });
     return result;
 }
 

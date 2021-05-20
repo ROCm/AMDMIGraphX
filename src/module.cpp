@@ -358,7 +358,8 @@ std::vector<std::string> module::get_parameter_names() const
             params.push_back(param);
         }
     }
-    std::stable_sort(params.begin(), params.end(), by(std::less<>{}, [](auto&& p) { return p.order; }));
+    std::stable_sort(
+        params.begin(), params.end(), by(std::less<>{}, [](auto&& p) { return p.order; }));
     std::transform(params.begin(), params.end(), std::back_inserter(result), [&](auto&& p) {
         return p.parameter;
     });

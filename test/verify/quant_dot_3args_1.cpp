@@ -10,9 +10,9 @@ struct quant_dot_3args_1 : verify_program<quant_dot_3args_1>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::int8_type, {2, 8}};
+        migraphx::shape m1_shape{migraphx::shape::int8_type, {5, 8}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
-        migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
+        migraphx::shape m3_shape{migraphx::shape::int32_type, {5, 7}};
 
         auto l1 = mm->add_parameter("a", m1_shape);
         auto l2 = mm->add_parameter("b", m2_shape);

@@ -10,7 +10,7 @@ struct batch_quant_dot_3 : verify_program<batch_quant_dot_3>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 2, 2, 6}};
+        migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 2, 7, 6}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {3, 2, 6, 7}};
 
         auto l1 = mm->add_parameter("a", m1_shape);

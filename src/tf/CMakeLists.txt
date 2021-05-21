@@ -25,7 +25,7 @@ target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
 rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
-target_link_libraries(migraphx_tf PRIVATE tf-proto)
+target_link_libraries(migraphx_tf PRIVATE tf-proto "-Wl,--exclude-libs,ALL")
 target_link_libraries(migraphx_tf PUBLIC migraphx)
 
 rocm_install_targets(

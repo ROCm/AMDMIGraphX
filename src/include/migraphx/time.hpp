@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct timer
 {
     std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
-    template<class Duration>
+    template <class Duration>
     auto record() const
     {
         auto finish = std::chrono::steady_clock::now();

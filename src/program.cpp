@@ -297,7 +297,7 @@ std::vector<argument> program::eval(parameter_map params) const
             this->debug_print(ins);
             timer t{};
             auto result = check_context(f);
-            double t1 = t.record<milliseconds>();
+            double t1   = t.record<milliseconds>();
             ctx.finish();
             double t2 = t.record<milliseconds>();
             std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
@@ -486,7 +486,7 @@ double common_average(const std::vector<double>& v)
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
-    auto& ctx          = this->impl->ctx;
+    auto& ctx = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();

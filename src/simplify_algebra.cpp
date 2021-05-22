@@ -673,7 +673,8 @@ struct find_add_convs
                     if(n == 0)
                         return;
                     new_op  = a_op;
-                    b_input = p.insert_instruction(ins, make_op("step", {{"axes", {2, 3}}, {"steps", {n, n}}}), b_input);
+                    b_input = p.insert_instruction(
+                        ins, make_op("step", {{"axes", {2, 3}}, {"steps", {n, n}}}), b_input);
                 }
                 else if(b_op.stride < a_op.stride)
                 {
@@ -681,7 +682,8 @@ struct find_add_convs
                     if(n == 0)
                         return;
                     new_op  = b_op;
-                    a_input = p.insert_instruction(ins, make_op("step",{{"axes", {2, 3}}, {"steps", {n, n}}}), a_input);
+                    a_input = p.insert_instruction(
+                        ins, make_op("step", {{"axes", {2, 3}}, {"steps", {n, n}}}), a_input);
                 }
                 else
                     return;

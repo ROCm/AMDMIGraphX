@@ -29,31 +29,29 @@ struct step
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        auto input         = inputs.at(0);
-        auto in_lens    = input.lens();
-        auto t             = input.type();
+        auto input   = inputs.at(0);
+        auto in_lens = input.lens();
+        auto t       = input.type();
 
-        if (axes.size() != steps.size())
+        if(axes.size() != steps.size())
         {
-            MIGRAPHX_THROW("STEP: attribute axes {" + to_string_range(axes) + 
-                            "} has different dimensions from step {" + 
-                            to_string_range(steps) + "}.");
+            MIGRAPHX_THROW("STEP: attribute axes {" + to_string_range(axes) +
+                           "} has different dimensions from step {" + to_string_range(steps) +
+                           "}.");
         }
 
-        if (std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-            return axis >= in_lens.size();
-        }))
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return axis >= in_lens.size(); }))
         {
             MIGRAPHX_THROW("STEP: axis value is out of range!");
         }
 
-        auto lens = in_lens;
+        auto lens    = in_lens;
         auto strides = input.strides();
         auto it_step = steps.begin();
-        for (const auto& axis : axes)
+        for(const auto& axis : axes)
         {
-            auto val = *it_step++;
-            lens[axis] = (in_lens[axis] + val - 1)/ val;
+            auto val   = *it_step++;
+            lens[axis] = (in_lens[axis] + val - 1) / val;
             strides[axis] *= val;
         }
 

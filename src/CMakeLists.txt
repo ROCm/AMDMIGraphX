@@ -150,6 +150,7 @@ register_migraphx_ops(
     sqdiff
     sqrt
     squeeze
+    step
     sub
     tanh
     tan

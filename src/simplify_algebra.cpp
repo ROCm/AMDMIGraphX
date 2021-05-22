@@ -644,19 +644,6 @@ struct find_add_convs
         return x.stride[0] / y.stride[0];
     }
 
-    static shape compute_stride_shape(const shape& input, std::size_t n)
-    {
-        return {input.type(),
-                {input.lens()[0],
-                 input.lens()[1],
-                 std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[2] - 1) / n + 1)),
-                 std::size_t(std::max<std::ptrdiff_t>(1, (input.lens()[3] - 1) / n + 1))},
-                {input.strides()[0],
-                 input.strides()[1],
-                 input.strides()[2] * n,
-                 input.strides()[3] * n}};
-    }
-
     void apply(module& p, match::matcher_result r) const
     {
         auto ins       = r.result;
@@ -682,29 +669,19 @@ struct find_add_convs
             {
                 if(a_op.stride < b_op.stride)
                 {
-                    auto n = compute_stride_factor(b_op, a_op);
+                    int64_t n = static_cast<int64_t>(compute_stride_factor(b_op, a_op));
                     if(n == 0)
                         return;
                     new_op  = a_op;
-                    b_input = p.insert_instruction(
-                        ins,
-                        make_op(
-                            "as_shape",
-                            {{"shape", to_value(compute_stride_shape(b_input->get_shape(), n))}}),
-                        b_input);
+                    b_input = p.insert_instruction(ins, make_op("step", {{"axes", {2, 3}}, {"steps", {n, n}}}), b_input);
                 }
                 else if(b_op.stride < a_op.stride)
                 {
-                    auto n = compute_stride_factor(a_op, b_op);
+                    int64_t n = static_cast<int64_t>(compute_stride_factor(a_op, b_op));
                     if(n == 0)
                         return;
                     new_op  = b_op;
-                    a_input = p.insert_instruction(
-                        ins,
-                        make_op(
-                            "as_shape",
-                            {{"shape", to_value(compute_stride_shape(a_input->get_shape(), n))}}),
-                        a_input);
+                    a_input = p.insert_instruction(ins, make_op("step",{{"axes", {2, 3}}, {"steps", {n, n}}}), a_input);
                 }
                 else
                     return;

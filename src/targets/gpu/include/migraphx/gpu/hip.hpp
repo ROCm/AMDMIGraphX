@@ -25,6 +25,7 @@ argument from_gpu(const argument& arg);
 void set_device(std::size_t id);
 
 void gpu_sync();
+void gpu_sync(const context& ctx);
 
 void gpu_copy(context& ctx, const argument& src, const argument& dst);
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst);
@@ -76,6 +77,33 @@ struct hip_sync_device
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         gpu_sync();
+        if(args.empty())
+            return {};
+        return args.front();
+    }
+};
+
+struct hip_sync_stream
+{
+    std::string tag{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.tag, "tag"));
+    }
+
+    std::string name() const { return "hip::sync_stream"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.empty())
+            return {};
+        return inputs.front();
+    }
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    {
+        gpu_sync(ctx);
         if(args.empty())
             return {};
         return args.front();

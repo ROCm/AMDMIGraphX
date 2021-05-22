@@ -14,7 +14,7 @@ const std::string write_2s = R"__migraphx__(
 #include <hip/hip_runtime.h>
 
 extern "C" {
-__global__ void write(int* data) 
+__global__ void write(int8_t* data) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     data[num] = 2;
@@ -31,7 +31,7 @@ const std::string add_2s_binary = R"__migraphx__(
 #include <hip/hip_runtime.h>
 
 extern "C" {
-__global__ void add_2(std::int32_t* x, std::int32_t* y) 
+__global__ void add_2(std::int8_t* x, std::int8_t* y) 
 {
     int num = threadIdx.x + blockDim.x * blockIdx.x;
     y[num] = x[num] + 2;
@@ -69,7 +69,7 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::gpu::src_file make_src_file(const std::string& name, const std::string& content)
+migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};
 }
@@ -89,14 +89,14 @@ TEST_CASE(simple_compile_hip)
         {make_src_file("main.cpp", write_2s)}, "", get_device_name());
     EXPECT(binaries.size() == 1);
 
-    migraphx::argument input{{migraphx::shape::int32_type, {5}}};
+    migraphx::argument input{{migraphx::shape::int8_type, {5}}};
     auto ginput = migraphx::gpu::to_gpu(input);
     migraphx::gpu::kernel k{binaries.front(), "write"};
-    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<int>());
+    k.launch(nullptr, input.get_shape().elements(), 1024)(ginput.cast<std::int8_t>());
     auto output = migraphx::gpu::from_gpu(ginput);
 
     EXPECT(output != input);
-    auto data = output.get<int>();
+    auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
@@ -106,7 +106,7 @@ TEST_CASE(code_object_hip)
         {make_src_file("main.cpp", add_2s_binary)}, "", get_device_name());
     EXPECT(binaries.size() == 1);
 
-    migraphx::shape input{migraphx::shape::int32_type, {5}};
+    migraphx::shape input{migraphx::shape::int8_type, {5}};
 
     std::vector<migraphx::shape> expected_inputs = {input, input};
     auto co                                      = migraphx::make_op("gpu::code_object",
@@ -122,13 +122,13 @@ TEST_CASE(code_object_hip)
     auto input_literal  = migraphx::generate_literal(input);
     auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 2; });
     auto x              = mm->add_literal(input_literal);
-    auto y              = mm->add_instruction(
-        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(input)}}));
+    auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
     migraphx::compile_options options;
     p.compile(migraphx::gpu::target{}, options);
 
-    auto result = migraphx::gpu::from_gpu(p.eval({}).front());
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
 }
@@ -149,12 +149,12 @@ TEST_CASE(compile_code_object_hip)
     auto input_literal  = migraphx::generate_literal(input);
     auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 1; });
     auto x              = mm->add_literal(input_literal);
-    auto y              = mm->add_instruction(
-        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(input)}}));
+    auto y              = mm->add_parameter("output", input);
     mm->add_instruction(co, x, y);
     p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
 
-    auto result = migraphx::gpu::from_gpu(p.eval({}).front());
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
 
     EXPECT(result == output_literal.get_argument());
 }

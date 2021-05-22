@@ -37,7 +37,8 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
     migraphx::compile_options options;
-    options.trace = migraphx::tracer{ss};
+    if(show_trace)
+        options.trace = migraphx::tracer{std::cout};
     p.compile(t, options);
     if(shapes.size() != p.get_output_shapes().size())
     {
@@ -54,11 +55,6 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
             std::cout << ss.str() << std::endl;
             throw std::runtime_error("Compiling program with " + name + " alters its shape");
         }
-    }
-
-    if(show_trace)
-    {
-        std::cout << ss.str() << std::endl;
     }
 }
 
@@ -158,10 +154,12 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                                  detach_async([=] { return run_target(t, p, m); }, ti.parallel));
         }
 
+        assert(gold_f.valid());
         auto gold = gold_f.get();
 
         for(auto&& pp : results)
         {
+            assert(pp.second.valid());
             auto tname  = pp.first;
             auto x      = pp.second.get();
             auto cp     = x.first;

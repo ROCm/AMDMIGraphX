@@ -1,0 +1,3 @@
+matplotlib
+python-resize-image
+opencv-python

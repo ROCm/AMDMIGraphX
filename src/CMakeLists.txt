@@ -7,11 +7,15 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    argument.cpp
     auto_contiguous.cpp
     eliminate_common_subexpression.cpp
     decompose.cpp
     propagate_constant.cpp
+    compile_src.cpp
+    cpp_generator.cpp
     dead_code_elimination.cpp
+    dynamic_loader.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
     eliminate_concat.cpp
@@ -30,6 +34,7 @@ add_library(migraphx
     msgpack.cpp
     operation.cpp
     permutation.cpp
+    process.cpp
     program.cpp
     module.cpp
     quantization.cpp
@@ -117,6 +122,7 @@ register_migraphx_ops(
     pad
     pooling
     pow
+    prefix_scan_sum
     prelu
     quant_convolution
     quant_dot
@@ -168,6 +174,8 @@ check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
 if(HAS_LIB_STD_FILESYSTEM)
 target_link_libraries(migraphx PRIVATE -lstdc++fs)
 endif()
+
+target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 

@@ -254,7 +254,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
 
     py::class_<migraphx::program>(m, "program")
-        .def("clone", [](migraphx::program& p) { return *(new migraphx::program(p)); })
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
@@ -399,7 +398,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);
     m.def("to_gpu", &migraphx::gpu::to_gpu, py::arg("arg"), py::arg("host") = false);
     m.def("from_gpu", &migraphx::gpu::from_gpu);
-    m.def("gpu_sync", &migraphx::gpu::gpu_sync);
+    m.def("gpu_sync", [] { migraphx::gpu::gpu_sync(); });
 #endif
 
 #ifdef VERSION_INFO

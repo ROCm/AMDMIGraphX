@@ -102,6 +102,29 @@ void reflect_each(T& x, F f)
     });
 }
 
+template <class T>
+struct reflect_equality
+{
+    friend bool operator==(const T& x, const T& y) { return reflect_tie(x) == reflect_tie(y); }
+    friend bool operator!=(const T& x, const T& y) { return !(x == y); }
+};
+
+template <class T>
+struct reflect_stream
+{
+    template <class Stream>
+    friend Stream& operator<<(Stream& os, const T& x)
+    {
+        char d = '{';
+        reflect_each(x, [&](const auto& y, const auto& name) {
+            os << d << name << "=" << y;
+            d = ',';
+        });
+        os << "}";
+        return os;
+    }
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

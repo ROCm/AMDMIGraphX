@@ -1,9 +1,11 @@
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 
@@ -67,6 +69,27 @@ struct nop
     }
 };
 
+struct function
+{
+    static std::string as_string() { return ""; }
+    template <class T>
+    static decltype(auto) call(T&& x)
+    {
+        return x();
+    }
+};
+
+template <class Iterator>
+inline std::ostream& stream_range(std::ostream& s, Iterator start, Iterator last)
+{
+    if(start != last)
+    {
+        s << *start;
+        std::for_each(std::next(start), last, [&](auto&& x) { s << ", " << x; });
+    }
+    return s;
+}
+
 inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
 {
     s << "nullptr";
@@ -77,10 +100,7 @@ template <class T>
 inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
 {
     s << "{ ";
-    for(auto&& x : v)
-    {
-        s << x << ", ";
-    }
+    stream_range(s, v.begin(), v.end());
     s << "}";
     return s;
 }
@@ -88,10 +108,7 @@ inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
 inline std::ostream& operator<<(std::ostream& s, const std::vector<bool>& v)
 {
     s << "{ ";
-    for(auto x : v)
-    {
-        s << x << ", ";
-    }
+    stream_range(s, v.begin(), v.end());
     s << "}";
     return s;
 }
@@ -142,7 +159,10 @@ struct lhs_expression
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
-        s << Operator::as_string() << " " << self.lhs;
+        std::string op = Operator::as_string();
+        if(not op.empty())
+            s << Operator::as_string() << " ";
+        s << self.lhs;
         return s;
     }
 
@@ -179,6 +199,55 @@ struct lhs_expression
     TEST_LHS_REOPERATOR(|)
     TEST_LHS_REOPERATOR (^)
 };
+
+template <class F>
+struct predicate
+{
+    std::string msg;
+    F f;
+
+    friend std::ostream& operator<<(std::ostream& s, const predicate& self)
+    {
+        s << self.msg;
+        return s;
+    }
+
+    decltype(auto) operator()() const { return f(); }
+
+    operator decltype(auto)() const { return f(); }
+};
+
+template <class F>
+auto make_predicate(const std::string& msg, F f)
+{
+    return make_lhs_expression(predicate<F>{msg, f}, function{});
+}
+
+template <class T>
+std::string as_string(const T& x)
+{
+    std::stringstream ss;
+    ss << x;
+    return ss.str();
+}
+
+template <class Iterator>
+std::string as_string(Iterator start, Iterator last)
+{
+    std::stringstream ss;
+    stream_range(ss, start, last);
+    return ss.str();
+}
+
+template <class F>
+auto make_function(const std::string& name, F f)
+{
+    return [=](auto&&... xs) {
+        std::vector<std::string> args = {as_string(xs)...};
+        return make_predicate(name + "(" + as_string(args.begin(), args.end()) + ")",
+                              [=] { return f(xs...); });
+    };
+}
 
 struct capture
 {
@@ -234,6 +303,13 @@ bool throws(F f, const std::string& msg = "")
     {
         return std::string(ex.what()).find(msg) != std::string::npos;
     }
+}
+
+template <class T, class U>
+auto near(T px, U py, double ptol = 1e-6f)
+{
+    return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
+        px, py, ptol);
 }
 
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;

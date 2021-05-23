@@ -1,5 +1,5 @@
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/inline_subgraph.hpp>
+#include <migraphx/inline_module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
@@ -11,7 +11,7 @@
 void run_pass(migraphx::program& p)
 {
     auto* mm = p.get_main_module();
-    migraphx::run_passes(*mm, {migraphx::inline_subgraph{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(*mm, {migraphx::inline_module{}, migraphx::dead_code_elimination{}});
     migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
 

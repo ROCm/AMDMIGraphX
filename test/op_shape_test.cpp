@@ -1553,7 +1553,7 @@ TEST_CASE(step_test)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4}};
     {
-        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2}};
+        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2}, {8, 8, 3}};
         expect_shape(s2, migraphx::make_op("step", {{"axes", {1, 2}}, {"steps", {2, 3}}}), s1);
     }
 

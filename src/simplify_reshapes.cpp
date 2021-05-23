@@ -376,9 +376,7 @@ struct find_resize
             return;
         }
         arg_ind.visit([&](auto v) { vec_ind.assign(v.begin(), v.end()); });
-        std::vector<int> index(out_shape.elements());
-        std::iota(index.begin(), index.end(), 0);
-        if(not std::all_of(index.begin(), index.end(), [&](auto i) {
+        if(not all_of(range(out_shape.elements()), [&](auto i) {
                auto out_idx = out_shape.multi(i);
                auto in_idx  = out_idx;
                std::transform(out_idx.begin(),

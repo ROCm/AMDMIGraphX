@@ -138,7 +138,6 @@ add_library(migraphx_gpu
     pack_int8_args.cpp
     pad.cpp
     pooling.cpp
-    preallocate_param.cpp
     quant_convolution.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp

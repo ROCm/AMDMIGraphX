@@ -249,8 +249,8 @@ void memory_coloring_impl::verify()
 
             if(segment.begin == invalid_offset)
             {
-                if(!interval.is_live_on_entry)
-                    MIGRAPHX_THROW("interval is not live on entry");
+                // if(!interval.is_live_on_entry)
+                // MIGRAPHX_THROW("interval is not live on entry");
                 continue;
             }
 

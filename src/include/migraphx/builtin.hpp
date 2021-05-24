@@ -43,6 +43,7 @@ struct outline
 struct param
 {
     std::string parameter;
+    uint32_t order = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

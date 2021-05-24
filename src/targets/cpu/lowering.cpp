@@ -493,11 +493,15 @@ struct cpu_apply
         auto ins_alias = instruction::get_output_alias(ins);
         if(last->name() == "@return" and prog_output_names.count(ins_alias) > 0)
         {
-            return modl->insert_instruction(ins, make_op("cpu::preallocate", {{"shape", to_value(s)}, {"id", prog_output_names[ins_alias]}}));
+            return modl->insert_instruction(
+                ins,
+                make_op("cpu::preallocate",
+                        {{"shape", to_value(s)}, {"id", prog_output_names[ins_alias]}}));
         }
         else if(ins == last)
         {
-            return modl->insert_instruction(ins, make_op("cpu::preallocate", {{"shape", to_value(s)}, {"id", "output"}}));
+            return modl->insert_instruction(
+                ins, make_op("cpu::preallocate", {{"shape", to_value(s)}, {"id", "output"}}));
         }
 
         return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));

@@ -43,9 +43,7 @@ static void inline_submodule(module& m, instruction_ref ins)
             auto inputs   = sins->inputs();
             std::vector<instruction_ref> copy_inputs(inputs.size());
             std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
-
-                assert(contains(map_ins, i) or m.has_instruction(i));
-                return m.has_instruction(i) ? i : map_ins[i];
+                return contains(map_ins, i) ? map_ins[i] : i;
             });
 
             if(sins->name() == "@return")

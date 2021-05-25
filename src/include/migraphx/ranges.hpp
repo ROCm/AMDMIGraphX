@@ -5,6 +5,7 @@
 #include <vector>
 #include <initializer_list>
 #include <migraphx/rank.hpp>
+#include <migraphx/iota_iterator.hpp>
 #include <migraphx/type_name.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/requires.hpp>
@@ -208,11 +209,17 @@ struct iterator_range
     Iterator end() const { return last; }
 };
 
-template <class Iterator>
+template <class Iterator, MIGRAPHX_REQUIRES(not std::is_integral<Iterator>{})>
 iterator_range<Iterator> range(Iterator start, Iterator last)
 {
     return {start, last};
 }
+
+inline iterator_range<iota_iterator> range(std::ptrdiff_t start, std::ptrdiff_t last)
+{
+    return {{start, {}}, {last, {}}};
+}
+inline iterator_range<iota_iterator> range(std::ptrdiff_t last) { return range(0, last); }
 
 template <class Iterator>
 iterator_range<Iterator> range(std::pair<Iterator, Iterator> p)

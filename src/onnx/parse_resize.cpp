@@ -72,7 +72,7 @@ const auto& get_original_idx_op(const std::string& mode)
 }
 
 using vvv = std::vector<std::vector<std::vector<std::size_t>>>;
-std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
+static std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
                                       int i_dim,
                                       const std::vector<std::vector<std::size_t>>& vec_dims,
                                       const shape& in_s)
@@ -119,6 +119,48 @@ std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
     return calc_neighbor_points(vvv_ind, i_dim + 1, vec_dims1, in_s);
 }
 
+static std::string get_coord_trans_mode(const onnx_parser::attribute_map& attr)
+{
+    std::string coord_trans_mode = "half_pixel";
+    if(contains(attr, "coordinate_transformation_mode"))
+    {
+        coord_trans_mode = attr.at("coordinate_transformation_mode").s();
+        // does not support transformation mode "tf_crop_and_resize"
+        if(coord_trans_mode == "tf_crop_and_resize")
+        {
+            MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
+        }
+    }
+
+    return coord_trans_mode;
+}
+
+static std::string get_mode(const onnx_parser::attribute_map& attr)
+{
+    std::string mode = "nearest";
+    if(contains(attr, "mode"))
+    {
+        mode = attr.at("mode").s();
+        if(mode != "nearest" and mode != "linear")
+        {
+            MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+        }
+    }
+
+    return mode;
+}
+
+static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
+{
+    std::string nearest_mode = "round_prefer_floor";
+    if(contains(attr, "nearest_mode"))
+    {
+        nearest_mode = attr.at("nearest_mode").s();
+    }
+
+    return nearest_mode;
+}
+
 struct parse_resize : op_parser<parse_resize>
 {
     std::vector<op_desc> operators() const { return {{"Resize"}}; }
@@ -128,34 +170,14 @@ struct parse_resize : op_parser<parse_resize>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        std::string coord_trans_mode = "half_pixel";
-        if(contains(info.attributes, "coordinate_transformation_mode"))
-        {
-            coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
-            // does not support transformation mode "tf_crop_and_resize"
-            if(coord_trans_mode == "tf_crop_and_resize")
-            {
-                MIGRAPHX_THROW("PARSE_RESIZE: \"tf_crop_and_resize\" mode is not supported!");
-            }
-        }
+        // coord transform mode
+        std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
 
-        // mode: only nearest mode is supported for now
-        std::string mode = "nearest";
-        if(contains(info.attributes, "mode"))
-        {
-            mode = info.attributes.at("mode").s();
-            if(mode != "nearest" and mode != "linear")
-            {
-                MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
-            }
-        }
+        // mode: only nearest and linear modes are supported for now
+        std::string mode = get_mode(info.attributes);
 
         // nearest mode
-        std::string nearest_mode = "round_prefer_floor";
-        if(contains(info.attributes, "nearest_mode"))
-        {
-            nearest_mode = info.attributes.at("nearest_mode").s();
-        }
+        std::string nearest_mode = get_nearest_mode(info.attributes);
 
         // check exclude_outside, only support 0
         if(contains(info.attributes, "exclude_outside") and

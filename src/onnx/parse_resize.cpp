@@ -175,18 +175,19 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<double> vec_scale;
 
         for(std::size_t i = 0; i < args.size(); ++i)
+        for(const auto& arg : args)
         {
-            if(args.at(i)->name() == "undefined")
+            if(arg->name() == "undefined")
             {
                 continue;
             }
 
-            auto lens = args.at(i)->get_shape().lens();
-            auto type = args.at(i)->get_shape().type();
+            auto lens = arg->get_shape().lens();
+            auto type = arg->get_shape().type();
             // output size
             if(type == shape::int64_type)
             {
-                auto arg_out_s = args.at(i)->eval();
+                auto arg_out_s = arg->eval();
                 check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");
                 arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
 
@@ -208,7 +209,7 @@ struct parse_resize : op_parser<parse_resize>
                 // scale input
                 if(lens[0] == in_lens.size())
                 {
-                    auto arg_scale = args[i]->eval();
+                    auto arg_scale = arg->eval();
                     check_arg_empty(arg_scale,
                                     "PARSE_RESIZE: dynamic input scale is not supported!");
 

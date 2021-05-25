@@ -49,8 +49,8 @@ struct step
         auto strides = input.strides();
         for(auto i : range(axes.size()))
         {
-            auto axis = axes[i];
-            auto step = steps[i];
+            auto axis  = axes[i];
+            auto step  = steps[i];
             lens[axis] = (in_lens[axis] + step - 1) / step;
             strides[axis] *= step;
         }

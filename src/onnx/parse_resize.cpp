@@ -73,9 +73,9 @@ const auto& get_original_idx_op(const std::string& mode)
 
 using vvv = std::vector<std::vector<std::vector<std::size_t>>>;
 static std::vector<int> calc_neighbor_points(const vvv& vvv_ind,
-                                      int i_dim,
-                                      const std::vector<std::vector<std::size_t>>& vec_dims,
-                                      const shape& in_s)
+                                             int i_dim,
+                                             const std::vector<std::vector<std::size_t>>& vec_dims,
+                                             const shape& in_s)
 {
     if(i_dim == vvv_ind.size())
     {

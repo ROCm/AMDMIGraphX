@@ -774,6 +774,31 @@ TEST_CASE(inception_resnet)
     t.check_conflicts(m, {c1, {i1}});
 }
 
+TEST_CASE(dominate_conflicts)
+{
+    scheduler t{};
+    migraphx::module m;
+
+    auto one     = m.add_literal(1);
+    auto onep1   = m.add_instruction(unary_op{}, one);
+    auto onep2   = m.add_instruction(unary_op{}, one);
+    auto binary1 = m.add_instruction(nary_op{}, onep1, onep2);
+    auto onep3   = m.add_instruction(unary_op{}, binary1);
+    auto onep4   = m.add_instruction(unary_op{}, binary1);
+    auto binary2 = m.add_instruction(nary_op{}, onep3, onep4);
+    t.run_pass(m);
+
+    EXPECT(t.get_stream(onep1) != t.get_stream(onep2));
+    EXPECT(t.get_stream(onep3) != t.get_stream(onep4));
+    EXPECT(get_wait_for(binary1) ==
+           get_wait_for(t.get_stream(binary1), {t.get_stream(onep1), t.get_stream(onep2)}));
+    t.check_conflicts(m, {{onep1}, {onep2}});
+    t.check_conflicts(m, {{onep3}, {onep4}});
+
+    t.check_conflicts(m, {{onep1, onep2}, {onep3, onep4}}, false);
+    t.check_conflicts(m, {{binary1}, {binary2}}, false);
+}
+
 TEST_CASE(inception1)
 {
     scheduler t{};

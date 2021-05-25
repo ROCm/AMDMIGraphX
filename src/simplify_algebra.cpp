@@ -13,6 +13,7 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -396,8 +397,27 @@ struct find_splits
             match::any_of[match::outputs()](match::pointwise(), reduction()))));
     }
 
+    static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
+    {
+
+        std::unordered_set<instruction_ref> traversed;
+        return fix<bool>([&](auto self, auto ins) -> bool {
+            if(ins == ins2)
+                return true;
+
+            if(contains(traversed, ins))
+                return false;
+
+            traversed.insert(ins);
+            const auto& inputs = ins->inputs();
+            return std::any_of(inputs.begin(), inputs.end(), [&](auto in) {
+                return m.has_instruction(in) and self(in);
+            });
+        })(ins1);
+    }
+
     static std::vector<std::vector<instruction_ref>>
-    get_split_groups(const std::vector<instruction_ref>& splits)
+    get_split_groups(const module& m, const std::vector<instruction_ref>& splits)
     {
         std::vector<std::vector<instruction_ref>> groups;
         for(auto out : splits.front()->outputs())
@@ -414,9 +434,16 @@ struct find_splits
                 if(it == split->outputs().end())
                     break;
                 assert((*it)->name() != "slice");
+
                 // If there is a duplicate bail
-                if(contains(group, *it))
+                // there are should be no dependency between instructions in the group
+                if(std::any_of(group.begin(), group.end(), [&](auto i) {
+                       return is_dependent(m, *it, i) or is_dependent(m, i, *it);
+                   }))
+                {
                     return {};
+                }
+
                 group.push_back(*it);
             }
             if(group.size() != splits.size())
@@ -453,13 +480,12 @@ struct find_splits
 
     void apply(module& p, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-
+        auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
 
-        for(const auto& group : get_split_groups(splits))
+        for(const auto& group : get_split_groups(p, splits))
         {
             auto start       = group.front();
             auto split_front = splits.front();

@@ -688,7 +688,7 @@ struct find_add_convs
             {
                 if(a_op.stride < b_op.stride)
                 {
-                    int64_t n = static_cast<int64_t>(compute_stride_factor(b_op, a_op));
+                    auto n = compute_stride_factor(b_op, a_op);
                     if(n == 0)
                         return;
                     new_op  = a_op;
@@ -697,7 +697,7 @@ struct find_add_convs
                 }
                 else if(b_op.stride < a_op.stride)
                 {
-                    int64_t n = static_cast<int64_t>(compute_stride_factor(a_op, b_op));
+                    auto n = compute_stride_factor(a_op, b_op);
                     if(n == 0)
                         return;
                     new_op  = b_op;

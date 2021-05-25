@@ -47,12 +47,12 @@ struct step
 
         auto lens    = in_lens;
         auto strides = input.strides();
-        auto it_step = steps.begin();
-        for(const auto& axis : axes)
+        for(auto i : range(axes.size()))
         {
-            auto val   = *it_step++;
-            lens[axis] = (in_lens[axis] + val - 1) / val;
-            strides[axis] *= val;
+            auto axis = axes[i];
+            auto step = steps[i];
+            lens[axis] = (in_lens[axis] + step - 1) / step;
+            strides[axis] *= step;
         }
 
         return {t, lens, strides};

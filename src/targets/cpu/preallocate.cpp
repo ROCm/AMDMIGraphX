@@ -27,14 +27,8 @@ struct cpu_preallocate : auto_register_op<cpu_preallocate>
         check_shapes{inputs, *this}.has(0);
         return s;
     }
-    argument compute(context&, const shape&, const std::vector<argument>&) const
-    {
-        return data;
-    }
-    void finalize(context&, const shape&, const std::vector<shape>&)
-    {
-        data = argument(s);
-    }
+    argument compute(context&, const shape&, const std::vector<argument>&) const { return data; }
+    void finalize(context&, const shape&, const std::vector<shape>&) { data = argument(s); }
 };
 
 } // namespace cpu

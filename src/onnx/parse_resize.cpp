@@ -205,7 +205,7 @@ struct parse_resize : op_parser<parse_resize>
 
             // skipped empty input
             auto lens = arg->get_shape().lens();
-            if (lens.empty())
+            if(lens.empty())
             {
                 continue;
             }
@@ -231,9 +231,9 @@ struct parse_resize : op_parser<parse_resize>
                                vec_scale.begin(),
                                [](auto iss, auto oss) { return 1.0 * oss / iss; });
             }
-            else 
+            else
             {
-                
+
                 // scale input
                 if(lens[0] == in_lens.size())
                 {

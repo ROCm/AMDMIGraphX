@@ -25,6 +25,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using milliseconds = std::chrono::duration<double, std::milli>;
+
 struct program_impl
 {
     // A map is used to keep references to modules of the program
@@ -293,10 +295,14 @@ std::vector<argument> program::eval(parameter_map params) const
             ctx.finish();
             std::cout << "Run instruction: ";
             this->debug_print(ins);
+            timer t{};
             auto result = check_context(f);
+            double t1   = t.record<milliseconds>();
             ctx.finish();
+            double t2 = t.record<milliseconds>();
+            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                std::cout << "Ouput: " << result << std::endl;
+                std::cout << "Output: " << result << std::endl;
             return result;
         });
     }
@@ -480,8 +486,7 @@ double common_average(const std::vector<double>& v)
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
-    using milliseconds = std::chrono::duration<double, std::milli>;
-    auto& ctx          = this->impl->ctx;
+    auto& ctx = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();

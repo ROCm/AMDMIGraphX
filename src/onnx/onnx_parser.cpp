@@ -207,11 +207,14 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
     return op;
 }
 
-void onnx_parser::parse_undefined(module* mod, const std::string& name, std::unordered_map<std::string, std::vector<instruction_ref>>& instructions)
+void onnx_parser::parse_undefined(
+    module* mod,
+    const std::string& name,
+    std::unordered_map<std::string, std::vector<instruction_ref>>& instructions)
 {
     if(!contains(instructions, name))
     {
-        auto ins           = mod->add_instruction(make_op("undefined"));
+        auto ins = mod->add_instruction(make_op("undefined"));
         instructions[name].push_back(ins);
     }
 }
@@ -279,24 +282,28 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 void print(std::ostream& os, const std::vector<std::size_t>& dims)
 {
     os << "{";
-    for (std::size_t i = 0; i < dims.size(); ++i)
+    for(std::size_t i = 0; i < dims.size(); ++i)
     {
-        if (i != 0) os << ", ";
+        if(i != 0)
+            os << ", ";
         os << dims[i];
     }
     os << "}";
 }
 
-std::ostream& operator << (std::ostream& os, const std::vector<std::size_t>& dims)
+std::ostream& operator<<(std::ostream& os, const std::vector<std::size_t>& dims)
 {
     print(os, dims);
     return os;
 }
 
-void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, std::unordered_map<std::string, std::vector<instruction_ref>> instructions)
+void onnx_parser::parse_graph(
+    module* mod,
+    const onnx::GraphProto& graph,
+    std::unordered_map<std::string, std::vector<instruction_ref>> instructions)
 {
     std::cout << "mod_name = " << mod->name() << std::endl;
-    std::unordered_map<std::string, instruction_ref> mod_instructions;    
+    std::unordered_map<std::string, instruction_ref> mod_instructions;
     for(auto&& f : graph.initializer())
     {
         // std::cout << "lit_name = " << f.name() << std::endl;
@@ -315,12 +322,12 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, std::u
                 dims = map_input_dims.at(name);
             }
 
-            shape s            = parse_type(input.type(), dims);
+            shape s                = parse_type(input.type(), dims);
             mod_instructions[name] = mod->add_parameter(name, s);
         }
     }
 
-    for (const auto& n_ins : mod_instructions)
+    for(const auto& n_ins : mod_instructions)
     {
         instructions[n_ins.first].push_back(n_ins.second);
     }
@@ -359,11 +366,12 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, std::u
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());
-        std::transform(node.output().begin(),
-                       node.output().begin() + output_num,
-                       result.begin(),
-                       std::inserter(instructions, instructions.end()),
-                       [](auto&& x, auto&& y) { return std::make_pair(x, std::vector<instruction_ref>{y}); });
+        std::transform(
+            node.output().begin(),
+            node.output().begin() + output_num,
+            result.begin(),
+            std::inserter(instructions, instructions.end()),
+            [](auto&& x, auto&& y) { return std::make_pair(x, std::vector<instruction_ref>{y}); });
     }
 
     // Find instructions corresponding to the output
@@ -384,7 +392,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, std::u
     std::transform(prog_output_names.begin(),
                    prog_output_names.end(),
                    std::back_inserter(output_ins),
-                   [&](const auto& name) { return instructions[name].back() ; });
+                   [&](const auto& name) { return instructions[name].back(); });
 
     // add the return instuction
     mod->add_return(output_ins);

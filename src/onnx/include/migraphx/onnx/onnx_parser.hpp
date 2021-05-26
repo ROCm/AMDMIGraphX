@@ -72,14 +72,19 @@ struct onnx_parser
     onnx_parser();
     operation load(const std::string& name, const node_info& info) const;
 
-    void parse_undefined(module* mod, const std::string& name, std::unordered_map<std::string, std::vector<instruction_ref>>& instructions);
+    void
+    parse_undefined(module* mod,
+                    const std::string& name,
+                    std::unordered_map<std::string, std::vector<instruction_ref>>& instructions);
 
     static int64_t get_opset_version(const onnx::ModelProto& model);
 
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);
-    void parse_graph(module* mod, const onnx::GraphProto& graph, 
-                     std::unordered_map<std::string, std::vector<instruction_ref>> instructions = {});
+    void
+    parse_graph(module* mod,
+                const onnx::GraphProto& graph,
+                std::unordered_map<std::string, std::vector<instruction_ref>> instructions = {});
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;

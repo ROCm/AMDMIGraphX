@@ -4,7 +4,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_step_trans : verify_program<test_step_trans>
+struct test_step_transpose : verify_program<test_step_transpose>
 {
     migraphx::program create_program() const
     {

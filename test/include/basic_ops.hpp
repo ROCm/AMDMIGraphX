@@ -79,8 +79,7 @@ struct pass_op
             return {};
         return inputs.front();
     }
-
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    int output_alias(const std::vector<migraphx::shape>& s) const { return s.empty() ? -1 : 0; }
 };
 
 struct mod_pass_op

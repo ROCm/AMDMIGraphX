@@ -166,19 +166,16 @@ jobs:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
         # Look to see if there is a cache hit for the corresponding requirements file
-        key: ${{ matrix.os }}-cget-2-${{ hashFiles('requirements.txt') }}
+        key: 
+          ${{ matrix.os }}-cget-4-${{ hashFiles('requirements.txt', 'dev-requirements.txt') }}
+          ${{ matrix.os }}-cget-4-
 
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install cget
-        cget install pfultz2/rocm-recipes
-        cget ignore ROCmSoftwarePlatform/rocBLAS ROCmSoftwarePlatform/MIOpen
-        cget install -f requirements.txt
-        cget install oneapi-src/oneDNN@v1.7
-        cget install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
-        cget install ccache@v4.1
+        pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+        rbuild prepare -d cget -s gh
     - name: Prepare timestamp
       id: cache_timestamp
       shell: cmake -P {0}
@@ -205,19 +202,13 @@ jobs:
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
-        mkdir build
-        cd build
-        cmake .. \
-          -DCMAKE_C_COMPILER_LAUNCHER=${{ github.workspace }}/cget/bin/ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=${{ github.workspace }}/cget/bin/ccache \
+        rbuild build -d cget -s gh -t check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
-          -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer ${{matrix.os != 'ubuntu-16.04' && '-fsanitize-address-use-after-scope' || ''}} -fsanitize=undefined,address -fno-sanitize-recover=undefined,address" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'
-        make -j2 check
         ${{ github.workspace }}/cget/bin/ccache -s
 
     - name: Upload code coverage

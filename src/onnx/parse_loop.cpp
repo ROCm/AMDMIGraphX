@@ -1,4 +1,6 @@
+#include "migraphx/errors.hpp"
 #include "migraphx/instruction_ref.hpp"
+#include "migraphx/iterator_for.hpp"
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
@@ -9,6 +11,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+static void add_parameter_prefix(module& mod, const std::string& name, const std::string& prefix)
+{
+    auto ins = mod.get_parameter(name);
+    if (ins == mod.end())
+    {
+        MIGRAPHX_THROW("PARSE_LOOP: parameter \"" + name + "\" does not exist for module \"" + mod.name());
+    }
+    auto s = ins->get_shape();
+    std::string mgx_name = "@mgx_" + mod.name() + prefix + name;
+    auto mgx_ins = mod.add_parameter(mgx_name, s);
+    mod.replace_instruction(ins, mgx_ins);
+    mod.remove_instruction(ins);
+}
 
 struct parse_loop : op_parser<parse_loop>
 {
@@ -38,7 +54,12 @@ struct parse_loop : op_parser<parse_loop>
         module_ref sub_mod    = parser.prog.create_module(mod_name);
 
         // parse the sub_graph
-        parser.parse_graph(sub_mod, sub_graph);
+        parser.parse_graph(sub_mod, sub_graph, info.instructions);
+
+        auto pnames = sub_mod->get_parameter_names();
+        // add prefix for the iter_no
+        add_parameter_prefix(*sub_mod, pnames.at(0), "_iter_");
+        add_parameter_prefix(*sub_mod, pnames.at(1), "_cond_");
 
         auto ret = info.add_instruction(
             make_op("loop", {{"max_iter_num", max_iter_num}}), args, {sub_mod});

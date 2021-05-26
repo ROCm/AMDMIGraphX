@@ -64,9 +64,9 @@ struct loop
     {
         auto iter_num                   = args.at(0).at<int64_t>();
         auto cond                       = args.at(1).at<bool>();
+        std::size_t dep_var_num         = args.size() - 2;
         module_ref mod                  = mods.at(0);
         std::vector<std::string> pnames = mod->get_parameter_names();
-        std::size_t dep_var_num         = pnames.size() - 2;
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
         std::vector<argument> outputs;
@@ -86,8 +86,10 @@ struct loop
         for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
         {
             std::unordered_map<std::string, argument> params;
+
             // iter index
             params[pnames.at(0)] = argument(s_iter, &iter);
+            
             // cond variable
             params[pnames.at(1)] = mod_args.at(0);
 

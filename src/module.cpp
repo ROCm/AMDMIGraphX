@@ -340,7 +340,6 @@ shape module::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-
         return ins->get_shape();
     else
         return {};

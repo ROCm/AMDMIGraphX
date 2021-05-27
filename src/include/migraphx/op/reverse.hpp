@@ -60,15 +60,17 @@ struct reverse
 
         if (axis[0] == 0)
         {
-            for(std::size_t i = 0; i < (lens[0] / 2); i++)
+            for(std::size_t k = 0; k < lens[0]/2; k++) //4
             {
-                //TODO
-                continue;
+                for(std::size_t i = 0; i < lens[1]; i++) //16
+                {
+                    std::iter_swap( data.begin() + i + (k * lens[1]), data.begin() + i + ((lens[0]-k-1)*lens[1]) );
+                }
             }
         }
-        else if (axis[0] == 1) //outer to inside, this is the sub arrays
+        else if (axis[0] == 1) 
         {
-            for (std::size_t t = 0; t < lens[0]; t++) //4096
+            for (std::size_t t = 0; t < lens[0]; t++)
             {
                 std::reverse( data.begin() + (t * lens[1]), data.begin() + ((t+1) * lens[1]) ); //
             }

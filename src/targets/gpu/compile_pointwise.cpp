@@ -8,7 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // NOLINTNEXTLINE
-const std::string simple_pointwise_increment = R"__migraphx__(
+const std::string pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <args.hpp>
@@ -46,7 +46,7 @@ operation compile_pointwise(const std::vector<shape>& inputs, const std::string&
     options.local  = 1024;
     options.inputs = inputs;
     options.output = inputs.back();
-    auto src       = interpolate_string(simple_pointwise_increment,
+    auto src       = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda}});

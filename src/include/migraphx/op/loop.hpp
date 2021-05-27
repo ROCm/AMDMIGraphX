@@ -66,7 +66,32 @@ struct loop
         auto cond                       = args.at(1).at<bool>();
         std::size_t dep_var_num         = args.size() - 2;
         module_ref mod                  = mods.at(0);
+        auto mod_name                   = mod->name();
         std::vector<std::string> pnames = mod->get_parameter_names();
+
+        std::string prefix = "@mgx_" + mod->name();
+        std::vector<std::pair<std::string, bool>> fixed_input_pair;
+        auto it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_iter_"); });
+        if (it != pnames.end())
+        {
+            fixed_input_pair.push_back({*it, true});
+            pnames.erase(it);
+        }
+        else
+        {
+            fixed_input_pair.push_back({{}, false});            
+        }
+
+        it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_cond_"); });
+        if (it != pnames.end())
+        {
+            fixed_input_pair.push_back({*it, true});
+            pnames.erase(it);
+        }
+        else
+        {
+            fixed_input_pair.push_back({{}, false});            
+        }
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
         std::vector<argument> outputs;
@@ -77,6 +102,7 @@ struct loop
 
         // dependency carry outputs
         std::vector<argument> dep_outputs(outputs.begin(), outputs.begin() + dep_var_num);
+
         // scan outputs
         std::vector<argument> scan_outputs(outputs.begin() + dep_var_num, outputs.end());
 
@@ -88,13 +114,19 @@ struct loop
             std::unordered_map<std::string, argument> params;
 
             // iter index
-            params[pnames.at(0)] = argument(s_iter, &iter);
+            if (fixed_input_pair.at(0).second)
+            {
+                params[fixed_input_pair.at(0).first] = argument(s_iter, &iter);
+            }
 
             // cond variable
-            params[pnames.at(1)] = mod_args.at(0);
+            if (fixed_input_pair.at(1).second)
+            {
+                params[fixed_input_pair.at(1).first] = mod_args.at(0);
+            }
 
             // carry dependencies
-            std::transform(pnames.begin() + 2,
+            std::transform(pnames.begin(),
                            pnames.end(),
                            mod_args.begin() + 1,
                            std::inserter(params, params.end()),

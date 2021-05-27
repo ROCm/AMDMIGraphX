@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ARRAY_HPP
 
 #include <migraphx/kernels/types.hpp>
-#include <type_traits>
+#include <migraphx/kernels/integral_constant.hpp>
 
 namespace migraphx {
 
@@ -53,7 +53,7 @@ struct array
     constexpr T* data() { return d; }
     constexpr const T* data() const { return d; }
 
-    constexpr std::integral_constant<index_int, N> size() const { return {}; }
+    constexpr index_constant<N> size() const { return {}; }
 
     constexpr T* begin() { return d; }
     constexpr const T* begin() const { return d; }

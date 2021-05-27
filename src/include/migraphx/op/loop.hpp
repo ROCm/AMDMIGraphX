@@ -71,26 +71,30 @@ struct loop
 
         std::string prefix = "@mgx_" + mod->name();
         std::vector<std::pair<std::string, bool>> fixed_input_pair;
-        auto it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_iter_"); });
-        if (it != pnames.end())
+        auto it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
+            return contains(name, prefix + "_iter_");
+        });
+        if(it != pnames.end())
         {
             fixed_input_pair.push_back({*it, true});
             pnames.erase(it);
         }
         else
         {
-            fixed_input_pair.push_back({{}, false});            
+            fixed_input_pair.push_back({{}, false});
         }
 
-        it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_cond_"); });
-        if (it != pnames.end())
+        it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
+            return contains(name, prefix + "_cond_");
+        });
+        if(it != pnames.end())
         {
             fixed_input_pair.push_back({*it, true});
             pnames.erase(it);
         }
         else
         {
-            fixed_input_pair.push_back({{}, false});            
+            fixed_input_pair.push_back({{}, false});
         }
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
@@ -114,13 +118,13 @@ struct loop
             std::unordered_map<std::string, argument> params;
 
             // iter index
-            if (fixed_input_pair.at(0).second)
+            if(fixed_input_pair.at(0).second)
             {
                 params[fixed_input_pair.at(0).first] = argument(s_iter, &iter);
             }
 
             // cond variable
-            if (fixed_input_pair.at(1).second)
+            if(fixed_input_pair.at(1).second)
             {
                 params[fixed_input_pair.at(1).first] = mod_args.at(0);
             }

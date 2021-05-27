@@ -3562,19 +3562,18 @@ TEST_CASE(reshape_test)
 
 TEST_CASE(reverse_test)
 {
-    migraphx::shape in_shape{migraphx::shape::float_type, {1,16}};
-    std::vector<float> data(16);
+    migraphx::shape in_shape{migraphx::shape::float_type, {2,16}};
+    std::vector<float> data(32);
     std::iota(data.begin(), data.end(), 1);
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l = mm->add_literal(migraphx::literal{in_shape, data});
-    mm->add_instruction(migraphx::make_op("reverse", {"axis", {1}}), l);
+    mm->add_instruction(migraphx::make_op("reverse", {{"axis", {1}}}), l);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data(16);
-    std::iota(target_data.end(), target_data.begin(), 1);
+    std::vector<float> target_data = {16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17};
     EXPECT(migraphx::verify_range(results_vector, target_data));
 }
 

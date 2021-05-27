@@ -48,7 +48,8 @@ operation compile_pointwise(const std::vector<shape>& inputs, const std::string&
     options.output = inputs.back();
     auto src       = interpolate_string(simple_pointwise_increment,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
-                                   {"args", enum_params(inputs.size(), "private_p")}});
+                                   {"args", enum_params(inputs.size(), "private_p")},
+                                   {"lambda", lambda}});
     return compile_hip_code_object(src, options)
 }
 

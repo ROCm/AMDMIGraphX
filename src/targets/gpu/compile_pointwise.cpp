@@ -50,7 +50,7 @@ operation compile_pointwise(const std::vector<shape>& inputs, const std::string&
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda}});
-    return compile_hip_code_object(src, options)
+    return compile_hip_code_object(src, options);
 }
 
 } // namespace gpu

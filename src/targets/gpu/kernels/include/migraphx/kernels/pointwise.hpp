@@ -5,7 +5,7 @@
 
 namespace migraphx {
 
-template<class F, class T, class... Ts>
+template <class F, class T, class... Ts>
 __device__ void pointwise(index idx, F f, T out, Ts... xs)
 {
     const auto stride = idx.nglobal();
@@ -18,4 +18,3 @@ __device__ void pointwise(index idx, F f, T out, Ts... xs)
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP
-

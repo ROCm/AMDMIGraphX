@@ -35,9 +35,7 @@ int main() {}
 std::string enum_params(std::size_t count, std::string param)
 {
     std::vector<std::string> items(count);
-    transform(range(count), items.begin(), [&](auto i) {
-        return param + std::to_string(i);
-    });
+    transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
 }
 
@@ -48,7 +46,9 @@ operation compile_pointwise(const std::vector<shape>& inputs, const std::string&
     options.local  = 1024;
     options.inputs = inputs;
     options.output = inputs.back();
-    auto src = interpolate_string(simple_pointwise_increment, {{"params", enum_params(inputs.size(), "void * private_p")}, {"args", enum_params(inputs.size(), "private_p")}});
+    auto src       = interpolate_string(simple_pointwise_increment,
+                                  {{"params", enum_params(inputs.size(), "void * private_p")},
+                                   {"args", enum_params(inputs.size(), "private_p")}});
     return compile_hip_code_object(src, options)
 }
 

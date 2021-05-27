@@ -55,14 +55,12 @@ constexpr auto sequence(IntegerConstant ic, F&& f)
     return sequence_c<ic>(f);
 }
 
-template<class... Ts>
+template <class... Ts>
 constexpr auto rotate_last(Ts*... xs)
 {
     return [=](auto&& f) {
-        array<void*, sizeof...(Ts)> args = { xs... };
-        sequence_c<sizeof...(Ts)-1>([&](auto... is) {
-            f(args[sizeof...(Ts)-1], args[is]...);
-        });
+        array<void*, sizeof...(Ts)> args = {xs...};
+        sequence_c<sizeof...(Ts) - 1>([&](auto... is) { f(args[sizeof...(Ts) - 1], args[is]...); });
     };
 }
 

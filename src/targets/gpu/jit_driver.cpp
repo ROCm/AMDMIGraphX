@@ -38,7 +38,8 @@ struct jit_driver
     void compile_pointwise_action(const value& v) const
     {
         context ctx;
-        auto op = compile_pointwise(ctx, parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
+        auto op =
+            compile_pointwise(ctx, parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
         std::cout << op << std::endl;
     }
 

@@ -26,12 +26,12 @@ TEST_CASE(quantizelinear)
     std::vector<float> sv = {2};
     migraphx::shape zs{migraphx::shape::uint8_type, {1}};
     std::vector<uint8_t> zv = {0};
-    auto create_program = [&]() {
+    auto create_program     = [&]() {
         migraphx::program p;
-        auto* mm      = p.get_main_module();
-        auto x        = mm->add_literal(xs, xv);
-        auto s        = mm->add_literal(ss, sv);
-        auto z        = mm->add_literal(zs, zv);
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(ss, sv);
+        auto z   = mm->add_literal(zs, zv);
         mm->add_instruction(migraphx::make_op("quantizelinear", {{"axis", 1}}), x, s, z);
         return p;
     };
@@ -54,12 +54,12 @@ TEST_CASE(dequantizelinear)
     std::vector<float> sv = {2};
     migraphx::shape zs{migraphx::shape::uint8_type, {1}};
     std::vector<uint8_t> zv = {0};
-    auto create_program = [&]() {
+    auto create_program     = [&]() {
         migraphx::program p;
-        auto* mm      = p.get_main_module();
-        auto x        = mm->add_literal(xs, xv);
-        auto s        = mm->add_literal(ss, sv);
-        auto z        = mm->add_literal(zs, zv);
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(ss, sv);
+        auto z   = mm->add_literal(zs, zv);
         mm->add_instruction(migraphx::make_op("dequantizelinear", {{"axis", 1}}), x, s, z);
         return p;
     };

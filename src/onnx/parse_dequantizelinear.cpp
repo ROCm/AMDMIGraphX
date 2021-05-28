@@ -19,18 +19,20 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
         int axis = 1;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
-        
-        auto x = args[0];
+
+        auto x       = args[0];
         auto x_scale = args[1];
 
-        if (args.size() == 3)
+        if(args.size() == 3)
         {
             auto x_zero_point = args[2];
-            return info.add_instruction(make_op("dequantizelinear", {{"axis", axis}}), x, x_scale, x_zero_point);
+            return info.add_instruction(
+                make_op("dequantizelinear", {{"axis", axis}}), x, x_scale, x_zero_point);
         }
-        
+
         auto x_zero_point = info.add_literal(0);
-        return info.add_instruction(make_op("dequantizelinear", {{"axis", axis}}), x, x_scale, x_zero_point);
+        return info.add_instruction(
+            make_op("dequantizelinear", {{"axis", axis}}), x, x_scale, x_zero_point);
     }
 };
 

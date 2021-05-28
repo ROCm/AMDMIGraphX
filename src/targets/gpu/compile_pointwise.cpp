@@ -7,8 +7,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// NOLINTNEXTLINE
-const std::string pointwise_kernel = R"__migraphx__(
+static const char * pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <args.hpp>
@@ -19,11 +18,11 @@ extern "C" {
 __global__ void kernel(${params}) 
 {
     rotate_last(${args})([](auto&... private_ps) __device__ {
-        make_tensors(private_ps)([](auto... private_xs) __device__ {
+        make_tensors(private_ps...)([](auto... private_xs) __device__ {
             auto private_idx = make_index();
             pointwise(private_idx, ${lambda}, private_xs...);
         });
-    })
+    });
 }
     
 }

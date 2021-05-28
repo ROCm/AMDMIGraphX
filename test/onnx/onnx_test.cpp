@@ -8,6 +8,8 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/rewrite_dequantizelinear.hpp>
+#include <migraphx/rewrite_quantizelinear.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
@@ -16,14 +18,14 @@
 
 #include "test.hpp"
 
-migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = false)
+migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
     auto prog                      = migraphx::parse_onnx(name, options);
     auto* mm                       = prog.get_main_module();
-    if(eliminate_deadcode)
-        migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
+    if(run_passes)
+        migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}, migraphx::rewrite_dequantizelinear{}, migraphx::rewrite_quantizelinear{}});
 
     // remove the last identity instruction
     auto last_ins = std::prev(mm->end());
@@ -925,7 +927,7 @@ TEST_CASE(dequantizelinear_test)
 
     mm->add_instruction(migraphx::make_op("mul"), dequant, l1_mbcast);
 
-    auto prog = optimize_onnx("dequantizelinear_test.onnx");
+    auto prog = optimize_onnx("dequantizelinear_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 
@@ -964,7 +966,7 @@ TEST_CASE(dequantizelinear_axis_test)
 {
     migraphx::program p = make_dequantizelinear_axis_prog();
 
-    auto prog = optimize_onnx("dequantizelinear_axis_test.onnx");
+    auto prog = optimize_onnx("dequantizelinear_axis_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 
@@ -972,7 +974,7 @@ TEST_CASE(dequantizelinear_neg_axis_test)
 {
     migraphx::program p = make_dequantizelinear_axis_prog();
 
-    auto prog = optimize_onnx("dequantizelinear_neg_axis_test.onnx");
+    auto prog = optimize_onnx("dequantizelinear_neg_axis_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 
@@ -2346,7 +2348,7 @@ TEST_CASE(quantizelinear_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
         clip);
 
-    auto prog = optimize_onnx("quantizelinear_test.onnx");
+    auto prog = optimize_onnx("quantizelinear_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 
@@ -2395,7 +2397,7 @@ TEST_CASE(quantizelinear_axis_test)
 {
     migraphx::program p = make_quantizelinear_axis_prog();
 
-    auto prog = optimize_onnx("quantizelinear_axis_test.onnx");
+    auto prog = optimize_onnx("quantizelinear_axis_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 
@@ -2403,7 +2405,7 @@ TEST_CASE(quantizelinear_neg_axis_test)
 {
     migraphx::program p = make_quantizelinear_axis_prog();
 
-    auto prog = optimize_onnx("quantizelinear_neg_axis_test.onnx");
+    auto prog = optimize_onnx("quantizelinear_neg_axis_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 

@@ -25,8 +25,10 @@ add_library(migraphx
     eliminate_pad.cpp
     file_buffer.cpp
     rewrite_batchnorm.cpp
+    rewrite_dequantizelinear.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
+    rewrite_quantizelinear.cpp
     env.cpp
     generate.cpp
     instruction.cpp
@@ -90,6 +92,7 @@ register_migraphx_ops(
     cosh
     cos
     deconvolution
+    dequantizelinear
     div
     dot
     elu
@@ -127,6 +130,7 @@ register_migraphx_ops(
     prelu
     quant_convolution
     quant_dot
+    quantizelinear
     recip
     reduce_max
     reduce_mean

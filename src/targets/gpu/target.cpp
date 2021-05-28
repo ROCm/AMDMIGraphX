@@ -3,6 +3,7 @@
 #include <migraphx/check_context.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/decompose.hpp>
+#include <migraphx/rewrite_dequantizelinear.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -17,6 +18,7 @@
 #include <migraphx/remap.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
+#include <migraphx/rewrite_quantizelinear.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
@@ -62,6 +64,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_pad{},
         dead_code_elimination{},
         rewrite_batchnorm{},
+        dead_code_elimination{},
+        rewrite_dequantizelinear{},
+        dead_code_elimination{},
+        rewrite_quantizelinear{},
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},

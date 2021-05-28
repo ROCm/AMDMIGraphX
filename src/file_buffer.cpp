@@ -6,7 +6,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class T>
+template <class T>
 T generic_read_file(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);

@@ -381,7 +381,6 @@ struct value
         return to<To>();
     }
 
-
     template <class To>
     std::vector<To> to_vector() const
     {
@@ -393,7 +392,7 @@ struct value
         });
         return result;
     }
-    
+
     template <class To>
     To get(const std::string& pkey, const To& default_value) const
     {
@@ -413,7 +412,8 @@ struct value
     }
 
     template <class To>
-    std::vector<To> get(const std::string& pkey, const std::initializer_list<To>& default_value) const
+    std::vector<To> get(const std::string& pkey,
+                        const std::initializer_list<To>& default_value) const
     {
         return get<std::vector<To>>(pkey, default_value);
     }

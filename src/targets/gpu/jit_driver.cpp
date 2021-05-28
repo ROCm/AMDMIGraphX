@@ -23,18 +23,16 @@ namespace gpu {
 struct jit_driver
 {
     value settings = value::object{};
-    std::unordered_map<std::string, std::function<void(const jit_driver&, const value&)>> actions = {};
+    std::unordered_map<std::string, std::function<void(const jit_driver&, const value&)>> actions =
+        {};
 
-    template<class F>
+    template <class F>
     void add_action(std::string name, F f)
     {
         actions[name] = std::mem_fn(f);
     }
 
-    jit_driver()
-    {
-        add_action("compile_pointwise", &jit_driver::compile_pointwise_action);
-    }
+    jit_driver() { add_action("compile_pointwise", &jit_driver::compile_pointwise_action); }
 
     void compile_pointwise_action(const value& v) const
     {
@@ -42,7 +40,7 @@ struct jit_driver
         std::cout << op << std::endl;
     }
 
-    template<class T>
+    template <class T>
     T get(const value& v, const std::string& key, const T& default_value) const
     {
         return v.get(key, settings.get(key, default_value));
@@ -50,10 +48,10 @@ struct jit_driver
 
     shape parse_shape(const value& v) const
     {
-        auto lens = get(v, "lens", std::vector<std::size_t>{});
+        auto lens    = get(v, "lens", std::vector<std::size_t>{});
         auto strides = get(v, "strides", std::vector<std::size_t>{});
-        auto type = shape::parse_type(get<std::string>(v, "type", "float"));
-        if (strides.empty())
+        auto type    = shape::parse_type(get<std::string>(v, "type", "float"));
+        if(strides.empty())
             return shape{type, lens};
         else
             return shape{type, lens, strides};
@@ -70,35 +68,34 @@ struct jit_driver
 
     void load_settings(const value& v)
     {
-        if (v.contains("settings"))
+        if(v.contains("settings"))
             settings = v.at("settings");
     }
 
     static void process(const std::string& filename)
     {
         auto v = from_json_string(convert_to_json(read_string(filename)));
-        if (not v.is_object())
+        if(not v.is_object())
             error("Input is not an object");
         jit_driver d{};
         d.load_settings(v);
-        for(auto&& p:v)
+        for(auto&& p : v)
         {
-            if (p.get_key() == "settings")
+            if(p.get_key() == "settings")
                 continue;
             d.actions.at(p.get_key())(d, p.without_key());
         }
     }
 };
 
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-int main(int argc, char const *argv[])
+int main(int argc, char const* argv[])
 {
-    std::vector<std::string> args(argv, argv+argc);
-    if (args.size() < 2)
+    std::vector<std::string> args(argv, argv + argc);
+    if(args.size() < 2)
     {
         std::cout << "Usage: gpu-jit-driver <input-file>" << std::endl;
         std::abort();

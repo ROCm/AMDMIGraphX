@@ -2,12 +2,10 @@
 #include <migraphx/gpu/compile_pointwise.hpp>
 #include <migraphx/gpu/context.hpp>
 
-
 #include <migraphx/context.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/gpu/hip.hpp>
-
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -27,7 +25,7 @@ using milliseconds = std::chrono::duration<double, std::milli>;
 double time_op(context& ctx, operation op, const std::vector<shape>& inputs)
 {
     migraphx::context gctx = ctx;
-    auto output = op.compute_shape(inputs);
+    auto output            = op.compute_shape(inputs);
     op.finalize(gctx, output, inputs);
     auto args = generate_arguments(inputs);
     return time<milliseconds>([&] {
@@ -42,8 +40,8 @@ struct compile_pointwise : action<compile_pointwise>
     {
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>());
-        double t = time_op(ctx, op, inputs);
+        auto op     = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>());
+        double t    = time_op(ctx, op, inputs);
         std::cout << op << ": " << t << "ms" << std::endl;
     }
 };

@@ -33,7 +33,8 @@ struct parser
     void load_settings(const value& v);
 
     static void process(const value& v);
-private:
+
+    private:
     value settings = value::object{};
 };
 

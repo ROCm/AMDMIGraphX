@@ -14,15 +14,12 @@ auto& action_map()
 
 action_function get_action(const std::string& name)
 {
-    if (action_map().count(name) == 0)
+    if(action_map().count(name) == 0)
         MIGRAPHX_THROW("Missing action: " + name);
     return action_map().at(name);
 }
 
-void register_action(const std::string& name, const action_function& a)
-{
-    action_map()[name] = a;
-}
+void register_action(const std::string& name, const action_function& a) { action_map()[name] = a; }
 
 } // namespace driver
 } // namespace gpu

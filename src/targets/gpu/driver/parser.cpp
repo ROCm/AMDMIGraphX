@@ -26,9 +26,8 @@ shape parser::parse_shape(const value& v) const
 std::vector<shape> parser::parse_shapes(const value& v) const
 {
     std::vector<shape> result;
-    std::transform(v.begin(), v.end(), std::back_inserter(result), [&](auto&& x) {
-        return parse_shape(x);
-    });
+    std::transform(
+        v.begin(), v.end(), std::back_inserter(result), [&](auto&& x) { return parse_shape(x); });
     return result;
 }
 

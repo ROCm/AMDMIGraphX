@@ -3,8 +3,8 @@
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/file_buffer.hpp>
 
-using namespace migraphx; // NOLINT
-using namespace migraphx::gpu; // NOLINT
+using namespace migraphx;              // NOLINT
+using namespace migraphx::gpu;         // NOLINT
 using namespace migraphx::gpu::driver; // NOLINT
 
 int main(int argc, char const* argv[])

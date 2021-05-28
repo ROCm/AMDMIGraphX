@@ -12,7 +12,8 @@ struct compile_pointwise : action<compile_pointwise>
     static void apply(const parser& p, const value& v)
     {
         context ctx;
-        auto op = gpu::compile_pointwise(ctx, p.parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
+        auto op = gpu::compile_pointwise(
+            ctx, p.parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
         std::cout << op << std::endl;
     }
 };

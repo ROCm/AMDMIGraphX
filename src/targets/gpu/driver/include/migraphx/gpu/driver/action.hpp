@@ -22,9 +22,8 @@ struct auto_register_action
     static void apply()
     {
         auto name = get_type_name<T>();
-        register_action(name.substr(name.rfind("::") + 2), [](auto&&... xs) {
-            T::apply(std::forward<decltype(xs)>(xs)...);
-        });
+        register_action(name.substr(name.rfind("::") + 2),
+                        [](auto&&... xs) { T::apply(std::forward<decltype(xs)>(xs)...); });
     }
 };
 

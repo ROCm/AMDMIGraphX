@@ -1,3 +1,9 @@
 
-add_executable(gpu-jit-driver jit_driver.cpp)
-target_link_libraries(gpu-jit-driver PRIVATE migraphx_gpu)
+add_executable(gpu-driver
+    action.cpp
+    compile_pointwise.cpp
+    main.cpp
+    parser.cpp
+)
+target_include_directories(gpu-driver PRIVATE include)
+target_link_libraries(gpu-driver PRIVATE migraphx_gpu)

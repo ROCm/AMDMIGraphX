@@ -8,7 +8,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-operation compile_pointwise(const std::vector<shape>& inputs, const std::string& lambda);
+struct context;
+operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, const std::string& lambda);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

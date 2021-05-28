@@ -1,5 +1,6 @@
 #include <migraphx/gpu/compile_pointwise.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -38,7 +39,7 @@ std::string enum_params(std::size_t count, std::string param)
     return join_strings(items, ",");
 }
 
-operation compile_pointwise(const std::vector<shape>& inputs, const std::string& lambda)
+operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda)
 {
     hip_compile_options options;
     options.global = 256 * 1024;

@@ -3,6 +3,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/gpu/compile_pointwise.hpp>
+#include <migraphx/gpu/context.hpp>
 
 #include <unordered_map>
 #include <functional>
@@ -36,7 +37,8 @@ struct jit_driver
 
     void compile_pointwise_action(const value& v) const
     {
-        auto op = compile_pointwise(parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
+        context ctx;
+        auto op = compile_pointwise(ctx, parse_shapes(v.at("inputs")), v.at("lambda").to<std::string>());
         std::cout << op << std::endl;
     }
 

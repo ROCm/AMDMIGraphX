@@ -39,10 +39,17 @@ std::string enum_params(std::size_t count, std::string param)
     return join_strings(items, ",");
 }
 
+std::size_t compute_global(std::size_t n, std::size_t local = 1024)
+{
+    std::size_t groups  = (n + local - 1) / local;
+    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
+    return nglobal;
+}
+
 operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda)
 {
     hip_compile_options options;
-    options.global = 256 * 1024;
+    options.global = compute_global(inputs.front().elements());
     options.local  = 1024;
     options.inputs = inputs;
     options.output = inputs.back();

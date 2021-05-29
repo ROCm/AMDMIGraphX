@@ -22,16 +22,22 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-double time_op(context& ctx, operation op, const std::vector<shape>& inputs)
+double time_op(context& ctx, operation op, const std::vector<shape>& inputs, int n = 100)
 {
     migraphx::context gctx = ctx;
     auto output            = op.compute_shape(inputs);
     op.finalize(gctx, output, inputs);
     auto args = generate_arguments(inputs);
-    return time<milliseconds>([&] {
+    auto run = [&] {
         op.compute(gctx, output, args);
         gctx.finish();
+    };
+    run();
+    auto r = range(n);
+    double t = std::accumulate(r.begin(), r.end(), double{0.0}, [&](auto x, auto) {
+        return x + time<milliseconds>(run);
     });
+    return t / n;
 }
 
 struct compile_pointwise : action<compile_pointwise>

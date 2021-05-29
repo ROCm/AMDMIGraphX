@@ -28,15 +28,14 @@ double time_op(context& ctx, operation op, const std::vector<shape>& inputs, int
     auto output            = op.compute_shape(inputs);
     op.finalize(gctx, output, inputs);
     auto args = generate_arguments(inputs);
-    auto run = [&] {
+    auto run  = [&] {
         op.compute(gctx, output, args);
         gctx.finish();
     };
     run();
-    auto r = range(n);
-    double t = std::accumulate(r.begin(), r.end(), double{0.0}, [&](auto x, auto) {
-        return x + time<milliseconds>(run);
-    });
+    auto r   = range(n);
+    double t = std::accumulate(
+        r.begin(), r.end(), double{0.0}, [&](auto x, auto) { return x + time<milliseconds>(run); });
     return t / n;
 }
 

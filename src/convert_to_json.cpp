@@ -80,9 +80,9 @@ std::vector<token> json_tokenize(const std::string& s)
 
     // Line comments
     lexers.push_back([](const char* start, const char* end) {
-        if (*start == '#')
+        if(*start == '#')
             start++;
-        else if ((start + 1) < end and start[0] == '/' and start[1] == '/')
+        else if((start + 1) < end and start[0] == '/' and start[1] == '/')
             start += 2;
         else
             return start;
@@ -111,7 +111,7 @@ std::string convert_to_json(const std::string& str)
     for(auto& token : tokens)
     {
         std::string s(token.first, token.second);
-        if (starts_with(s, "#") or starts_with(s, "//"))
+        if(starts_with(s, "#") or starts_with(s, "//"))
             continue;
         if(std::isalpha(s.front()) != 0 and
            not contains({"null", "nan", "true", "false", "inf"}, s))

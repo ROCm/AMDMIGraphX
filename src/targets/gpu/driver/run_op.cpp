@@ -14,11 +14,11 @@ struct run_op : action<run_op>
     {
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
-        auto name = v.at("name").to<std::string>();
-        if (not contains(name, "::"))
+        auto name   = v.at("name").to<std::string>();
+        if(not contains(name, "::"))
             name = "gpu::" + name;
-        auto op = make_op(name);
-        double t    = time_op(ctx, op, inputs);
+        auto op  = make_op(name);
+        double t = time_op(ctx, op, inputs);
         std::cout << op << ": " << t << "ms" << std::endl;
     }
 };

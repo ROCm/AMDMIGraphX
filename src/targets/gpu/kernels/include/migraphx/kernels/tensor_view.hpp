@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_KERNELS_TENSOR_VIEW_HPP
 
 #include <migraphx/kernels/shape.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
@@ -14,6 +15,7 @@ struct tensor_view
     template <class U>
     constexpr T& operator[](U i) const
     {
+        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().elements());
         return x[get_shape().index(i)];
     }
 

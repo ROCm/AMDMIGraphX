@@ -47,7 +47,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         params += " -O3 ";
     }
 
-    if (enabled(MIGRAPHX_GPU_DEBUG{}))
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
         params += " -DMIGRAPHX_DEBUG";
 
     params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";

@@ -5,11 +5,8 @@
 
 namespace migraphx {
 
-inline __host__ __device__ 
-void assert_fail(const char * assertion,
-                   const char *file,
-                   unsigned int line,
-                   const char *function)
+inline __host__ __device__ void
+assert_fail(const char* assertion, const char* file, unsigned int line, const char* function)
 {
     printf("%s:%u: %s: assertion `%s' failed.\n", file, line, function, assertion);
     abort();
@@ -17,9 +14,8 @@ void assert_fail(const char * assertion,
 
 #ifdef MIGRAPHX_DEBUG
 #define MIGRAPHX_ASSERT(e) \
-        ( (e) ? void(0) : [](const char* f) { \
-            assert_fail (#e, __FILE__, __LINE__, f); \
-        }(__PRETTY_FUNCTION__) )
+    ((e) ? void(0)         \
+         : [](const char* f) { assert_fail(#e, __FILE__, __LINE__, f); }(__PRETTY_FUNCTION__))
 #else
 #define MIGRAPHX_ASSERT(e)
 #endif

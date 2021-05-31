@@ -3847,6 +3847,42 @@ TEST_CASE(squeeze_test)
     }
 }
 
+TEST_CASE(step_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(2 * 4 * 6);
+        std::iota(data.begin(), data.end(), 2);
+        migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        auto r  = mm->add_instruction(
+            migraphx::make_op("step", {{"axes", {0, 2, 3}}, {"steps", {2, 2, 3}}}), l0);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2, 2}};
+        EXPECT(result.get_shape() == s2);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(2 * 4 * 6);
+        std::iota(data.begin(), data.end(), 2);
+        migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        auto tl = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("step", {{"axes", {0, 1, 2}}, {"steps", {2, 2, 3}}}), tl);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        migraphx::shape s2{migraphx::shape::float_type, {1, 2, 2, 1}};
+        EXPECT(result.get_shape() == s2);
+    }
+}
+
 TEST_CASE(sub_test)
 {
     migraphx::program p;

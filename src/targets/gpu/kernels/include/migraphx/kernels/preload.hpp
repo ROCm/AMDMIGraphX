@@ -59,7 +59,7 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
             if constexpr(copy)
             {
                 auto v = vectorize(x);
-                auto b = as_vec(tensor_vec_size(v), buffer+offset);
+                auto b = as_vec(tensor_vec_size(v), buffer + offset);
                 for(index_int i = idx.local; i < v.get_shape().element_space(); i += idx.nlocal())
                     b[i] = v.data()[i];
                 return x.with(buffer + offset);

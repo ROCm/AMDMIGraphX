@@ -21,13 +21,12 @@ __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 }
 
 template <class F, class... Ts>
-__device__ void pointwise(F f, Ts*... xs)
+__device__ void pointwise(F f, Ts*... ps)
 {
-    make_tensors(xs...)([&](auto... ys) {
-        rotate_last(ys...)([&](auto... zs) {
-            auto idx = make_index();
-            pointwise_tensor(idx, f, zs...);
-        });
+    auto t = transform_args(MIGRAPHX_LIFT(make_tensors), MIGRAPHX_LIFT(rotate_last));
+    t(ps...)([&](auto... xs) {
+        auto idx = make_index();
+        pointwise_tensor(idx, f, xs...);
     });
 }
 

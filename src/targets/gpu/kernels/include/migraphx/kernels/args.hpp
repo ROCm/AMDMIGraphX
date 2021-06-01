@@ -13,13 +13,13 @@ struct make_tensor;
 template <class F, index_int... Ns, class... Ts>
 __device__ auto make_tensors_impl(F f, detail::seq<Ns...>, Ts*... xs)
 {
-    f(make_tensor<Ns>::apply(xs)...);
+    return f(make_tensor<Ns>::apply(xs)...);
 }
 
 template <class... Ts>
 __device__ auto make_tensors(Ts*... xs)
 {
-    return [=](auto f) { make_tensors_impl(f, detail::gens<sizeof...(Ts)>{}, xs...); };
+    return [=](auto f) { return make_tensors_impl(f, detail::gens<sizeof...(Ts)>{}, xs...); };
 }
 
 } // namespace migraphx

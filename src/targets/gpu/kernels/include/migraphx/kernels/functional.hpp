@@ -13,7 +13,7 @@ struct swallow
     }
 };
 
-template<index_int>
+template <index_int>
 using ignore = swallow;
 
 namespace detail {
@@ -52,12 +52,10 @@ constexpr auto sequence_c_impl(F&& f, seq<Ns...>)
     return f(index_constant<Ns>{}...);
 }
 
-template<index_int... N>
+template <index_int... N>
 constexpr auto args_at(seq<N...>)
 {
-    return [](ignore<N>..., auto x, auto...) {
-        return x;
-    };
+    return [](ignore<N>..., auto x, auto...) { return x; };
 }
 
 } // namespace detail
@@ -91,15 +89,13 @@ auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
-template<index_int N>
+template <index_int N>
 constexpr auto arg_c()
 {
-    return [](auto... xs) {
-        return detail::args_at(detail::gens<N>{})(xs...);
-    };
+    return [](auto... xs) { return detail::args_at(detail::gens<N>{})(xs...); };
 }
 
-template<class IntegralConstant>
+template <class IntegralConstant>
 constexpr auto arg(IntegralConstant ic)
 {
     return arg_c<ic>();
@@ -109,7 +105,7 @@ template <class... Ts>
 constexpr auto rotate_last(Ts... xs)
 {
     return [=](auto&& f) {
-        return sequence_c<sizeof...(Ts)>([&](auto... is) { 
+        return sequence_c<sizeof...(Ts)>([&](auto... is) {
             constexpr auto size = sizeof...(is);
             return f(arg_c<(is + size - 1) % size>()(xs...)...);
         });

@@ -26,7 +26,12 @@ struct tensor_view
     constexpr T* begin() const { return data(); }
     constexpr T* end() const { return data() + size(); }
 
-    constexpr tensor_view with(T* y) const { return {y}; }
+    template<class U>
+    constexpr tensor_view<U, Shape> with(U* y) const 
+    {
+        static_assert(sizeof(T) == sizeof(U), "Not the same size");
+        return {y}; 
+    }
 
     T* x;
 };

@@ -17,23 +17,23 @@ constexpr auto vec_size(T, ...)
     return index_constant<0>{};
 }
 
-template<class T>
+template <class T>
 constexpr auto vec_size()
 {
     return decltype(vec_size(T{})){};
 }
 
-template<class T>
+template <class T>
 constexpr auto tensor_vec_size(T)
 {
     return vec_size<typename T::type>();
 }
 
-template<index_int N, class Shape>
+template <index_int N, class Shape>
 constexpr auto as_vec_shape(Shape s)
 {
     auto lens = transform(s.lens, s.strides, [](auto len, auto stride) {
-        if (stride == 1)
+        if(stride == 1)
             return len / N;
         else
             return len;
@@ -50,7 +50,7 @@ __device__ __host__ auto as_vec(T* x)
         return reinterpret_cast<vec<T, N>*>(x);
 }
 
-template<index_int N, class T>
+template <index_int N, class T>
 __device__ __host__ auto as_vec(T x)
 {
     if constexpr(N == 0)
@@ -59,29 +59,29 @@ __device__ __host__ auto as_vec(T x)
         return make_tensor_view(as_vec<N>(x.data()), as_vec_shape<N>(x.get_shape()));
 }
 
-template<class IntegralConstant, class T>
+template <class IntegralConstant, class T>
 __device__ __host__ auto as_vec(IntegralConstant ic, T&& x)
 {
     return as_vec<ic>(x);
 }
 
-template<index_int N, class Shape>
+template <index_int N, class Shape>
 constexpr bool is_vectorizable(Shape s)
 {
     auto it = find(s.strides.begin(), s.strides.end(), 1);
-    if (it == s.strides.end())
+    if(it == s.strides.end())
         return false;
     index_int i = it - s.strides.begin();
     return (s.lens[i] % N) == 0;
 }
 
-template<index_int N, class... Shapes>
+template <index_int N, class... Shapes>
 constexpr auto is_vectorizable()
 {
     return bool_constant<(is_vectorizable<N>(Shapes{}) and ...)>{};
 }
 
-template<class T>
+template <class T>
 __device__ __host__ auto vectorize(T x)
 {
     if constexpr(is_vectorizable<4, decltype(x.get_shape())>())
@@ -90,7 +90,7 @@ __device__ __host__ auto vectorize(T x)
         return x;
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ __host__ auto auto_vectorize(Ts... xs)
 {
     return [=](auto f) {

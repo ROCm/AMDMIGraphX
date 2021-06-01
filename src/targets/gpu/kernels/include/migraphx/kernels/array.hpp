@@ -42,8 +42,16 @@ template <class T, index_int N>
 struct array
 {
     T d[N];
-    constexpr T& operator[](index_int i) { MIGRAPHX_ASSERT(i < N); return d[i]; }
-    constexpr const T& operator[](index_int i) const { MIGRAPHX_ASSERT(i < N); return d[i]; }
+    constexpr T& operator[](index_int i)
+    {
+        MIGRAPHX_ASSERT(i < N);
+        return d[i];
+    }
+    constexpr const T& operator[](index_int i) const
+    {
+        MIGRAPHX_ASSERT(i < N);
+        return d[i];
+    }
 
     constexpr T& front() { return d[0]; }
     constexpr const T& front() const { return d[0]; }

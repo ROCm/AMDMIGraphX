@@ -2,6 +2,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
@@ -48,6 +49,7 @@ operation compile_pointwise(context&, const std::vector<shape>& inputs, const st
     options.local  = 1024;
     options.inputs = inputs;
     options.output = inputs.back();
+    options.reduced_inputs = reduce_dims(inputs);
     auto src       = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},

@@ -4,6 +4,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/preload.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 #include <migraphx/kernels/args.hpp>
 
 namespace migraphx {

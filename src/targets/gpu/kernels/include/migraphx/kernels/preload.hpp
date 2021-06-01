@@ -47,7 +47,7 @@ constexpr index_int compute_preload_size()
 }
 
 template <class F, class T, class... Ts>
-constexpr auto preload_copy(index idx, F f, T* buffer, Ts... xs)
+__device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
 {
     auto invoke = [&](auto... ys) {
         __syncthreads();
@@ -57,8 +57,10 @@ constexpr auto preload_copy(index idx, F f, T* buffer, Ts... xs)
         [&](auto x, auto offset, auto copy) {
             if constexpr(copy)
             {
-                for(index_int i = idx.local; i < x.get_shape().element_space(); i += idx.nlocal())
-                    buffer[offset + i] = x[i];
+                auto v = vectorize(x);
+                auto b = as_vec(tensor_vec_size(v), buffer);
+                for(index_int i = idx.local; i < v.get_shape().element_space(); i += idx.nlocal())
+                    b[offset + i] = v.data()[i];
                 return x.with(buffer + offset);
             }
             else

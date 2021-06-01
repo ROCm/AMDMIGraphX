@@ -12,7 +12,8 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
-    __device__ index_int nglobal() const { 
+    __device__ index_int nglobal() const
+    {
 #ifdef MIGRAPHX_NGLOBAL
         return MIGRAPHX_NGLOBAL;
 #else
@@ -20,7 +21,8 @@ struct index
 #endif
     }
 
-    __device__ index_int nlocal() const {
+    __device__ index_int nlocal() const
+    {
 #ifdef MIGRAPHX_NLOCAL
         return MIGRAPHX_NLOCAL;
 #else

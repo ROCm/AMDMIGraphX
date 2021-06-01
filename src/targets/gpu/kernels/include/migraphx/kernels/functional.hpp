@@ -153,27 +153,22 @@ constexpr auto rotate_last(Ts... xs)
     };
 }
 
-template<class F>
+template <class F>
 constexpr auto transform_args(F f)
 {
     return [=](auto... xs) {
-        return [=](auto g) {
-            return f(xs...)([&](auto... ys) {
-                return g(ys...);
-            });
-        };
+        return [=](auto g) { return f(xs...)([&](auto... ys) { return g(ys...); }); };
     };
 }
 
-template<class F, class... Fs>
+template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
-    return [=](auto... xs) {
-        return transform_args(f)(xs...)(transform_args(fs...));
-    };
+    return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
 }
 
-#define MIGRAPHX_LIFT(...) ([](auto&&... xs) { return (__VA_ARGS__)(static_cast<decltype(xs)>(xs)...); })
+#define MIGRAPHX_LIFT(...) \
+    ([](auto&&... xs) { return (__VA_ARGS__)(static_cast<decltype(xs)>(xs)...); })
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

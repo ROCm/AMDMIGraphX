@@ -45,12 +45,12 @@ std::size_t compute_global(std::size_t n, std::size_t local = 1024)
 operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda)
 {
     hip_compile_options options;
-    options.global = compute_global(inputs.front().elements());
-    options.local  = 1024;
-    options.inputs = inputs;
-    options.output = inputs.back();
+    options.global         = compute_global(inputs.front().elements());
+    options.local          = 1024;
+    options.inputs         = inputs;
+    options.output         = inputs.back();
     options.reduced_inputs = reduce_dims(inputs);
-    auto src       = interpolate_string(pointwise_kernel,
+    auto src               = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda}});

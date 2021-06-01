@@ -10,7 +10,7 @@ template <class T, class Shape>
 struct tensor_view
 {
     using type = T;
-    
+
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr index_int size() const { return get_shape().elements(); }
 
@@ -26,10 +26,7 @@ struct tensor_view
     constexpr T* begin() const { return data(); }
     constexpr T* end() const { return data() + size(); }
 
-    constexpr tensor_view with(T* y) const
-    {
-        return {y};
-    }
+    constexpr tensor_view with(T* y) const { return {y}; }
 
     T* x;
 };

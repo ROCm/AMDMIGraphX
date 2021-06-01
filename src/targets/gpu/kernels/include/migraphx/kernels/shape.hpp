@@ -93,10 +93,7 @@ struct shape
         return result;
     }
 
-    constexpr shape get_shape() const
-    {
-        return *this;
-    }
+    constexpr shape get_shape() const { return *this; }
 };
 
 template <class Lens, class Strides>

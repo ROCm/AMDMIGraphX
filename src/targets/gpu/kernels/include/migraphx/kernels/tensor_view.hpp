@@ -15,7 +15,7 @@ struct tensor_view
     template <class U>
     constexpr T& operator[](U i) const
     {
-        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().elements());
+        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().element_space());
         return x[get_shape().index(i)];
     }
 

@@ -19,7 +19,7 @@ struct shape
 
     constexpr index_int elements() const { return lens.product(); }
 
-    constexpr index_int element_space() const { return strides.dot(lens - 1); }
+    constexpr index_int element_space() const { return strides.dot(lens - 1) + 1; }
 
     constexpr bool packed() const { return elements() == element_space(); }
     constexpr bool broadcasted() const { return strides.product() == 0; }

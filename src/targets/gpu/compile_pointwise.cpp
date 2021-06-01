@@ -18,12 +18,7 @@ using namespace migraphx;
 extern "C" {
 __global__ void kernel(${params}) 
 {
-    rotate_last(${args})([](auto&... private_ps) __device__ {
-        make_tensors(private_ps...)([](auto... private_xs) __device__ {
-            auto private_idx = make_index();
-            pointwise(private_idx, ${lambda}, private_xs...);
-        });
-    });
+    pointwise(${lambda}, ${args});
 }
     
 }

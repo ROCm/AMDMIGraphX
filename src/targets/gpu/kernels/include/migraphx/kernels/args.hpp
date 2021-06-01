@@ -6,11 +6,6 @@
 
 namespace migraphx {
 
-template <index_int N>
-struct arg
-{
-};
-
 // Use template specialization since ADL is broken on hcc
 template <index_int>
 struct make_tensor;

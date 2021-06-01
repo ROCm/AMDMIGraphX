@@ -14,9 +14,9 @@ assert_fail(const char* assertion, const char* file, unsigned int line, const ch
 
 #ifdef MIGRAPHX_DEBUG
 #define MIGRAPHX_ASSERT(cond)                      \
-    ((cond) ? void(0) : [](const char* f) {        \
-        assert_fail(#cond, __FILE__, __LINE__, f); \
-    }(__PRETTY_FUNCTION__))
+    ((cond) ? void(0) : [](auto... xs) {        \
+        assert_fail(xs...); \
+    }(#cond, __FILE__, __LINE__, __PRETTY_FUNCTION__))
 #else
 #define MIGRAPHX_ASSERT(cond)
 #endif

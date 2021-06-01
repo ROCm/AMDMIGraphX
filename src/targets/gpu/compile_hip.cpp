@@ -23,6 +23,7 @@ bool is_hip_clang_compiler()
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
@@ -44,7 +45,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     {
         params += " --cuda-gpu-arch=" + arch;
         params += " --cuda-device-only";
-        params += " -O3 ";
+        params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
     }
 
     if(enabled(MIGRAPHX_GPU_DEBUG{}))

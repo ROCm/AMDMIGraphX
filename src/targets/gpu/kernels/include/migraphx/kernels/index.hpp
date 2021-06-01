@@ -12,9 +12,21 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
-    __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
+    __device__ index_int nglobal() const { 
+#ifdef MIGRAPHX_NGLOBAL
+        return MIGRAPHX_NGLOBAL;
+#else
+        return blockDim.x * gridDim.x;
+#endif
+    }
 
-    __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
+    __device__ index_int nlocal() const {
+#ifdef MIGRAPHX_NLOCAL
+        return MIGRAPHX_NLOCAL;
+#else
+        return blockDim.x;
+#endif
+    }
 };
 
 inline __device__ index make_index()

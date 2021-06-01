@@ -18,6 +18,25 @@ using ignore = swallow;
 
 namespace detail {
 
+template<class R>
+struct eval_helper
+{
+    R result;
+
+    template<class F, class... Ts>
+    constexpr eval_helper(const F& f, Ts&&... xs) : result(f(static_cast<Ts>(xs)...))
+    {}
+};
+
+template<>
+struct eval_helper<void>
+{
+    int result;
+    template<class F, class... Ts>
+    constexpr eval_helper(const F& f, Ts&&... xs) : result((f(static_cast<Ts>(xs)...), 0))
+    {}
+};
+
 template <index_int...>
 struct seq
 {
@@ -60,6 +79,14 @@ constexpr auto args_at(seq<N...>)
 
 } // namespace detail
 
+template<class T>
+constexpr auto always(T x)
+{
+    return [=](auto&&...) {
+        return x;
+    };
+}
+
 template <index_int N, class F>
 constexpr auto sequence_c(F&& f)
 {
@@ -70,6 +97,20 @@ template <class IntegerConstant, class F>
 constexpr auto sequence(IntegerConstant ic, F&& f)
 {
     return sequence_c<ic>(f);
+}
+
+template<class F, class G>
+constexpr auto by(F f, G g)
+{
+    return [=](auto... xs) {
+        return detail::eval_helper<decltype(g(f(xs)...))>{g, f(xs)...}.result;
+    };
+}
+
+template<class F>
+constexpr auto by(F f)
+{
+    return by([=](auto x) { return (f(x), 0);}, always(0));
 }
 
 template <class F, class... Ts>

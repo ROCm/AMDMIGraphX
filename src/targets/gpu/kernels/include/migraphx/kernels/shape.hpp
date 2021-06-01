@@ -92,6 +92,11 @@ struct shape
         result[0] = tidx;
         return result;
     }
+
+    constexpr shape get_shape() const
+    {
+        return *this;
+    }
 };
 
 template <class Lens, class Strides>

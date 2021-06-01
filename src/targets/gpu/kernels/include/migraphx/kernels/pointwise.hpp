@@ -3,6 +3,7 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/preload.hpp>
 #include <migraphx/kernels/args.hpp>
 
 namespace migraphx {
@@ -10,12 +11,13 @@ namespace migraphx {
 template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
-    const auto stride = idx.nglobal();
-    for(index_int i = idx.global; i < out.get_shape().elements(); i += stride)
-    {
-        auto multi_idx = out.get_shape().multi(i);
-        out[multi_idx] = f(xs[multi_idx]...);
-    }
+    preload<typename T::type>(idx, xs...)([&](auto... ps) {
+        for(index_int i = idx.global; i < out.get_shape().elements(); i += idx.nglobal())
+        {
+            auto multi_idx = out.get_shape().multi(i);
+            out[multi_idx] = f(ps[multi_idx]...);
+        }
+    });
 }
 
 template <class F, class... Ts>

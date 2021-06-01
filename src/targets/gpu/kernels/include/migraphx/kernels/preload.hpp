@@ -31,6 +31,7 @@ constexpr auto traverse_preload(Shapes... ss)
                 return f(x, offset, false_type{});
             auto pre_offset = offset;
             offset += size;
+            offset += offset % 4;
             return f(x, pre_offset, true_type{});
         };
         return by(each, g...)(ss...);
@@ -58,9 +59,9 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
             if constexpr(copy)
             {
                 auto v = vectorize(x);
-                auto b = as_vec(tensor_vec_size(v), buffer);
+                auto b = as_vec(tensor_vec_size(v), buffer+offset);
                 for(index_int i = idx.local; i < v.get_shape().element_space(); i += idx.nlocal())
-                    b[offset + i] = v.data()[i];
+                    b[i] = v.data()[i];
                 return x.with(buffer + offset);
             }
             else

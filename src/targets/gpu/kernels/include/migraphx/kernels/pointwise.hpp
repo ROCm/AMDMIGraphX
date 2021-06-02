@@ -13,11 +13,10 @@ template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
     preload<typename T::type>(idx, xs...)([&](auto... ps) {
-        for(index_int i = idx.global; i < out.get_shape().elements(); i += idx.nglobal())
-        {
+        idx.global_stride(out.get_shape().elements(), [&](auto i) {
             auto multi_idx = out.get_shape().multi(i);
             out[multi_idx] = f(ps[multi_idx]...);
-        }
+        });
     });
 }
 

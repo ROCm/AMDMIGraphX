@@ -29,6 +29,26 @@ struct index
         return blockDim.x;
 #endif
     }
+
+    template <class F>
+    __device__ void global_stride(index_int n, F f) const
+    {
+        const auto stride = nglobal();
+        for(index_int i = global; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
+
+    template <class F>
+    __device__ void local_stride(index_int n, F f) const
+    {
+        const auto stride = nlocal();
+        for(index_int i = local; i < n; i += stride)
+        {
+            f(i);
+        }
+    }
 };
 
 inline __device__ index make_index()

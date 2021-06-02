@@ -88,6 +88,7 @@
 #include <migraphx/op/sqrt.hpp>
 #include <migraphx/op/sqdiff.hpp>
 #include <migraphx/op/squeeze.hpp>
+#include <migraphx/op/step.hpp>
 #include <migraphx/op/sub.hpp>
 #include <migraphx/op/tanh.hpp>
 #include <migraphx/op/tan.hpp>

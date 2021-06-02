@@ -10,6 +10,8 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/value.hpp>
+
 
 
 namespace migraphx {
@@ -19,7 +21,7 @@ namespace op {
 struct reverse
 {
 
-    std::vector<int64_t> axis; //1-D, which axis will be reversed.
+    int64_t axis; //1-D, which axis will be reversed.
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -58,7 +60,7 @@ struct reverse
         const std::vector<std::size_t>& lens = input.lens();
         //const std::vector<std::size_t>& strides = input.strides();
 
-        if (axis[0] == 0)
+        if (axis == 0)
         {
             for(std::size_t k = 0; k < lens[0]/2; k++) //4
             {
@@ -68,7 +70,7 @@ struct reverse
                 }
             }
         }
-        else if (axis[0] == 1) 
+        else if (axis == 1) 
         {
             for (std::size_t t = 0; t < lens[0]; t++)
             {

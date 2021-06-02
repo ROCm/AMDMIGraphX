@@ -132,8 +132,8 @@ __device__ __host__ auto vectorize(T x)
 {
     if constexpr(vec_size<T>() == 0)
     {
-        constexpr auto n    = find_vectorize_size(
-                [&](auto i) { return is_vectorizable<i, decltype(x.get_shape())>(); });
+        constexpr auto n = find_vectorize_size(
+            [&](auto i) { return is_vectorizable<i, decltype(x.get_shape())>(); });
         return as_vec<n>(x);
     }
     else

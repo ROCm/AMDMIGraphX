@@ -32,7 +32,7 @@ constexpr auto tensor_vec_size(T)
 template <index_int N, class Shape>
 constexpr auto as_vec_shape(Shape s)
 {
-    auto lens = transform(s.lens, s.strides, [](auto len, auto stride) {
+    auto lens    = transform(s.lens, s.strides, [](auto len, auto stride) {
         if(stride == 1)
             return len / N;
         else
@@ -79,7 +79,7 @@ constexpr auto tensor_step(T x, Axis)
         return sequence(x.get_shape().lens.size(), [&](auto... is) {
             auto lens = transform(s.lens, index_ints<is...>{}, [&](auto i, auto j) {
                 constexpr auto axis = Axis{};
-                if (j == axis)
+                if(j == axis)
                     return i / N;
                 else
                     return i;
@@ -95,24 +95,24 @@ __device__ __host__ auto as_vec(IntegralConstant ic, T&& x)
     return as_vec<ic>(x);
 }
 
-template<class... Shapes>
+template <class... Shapes>
 constexpr index_int find_vector_axis(Shapes... ss)
 {
     index_int axis = 0;
-    bool b = false;
+    bool b         = false;
     by([&](auto s) {
-        if (s.broadcasted() or b)
+        if(s.broadcasted() or b)
             return;
         auto it = find(s.strides.begin(), s.strides.end(), 1);
-        if (it == s.strides.end())
+        if(it == s.strides.end())
             return;
         axis = it - s.strides.begin();
-        b = true;
+        b    = true;
     })(ss...);
     return axis;
 }
 
-template<class... Shapes>
+template <class... Shapes>
 constexpr auto find_vector_axis()
 {
     return index_constant<find_vector_axis(Shapes{}...)>{};
@@ -168,16 +168,17 @@ __device__ __host__ auto auto_vectorize(Ts... xs)
         if constexpr(packed)
         {
             constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
-            constexpr auto n = find_vectorize_size([&](auto i) {
-                return is_vectorizable<i, axis, decltype(xs.get_shape())...>();
-            });
-            by([&](auto x) {
-                constexpr auto s = decltype(x.get_shape()){};
-                if constexpr(s.broadcasted())
-                    return tensor_step<n>(x, axis);
-                else
-                    return as_vec<n>(x);
-            }, f)(xs...);
+            constexpr auto n    = find_vectorize_size(
+                [&](auto i) { return is_vectorizable<i, axis, decltype(xs.get_shape())...>(); });
+            by(
+                [&](auto x) {
+                    constexpr auto s = decltype(x.get_shape()){};
+                    if constexpr(s.broadcasted())
+                        return tensor_step<n>(x, axis);
+                    else
+                        return as_vec<n>(x);
+                },
+                f)(xs...);
         }
         else
         {

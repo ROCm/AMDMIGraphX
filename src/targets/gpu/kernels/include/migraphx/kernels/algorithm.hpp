@@ -43,10 +43,11 @@ constexpr bool is_sorted(Iterator first, Iterator last, Compare comp)
     return is_sorted_until(first, last, comp) == last;
 }
 
-template<class Iterator, class F>
+template <class Iterator, class F>
 constexpr F for_each(Iterator first, Iterator last, F f)
 {
-    for (; first != last; ++first) {
+    for(; first != last; ++first)
+    {
         f(*first);
     }
     return f;
@@ -71,20 +72,24 @@ constexpr Iterator find(Iterator first, Iterator last, const T& value)
     return find_if(first, last, [&](const auto& x) { return x == value; });
 }
 
-template<class Iterator1, class Iterator2>
-constexpr Iterator1 search(Iterator1 first, Iterator1 last,
-                            Iterator2 s_first, Iterator2 s_last)
+template <class Iterator1, class Iterator2>
+constexpr Iterator1 search(Iterator1 first, Iterator1 last, Iterator2 s_first, Iterator2 s_last)
 {
-    for (; ; ++first) {
+    for(;; ++first)
+    {
         Iterator1 it = first;
-        for (Iterator2 s_it = s_first; ; ++it, ++s_it) {
-            if (s_it == s_last) {
+        for(Iterator2 s_it = s_first;; ++it, ++s_it)
+        {
+            if(s_it == s_last)
+            {
                 return first;
             }
-            if (it == last) {
+            if(it == last)
+            {
                 return last;
             }
-            if (!(*it == *s_it)) {
+            if(!(*it == *s_it))
+            {
                 break;
             }
         }

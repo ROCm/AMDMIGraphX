@@ -28,7 +28,7 @@ constexpr auto traverse_preload(Shapes... ss)
             else if constexpr((s.elements() - size) < 64)
                 return f(x, offset, false_type{});
             // if(offset + size > max_size)
-                // return f(x, offset, false_type{});
+            // return f(x, offset, false_type{});
             else
             {
                 auto pre_offset = offset;
@@ -75,13 +75,13 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         invoke);
 }
 
-template<class T>
+template <class T>
 struct remove_vec
 {
     using type = T;
 };
 
-template<class T, index_int N>
+template <class T, index_int N>
 struct remove_vec<vec<T, N>>
 {
     using type = T;
@@ -90,7 +90,7 @@ struct remove_vec<vec<T, N>>
 template <class T, class... Ts>
 __device__ auto preload(index idx, Ts... xs)
 {
-    using type = typename remove_vec<T>::type;
+    using type          = typename remove_vec<T>::type;
     constexpr auto size = compute_preload_size<type, decltype(xs.get_shape())...>();
     return [=](auto f) {
         if constexpr(size > 0)

@@ -150,8 +150,9 @@ inline __device__ __host__ auto auto_vectorize()
             if constexpr(packed)
             {
                 constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
-                constexpr auto n    = find_vectorize_size(
-                    [&](auto i) { return is_vectorizable<i, axis, decltype(xs.get_shape())...>(); });
+                constexpr auto n    = find_vectorize_size([&](auto i) {
+                    return is_vectorizable<i, axis, decltype(xs.get_shape())...>();
+                });
                 by(
                     [&](auto x) {
                         constexpr auto s = decltype(x.get_shape()){};

@@ -10,11 +10,12 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
     return op.compute_shape(inputs, mods);
 }
 
-argument hip_loop::compute(const shape& output_shape, 
-            const std::vector<argument>& args, 
-            const std::vector<module_ref>& mods,
-            const std::function<std::vector<argument>(
-                module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+argument
+hip_loop::compute(const shape& output_shape,
+                  const std::vector<argument>& args,
+                  const std::vector<module_ref>& mods,
+                  const std::function<std::vector<argument>(
+                      module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
     return {};
 }

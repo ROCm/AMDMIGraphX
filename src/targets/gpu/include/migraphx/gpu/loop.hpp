@@ -25,8 +25,8 @@ struct hip_loop
     std::string name() const { return "gpu::loop"; }
     shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const;
     argument
-    compute(const shape& output_shape, 
-            const std::vector<argument>& args, 
+    compute(const shape& output_shape,
+            const std::vector<argument>& args,
             const std::vector<module_ref>& mods,
             const std::function<std::vector<argument>(
                 module_ref&, const std::unordered_map<std::string, argument>&)>& run) const;

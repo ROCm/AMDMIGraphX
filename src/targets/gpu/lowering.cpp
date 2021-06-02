@@ -460,25 +460,28 @@ struct miopen_apply
             // copy max_iter from gpu to cpu
             auto cpu_max_iter =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
-            auto cpu_cond = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
-            auto sync_iter = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
+            auto sync_iter =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
             inputs.front() = sync_iter;
-            inputs.at(1) = cpu_cond;
+            inputs.at(1)   = cpu_cond;
 
             auto mod_args = ins->module_inputs();
-            auto sub_mod = mod_args.front();
+            auto sub_mod  = mod_args.front();
             std::map<std::string, shape> name_shapes;
             auto ps = sub_mod->get_parameter_names();
             name_shapes.insert(ps.begin(), ps.end());
 
-            auto ins_s = ins->get_shape();
+            auto ins_s   = ins->get_shape();
             auto ins_out = insert_allocation(ins, ins_s);
 
             auto vec_ss = ins_s.sub_shapes();
             std::vector<instruction_ref> vec_outs;
             std::size_t offset = 0;
             std::transform(vec_ss.begin(), vec_ss.end(), std::back_inserter(vec_outs), [&](auto s) {
-                auto sub_ins = mod->insert_instruction(ins, make_op("load", {{"s", to_value(s)}, {"offset", offset}}), ins_out);
+                auto sub_ins = mod->insert_instruction(
+                    ins, make_op("load", {{"s", to_value(s)}, {"offset", offset}}), ins_out);
                 offset += s.bytes();
                 return sub_ins;
             });

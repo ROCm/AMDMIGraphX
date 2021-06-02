@@ -138,12 +138,12 @@ struct loop
 
             mod_args = run(mod, params);
             std::cout << "mod_output:" << std::endl;
-            for (const auto& arg : mod_args)
+            for(const auto& arg : mod_args)
             {
                 std::cout << "\targ = " << arg << std::endl;
             }
 
-            cond     = mod_args.at(0).at<bool>();
+            cond = mod_args.at(0).at<bool>();
             // concat scan outputs
             std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
                                                    mod_args.end());

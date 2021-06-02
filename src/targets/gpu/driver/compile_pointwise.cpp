@@ -15,7 +15,7 @@ struct compile_pointwise : action<compile_pointwise>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto op     = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>());
-        double t    = time_op(ctx, op, inputs);
+        double t    = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;
     }
 };

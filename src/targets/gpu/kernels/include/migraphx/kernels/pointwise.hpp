@@ -24,7 +24,7 @@ __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 template <class F, class... Ts>
 __device__ void pointwise(F f, Ts*... ps)
 {
-    auto t = transform_args(MIGRAPHX_LIFT(make_tensors), MIGRAPHX_LIFT(rotate_last));
+    auto t = transform_args(MIGRAPHX_LIFT(make_tensors), MIGRAPHX_LIFT(rotate_last), MIGRAPHX_LIFT(auto_vectorize));
     t(ps...)([&](auto... xs) {
         auto idx = make_index();
         pointwise_tensor(idx, f, xs...);

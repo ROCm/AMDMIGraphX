@@ -94,6 +94,13 @@ struct shape
     }
 
     constexpr shape get_shape() const { return *this; }
+
+    template<class Stream>
+    friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)
+    {
+        ss << "{" << s.lens << "}, {" << s.strides << "}";
+        return ss;
+    }
 };
 
 template <class Lens, class Strides>

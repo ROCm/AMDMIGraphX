@@ -23,16 +23,19 @@ constexpr auto traverse_preload(Shapes... ss)
         auto each                = [&](auto x) {
             constexpr auto s    = decltype(x.get_shape()){};
             constexpr auto size = decltype(index_constant<s.element_space()>{}){};
-            if(not s.broadcasted())
+            if constexpr(not s.broadcasted())
                 return f(x, offset, false_type{});
-            if((s.elements() - size) < 64)
+            else if constexpr((s.elements() - size) < 64)
                 return f(x, offset, false_type{});
-            if(offset + size > max_size)
-                return f(x, offset, false_type{});
-            auto pre_offset = offset;
-            offset += size;
-            offset += offset % 4;
-            return f(x, pre_offset, true_type{});
+            // if(offset + size > max_size)
+                // return f(x, offset, false_type{});
+            else
+            {
+                auto pre_offset = offset;
+                offset += size;
+                offset += offset % 4;
+                return f(x, pre_offset, true_type{});
+            }
         };
         return by(each, g...)(ss...);
     };
@@ -72,14 +75,27 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         invoke);
 }
 
+template<class T>
+struct remove_vec
+{
+    using type = T;
+};
+
+template<class T, index_int N>
+struct remove_vec<vec<T, N>>
+{
+    using type = T;
+};
+
 template <class T, class... Ts>
 __device__ auto preload(index idx, Ts... xs)
 {
-    constexpr auto size = compute_preload_size<T, decltype(xs.get_shape())...>();
+    using type = typename remove_vec<T>::type;
+    constexpr auto size = compute_preload_size<type, decltype(xs.get_shape())...>();
     return [=](auto f) {
         if constexpr(size > 0)
         {
-            __shared__ T buffer[size];
+            __shared__ type buffer[size];
             preload_copy(idx, f, buffer, xs...);
         }
         else

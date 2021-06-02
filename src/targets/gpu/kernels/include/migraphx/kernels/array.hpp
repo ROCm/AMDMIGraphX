@@ -151,6 +151,18 @@ struct array
         result[0] += overflow;
         return result;
     }
+
+    template<class Stream>
+    friend constexpr const Stream& operator<<(const Stream& ss, const array& a)
+    {
+        for(index_int i = 0; i < N; i++)
+        {
+            if (i > 0)
+                ss << ", ";
+            ss << a[i];
+        }
+        return ss;
+    }
 };
 
 template <class T, T... xs>

@@ -8,7 +8,7 @@ namespace migraphx {
 inline __host__ __device__ void
 assert_fail(const char* assertion, const char* file, unsigned int line, const char* function)
 {
-    printf("%s:%u: %s: assertion `%s' failed.\n", file, line, function, assertion);
+    printf("%s:%u: %s: assertion '%s' failed.\n", file, line, function, assertion);
     abort();
 }
 

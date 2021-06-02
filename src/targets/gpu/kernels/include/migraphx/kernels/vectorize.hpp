@@ -2,26 +2,9 @@
 #define MIGRAPHX_GUARD_KERNELS_VECTORIZE_HPP
 
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
-
-template <class T, index_int N>
-constexpr auto vec_size(vec<T, N>)
-{
-    return index_constant<N>{};
-}
-
-template <class T>
-constexpr auto vec_size(T, ...)
-{
-    return index_constant<0>{};
-}
-
-template <class T>
-constexpr auto vec_size()
-{
-    return decltype(vec_size(T{})){};
-}
 
 template <class T>
 constexpr auto tensor_vec_size(T)
@@ -45,15 +28,6 @@ constexpr auto as_vec_shape(Shape s)
     });
     MIGRAPHX_ASSERT(make_shape(lens, strides).element_space() * N == s.element_space());
     return make_shape(lens, strides);
-}
-
-template <index_int N, class T>
-__device__ __host__ auto as_vec(T* x)
-{
-    if constexpr(N == 0)
-        return x;
-    else
-        return reinterpret_cast<vec<T, N>*>(x);
 }
 
 template <index_int N, class T>
@@ -147,6 +121,8 @@ constexpr auto find_vectorize_size(P pred)
 {
     if constexpr(pred(index_constant<4>{}))
         return index_constant<4>{};
+    else if constexpr(pred(index_constant<2>{}))
+        return index_constant<2>{};
     else
         return index_constant<0>{};
 }
@@ -154,10 +130,16 @@ constexpr auto find_vectorize_size(P pred)
 template <class T>
 __device__ __host__ auto vectorize(T x)
 {
-    if constexpr(is_vectorizable<4, decltype(x.get_shape())>())
-        return as_vec<4>(x);
+    if constexpr(vec_size<T>() == 0)
+    {
+        constexpr auto n    = find_vectorize_size(
+                [&](auto i) { return is_vectorizable<i, decltype(x.get_shape())>(); });
+        return as_vec<n>(x);
+    }
     else
+    {
         return x;
+    }
 }
 
 template <class... Ts>

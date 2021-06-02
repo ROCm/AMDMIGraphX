@@ -3568,7 +3568,8 @@ TEST_CASE(reverse_test_axis1)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l = mm->add_literal(migraphx::literal{in_shape, data});
-    mm->add_instruction(migraphx::make_op("reverse", {{"axis", {1}}}), l);
+    int axis = 1;
+    mm->add_instruction(migraphx::make_op("reverse", {{"axis", axis}}), l);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -3585,7 +3586,8 @@ TEST_CASE(reverse_test_axis0)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l = mm->add_literal(migraphx::literal{in_shape, data});
-    mm->add_instruction(migraphx::make_op("reverse", {{"axis", {0}}}), l);
+    int axis = 0;
+    mm->add_instruction(migraphx::make_op("reverse", {{"axis", axis}}), l);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector;

@@ -20,23 +20,23 @@ void rewrite_quantizelinear::apply(module& m) const
         if(ins->name() != "quantizelinear")
             continue;
 
-        auto&& op = any_cast<op::quantizelinear>(ins->get_operator());
-        auto axis = op.axis;
-        auto x = ins->inputs()[0];
+        auto&& op    = any_cast<op::quantizelinear>(ins->get_operator());
+        auto axis    = op.axis;
+        auto x       = ins->inputs()[0];
         auto y_scale = ins->inputs()[1];
-        
+
         instruction_ref y_zero_point;
         auto quant_type = shape::int8_type;
-        if (ins->inputs().size() == 3)
+        if(ins->inputs().size() == 3)
         {
             y_zero_point = ins->inputs()[2];
-            quant_type = y_zero_point->get_shape().type();
+            quant_type   = y_zero_point->get_shape().type();
         }
         else
             y_zero_point = m.add_literal(0);
 
-        int max_quant   = 255;
-        int min_quant   = 0;
+        int max_quant = 255;
+        int min_quant = 0;
 
         if(quant_type == shape::int8_type)
         {
@@ -71,7 +71,9 @@ void rewrite_quantizelinear::apply(module& m) const
         {
             auto tuned_axis = tune_axis(n_dim, axis, ins->name());
             zero_point      = m.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), y_zero_point);
+                ins,
+                make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
+                y_zero_point);
             zero_point = m.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
         }

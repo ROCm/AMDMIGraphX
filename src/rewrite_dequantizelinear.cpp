@@ -18,10 +18,10 @@ void rewrite_dequantizelinear::apply(module& m) const
         if(ins->name() != "dequantizelinear")
             continue;
 
-        auto&& op = any_cast<op::dequantizelinear>(ins->get_operator());
-        auto axis = op.axis;
-        auto x = ins->inputs()[0];
-        auto x_scale = ins->inputs()[1];
+        auto&& op         = any_cast<op::dequantizelinear>(ins->get_operator());
+        auto axis         = op.axis;
+        auto x            = ins->inputs()[0];
+        auto x_scale      = ins->inputs()[1];
         auto x_zero_point = ins->inputs().size() == 3 ? ins->inputs()[2] : m.add_literal(0);
 
         auto input_lens = x->get_shape().lens();
@@ -32,7 +32,9 @@ void rewrite_dequantizelinear::apply(module& m) const
         {
             auto tuned_axis  = tune_axis(n_dim, axis, ins->name());
             zero_point_int32 = m.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), x_zero_point);
+                ins,
+                make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
+                x_zero_point);
             zero_point_int32 = m.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point_int32);
         }
@@ -44,8 +46,8 @@ void rewrite_dequantizelinear::apply(module& m) const
                 ins, make_op("multibroadcast", {{"output_lens", input_lens}}), zero_point_int32);
         }
 
-        auto sub_zp_int32 = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
+        auto sub_zp_int32 =
+            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
         auto sub = m.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
         auto dequant_input = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::float_type}}), sub);

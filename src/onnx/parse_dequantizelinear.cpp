@@ -21,7 +21,6 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
             axis = info.attributes.at("axis").i();
 
         return info.add_instruction(make_op("dequantizelinear", {{"axis", axis}}), args);
-        
     }
 };
 

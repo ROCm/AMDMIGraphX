@@ -8,45 +8,39 @@
 
 namespace migraphx {
 
-template<class F, class G>
+template <class F, class G>
 struct on_exit
 {
     F f;
     G g;
-    template<class T>
+    template <class T>
     __host__ __device__ auto operator()(T x) const
     {
         return f(x);
     }
 
-    __host__ __device__ ~on_exit()
-    {
-        f(g);
-    }
+    __host__ __device__ ~on_exit() { f(g); }
 };
 
-template<class PrivateMIGraphXTypeNameProbe>
+template <class PrivateMIGraphXTypeNameProbe>
 constexpr auto print_type_name_probe()
 {
-    constexpr auto name = __PRETTY_FUNCTION__;
-    constexpr auto size = sizeof(__PRETTY_FUNCTION__);
-    constexpr auto parameter_name = "PrivateMIGraphXTypeNameProbe = ";
+    constexpr auto name                = __PRETTY_FUNCTION__;
+    constexpr auto size                = sizeof(__PRETTY_FUNCTION__);
+    constexpr auto parameter_name      = "PrivateMIGraphXTypeNameProbe = ";
     constexpr auto parameter_name_size = sizeof("PrivateMIGraphXTypeNameProbe = ") - 1;
-    constexpr auto begin = search(name, name+size, parameter_name, parameter_name+parameter_name_size);
-    static_assert(begin < name+size, "Type probe not found.");
-    constexpr auto start = begin+parameter_name_size;
-    constexpr auto last = find_if(start, name+size, [](auto c) {
-        return c == ']' or c == ';';
-    });
-    return [=](const auto& s) {
-        s.print_string(start, last-start);
-    };
+    constexpr auto begin =
+        search(name, name + size, parameter_name, parameter_name + parameter_name_size);
+    static_assert(begin < name + size, "Type probe not found.");
+    constexpr auto start = begin + parameter_name_size;
+    constexpr auto last  = find_if(start, name + size, [](auto c) { return c == ']' or c == ';'; });
+    return [=](const auto& s) { s.print_string(start, last - start); };
 }
 
-template<class T>
+template <class T>
 struct type_printer
 {
-    template<class Stream>
+    template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& s, type_printer)
     {
         print_type_name_probe<T>()(s);
@@ -54,31 +48,31 @@ struct type_printer
     }
 };
 
-template<class T>
+template <class T>
 constexpr type_printer<T> type_of()
 {
     return {};
 }
 
-template<class T>
+template <class T>
 constexpr type_printer<T> type_of(T)
 {
     return {};
 }
 
-template<class T>
+template <class T>
 constexpr type_printer<typename T::type> sub_type_of()
 {
     return {};
 }
 
-template<class T>
+template <class T>
 constexpr type_printer<typename T::type> sub_type_of(T)
 {
     return {};
 }
 
-template<class F>
+template <class F>
 struct basic_printer
 {
     F f;
@@ -172,13 +166,13 @@ struct basic_printer
     }
 };
 
-template<class F>
+template <class F>
 constexpr basic_printer<F> make_printer(F f)
 {
     return {f};
 }
 
-template<class F, class G>
+template <class F, class G>
 constexpr basic_printer<on_exit<F, G>> make_printer(F f, G g)
 {
     return {{f, g}};
@@ -194,46 +188,43 @@ inline __device__ auto coutln()
     return make_printer([](auto f) { f(); }, [] { printf("\n"); });
 }
 
-template<class F, class... Ts>
+template <class F, class... Ts>
 __device__ void print_each(F f, Ts... xs)
 {
-    each_args([&](auto x) {
-        f() << x;
-    }, xs...);
+    each_args([&](auto x) { f() << x; }, xs...);
 }
 
-template<class F, class... Ts>
+template <class F, class... Ts>
 __device__ void print_each_once(F f, Ts... xs)
 {
     auto idx = make_index();
-    if (idx.global == 0)
+    if(idx.global == 0)
         print_each(f, xs...);
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ void print(Ts... xs)
 {
     print_each(&cout, xs...);
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ void print_once(Ts... xs)
 {
     print_each_once(&cout, xs...);
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ void println(Ts... xs)
 {
     print_each(&coutln, xs...);
 }
 
-template<class... Ts>
+template <class... Ts>
 __device__ void println_once(Ts... xs)
 {
     print_each_once(&coutln, xs...);
 }
-
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_PRINT_HPP

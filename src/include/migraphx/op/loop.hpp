@@ -137,8 +137,13 @@ struct loop
                            [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
             mod_args = run(mod, params);
-            cond     = mod_args.at(0).at<bool>();
+            std::cout << "mod_output:" << std::endl;
+            for (const auto& arg : mod_args)
+            {
+                std::cout << "\targ = " << arg << std::endl;
+            }
 
+            cond     = mod_args.at(0).at<bool>();
             // concat scan outputs
             std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
                                                    mod_args.end());

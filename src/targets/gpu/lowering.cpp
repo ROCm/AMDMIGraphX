@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -173,6 +174,7 @@ struct miopen_apply
         add_batch_norm_inference_op();
         add_neg_op();
         add_if_op();
+        add_loop_op();
     }
 
     void copy_params()
@@ -410,7 +412,7 @@ struct miopen_apply
         });
     }
 
-    // replace the if operator with gpu_if operator
+    // add input and output argument for the if operator
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
@@ -445,6 +447,42 @@ struct miopen_apply
                 }
                 inputs.push_back(output);
             }
+
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+        });
+    }
+
+    // replace the loop operator with gpu_loop operator
+    void add_loop_op()
+    {
+        apply_map.emplace("loop", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            // copy max_iter from gpu to cpu
+            auto cpu_max_iter =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.front());
+            auto cpu_cond = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
+            auto sync_iter = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
+            inputs.front() = sync_iter;
+            inputs.at(1) = cpu_cond;
+
+            auto mod_args = ins->module_inputs();
+            auto sub_mod = mod_args.front();
+            std::map<std::string, shape> name_shapes;
+            auto ps = sub_mod->get_parameter_names();
+            name_shapes.insert(ps.begin(), ps.end());
+
+            auto ins_s = ins->get_shape();
+            auto ins_out = insert_allocation(ins, ins_s);
+
+            auto vec_ss = ins_s.sub_shapes();
+            std::vector<instruction_ref> vec_outs;
+            std::size_t offset = 0;
+            std::transform(vec_ss.begin(), vec_ss.end(), std::back_inserter(vec_outs), [&](auto s) {
+                auto sub_ins = mod->insert_instruction(ins, make_op("load", {{"s", to_value(s)}, {"offset", offset}}), ins_out);
+                offset += s.bytes();
+                return sub_ins;
+            });
+            inputs.insert(inputs.end(), vec_outs.begin(), vec_outs.end());
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
         });

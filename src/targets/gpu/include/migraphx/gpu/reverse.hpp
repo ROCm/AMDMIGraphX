@@ -23,14 +23,12 @@ struct hip_reverse
     }
 
     std::string name() const { return "gpu::reverse"; }
-    
     shape compute_shape(std::vector<shape> inputs) const;
-    
-    argument //TODO: what is this for? Provides argument definition?
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
-
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
 };
 
 } // namespace gpu

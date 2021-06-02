@@ -45,20 +45,14 @@ struct reverse
         return shape{type,lens};
     }
 
-    // shape compute_shape(std::vector<shape> inputs) const
-    // {
-    //     return shape{inputs.front().type(), inputs.front().lens()};
-    // }
-
     argument compute(const shape&, std::vector<argument> args) const
     {
         auto input  = args[0].get_shape(); //float_type, {2, 16}, {16, 1}
-
+        
         std::vector<std::size_t> data; 
-        args[0].visit([&](auto s) { data.assign(s.begin(), s.end()); }); 
+        args[0].visit([&](auto s) { data.assign(s.begin(), s.end()); });
 
         const std::vector<std::size_t>& lens = input.lens();
-        //const std::vector<std::size_t>& strides = input.strides();
 
         if (axis == 0)
         {
@@ -91,8 +85,6 @@ struct reverse
 
         return result;
     }
-    
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

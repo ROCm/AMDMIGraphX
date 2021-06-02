@@ -16,10 +16,11 @@ __device__ auto make_tensors_impl(F f, detail::seq<Ns...>, Ts*... xs)
     return f(make_tensor<Ns>::apply(xs)...);
 }
 
-template <class... Ts>
-__device__ auto make_tensors(Ts*... xs)
+inline __device__ auto make_tensors()
 {
-    return [=](auto f) { return make_tensors_impl(f, detail::gens<sizeof...(Ts)>{}, xs...); };
+    return [](auto*... xs) {
+        return [=](auto f) { return make_tensors_impl(f, detail::gens<sizeof...(xs)>{}, xs...); };
+    };
 }
 
 } // namespace migraphx

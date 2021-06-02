@@ -142,30 +142,31 @@ __device__ __host__ auto vectorize(T x)
     }
 }
 
-template <class... Ts>
-__device__ __host__ auto auto_vectorize(Ts... xs)
+inline __device__ __host__ auto auto_vectorize()
 {
-    return [=](auto f) {
-        constexpr bool packed = (decltype(xs.get_shape()){}.packed() or ...);
-        if constexpr(packed)
-        {
-            constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
-            constexpr auto n    = find_vectorize_size(
-                [&](auto i) { return is_vectorizable<i, axis, decltype(xs.get_shape())...>(); });
-            by(
-                [&](auto x) {
-                    constexpr auto s = decltype(x.get_shape()){};
-                    if constexpr(s.broadcasted())
-                        return tensor_step<n>(x, axis);
-                    else
-                        return as_vec<n>(x);
-                },
-                f)(xs...);
-        }
-        else
-        {
-            f(xs...);
-        }
+    return [](auto... xs) {
+        return [=](auto f) {
+            constexpr bool packed = (decltype(xs.get_shape()){}.packed() or ...);
+            if constexpr(packed)
+            {
+                constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
+                constexpr auto n    = find_vectorize_size(
+                    [&](auto i) { return is_vectorizable<i, axis, decltype(xs.get_shape())...>(); });
+                by(
+                    [&](auto x) {
+                        constexpr auto s = decltype(x.get_shape()){};
+                        if constexpr(s.broadcasted())
+                            return tensor_step<n>(x, axis);
+                        else
+                            return as_vec<n>(x);
+                    },
+                    f)(xs...);
+            }
+            else
+            {
+                f(xs...);
+            }
+        };
     };
 }
 

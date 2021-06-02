@@ -142,14 +142,15 @@ constexpr auto arg(IntegralConstant ic)
     return arg_c<ic>();
 }
 
-template <class... Ts>
-constexpr auto rotate_last(Ts... xs)
+inline constexpr auto rotate_last()
 {
-    return [=](auto&& f) {
-        return sequence_c<sizeof...(Ts)>([&](auto... is) {
-            constexpr auto size = sizeof...(is);
-            return f(arg_c<(is + size - 1) % size>()(xs...)...);
-        });
+    return [](auto... xs) {
+        return [=](auto&& f) {
+            return sequence_c<sizeof...(xs)>([&](auto... is) {
+                constexpr auto size = sizeof...(is);
+                return f(arg_c<(is + size - 1) % size>()(xs...)...);
+            });
+        };
     };
 }
 

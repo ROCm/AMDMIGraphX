@@ -15,7 +15,7 @@ struct module;
 struct rewrite_quantizelinear
 {
     std::string name() const { return "rewrite_quantizelinear"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

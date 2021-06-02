@@ -29,9 +29,9 @@ struct dequantizelinear
     }
 
     std::string name() const { return "dequantizelinear"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        return {inputs[0].type(), inputs[0].lens()};
+        return {shape::float_type, inputs[0].lens(), inputs[0].strides()};
     }
 };
 

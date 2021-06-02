@@ -13,21 +13,30 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_quantizelinear::apply(module& p) const
+void rewrite_quantizelinear::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "quantizelinear")
             continue;
 
         auto&& op = any_cast<op::quantizelinear>(ins->get_operator());
         auto axis = op.axis;
-
-        auto args = ins->inputs();
+        auto x = ins->inputs()[0];
+        auto y_scale = ins->inputs()[1];
+        
+        instruction_ref y_zero_point;
+        auto quant_type = shape::int8_type;
+        if (ins->inputs().size() == 3)
+        {
+            y_zero_point = ins->inputs()[2];
+            quant_type = y_zero_point->get_shape().type();
+        }
+        else
+            y_zero_point = m.add_literal(0);
 
         int max_quant   = 255;
         int min_quant   = 0;
-        auto quant_type = args[2]->get_shape().type();
 
         if(quant_type == shape::int8_type)
         {
@@ -35,65 +44,65 @@ void rewrite_quantizelinear::apply(module& p) const
             min_quant = -128;
         }
 
-        auto max_arg = p.add_literal(max_quant);
-        auto min_arg = p.add_literal(min_quant);
+        auto max_arg = m.add_literal(max_quant);
+        auto min_arg = m.add_literal(min_quant);
 
-        auto input_lens = args[0]->get_shape().lens();
+        auto input_lens = x->get_shape().lens();
         int n_dim       = static_cast<int>(input_lens.size());
 
         instruction_ref divisor;
-        if(args[1]->get_shape().elements() != 1)
+        if(y_scale->get_shape().elements() != 1)
         {
             auto tuned_axis = tune_axis(n_dim, axis, ins->name());
-            divisor         = p.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[1]);
+            divisor         = m.insert_instruction(
+                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), y_scale);
         }
         else
         {
-            divisor = p.insert_instruction(
-                ins, make_op("multibroadcast", {{"output_lens", input_lens}}), args[1]);
+            divisor = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"output_lens", input_lens}}), y_scale);
         }
 
-        auto div            = p.insert_instruction(ins, make_op("div"), ins->inputs()[0], divisor);
-        auto add_zero_point = p.insert_instruction(ins, make_op("round"), div);
+        auto div            = m.insert_instruction(ins, make_op("div"), x, divisor);
+        auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
 
         instruction_ref zero_point;
-        if(args[2]->get_shape().elements() != 1)
+        if(y_zero_point->get_shape().elements() != 1)
         {
             auto tuned_axis = tune_axis(n_dim, axis, ins->name());
-            zero_point      = p.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[2]);
-            zero_point = p.insert_instruction(
+            zero_point      = m.insert_instruction(
+                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), y_zero_point);
+            zero_point = m.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
         }
         else
         {
-            zero_point = p.insert_instruction(
-                ins, make_op("convert", {{"target_type", shape::int32_type}}), args[2]);
-            zero_point = p.insert_instruction(
+            zero_point = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", shape::int32_type}}), y_zero_point);
+            zero_point = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"output_lens", input_lens}}), zero_point);
         }
 
-        add_zero_point = p.insert_instruction(
+        add_zero_point = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::int32_type}}), add_zero_point);
-        auto add = p.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
+        auto add = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
 
         auto s           = add_zero_point->get_shape();
         const auto& lens = s.lens();
         std::vector<int64_t> output_lens(lens.begin(), lens.end());
         if(min_arg->get_shape() != s)
         {
-            min_arg = p.insert_instruction(
+            min_arg = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"output_lens", output_lens}}), min_arg);
         }
         if(max_arg->get_shape() != s)
         {
-            max_arg = p.insert_instruction(
+            max_arg = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"output_lens", output_lens}}), max_arg);
         }
 
-        auto saturate = p.insert_instruction(ins, make_op("clip"), add, min_arg, max_arg);
-        p.replace_instruction(ins, make_op("convert", {{"target_type", quant_type}}), saturate);
+        auto saturate = m.insert_instruction(ins, make_op("clip"), add, min_arg, max_arg);
+        m.replace_instruction(ins, make_op("convert", {{"target_type", quant_type}}), saturate);
     }
 }
 

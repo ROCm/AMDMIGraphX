@@ -29,9 +29,13 @@ struct quantizelinear
     }
 
     std::string name() const { return "quantizelinear"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        return {inputs[0].type(), inputs[0].lens()};
+        if (inputs.size() == 3)
+        {
+            return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
+        }
+        return {shape::int8_type, inputs[0].lens(), inputs[0].strides()};
     }
 };
 

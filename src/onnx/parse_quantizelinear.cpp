@@ -20,19 +20,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
 
-        auto x       = args[0];
-        auto y_scale = args[1];
-
-        if(args.size() == 3)
-        {
-            auto y_zero_point = args[2];
-            return info.add_instruction(
-                make_op("quantizelinear", {{"axis", axis}}), x, y_scale, y_zero_point);
-        }
-
-        auto y_zero_point = info.add_literal(0);
-        return info.add_instruction(
-            make_op("quantizelinear", {{"axis", axis}}), x, y_scale, y_zero_point);
+        return info.add_instruction(make_op("quantizelinear", {{"axis", axis}}), args);
     }
 };
 

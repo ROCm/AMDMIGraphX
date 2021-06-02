@@ -11,58 +11,59 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void rewrite_dequantizelinear::apply(module& p) const
+void rewrite_dequantizelinear::apply(module& m) const
 {
-    for(auto ins : iterator_for(p))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "dequantizelinear")
             continue;
 
         auto&& op = any_cast<op::dequantizelinear>(ins->get_operator());
         auto axis = op.axis;
+        auto x = ins->inputs()[0];
+        auto x_scale = ins->inputs()[1];
+        auto x_zero_point = ins->inputs().size() == 3 ? ins->inputs()[2] : m.add_literal(0);
 
-        auto args = ins->inputs();
-
-        auto input_lens = args[0]->get_shape().lens();
+        auto input_lens = x->get_shape().lens();
         int n_dim       = static_cast<int>(input_lens.size());
 
         instruction_ref zero_point_int32;
-        if(args[2]->get_shape().elements() != 1)
+        if(x_zero_point->get_shape().elements() != 1)
         {
             auto tuned_axis  = tune_axis(n_dim, axis, ins->name());
-            zero_point_int32 = p.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[2]);
-            zero_point_int32 = p.insert_instruction(
+            zero_point_int32 = m.insert_instruction(
+                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), x_zero_point);
+            zero_point_int32 = m.insert_instruction(
                 ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point_int32);
         }
         else
         {
-            zero_point_int32 = p.insert_instruction(
-                ins, make_op("convert", {{"target_type", shape::int32_type}}), args[2]);
-            zero_point_int32 = p.insert_instruction(
+            zero_point_int32 = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", shape::int32_type}}), x_zero_point);
+            zero_point_int32 = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"output_lens", input_lens}}), zero_point_int32);
         }
 
-        auto sub_zp_int32 = p.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::int32_type}}), args[0]);
-        auto sub = p.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
-        auto dequant_input = p.insert_instruction(
+        auto sub_zp_int32 = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
+        auto sub = m.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
+        auto dequant_input = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::float_type}}), sub);
 
         instruction_ref multiplier;
-        if(args[1]->get_shape().elements() != 1)
+        if(x_scale->get_shape().elements() != 1)
         {
             auto tuned_axis = tune_axis(n_dim, axis, ins->name());
-            multiplier      = p.insert_instruction(
-                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[1]);
+            multiplier      = m.insert_instruction(
+                ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), x_scale);
         }
         else
         {
-            multiplier = p.insert_instruction(
-                ins, make_op("multibroadcast", {{"output_lens", input_lens}}), args[1]);
+            multiplier = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"output_lens", input_lens}}), x_scale);
         }
 
-        p.replace_instruction(ins, make_op("mul"), dequant_input, multiplier);
+        m.replace_instruction(ins, make_op("mul"), dequant_input, multiplier);
     }
 }
 

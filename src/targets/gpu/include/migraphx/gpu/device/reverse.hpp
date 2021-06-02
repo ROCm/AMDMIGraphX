@@ -10,7 +10,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument reverse(hipStream_t stream, argument result, argument arg1, int64_t axis); //TODO: why int64_t for something small?
+argument reverse(hipStream_t stream,
+                 argument result,
+                 argument arg1,
+                 int64_t axis); // TODO: why int64_t for something small?
 
 } // namespace device
 } // namespace gpu

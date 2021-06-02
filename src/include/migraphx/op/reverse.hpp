@@ -57,7 +57,6 @@ struct reverse
         });
 
         return result;
-
     }
 };
 

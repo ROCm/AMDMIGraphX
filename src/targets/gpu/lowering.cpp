@@ -468,10 +468,10 @@ struct miopen_apply
             inputs.at(1)   = cpu_cond;
 
             auto mod_args = ins->module_inputs();
-            auto sub_mod  = mod_args.front();
-            std::map<std::string, shape> name_shapes;
-            auto ps = sub_mod->get_parameter_names();
-            name_shapes.insert(ps.begin(), ps.end());
+            // auto sub_mod  = mod_args.front();
+            // std::map<std::string, shape> name_shapes;
+            // auto ps = sub_mod->get_parameter_names();
+            // name_shapes.insert(ps.begin(), ps.end());
 
             auto ins_s   = ins->get_shape();
             auto ins_out = insert_allocation(ins, ins_s);

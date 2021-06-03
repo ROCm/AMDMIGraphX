@@ -157,18 +157,6 @@ struct loop
                 std::size_t out_size = mod_out.get_shape().bytes();
                 memcpy(out_data + iter * out_size, in_data, out_size);
             }
-            // std::transform(mod_scan_outputs.begin(),
-            //                mod_scan_outputs.end(),
-            //                scan_outputs.begin(),
-            //                scan_outputs.begin(),
-            //                [&](auto arg_in, auto arg_out) {
-            //                    visit_all(arg_in, arg_out)([&](auto in, auto out) {
-            //                        std::copy(in.begin(), in.end(),
-            //                                  out.begin());
-            //                                 //  out.begin() + static_cast<int>(iter *
-            //                                 arg_in.get_shape().elements()));
-            //                    });
-            //                });
         }
         // remove the cond variable
         mod_args.erase(mod_args.begin());

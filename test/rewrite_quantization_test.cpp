@@ -1,5 +1,4 @@
-#include <migraphx/rewrite_quantizelinear.hpp>
-#include <migraphx/rewrite_dequantizelinear.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -39,7 +38,7 @@ TEST_CASE(quantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_quantizelinear opt;
+    migraphx::rewrite_quantization opt;
     opt.apply(*p2.get_main_module());
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
@@ -67,7 +66,7 @@ TEST_CASE(dequantizelinear)
     migraphx::program p1 = create_program();
     migraphx::program p2 = create_program();
 
-    migraphx::rewrite_dequantizelinear opt;
+    migraphx::rewrite_quantization opt;
     opt.apply(*p2.get_main_module());
     EXPECT(any_of(*p1.get_main_module(), &is_dequantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_dequantizelinear));

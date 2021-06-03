@@ -25,10 +25,9 @@ add_library(migraphx
     eliminate_pad.cpp
     file_buffer.cpp
     rewrite_batchnorm.cpp
-    rewrite_dequantizelinear.cpp
     rewrite_rnn.cpp
     rewrite_pooling.cpp
-    rewrite_quantizelinear.cpp
+    rewrite_quantization.cpp
     env.cpp
     generate.cpp
     instruction.cpp

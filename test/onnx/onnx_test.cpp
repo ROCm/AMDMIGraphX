@@ -8,8 +8,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/rewrite_dequantizelinear.hpp>
-#include <migraphx/rewrite_quantizelinear.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
@@ -27,8 +26,7 @@ migraphx::program optimize_onnx(const std::string& name, bool run_passes = false
     if(run_passes)
         migraphx::run_passes(*mm,
                              {migraphx::dead_code_elimination{},
-                              migraphx::rewrite_dequantizelinear{},
-                              migraphx::rewrite_quantizelinear{}});
+                              migraphx::rewrite_quantization{}});
 
     // remove the last identity instruction
     auto last_ins = std::prev(mm->end());

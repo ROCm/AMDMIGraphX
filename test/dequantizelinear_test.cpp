@@ -1,5 +1,4 @@
-#include <migraphx/rewrite_quantizelinear.hpp>
-#include <migraphx/rewrite_dequantizelinear.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/op/convolution.hpp>

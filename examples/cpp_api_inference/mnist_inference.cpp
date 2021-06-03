@@ -122,7 +122,8 @@ int main(int argc, char** argv)
 
     migraphx::program_parameters prog_params;
     auto param_shapes = prog.get_parameter_shapes();
-    prog_params.add("Input3", migraphx::argument(param_shapes["Input3"], digit.data()));
+    auto input = param_shapes.names().front();
+    prog_params.add(input, migraphx::argument(param_shapes[input], digit.data()));
 
     std::cout << "Model evaluating input..." << std::endl;
     auto start   = std::chrono::high_resolution_clock::now();

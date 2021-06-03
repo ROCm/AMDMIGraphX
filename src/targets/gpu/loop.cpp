@@ -27,9 +27,8 @@ hip_loop::compute(const shape& output_shape,
 
     std::string prefix = "@mgx_" + mod->name();
     std::vector<std::pair<std::string, bool>> fixed_input_pair;
-    auto it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
-        return contains(name, prefix + "_iter_");
-    });
+    auto it = std::find_if(
+        pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_iter_"); });
     if(it != pnames.end())
     {
         fixed_input_pair.push_back({*it, true});
@@ -40,9 +39,8 @@ hip_loop::compute(const shape& output_shape,
         fixed_input_pair.push_back({{}, false});
     }
 
-    it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
-        return contains(name, prefix + "_cond_");
-    });
+    it = std::find_if(
+        pnames.begin(), pnames.end(), [&](auto name) { return contains(name, prefix + "_cond_"); });
     if(it != pnames.end())
     {
         fixed_input_pair.push_back({*it, true});
@@ -54,7 +52,7 @@ hip_loop::compute(const shape& output_shape,
     }
 
     std::vector<shape> vec_out_shapes = output_shape.sub_shapes();
-    std::size_t dep_num = args.size() - 2 - vec_out_shapes.size();
+    std::size_t dep_num               = args.size() - 2 - vec_out_shapes.size();
 
     // dependency carry outputs
     std::vector<argument> dep_outputs(args.begin() + 2, args.begin() + 2 + dep_num);
@@ -66,10 +64,10 @@ hip_loop::compute(const shape& output_shape,
     std::vector<argument> mod_args(args.begin() + 1, args.begin() + 1 + dep_num);
     shape s_iter{shape::int64_type};
     shape s_cond{shape::bool_type};
-    int64_t *iter_ptr{};
-    hipMalloc((void **)&iter_ptr, sizeof(int64_t));
-    bool *cond_ptr{};
-    hipMalloc((void **)&cond_ptr, sizeof(bool));
+    int64_t* iter_ptr{};
+    hipMalloc((void**)&iter_ptr, sizeof(int64_t));
+    bool* cond_ptr{};
+    hipMalloc((void**)&cond_ptr, sizeof(bool));
 
     for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
     {
@@ -90,21 +88,25 @@ hip_loop::compute(const shape& output_shape,
         }
 
         // wrapup dependency carry output parameters
-        std::transform(vec_out_shapes.begin(), vec_out_shapes.begin() + dep_num, dep_outputs.begin(), std::back_inserter(mod_args), [&](auto s, auto arg) {
-            return arg.load(s, arg.data() + i * s.bytes());
-        });
+        std::transform(vec_out_shapes.begin(),
+                       vec_out_shapes.begin() + dep_num,
+                       dep_outputs.begin(),
+                       std::back_inserter(mod_args),
+                       [&](auto s, auto arg) { return arg.load(s, arg.data() + i * s.bytes()); });
 
         // wrapup scan output parameters
-        std::transform(vec_out_shapes.begin() + dep_num, vec_out_shapes.end(), scan_outputs.begin(), std::back_inserter(mod_args), [&](auto s, auto arg) {
-            return arg.load(s, arg.data() + i * s.bytes());
-        });
+        std::transform(vec_out_shapes.begin() + dep_num,
+                       vec_out_shapes.end(),
+                       scan_outputs.begin(),
+                       std::back_inserter(mod_args),
+                       [&](auto s, auto arg) { return arg.load(s, arg.data() + i * s.bytes()); });
 
         // carry dependencies
         std::transform(pnames.begin(),
-                        pnames.end(),
-                        mod_args.begin() + 1,
-                        std::inserter(params, params.end()),
-                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
+                       pnames.end(),
+                       mod_args.begin() + 1,
+                       std::inserter(params, params.end()),
+                       [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
         mod_args = run(mod, params);
 

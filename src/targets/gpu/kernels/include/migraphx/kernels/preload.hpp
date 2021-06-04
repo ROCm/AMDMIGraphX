@@ -21,7 +21,7 @@ constexpr auto traverse_preload(Shapes... ss)
         index_int offset = 0;
         auto each        = [&](auto x) {
             constexpr auto s    = decltype(x.get_shape()){};
-            constexpr auto size = decltype(index_constant<s.element_space()>{}){};
+            constexpr auto size = _c<s.element_space()>;
             if constexpr(not s.broadcasted())
                 return f(x, offset, false_type{});
             else if constexpr((s.elements() - size) < 64)
@@ -39,7 +39,7 @@ constexpr auto traverse_preload(Shapes... ss)
 }
 
 template <class T, class... Shapes>
-constexpr index_int compute_preload_size()
+constexpr index_int compute_preload_size(Shapes...)
 {
     index_int size = 0;
     traverse_preload<T>(Shapes{}...)(
@@ -88,7 +88,7 @@ template <class T, class... Ts>
 __device__ auto preload(index idx, Ts... xs)
 {
     using type               = typename remove_vec<T>::type;
-    constexpr auto size      = compute_preload_size<type, decltype(xs.get_shape())...>();
+    constexpr auto size      = compute_preload_size<type>(xs.get_shape()...);
     const index_int max_size = 512 * sizeof(type);
     return [=](auto f) {
         if constexpr(size > 0 and size < max_size)

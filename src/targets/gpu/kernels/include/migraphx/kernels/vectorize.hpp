@@ -146,8 +146,8 @@ inline __device__ __host__ auto auto_vectorize()
 {
     return [](auto... xs) {
         return [=](auto f) {
-            constexpr bool packed = (decltype(xs.get_shape()){}.packed() or ...);
-            if constexpr(packed)
+            constexpr bool packed_or_broadcasted = ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
+            if constexpr(packed_or_broadcasted)
             {
                 constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
                 constexpr auto n    = find_vectorize_size([&](auto i) {
@@ -156,7 +156,7 @@ inline __device__ __host__ auto auto_vectorize()
                 by(
                     [&](auto x) {
                         constexpr auto s = decltype(x.get_shape()){};
-                        if constexpr(s.broadcasted())
+                        if constexpr(s.broadcasted() and s.strides[axis] == 0)
                             return tensor_step<n>(x, axis);
                         else
                             return as_vec<n>(x);

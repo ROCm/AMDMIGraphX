@@ -396,7 +396,7 @@ struct value
     template <class To>
     To get(const std::string& pkey, const To& default_value) const
     {
-        auto* v = find(pkey);
+        const auto* v = find(pkey);
         if(v == this->end())
             return default_value;
         return v->to<To>();
@@ -405,7 +405,7 @@ struct value
     template <class To>
     std::vector<To> get(const std::string& pkey, const std::vector<To>& default_value) const
     {
-        auto* v = find(pkey);
+        const auto* v = find(pkey);
         if(v == this->end())
             return default_value;
         return v->to_vector<To>();

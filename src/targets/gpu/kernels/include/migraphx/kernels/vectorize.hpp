@@ -146,7 +146,8 @@ inline __device__ __host__ auto auto_vectorize()
 {
     return [](auto... xs) {
         return [=](auto f) {
-            constexpr bool packed_or_broadcasted = ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
+            constexpr bool packed_or_broadcasted =
+                ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
             if constexpr(packed_or_broadcasted)
             {
                 constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();

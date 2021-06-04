@@ -10,7 +10,7 @@ NFNet: Normalizer-Free Nets. An image recognition model that can be trained with
 
 **Paper**: https://arxiv.org/pdf/2102.06171.pdf
 
-**Colab noteook**: https://github.com/deepmind/deepmind-research/tree/master/nfnets
+**Colab notebook**: https://github.com/deepmind/deepmind-research/tree/master/nfnets
 
 ### Why not batch norm?
 
@@ -27,9 +27,9 @@ Instead:
 
 ## Inference with MIGraphX using NFNet ONNX Model
 
-There is no ONNX model released for NFNet, however PyTorch model is available at:
+There is no ONNX model released for NFNet, as of June 2021, however PyTorch model is available at:
 https://github.com/rwightman/pytorch-image-models. 
-We provide an in-house produced and optimized ONNX model, which can be parsed and compiled using MIGraphX for AMD GPUs.
+We provide an in-house produced and optimized ONNX model, which can be parsed and compiled using MIGraphX for AMD GPUs. The ONNX model file can be fetched using the notebook we provide
 
 ### Requirements:
 1) AMD GPU system with ROCm installed.
@@ -41,7 +41,7 @@ Please utilize the notebook example provided:
 ```
 https://jupyter.org/install
 ```
-2) Connect to your jupyter server and utilize `nfnet_inference.ipynb` notebook file.
+2) Connect to your jupyter, server and utilize `nfnet_inference.ipynb` notebook file.
 
 ### How to compare MIGraphX to ONNX Runtime for NFNet ONNX model:
 On your terminal, invoke:

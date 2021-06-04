@@ -9,7 +9,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-static const char* pointwise_kernel = R"__migraphx__(
+static const char* const pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <args.hpp>

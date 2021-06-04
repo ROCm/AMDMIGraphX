@@ -64,5 +64,8 @@ using false_type = bool_constant<false>;
 template <index_int N>
 using index_constant = integral_constant<index_int, N>;
 
+template<auto v> 
+static constexpr auto _c = integral_constant<decltype(v), v>{};
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INTEGRAL_CONSTANT_HPP

@@ -101,7 +101,7 @@ constexpr bool is_vectorizable(Shape s)
 template <index_int N, index_int Axis, class... Shapes>
 constexpr auto is_vectorizable()
 {
-    return bool_constant<(is_vectorizable<N>(Shapes{}, index_constant<Axis>{}) and ...)>{};
+    return bool_constant<(is_vectorizable<N>(Shapes{}, _c<Axis>) and ...)>{};
 }
 
 template <index_int N, class... Shapes>
@@ -113,21 +113,21 @@ constexpr auto is_vectorizable()
 template <class P>
 constexpr auto find_vectorize_size(P pred)
 {
-    if constexpr(pred(index_constant<4>{}))
-        return index_constant<4>{};
-    else if constexpr(pred(index_constant<2>{}))
-        return index_constant<2>{};
+    if constexpr(pred(_c<4>))
+        return _c<4>;
+    else if constexpr(pred(_c<2>))
+        return _c<2>;
     else
-        return index_constant<0>{};
+        return _c<0>;
 }
 
 template <class T>
-__device__ __host__ auto vectorize(T x)
+__host__ __device__ auto vectorize(T x)
 {
     if constexpr(vec_size<T>() == 0)
     {
         constexpr auto n = find_vectorize_size(
-            [&](auto i) { return is_vectorizable<i, decltype(x.get_shape())>(); });
+            [&](auto i) { return _c<is_vectorizable<i>(x.get_shape())>; });
         return as_vec<n>(x);
     }
     else

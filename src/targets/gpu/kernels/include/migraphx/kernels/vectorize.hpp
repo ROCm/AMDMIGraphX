@@ -146,6 +146,7 @@ inline __device__ __host__ auto auto_vectorize()
 {
     return [](auto... xs) {
         return [=](auto f) {
+            // TODO: Just check there a single axis of 1
             constexpr bool packed_or_broadcasted =
                 ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
             if constexpr(packed_or_broadcasted)
@@ -157,7 +158,7 @@ inline __device__ __host__ auto auto_vectorize()
                 by(
                     [&](auto x) {
                         constexpr auto s = decltype(x.get_shape()){};
-                        if constexpr(s.broadcasted() and s.strides[axis] == 0)
+                        if constexpr(s.strides[axis] == 0)
                             return tensor_step<n>(x, axis);
                         else
                             return as_vec<n>(x);

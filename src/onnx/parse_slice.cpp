@@ -86,43 +86,43 @@ struct parse_slice : op_parser<parse_slice>
             op.axes = axes;
         }
 
-        if(reverse_direction == true){
-            
+        if(reverse_direction == true)
+        {
+
             migraphx::argument axes_arg = args.at(3)->eval();
             std::vector<int> axes_v;
             axes_arg.visit([&](auto s) { axes_v.assign(s.begin(), s.end()); });
 
             auto lens = args[0]->get_shape().lens();
-            
-            for(auto axis: axes_v)
+
+            for(auto axis : axes_v)
             {
-                auto start_v   = op.starts[axis];
-                auto end_v     = op.ends[axis];
-                if ( (start_v < 0) & (end_v < INT_MIN))
+                auto start_v = op.starts[axis];
+                auto end_v   = op.ends[axis];
+                if((start_v < 0) & (end_v < INT_MIN))
                 {
-                    op.ends[axis]      = lens[axis] + start_v + 1;
-                    op.starts[axis]    = 0;
+                    op.ends[axis]   = lens[axis] + start_v + 1;
+                    op.starts[axis] = 0;
                 }
-                else if ( (start_v < 0) & (end_v > INT_MIN) & (end_v < 0)) 
+                else if((start_v < 0) & (end_v > INT_MIN) & (end_v < 0))
                 {
-                    op.ends[axis]      = lens[axis] + start_v + 1;
-                    op.starts[axis]    = end_v - INT_MIN;
+                    op.ends[axis]   = lens[axis] + start_v + 1;
+                    op.starts[axis] = end_v - INT_MIN;
                 }
             }
-                        
+
             auto ins = info.add_instruction(op, args[0]);
-            
-            for (auto axis: axes_v)
+
+            for(auto axis : axes_v)
             {
-                ins = info.add_instruction(make_op("reverse", {{"axis",axis}}), ins); //TODO: take care of axis here
+                ins = info.add_instruction(make_op("reverse", {{"axis", axis}}), ins);
             }
             return ins;
-        } 
-        else 
+        }
+        else
         {
             return info.add_instruction(op, args[0]);
         }
-
     }
 };
 

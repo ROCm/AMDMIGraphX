@@ -86,12 +86,6 @@ constexpr index_int find_vector_axis(Shapes... ss)
     return axis;
 }
 
-template <class... Shapes>
-constexpr auto find_vector_axis()
-{
-    return index_constant<find_vector_axis(Shapes{}...)>{};
-}
-
 template <index_int N, class Shape, class Axis>
 constexpr auto is_vectorizable(Shape s, Axis axis)
 {
@@ -101,7 +95,7 @@ constexpr auto is_vectorizable(Shape s, Axis axis)
 template <index_int N, class Shape>
 constexpr bool is_vectorizable(Shape s)
 {
-    return is_vectorizable<N>(s, find_vector_axis<Shape>());
+    return is_vectorizable<N>(s, find_vector_axis(s));
 }
 
 template <index_int N, index_int Axis, class... Shapes>
@@ -151,7 +145,7 @@ inline __device__ __host__ auto auto_vectorize()
                 ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
             if constexpr(packed_or_broadcasted)
             {
-                constexpr auto axis = find_vector_axis<decltype(xs.get_shape())...>();
+                constexpr auto axis = find_vector_axis(xs.get_shape()...);
                 constexpr auto n    = find_vectorize_size([&](auto i) {
                     return is_vectorizable<i, axis, decltype(xs.get_shape())...>();
                 });

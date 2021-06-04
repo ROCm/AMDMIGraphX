@@ -87,48 +87,39 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         if(reverse_direction == true){
-            //auto tmp = op.starts;
-            //op.starts = op.ends;
-            //op.ends = tmp;
-
+            
             migraphx::argument axes_arg = args.at(3)->eval();
             std::vector<int> axes_v;
             axes_arg.visit([&](auto s) { axes_v.assign(s.begin(), s.end()); });
 
             auto lens = args[0]->get_shape().lens();
             
-            for(auto axis: axes_v){
+            for(auto axis: axes_v)
+            {
                 auto start_v   = op.starts[axis];
                 auto end_v     = op.ends[axis];
-                std::cout << "PARSE debug: starts:" << start_v << " ends:" << end_v << std::endl;
-                std::cout << "PARSE debug: INT_MIN:" << INT_MIN << std::endl;
-                std::cout << "PARSE debug: LENS[AXIS]:" << lens[axis] << std::endl;
-                if ( (start_v < 0) & (end_v < INT_MIN)) {
-                    std::cout << "ok";
+                if ( (start_v < 0) & (end_v < INT_MIN))
+                {
                     op.ends[axis]      = lens[axis] + start_v + 1;
                     op.starts[axis]    = 0;
                 }
-                else if ( (start_v < 0) & (end_v > INT_MIN) & (end_v < 0)) {
+                else if ( (start_v < 0) & (end_v > INT_MIN) & (end_v < 0)) 
+                {
                     op.ends[axis]      = lens[axis] + start_v + 1;
                     op.starts[axis]    = end_v - INT_MIN;
                 }
             }
+                        
+            auto ins = info.add_instruction(op, args[0]);
             
-            std::cout << "CHECK starts:";
-            for (auto k: op.starts){
-                std::cout << k << " " << std::endl;
+            for (auto axis: axes_v)
+            {
+                ins = info.add_instruction(make_op("reverse", {{"axis",axis}}), ins); //TODO: take care of axis here
             }
-
-            std::cout << "CHECK ends:";
-            for (auto k: op.ends){
-                std::cout << k << " " << std::endl;
-            }
-
-            
-            auto ll1 = info.add_instruction(op, args[0]); 
-            auto ll2 = info.add_instruction(make_op("reverse", {{"axis",0}}), ll1); //TODO: take care of axis here
-            return ll2;
-        } else {
+            return ins;
+        } 
+        else 
+        {
             return info.add_instruction(op, args[0]);
         }
 

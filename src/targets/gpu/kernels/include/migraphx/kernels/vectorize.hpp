@@ -89,7 +89,8 @@ constexpr index_int find_vector_axis(Shapes... ss)
 template <index_int N, class Axis, class... Shapes>
 constexpr auto is_vectorizable(Axis axis, Shapes... ss)
 {
-    return (((ss.lens[axis] % N) == 0 and (ss.strides[axis] == 1 or ss.strides[axis] == 0)) and ...);
+    return (((ss.lens[axis] % N) == 0 and (ss.strides[axis] == 1 or ss.strides[axis] == 0)) and
+            ...);
 }
 
 template <index_int N, class... Shapes>
@@ -134,9 +135,8 @@ inline __device__ __host__ auto auto_vectorize()
             if constexpr(packed_or_broadcasted)
             {
                 constexpr auto axis = find_vector_axis(xs.get_shape()...);
-                constexpr auto n    = find_vectorize_size([&](auto i) {
-                    return _c<is_vectorizable<i>(axis, xs.get_shape()...)>;
-                });
+                constexpr auto n    = find_vectorize_size(
+                    [&](auto i) { return _c<is_vectorizable<i>(axis, xs.get_shape()...)>; });
                 by(
                     [&](auto x) {
                         constexpr auto s = x.get_shape();

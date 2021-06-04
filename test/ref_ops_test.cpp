@@ -3574,9 +3574,9 @@ TEST_CASE(reverse_test_axis1)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data = {16, 15, 14, 13, 12, 11, 10, 9,  8,  7,  6,
-                                      5,  4,  3,  2,  1,  32, 31, 30, 29, 28, 27,
-                                      26, 25, 24, 23, 22, 21, 20, 19, 18, 17};
+    std::vector<float> target_data = data;
+    std::reverse(target_data.begin(), target_data.begin() + 16);
+    std::reverse(target_data.end() - 16, target_data.end());
     EXPECT(migraphx::verify_range(results_vector, target_data));
 }
 
@@ -3594,9 +3594,8 @@ TEST_CASE(reverse_test_axis0)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> target_data = {17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
-                                      28, 29, 30, 31, 32, 1,  2,  3,  4,  5,  6,
-                                      7,  8,  9,  10, 11, 12, 13, 14, 15, 16};
+    std::vector<float> target_data = data;
+    std::swap_ranges(target_data.begin(), target_data.begin() + 16, target_data.begin() + 16);
     EXPECT(migraphx::verify_range(results_vector, target_data));
 }
 

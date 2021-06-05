@@ -16,7 +16,7 @@ T generic_read_file(const std::string& filename)
     is.seekg(0, std::ios::beg);
 
     T buffer(size, 0);
-    if(!is.read(buffer.data(), size))
+    if(!is.read(&buffer[0], size))
         MIGRAPHX_THROW("Error reading file: " + filename);
     return buffer;
 }

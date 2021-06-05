@@ -53,7 +53,7 @@ using namespace migraphx;
 extern "C" {
 __global__ void kernel(void* x, void* y) 
 {
-    make_tensors(x, y)([](auto xt, auto yt) __device__ {
+    make_tensors()(x, y)([](auto xt, auto yt) __device__ {
         auto idx = make_index();
         const auto stride = idx.nglobal();
         for(index_int i = idx.global; i < xt.get_shape().elements(); i += stride)

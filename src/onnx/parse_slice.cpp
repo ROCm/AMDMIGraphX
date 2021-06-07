@@ -113,7 +113,7 @@ struct parse_slice : op_parser<parse_slice>
 
             auto ins = info.add_instruction(op, args[0]);
 
-            return info.add_instruction(make_op("reverse", {{"axes", axes}}), ins);
+            return info.add_instruction(make_op("reverse", {{"axes", axes_v}}), ins);
         }
         else
         {

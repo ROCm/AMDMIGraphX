@@ -13,7 +13,7 @@ namespace device {
 argument reverse(hipStream_t stream,
                  argument result,
                  argument arg1,
-                 const std::vector<int64_t> axes);
+                 const std::vector<int64_t>& axes);
 
 } // namespace device
 } // namespace gpu

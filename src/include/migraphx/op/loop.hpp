@@ -158,7 +158,7 @@ struct loop
         outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
 
         std::cout << "loop output = " << std::endl;
-        for (auto& out : outputs)
+        for(auto& out : outputs)
         {
             std::cout << "\tins_out = " << out << std::endl;
         }

@@ -73,7 +73,7 @@ hip_loop::compute(const shape& output_shape,
     for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
     {
 
-std::cout << "loop_compute1" << std::endl;
+        std::cout << "loop_compute1" << std::endl;
         std::unordered_map<std::string, argument> params;
 
         // iter index
@@ -82,7 +82,7 @@ std::cout << "loop_compute1" << std::endl;
             hipMemcpy(iter_ptr, &iter, sizeof(int64_t), hipMemcpyHostToDevice);
             params[fixed_input_pair.at(0).first] = argument(s_iter, iter_ptr);
         }
-std::cout << "loop_compute2" << std::endl;
+        std::cout << "loop_compute2" << std::endl;
 
         // cond variable
         if(fixed_input_pair.at(1).second)
@@ -90,16 +90,18 @@ std::cout << "loop_compute2" << std::endl;
             hipMemcpy(cond_ptr, &cond, sizeof(bool), hipMemcpyHostToDevice);
             params[fixed_input_pair.at(1).first] = argument(s_cond, cond_ptr);
         }
-std::cout << "loop_compute3, dep_num = " << dep_num << std::endl;
+        std::cout << "loop_compute3, dep_num = " << dep_num << std::endl;
 
         // wrapup dependency carry output parameters
-        std::transform(vec_out_shapes.begin(),
-                       vec_out_shapes.begin() + dep_num,
-                       dep_outputs.begin(),
-                       std::back_inserter(mod_args),
-                       [&](auto s, auto arg) { return arg.load(s, arg.data() + iter * s.bytes()); });
+        std::transform(
+            vec_out_shapes.begin(),
+            vec_out_shapes.begin() + dep_num,
+            dep_outputs.begin(),
+            std::back_inserter(mod_args),
+            [&](auto s, auto arg) { return arg.load(s, arg.data() + iter * s.bytes()); });
 
-std::cout << "loop_compute4, vec_out_size = " << vec_out_shapes.size() << ", scan_out_size = " << scan_outputs.size() << std::endl;
+        std::cout << "loop_compute4, vec_out_size = " << vec_out_shapes.size()
+                  << ", scan_out_size = " << scan_outputs.size() << std::endl;
         // wrapup scan output parameters
         std::transform(vec_out_shapes.begin() + dep_num,
                        vec_out_shapes.end(),
@@ -107,10 +109,10 @@ std::cout << "loop_compute4, vec_out_size = " << vec_out_shapes.size() << ", sca
                        std::back_inserter(mod_args),
                        [&](auto s, auto arg) {
                            std::cout << "s = " << s << ", iter = " << iter << std::endl;
-                           return arg.load(s, arg.data() + iter * s.bytes()); 
-                        });
+                           return arg.load(s, arg.data() + iter * s.bytes());
+                       });
 
-std::cout << "loop_compute5" << std::endl;
+        std::cout << "loop_compute5" << std::endl;
         // carry dependencies
         std::transform(pnames.begin(),
                        pnames.end(),
@@ -118,16 +120,16 @@ std::cout << "loop_compute5" << std::endl;
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
-std::cout << "loop_compute6" << std::endl;
+        std::cout << "loop_compute6" << std::endl;
         mod_args = run(mod, params);
 
-std::cout << "loop_compute1" << std::endl;
+        std::cout << "loop_compute1" << std::endl;
         // copy back cond to be used next iteration
         hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
-std::cout << "loop_compute7" << std::endl;
+        std::cout << "loop_compute7" << std::endl;
     }
-    
-std::cout << "loop_compute8" << std::endl;
+
+    std::cout << "loop_compute8" << std::endl;
     // remove the cond variable
     mod_args.erase(mod_args.begin());
     auto outputs = mod_args;

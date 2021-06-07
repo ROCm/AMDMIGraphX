@@ -14,7 +14,7 @@ shape hip_reverse::compute_shape(std::vector<shape> inputs) const
 
 argument hip_reverse::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::reverse(ctx.get_stream().get(), args.back(), args[0], op.axis);
+    return device::reverse(ctx.get_stream().get(), args.back(), args[0], op.axes);
 }
 
 } // namespace gpu

@@ -20,12 +20,12 @@ namespace op {
 struct reverse
 {
 
-    int64_t axis; // 1-D, which axis will be reversed.
+    std::vector<int64_t> axes;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axes, "axes"));
     }
 
     std::string name() const { return "reverse"; }
@@ -33,7 +33,7 @@ struct reverse
     value attributes() const
     {
         value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
+        normalize["axes"] = value::array{normalize_attribute::include_min};
         return {{"normalize_axes", normalize}};
     }
 
@@ -47,11 +47,14 @@ struct reverse
     argument compute(const shape& s, std::vector<argument> args) const
     {
         argument result{s};
-        auto dim_size = s.lens()[axis];
+        auto lens = s.lens();
         visit_all(result, args.front())([&](auto output, auto input) {
             shape_for_each(s, [&](const auto& out_idx) {
-                auto in_idx              = out_idx;
-                in_idx[axis]             = dim_size - 1 - out_idx[axis];
+                auto in_idx             = out_idx;
+                for (const auto& axis: axes)
+                {
+                    in_idx[axis] = lens[axis] - 1 - out_idx[axis];
+                }
                 output[s.index(out_idx)] = input[s.index(in_idx)];
             });
         });

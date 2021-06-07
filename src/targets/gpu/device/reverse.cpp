@@ -13,7 +13,7 @@ namespace device {
 argument
 reverse(hipStream_t stream, argument result, argument arg1, const std::vector<int64_t>& axes)
 {
-    auto s                = arg1.get_shape();
+    auto s = arg1.get_shape();
     // auto lens             = s.lens();
     std::vector<std::size_t> axis_len(axes.begin(), axes.end());
     shape sa{shape::float_type, axis_len};
@@ -22,13 +22,13 @@ reverse(hipStream_t stream, argument result, argument arg1, const std::vector<in
         hip_visit_views(output1, input1, s, sa)([&](auto output, auto input, auto hs, auto daxes) {
             auto lens = hs.lens;
             gs_launch(stream, nelements)([=](auto i) __device__ {
-                auto idx     = hs.multi(i);
-                auto in_idx  = idx;
-                for (auto axis : daxes.lens)
+                auto idx    = hs.multi(i);
+                auto in_idx = idx;
+                for(auto axis : daxes.lens)
                 {
                     in_idx[axis] = lens[axis] - 1 - idx[axis];
                 }
-                output[idx]  = input[in_idx];
+                output[idx] = input[in_idx];
             });
         });
     });

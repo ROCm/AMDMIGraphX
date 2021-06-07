@@ -10,10 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument reverse(hipStream_t stream,
-                 argument result,
-                 argument arg1,
-                 const std::vector<int64_t>& axes);
+argument
+reverse(hipStream_t stream, argument result, argument arg1, const std::vector<int64_t>& axes);
 
 } // namespace device
 } // namespace gpu

@@ -98,17 +98,11 @@ struct loop
         }
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
-        std::vector<argument> outputs;
-        std::transform(vec_out_shapes.begin(),
+        std::vector<argument> scan_outputs;
+        std::transform(vec_out_shapes.begin() + 1 + dep_var_num,
                        vec_out_shapes.end(),
-                       std::back_inserter(outputs),
+                       std::back_inserter(scan_outputs),
                        [&](auto& s) { return argument{s}; });
-
-        // dependency carry outputs
-        std::vector<argument> dep_outputs(outputs.begin(), outputs.begin() + dep_var_num);
-
-        // scan outputs
-        std::vector<argument> scan_outputs(outputs.begin() + dep_var_num, outputs.end());
 
         // sub graph inputs for each iteration
         std::vector<argument> mod_args(args.begin() + 1, args.end());
@@ -158,10 +152,16 @@ struct loop
                 memcpy(out_data + iter * out_size, in_data, out_size);
             }
         }
-        // remove the cond variable
-        mod_args.erase(mod_args.begin());
-        outputs = mod_args;
+
+        // copy dependency carry output to final output
+        std::vector<argument> outputs(mod_args.begin() + 1, mod_args.begin() + 1 + dep_var_num);
         outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
+
+        std::cout << "loop output = " << std::endl;
+        for (auto& out : outputs)
+        {
+            std::cout << "\tins_out = " << out << std::endl;
+        }
 
         return argument{outputs};
     }

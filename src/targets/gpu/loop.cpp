@@ -1,4 +1,3 @@
-#include <hip/hcc_detail/driver_types.h>
 #include <iterator>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -9,6 +8,8 @@ namespace gpu {
 
 shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
 {
+    auto offset = inputs.size() - mods.front()->get_output_shapes().size() + 1;
+    inputs.erase(inputs.begin() + offset, inputs.end());
     return op.compute_shape(inputs, mods);
 }
 
@@ -71,6 +72,8 @@ hip_loop::compute(const shape& output_shape,
 
     for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
     {
+
+std::cout << "loop_compute1" << std::endl;
         std::unordered_map<std::string, argument> params;
 
         // iter index
@@ -79,6 +82,7 @@ hip_loop::compute(const shape& output_shape,
             hipMemcpy(iter_ptr, &iter, sizeof(int64_t), hipMemcpyHostToDevice);
             params[fixed_input_pair.at(0).first] = argument(s_iter, iter_ptr);
         }
+std::cout << "loop_compute2" << std::endl;
 
         // cond variable
         if(fixed_input_pair.at(1).second)
@@ -86,21 +90,27 @@ hip_loop::compute(const shape& output_shape,
             hipMemcpy(cond_ptr, &cond, sizeof(bool), hipMemcpyHostToDevice);
             params[fixed_input_pair.at(1).first] = argument(s_cond, cond_ptr);
         }
+std::cout << "loop_compute3, dep_num = " << dep_num << std::endl;
 
         // wrapup dependency carry output parameters
         std::transform(vec_out_shapes.begin(),
                        vec_out_shapes.begin() + dep_num,
                        dep_outputs.begin(),
                        std::back_inserter(mod_args),
-                       [&](auto s, auto arg) { return arg.load(s, arg.data() + i * s.bytes()); });
+                       [&](auto s, auto arg) { return arg.load(s, arg.data() + iter * s.bytes()); });
 
+std::cout << "loop_compute4, vec_out_size = " << vec_out_shapes.size() << ", scan_out_size = " << scan_outputs.size() << std::endl;
         // wrapup scan output parameters
         std::transform(vec_out_shapes.begin() + dep_num,
                        vec_out_shapes.end(),
                        scan_outputs.begin(),
                        std::back_inserter(mod_args),
-                       [&](auto s, auto arg) { return arg.load(s, arg.data() + i * s.bytes()); });
+                       [&](auto s, auto arg) {
+                           std::cout << "s = " << s << ", iter = " << iter << std::endl;
+                           return arg.load(s, arg.data() + iter * s.bytes()); 
+                        });
 
+std::cout << "loop_compute5" << std::endl;
         // carry dependencies
         std::transform(pnames.begin(),
                        pnames.end(),
@@ -108,25 +118,16 @@ hip_loop::compute(const shape& output_shape,
                        std::inserter(params, params.end()),
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
+std::cout << "loop_compute6" << std::endl;
         mod_args = run(mod, params);
 
+std::cout << "loop_compute1" << std::endl;
         // copy back cond to be used next iteration
         hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
-
-        // // concat scan outputs
-        // std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
-        //                                         mod_args.end());
-        // for(std::size_t i = 0; i < mod_scan_outputs.size(); ++i)
-        // {
-        //     auto& mod_out  = mod_scan_outputs.at(i);
-        //     auto& scan_out = scan_outputs.at(i);
-
-        //     auto in_data         = mod_out.data();
-        //     auto out_data        = scan_out.data();
-        //     std::size_t out_size = mod_out.get_shape().bytes();
-        //     memcpy(out_data + iter * out_size, in_data, out_size);
-        // }
+std::cout << "loop_compute7" << std::endl;
     }
+    
+std::cout << "loop_compute8" << std::endl;
     // remove the cond variable
     mod_args.erase(mod_args.begin());
     auto outputs = mod_args;

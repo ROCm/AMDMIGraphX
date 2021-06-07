@@ -474,20 +474,14 @@ struct miopen_apply
             // name_shapes.insert(ps.begin(), ps.end());
 
             auto ins_s   = ins->get_shape();
-            auto ins_out = insert_allocation(ins, ins_s);
-
-            auto vec_ss = ins_s.sub_shapes();
+            auto vec_ss = ins->get_shape().sub_shapes();
             std::vector<instruction_ref> vec_outs;
-            std::size_t offset = 0;
             std::transform(vec_ss.begin(), vec_ss.end(), std::back_inserter(vec_outs), [&](auto s) {
-                auto sub_ins = mod->insert_instruction(
-                    ins, make_op("load", {{"s", to_value(s)}, {"offset", offset}}), ins_out);
-                offset += s.bytes();
-                return sub_ins;
+                return insert_allocation(ins, s);
             });
             inputs.insert(inputs.end(), vec_outs.begin(), vec_outs.end());
 
-            return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+            return mod->replace_instruction(ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
         });
     }
 };

@@ -74,6 +74,25 @@ struct dnnl_op : auto_register_op<Derived>
         return reflect_base(self, f);
     }
 
+    std::string group() const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        return self.name();
+    }
+
+    value attributes() const
+    {
+        std::vector<std::string> names;
+        std::transform(post_ops.begin(), post_ops.end(), std::back_inserter(names), [](auto&& op) {
+            return op.algo;
+        });
+        const auto& self = static_cast<const Derived&>(*this);
+        auto g           = self.group();
+        if(not names.empty())
+            g += "<" + join_strings(names, ",") + ">";
+        return {{"group", g}};
+    }
+
     std::size_t get_extra_post_op_args() const
     {
         return std::count_if(post_ops.begin(), post_ops.end(), [](const auto& po) {

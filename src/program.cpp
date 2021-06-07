@@ -484,6 +484,14 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
+std::string perf_group(const operation& op)
+{
+    auto attr = op.attributes();
+    if(attr.contains("group"))
+        return attr.at("group").to<std::string>();
+    return op.name();
+}
+
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
@@ -538,7 +546,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
-        op_times[p.first->name()] += avg;
+        op_times[perf_group(p.first->get_operator())] += avg;
         total_instruction_time += avg;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;

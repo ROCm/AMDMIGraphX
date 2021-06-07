@@ -1549,4 +1549,23 @@ TEST_CASE(prefix_scan_sum)
     }
 }
 
+TEST_CASE(step_test)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4}};
+    {
+        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2}, {8, 8, 3}};
+        expect_shape(s2, migraphx::make_op("step", {{"axes", {1, 2}}, {"steps", {2, 3}}}), s1);
+    }
+
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2, 4}};
+        throws_shape(migraphx::make_op("step", {{"axes", {1, 2}}, {"steps", {1}}}), s1);
+    }
+
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 2, 4}};
+        throws_shape(migraphx::make_op("step", {{"axes", {2, 3}}, {"steps", {2, 3}}}), s1);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

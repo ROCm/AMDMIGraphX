@@ -20,7 +20,7 @@ struct parse_slice : op_parser<parse_slice>
     {
         op::slice op;
 
-        bool reverse_direction = false;
+        std::vector<int> steps;
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice
@@ -28,18 +28,10 @@ struct parse_slice : op_parser<parse_slice>
         {
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
-            std::vector<int> steps;
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return abs(s) == 1; }))
             {
-                if(std::all_of(steps.begin(), steps.end(), [](auto s) { return s == -1; }))
-                {
-                    reverse_direction = true;
-                }
-                else
-                {
-                    MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
-                }
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
             }
         }
 
@@ -86,16 +78,26 @@ struct parse_slice : op_parser<parse_slice>
             op.axes = axes;
         }
 
-        if(reverse_direction)
+
+
+        migraphx::argument axes_arg = args.at(3)->eval();
+        std::vector<int64_t> raxes;
+        for(auto i: op.axes)
         {
+            if (steps[i] < 0)
+            raxes.push_back(op.axes[i]);
+        }
 
-            migraphx::argument axes_arg = args.at(3)->eval();
-            std::vector<int> axes_v;
-            axes_arg.visit([&](auto s) { axes_v.assign(s.begin(), s.end()); });
+        for(auto i : raxes){
+            std::cout << i << "-";
+        }
+        std::cout << std::endl;
 
+        if (not raxes.empty())
+        {
             auto lens = args[0]->get_shape().lens();
-
-            for(auto axis : axes_v)
+            std::cout << "HERE" << std::endl;
+            for(auto axis : raxes)
             {
                 auto start_v = op.starts[axis];
                 auto end_v   = op.ends[axis];
@@ -110,15 +112,11 @@ struct parse_slice : op_parser<parse_slice>
                     op.starts[axis] = end_v - INT_MIN;
                 }
             }
-
             auto ins = info.add_instruction(op, args[0]);
-
-            return info.add_instruction(make_op("reverse", {{"axes", axes_v}}), ins);
+            return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
         }
         else
-        {
             return info.add_instruction(op, args[0]);
-        }
     }
 };
 

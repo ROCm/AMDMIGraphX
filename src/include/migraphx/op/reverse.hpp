@@ -50,8 +50,8 @@ struct reverse
         auto lens = s.lens();
         visit_all(result, args.front())([&](auto output, auto input) {
             shape_for_each(s, [&](const auto& out_idx) {
-                auto in_idx             = out_idx;
-                for (const auto& axis: axes)
+                auto in_idx = out_idx;
+                for(const auto& axis : axes)
                 {
                     in_idx[axis] = lens[axis] - 1 - out_idx[axis];
                 }

@@ -97,14 +97,14 @@ struct parse_slice : op_parser<parse_slice>
 
             for(auto axis : axes_v)
             {
-                auto start_v = static_cast<int64_t>(op.starts[axis]);
-                auto end_v   = static_cast<int64_t>(op.ends[axis]);
-                if((start_v < 0) & (end_v < INT_MIN))
+                auto start_v = op.starts[axis];
+                auto end_v   = op.ends[axis];
+                if((start_v < 0) && (end_v < INT_MIN))
                 {
                     op.ends[axis]   = lens[axis] + start_v + 1;
                     op.starts[axis] = 0;
                 }
-                else if((start_v < 0) & (end_v > INT_MIN) & (end_v < 0))
+                else if((start_v < 0) && (end_v > INT_MIN) && (end_v < 0))
                 {
                     op.ends[axis]   = lens[axis] + start_v + 1;
                     op.starts[axis] = end_v - INT_MIN;

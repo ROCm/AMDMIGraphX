@@ -78,22 +78,21 @@ struct parse_slice : op_parser<parse_slice>
             op.axes = axes;
         }
 
-
-
         migraphx::argument axes_arg = args.at(3)->eval();
         std::vector<int64_t> raxes;
-        for(auto i: op.axes)
+        for(auto i : op.axes)
         {
-            if (steps[i] < 0)
-            raxes.push_back(op.axes[i]);
+            if(steps[i] < 0)
+                raxes.push_back(op.axes[i]);
         }
 
-        for(auto i : raxes){
+        for(auto i : raxes)
+        {
             std::cout << i << "-";
         }
         std::cout << std::endl;
 
-        if (not raxes.empty())
+        if(not raxes.empty())
         {
             auto lens = args[0]->get_shape().lens();
             std::cout << "HERE" << std::endl;

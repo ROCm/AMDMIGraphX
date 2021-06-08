@@ -3566,10 +3566,10 @@ TEST_CASE(reverse_test_axis0)
     std::vector<float> data(32);
     std::iota(data.begin(), data.end(), 1);
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l   = mm->add_literal(migraphx::literal{in_shape, data});
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
     std::vector<int> axes = {0};
-    mm->add_instruction(migraphx::make_op(  "reverse", {{"axes", axes}}), l);
+    mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
@@ -3585,8 +3585,8 @@ TEST_CASE(reverse_test_axis1)
     std::vector<float> data(32);
     std::iota(data.begin(), data.end(), 1);
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l   = mm->add_literal(migraphx::literal{in_shape, data});
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
     std::vector<int> axes = {1};
     mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
     p.compile(migraphx::ref::target{});
@@ -3605,9 +3605,9 @@ TEST_CASE(reverse_test_axis10)
     std::vector<float> data(32);
     std::iota(data.begin(), data.end(), 1);
     migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l   = mm->add_literal(migraphx::literal{in_shape, data});
-    std::vector<int> axes = {1,0};
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
+    std::vector<int> axes = {1, 0};
     mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();

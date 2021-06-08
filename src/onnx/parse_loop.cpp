@@ -55,12 +55,12 @@ struct parse_loop : op_parser<parse_loop>
         module_ref sub_mod    = parser.prog.create_module(mod_name);
 
         // parse the sub_graph
-        parser.parse_graph(sub_mod, sub_graph, info.instructions);
+        parser.parse_graph(sub_mod, sub_graph, info.instructions, true);
 
         auto pnames = sub_mod->get_parameter_names();
-        // add prefix for the iter_no
-        add_parameter_prefix(*sub_mod, pnames.at(0), "_iter_");
-        add_parameter_prefix(*sub_mod, pnames.at(1), "_cond_");
+        // // add prefix for the iter_no
+        // add_parameter_prefix(*sub_mod, pnames.at(0), "_iter_");
+        // add_parameter_prefix(*sub_mod, pnames.at(1), "_cond_");
 
         auto ret = info.add_instruction(
             make_op("loop", {{"max_iter_num", max_iter_num}}), args, {sub_mod});

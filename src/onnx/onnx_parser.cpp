@@ -300,15 +300,20 @@ std::ostream& operator<<(std::ostream& os, const std::vector<std::size_t>& dims)
 void onnx_parser::parse_graph(
     module* mod,
     const onnx::GraphProto& graph,
-    std::unordered_map<std::string, std::vector<instruction_ref>> instructions)
+    std::unordered_map<std::string, std::vector<instruction_ref>> instructions,
+    bool use_prefix)
 {
-    std::cout << "mod_name = " << mod->name() << std::endl;
     std::unordered_map<std::string, instruction_ref> mod_instructions;
     for(auto&& f : graph.initializer())
     {
-        // std::cout << "lit_name = " << f.name() << std::endl;
         mod_instructions[f.name()] = mod->add_literal(parse_tensor(f));
     }
+
+    std::unordered_map<std::string, std::string> map_param_names;
+
+    // prefix of parameter names
+    std::string param_name_prefix = "#" + mod->name() + "_in_";
+    std::size_t param_index = 0;
 
     for(auto&& input : graph.input())
     {
@@ -323,7 +328,13 @@ void onnx_parser::parse_graph(
             }
 
             shape s                = parse_type(input.type(), dims);
-            mod_instructions[name] = mod->add_parameter(name, s);
+            std::string param_name = name;
+            if (use_prefix)
+            {
+                param_name = param_name_prefix + std::to_string(param_index++);
+                map_param_names[name] = param_name;
+            }
+            mod_instructions[param_name] = mod->add_parameter(param_name, s);
         }
     }
 
@@ -341,12 +352,18 @@ void onnx_parser::parse_graph(
             {
                 this->parse_undefined(mod, input, instructions);
             }
-            if(instructions.count(input) == 0)
+
+            std::string input_name = input;
+            if (use_prefix and contains(map_param_names, input))
+            {
+                input_name = map_param_names[input];
+            }
+            if(instructions.count(input_name) == 0)
             {
                 MIGRAPHX_THROW("PARSE_GRAPH: invalid onnx file. Input \"" + input +
                                "\" is unavailable due to unordered nodes!");
             }
-            args.push_back(instructions.at(input).back());
+            args.push_back(instructions.at(input_name).back());
         }
 
         std::vector<instruction_ref> result;

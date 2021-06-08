@@ -84,7 +84,8 @@ struct onnx_parser
     void
     parse_graph(module* mod,
                 const onnx::GraphProto& graph,
-                std::unordered_map<std::string, std::vector<instruction_ref>> instructions = {});
+                std::unordered_map<std::string, std::vector<instruction_ref>> instructions = {},
+                bool use_prefix = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;

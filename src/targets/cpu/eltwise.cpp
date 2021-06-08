@@ -17,6 +17,8 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
                          pack(f(self.algo, "algo"), f(self.alpha, "alpha"), f(self.beta, "beta")));
     }
 
+    std::string group() const { return this->name() + "::" + algo; }
+
     std::string name() const { return "dnnl::eltwise"; }
 
     shape compute_shape(std::vector<shape> inputs) const

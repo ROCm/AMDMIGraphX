@@ -16,14 +16,14 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
 static std::pair<int, bool> get_name_index(const std::string& name, const std::string& param_prefix)
 {
     auto loc = name.find(param_prefix);
-    if (loc != std::string::npos)
+    if(loc != std::string::npos)
     {
         int index = std::stoi(name.substr(param_prefix.size()));
         return {index, true};
     }
 
     std::string out_prefix = "#output_";
-    loc = name.find(out_prefix)
+    loc                    = name.find(out_prefix)
     {
         int index = std::stoi(name.substr(out_prefix.size()));
         return {index, false};
@@ -39,13 +39,13 @@ hip_loop::compute(const shape& output_shape,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    auto iter_num                   = args.at(0).at<int64_t>();
-    auto cond                       = args.at(1).at<bool>();
-    module_ref mod                  = mods.at(0);
-    auto mod_out_num = mod->get_output_shapes().size();
-    auto input_num = args.size() - mod_out_num;
-    auto dep_num = input_num - 2;
-    auto param_name_shapes = mod->get_parameter_shapes();
+    auto iter_num            = args.at(0).at<int64_t>();
+    auto cond                = args.at(1).at<bool>();
+    module_ref mod           = mods.at(0);
+    auto mod_out_num         = mod->get_output_shapes().size();
+    auto input_num           = args.size() - mod_out_num;
+    auto dep_num             = input_num - 2;
+    auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
 
     std::vector<argument> in_args(args.begin() + 2, args.begin() + args.size() - input_num);
@@ -71,27 +71,26 @@ hip_loop::compute(const shape& output_shape,
         std::cout << "loop_compute1" << std::endl;
 
         std::unordered_map<std::string, argument> params;
-        for (auto pn : param_name_shapes)
+        for(auto pn : param_name_shapes)
         {
-            auto name = pn.first;
+            auto name     = pn.first;
             auto io_index = get_name_index(name, param_prefix);
             assert(io_index.first != -1);
             // input
-            if (io_index.second)
+            if(io_index.second)
             {
                 params[name] = in_args.at(io_index.first).load(pn.second, );
             }
             else
             {
-                if (io_index.first >= 1 + dep_num)
+                if(io_index.first >= 1 + dep_num)
                 {
                     const auto& arg = in_args.at(io_index.first);
-                    params[name] = arg.load(pn.second, arg.data() + iter * pn.second.bytes());
-
+                    params[name]    = arg.load(pn.second, arg.data() + iter * pn.second.bytes());
                 }
                 else
                 {
-                    params[name] = out_args.at(io_index.first);                
+                    params[name] = out_args.at(io_index.first);
                 }
             }
         }

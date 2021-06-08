@@ -313,7 +313,7 @@ void onnx_parser::parse_graph(
 
     // prefix of parameter names
     std::string param_name_prefix = "#" + mod->name() + "_in_";
-    std::size_t param_index = 0;
+    std::size_t param_index       = 0;
 
     for(auto&& input : graph.input())
     {
@@ -329,9 +329,9 @@ void onnx_parser::parse_graph(
 
             shape s                = parse_type(input.type(), dims);
             std::string param_name = name;
-            if (use_prefix)
+            if(use_prefix)
             {
-                param_name = param_name_prefix + std::to_string(param_index++);
+                param_name            = param_name_prefix + std::to_string(param_index++);
                 map_param_names[name] = param_name;
             }
             mod_instructions[param_name] = mod->add_parameter(param_name, s);
@@ -354,7 +354,7 @@ void onnx_parser::parse_graph(
             }
 
             std::string input_name = input;
-            if (use_prefix and contains(map_param_names, input))
+            if(use_prefix and contains(map_param_names, input))
             {
                 input_name = map_param_names[input];
             }

@@ -38,20 +38,22 @@ struct dequantizelinear
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto x_zero_point = literal({shape::int8_type, {1}}, {0}).get_argument();
-        if (args.size() == 3) 
+        if(args.size() == 3)
             x_zero_point = args[2];
 
-        auto x = args[0];
+        auto x       = args[0];
         auto x_scale = args[1];
         argument result{output_shape};
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 auto num_scales = scales.size();
-                auto num_zeros = zero_pts.size();
+                auto num_zeros  = zero_pts.size();
                 par_for(output_shape.elements(), [&](auto i) {
-                    auto idx = output_shape.multi(i);
-                    auto data = static_cast<int>(input(idx.begin(), idx.end())) - static_cast<int>(zero_pts[idx[axis] % num_zeros]);
-                    output(idx.begin(), idx.end()) = static_cast<float>(data) * scales[idx[axis] % num_scales];
+                    auto idx  = output_shape.multi(i);
+                    auto data = static_cast<int>(input(idx.begin(), idx.end())) -
+                                static_cast<int>(zero_pts[idx[axis] % num_zeros]);
+                    output(idx.begin(), idx.end()) =
+                        static_cast<float>(data) * scales[idx[axis] % num_scales];
                 });
             });
         });

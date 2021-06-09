@@ -404,7 +404,8 @@ lifetime get_lifetime_op(const T&)
              const   = True,
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
-     virtual('get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
+     virtual(
+         'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',

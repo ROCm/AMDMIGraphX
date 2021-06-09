@@ -91,18 +91,13 @@ struct parse_slice : op_parser<parse_slice>
         auto lens = args[0]->get_shape().lens();
         for(auto axis : raxes)
         {
-            auto start_v = op.starts[axis];
-            auto end_v   = op.ends[axis];
-            if((start_v < 0) && (end_v < INT_MIN))
+            op.starts[axis] +=1;
+            if(op.starts[axis] == 0)
             {
-                op.ends[axis]   = lens[axis] + start_v + 1;
-                op.starts[axis] = 0;
+                op.starts[axis] = INT_MAX;
             }
-            else if((start_v < 0) && (end_v > INT_MIN) && (end_v < 0))
-            {
-                op.ends[axis]   = lens[axis] + start_v + 1;
-                op.starts[axis] = end_v - INT_MIN;
-            }
+            op.ends[axis] += 1;
+            std::swap(op.starts[axis], op.ends[axis]);
         }
 
         auto ins = info.add_instruction(op, args[0]);

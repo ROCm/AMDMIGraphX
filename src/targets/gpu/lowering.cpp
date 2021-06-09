@@ -474,8 +474,8 @@ struct miopen_apply
             // auto ps = sub_mod->get_parameter_names();
             // name_shapes.insert(ps.begin(), ps.end());
 
-            auto ins_s  = ins->get_shape();
-            auto vec_ss = ins->get_shape().sub_shapes();
+            auto ins_s          = ins->get_shape();
+            auto vec_ss         = ins->get_shape().sub_shapes();
             const auto* sub_mod = mod_args.front();
             // auto vec_ss = sub_mod->get_output_shapes();
             std::vector<instruction_ref> vec_outs;

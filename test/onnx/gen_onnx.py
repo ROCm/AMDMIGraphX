@@ -2218,7 +2218,7 @@ def logsoftmax_nonstd_input_test():
                                   ends=[4, 4],
                                   outputs=['1'])
 
-    node1 = onnx.helper.make_node('LogSoftmax', inputs=['1'], outputs=['2'])
+    node1 = onnx.helper.make_node('LogSoftmax', inputs=['1'], outputs=['2'], axis=-1)
 
     return ([node0, node1], [x], [z])
 

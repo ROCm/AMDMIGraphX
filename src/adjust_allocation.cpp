@@ -12,6 +12,9 @@ void adjust_allocation::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
+        if (ins->name() == "gpu::loop")
+            continue;
+            
         // skip instruction with no input
         if(ins->inputs().empty())
             continue;

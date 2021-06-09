@@ -56,7 +56,8 @@ struct loop
         return shape(ins_out_shapes);
     }
 
-    std::pair<int, bool> get_name_index(const std::string& name, const std::string& param_prefix) const
+    std::pair<int, bool> get_name_index(const std::string& name,
+                                        const std::string& param_prefix) const
     {
         auto loc = name.find(param_prefix);
         if(loc != std::string::npos)
@@ -82,11 +83,11 @@ struct loop
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto iter_num               = args.at(0).at<int64_t>();
-        auto cond                   = args.at(1).at<bool>();
-        std::size_t dep_num         = args.size() - 2;
-        module_ref mod              = mods.at(0);
-        auto mod_name               = mod->name();
+        auto iter_num            = args.at(0).at<int64_t>();
+        auto cond                = args.at(1).at<bool>();
+        std::size_t dep_num      = args.size() - 2;
+        module_ref mod           = mods.at(0);
+        auto mod_name            = mod->name();
         std::string param_prefix = "#" + mod->name() + "_in_";
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
@@ -128,31 +129,30 @@ struct loop
                 std::cout << "\targ = " << arg << std::endl;
             }
 
-
-std::cout << "loop_compute3, mod_arg_size = " << mod_args.size() << std::endl;
+            std::cout << "loop_compute3, mod_arg_size = " << mod_args.size() << std::endl;
             // cond = mod_args.at(0).at<bool>();
             // copy dependency carray variables from mod outputs to inputs
             std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
 
-std::cout << "loop_compute4" << std::endl;
+            std::cout << "loop_compute4" << std::endl;
             // concat scan outputs
             std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-std::cout << "loop_compute5, mod_scan_out_size = " << mod_scan_outs.size() << std::endl;
-std::cout << "loop_compute5, scan_out_size = " << scan_outputs.size() << std::endl;
+            std::cout << "loop_compute5, mod_scan_out_size = " << mod_scan_outs.size() << std::endl;
+            std::cout << "loop_compute5, scan_out_size = " << scan_outputs.size() << std::endl;
             for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
             {
                 auto& mod_out  = mod_scan_outs.at(i);
                 auto& scan_out = scan_outputs.at(i);
-std::cout << "loop_compute6" << std::endl;
+                std::cout << "loop_compute6" << std::endl;
 
                 auto in_data         = mod_out.data();
                 auto out_data        = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
-std::cout << "loop_compute7" << std::endl;
+                std::cout << "loop_compute7" << std::endl;
                 memcpy(out_data + iter * out_size, in_data, out_size);
-std::cout << "loop_compute8" << std::endl;
+                std::cout << "loop_compute8" << std::endl;
             }
-std::cout << "loop_compute9" << std::endl;
+            std::cout << "loop_compute9" << std::endl;
         }
 
         // copy dependency carry output to final output

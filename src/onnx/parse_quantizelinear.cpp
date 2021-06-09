@@ -14,7 +14,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         int axis = 1;
         if(contains(info.attributes, "axis"))

@@ -149,7 +149,8 @@ struct find_mul_slice_conv
         assert(ins->get_shape().lens() == slice1->get_shape().lens());
         p.replace_instruction(ins, slice1);
         // TODO: Check each slice doesn't overlap and that it occurs after slice_ins
-        for(auto output : conv_ins->outputs())
+        auto outputs = conv_ins->outputs();
+        for(auto output : outputs)
             if(output != slice_ins)
                 instruction::replace_argument(output, conv_ins, new_conv);
     }
@@ -554,7 +555,8 @@ struct find_splits
                     auto split = i->inputs()[split_idx];
                     assert(split->name() == "slice");
                     // Insert contiguous for reshapes
-                    for(auto output : i->outputs())
+                    auto outputs = i->outputs();
+                    for(auto output : outputs)
                     {
                         if(not contains({"reshape", "squeeze", "unsqueeze"}, output->name()))
                             continue;

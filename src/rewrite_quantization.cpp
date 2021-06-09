@@ -12,7 +12,7 @@ void apply_quantizelinear(module& m, instruction_ref& ins)
 {
     auto val = ins->get_operator().to_value();
     assert(val.contains("axis"));
-    int axis = val.at("axis").to<int>();
+    int axis     = val.at("axis").to<int>();
     auto x       = ins->inputs()[0];
     auto y_scale = ins->inputs()[1];
 
@@ -43,9 +43,7 @@ void apply_quantizelinear(module& m, instruction_ref& ins)
     {
         auto tuned_axis = tune_axis(n_dim, axis, ins->name());
         divisor         = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
-            y_scale);
+            ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), y_scale);
     }
     else
     {
@@ -61,9 +59,7 @@ void apply_quantizelinear(module& m, instruction_ref& ins)
     {
         auto tuned_axis = tune_axis(n_dim, axis, ins->name());
         zero_point      = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
-            y_zero_point);
+            ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), y_zero_point);
         zero_point = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
     }
@@ -101,7 +97,7 @@ void apply_dequantizelinear(module& m, instruction_ref& ins)
 {
     auto val = ins->get_operator().to_value();
     assert(val.contains("axis"));
-    int axis = val.at("axis").to<int>();
+    int axis          = val.at("axis").to<int>();
     auto x            = ins->inputs()[0];
     auto x_scale      = ins->inputs()[1];
     auto x_zero_point = ins->inputs().size() == 3 ? ins->inputs()[2] : m.add_literal(0);
@@ -114,38 +110,30 @@ void apply_dequantizelinear(module& m, instruction_ref& ins)
     {
         auto tuned_axis  = tune_axis(n_dim, axis, ins->name());
         zero_point_int32 = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
-            x_zero_point);
-        zero_point_int32 =
-            m.insert_instruction(ins,
-                                    make_op("convert", {{"target_type", shape::int32_type}}),
-                                    zero_point_int32);
+            ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), x_zero_point);
+        zero_point_int32 = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::int32_type}}), zero_point_int32);
     }
     else
     {
         zero_point_int32 = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::int32_type}}), x_zero_point);
-        zero_point_int32 =
-            m.insert_instruction(ins,
-                                    make_op("multibroadcast", {{"output_lens", input_lens}}),
-                                    zero_point_int32);
+        zero_point_int32 = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"output_lens", input_lens}}), zero_point_int32);
     }
 
-    auto sub_zp_int32 = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
+    auto sub_zp_int32 =
+        m.insert_instruction(ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
     auto sub = m.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
-    auto dequant_input = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", shape::float_type}}), sub);
+    auto dequant_input =
+        m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), sub);
 
     instruction_ref multiplier;
     if(x_scale->get_shape().elements() != 1)
     {
         auto tuned_axis = tune_axis(n_dim, axis, ins->name());
         multiplier      = m.insert_instruction(
-            ins,
-            make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
-            x_scale);
+            ins, make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), x_scale);
     }
     else
     {

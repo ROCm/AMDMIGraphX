@@ -15,6 +15,7 @@ add_library(migraphx
     compile_src.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
     eliminate_contiguous.cpp
@@ -134,6 +135,7 @@ register_migraphx_ops(
     reduce_sum
     relu
     reshape
+    reverse
     rnn
     rnn_last_cell_output
     rnn_last_hs_output
@@ -150,6 +152,7 @@ register_migraphx_ops(
     sqdiff
     sqrt
     squeeze
+    step
     sub
     tanh
     tan

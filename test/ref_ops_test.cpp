@@ -3560,6 +3560,66 @@ TEST_CASE(reshape_test)
     }
 }
 
+TEST_CASE(reverse_test_axis0)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {2, 16}};
+    std::vector<float> data(32);
+    std::iota(data.begin(), data.end(), 1);
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
+    std::vector<int> axes = {0};
+    mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> target_data = data;
+    std::swap_ranges(target_data.begin(), target_data.begin() + 16, target_data.begin() + 16);
+    EXPECT(migraphx::verify_range(results_vector, target_data));
+}
+
+TEST_CASE(reverse_test_axis1)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {2, 16}};
+    std::vector<float> data(32);
+    std::iota(data.begin(), data.end(), 1);
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
+    std::vector<int> axes = {1};
+    mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> target_data = data;
+    std::reverse(target_data.begin(), target_data.begin() + 16);
+    std::reverse(target_data.end() - 16, target_data.end());
+    EXPECT(migraphx::verify_range(results_vector, target_data));
+}
+
+TEST_CASE(reverse_test_axis10)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {2, 16}};
+    std::vector<float> data(32);
+    std::iota(data.begin(), data.end(), 1);
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
+    std::vector<int> axes = {1, 0};
+    mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> target_data = data;
+    std::reverse(target_data.begin(), target_data.begin() + 16);
+    std::reverse(target_data.end() - 16, target_data.end());
+    std::swap_ranges(target_data.begin(), target_data.begin() + 16, target_data.begin() + 16);
+    EXPECT(migraphx::verify_range(results_vector, target_data));
+}
+
 TEST_CASE(round_test)
 {
     migraphx::program p;
@@ -3843,6 +3903,42 @@ TEST_CASE(squeeze_test)
         mm->add_instruction(migraphx::make_op("squeeze"), l0);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
+        EXPECT(result.get_shape() == s2);
+    }
+}
+
+TEST_CASE(step_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(2 * 4 * 6);
+        std::iota(data.begin(), data.end(), 2);
+        migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        auto r  = mm->add_instruction(
+            migraphx::make_op("step", {{"axes", {0, 2, 3}}, {"steps", {2, 2, 3}}}), l0);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2, 2}};
+        EXPECT(result.get_shape() == s2);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<float> data(2 * 4 * 6);
+        std::iota(data.begin(), data.end(), 2);
+        migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data});
+        auto tl = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("step", {{"axes", {0, 1, 2}}, {"steps", {2, 2, 3}}}), tl);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        migraphx::shape s2{migraphx::shape::float_type, {1, 2, 2, 1}};
         EXPECT(result.get_shape() == s2);
     }
 }

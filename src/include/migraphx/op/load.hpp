@@ -6,6 +6,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 

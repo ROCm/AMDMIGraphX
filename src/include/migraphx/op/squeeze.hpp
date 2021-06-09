@@ -9,6 +9,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 

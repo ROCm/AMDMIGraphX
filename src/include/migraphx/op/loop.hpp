@@ -56,105 +56,107 @@ struct loop
         return shape(ins_out_shapes);
     }
 
+    std::pair<int, bool> get_name_index(const std::string& name, const std::string& param_prefix) const
+    {
+        auto loc = name.find(param_prefix);
+        if(loc != std::string::npos)
+        {
+            int index = std::stoi(name.substr(loc + param_prefix.size()));
+            return {index, true};
+        }
+
+        std::string out_prefix = "#output_";
+        loc                    = name.find(out_prefix);
+        if(loc != std::string::npos)
+        {
+            int index = std::stoi(name.substr(loc + out_prefix.size()));
+            return {index, false};
+        }
+
+        return {-1, false};
+    }
+
     argument compute(const shape& out_shape,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& mods,
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto iter_num                   = args.at(0).at<int64_t>();
-        auto cond                       = args.at(1).at<bool>();
-        std::size_t dep_var_num         = args.size() - 2;
-        module_ref mod                  = mods.at(0);
-        auto mod_name                   = mod->name();
-        std::vector<std::string> pnames = mod->get_parameter_names();
-
-        std::string prefix = "@mgx_" + mod->name();
-        std::vector<std::pair<std::string, bool>> fixed_input_pair;
-        auto it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
-            return contains(name, prefix + "_iter_");
-        });
-        if(it != pnames.end())
-        {
-            fixed_input_pair.push_back({*it, true});
-            pnames.erase(it);
-        }
-        else
-        {
-            fixed_input_pair.push_back({{}, false});
-        }
-
-        it = std::find_if(pnames.begin(), pnames.end(), [&](auto name) {
-            return contains(name, prefix + "_cond_");
-        });
-        if(it != pnames.end())
-        {
-            fixed_input_pair.push_back({*it, true});
-            pnames.erase(it);
-        }
-        else
-        {
-            fixed_input_pair.push_back({{}, false});
-        }
+        auto iter_num               = args.at(0).at<int64_t>();
+        auto cond                   = args.at(1).at<bool>();
+        std::size_t dep_num         = args.size() - 2;
+        module_ref mod              = mods.at(0);
+        auto mod_name               = mod->name();
+        std::string param_prefix = "#" + mod->name() + "_in_";
 
         std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
         std::vector<argument> scan_outputs;
-        std::transform(vec_out_shapes.begin() + 1 + dep_var_num,
+        std::transform(vec_out_shapes.begin() + dep_num,
                        vec_out_shapes.end(),
                        std::back_inserter(scan_outputs),
                        [&](auto& s) { return argument{s}; });
 
-        // sub graph inputs for each iteration
-        std::vector<argument> mod_args(args.begin() + 1, args.end());
+        std::vector<argument> in_args(args.begin() + 2, args.end());
         shape s_iter{shape::int64_type};
-        for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
+        shape s_cond{shape::bool_type};
+        uint64_t iter = 0;
+        in_args.insert(in_args.begin(), {s_cond, &cond});
+        in_args.insert(in_args.begin(), {s_iter, &iter});
+        const auto& param_name_shapes = mod->get_parameter_shapes();
+        for(iter = 0; (iter < iter_num) and cond; ++iter)
         {
             std::unordered_map<std::string, argument> params;
-
-            // iter index
-            if(fixed_input_pair.at(0).second)
+            for(auto pn : param_name_shapes)
             {
-                params[fixed_input_pair.at(0).first] = argument(s_iter, &iter);
+                auto name = pn.first;
+                std::cout << "loop_compute1, name = " << name << std::endl;
+                auto io_index = get_name_index(name, param_prefix);
+                assert((io_index.first != -1) and (io_index.second));
+
+                // name is for input
+                std::cout << "loop_compute2, index = " << io_index.first << std::endl;
+                if(io_index.second)
+                {
+                    params[name] = in_args.at(io_index.first);
+                }
             }
 
-            // cond variable
-            if(fixed_input_pair.at(1).second)
-            {
-                params[fixed_input_pair.at(1).first] = mod_args.at(0);
-            }
-
-            // carry dependencies
-            std::transform(pnames.begin(),
-                           pnames.end(),
-                           mod_args.begin() + 1,
-                           std::inserter(params, params.end()),
-                           [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
-
-            mod_args = run(mod, params);
+            auto mod_args = run(mod, params);
             std::cout << "mod_output:" << std::endl;
             for(const auto& arg : mod_args)
             {
                 std::cout << "\targ = " << arg << std::endl;
             }
 
-            cond = mod_args.at(0).at<bool>();
+
+std::cout << "loop_compute3, mod_arg_size = " << mod_args.size() << std::endl;
+            // cond = mod_args.at(0).at<bool>();
+            // copy dependency carray variables from mod outputs to inputs
+            std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+
+std::cout << "loop_compute4" << std::endl;
             // concat scan outputs
-            std::vector<argument> mod_scan_outputs(mod_args.begin() + 1 + dep_var_num,
-                                                   mod_args.end());
-            for(std::size_t i = 0; i < mod_scan_outputs.size(); ++i)
+            std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
+std::cout << "loop_compute5, mod_scan_out_size = " << mod_scan_outs.size() << std::endl;
+std::cout << "loop_compute5, scan_out_size = " << scan_outputs.size() << std::endl;
+            for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
             {
-                auto& mod_out  = mod_scan_outputs.at(i);
+                auto& mod_out  = mod_scan_outs.at(i);
                 auto& scan_out = scan_outputs.at(i);
+std::cout << "loop_compute6" << std::endl;
 
                 auto in_data         = mod_out.data();
                 auto out_data        = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
+std::cout << "loop_compute7" << std::endl;
                 memcpy(out_data + iter * out_size, in_data, out_size);
+std::cout << "loop_compute8" << std::endl;
             }
+std::cout << "loop_compute9" << std::endl;
         }
 
         // copy dependency carry output to final output
-        std::vector<argument> outputs(mod_args.begin() + 1, mod_args.begin() + 1 + dep_var_num);
+        std::vector<argument> outputs(in_args.begin() + 2, in_args.end());
         outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
 
         std::cout << "loop output = " << std::endl;

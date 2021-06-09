@@ -75,10 +75,13 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         std::vector<int64_t> raxes;
-        for(auto i : op.axes)
+        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
         {
-            if(steps[i] < 0) // populate negative only axis indices
-                raxes.push_back(op.axes[i]);
+            for(auto i : op.axes)
+            {
+                if(steps[i] < 0)
+                    raxes.push_back(op.axes[i]); // populate negative only axis indices
+            }
         }
 
         auto lens = args[0]->get_shape().lens();
@@ -105,7 +108,8 @@ struct parse_slice : op_parser<parse_slice>
             std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
                 return std::abs(s);
             });
-            ins = info.add_instruction(make_op("step", {{"axes", op.axes}, {"steps", nsteps}}));
+            ins =
+                info.add_instruction(make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
         }
         if(not raxes.empty())
         {

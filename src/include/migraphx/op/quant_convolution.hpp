@@ -36,19 +36,23 @@ struct quant_convolution
                     f(self.group, "group"));
     }
 
-    value attributes() const { return {{"general_data_type", "convolution"}}; }
+    value attributes() const
+    {
+        return {{"general_data_type", "convolution"}, {"normalize_padding", "padding"}};
+    }
 
     std::string name() const { return "quant_convolution"; }
 
     void check_attribute_size() const
     {
-        if(not(padding.size() == stride.size() and padding.size() == dilation.size()))
+        if(not((padding.size() == stride.size() or (padding.size() / 2) == stride.size()) and
+               stride.size() == dilation.size()))
         {
-            MIGRAPHX_THROW("quant_convolution: inconsistent attribute sizes");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: inconsistent attribute sizes");
         }
     }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
@@ -70,13 +74,16 @@ struct quant_convolution
         t = shape::int32_type;
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
-
+        auto padding_size = padding.size();
         for(size_t i = 0; i < kdims; i++)
         {
+            auto padding_factor = 2 * padding[i];
+            if(padding_size == 2 * kdims)
+                padding_factor = padding[i] + padding[i + kdims];
             output_lens.push_back(std::size_t(std::max<std::ptrdiff_t>(
                 1,
                 (input.lens()[i + 2] - (1 + dilation[i] * (weights.lens()[i + 2] - 1)) +
-                 2 * padding[i]) /
+                 padding_factor) /
                         stride[i] +
                     1)));
         }
@@ -87,7 +94,7 @@ struct quant_convolution
     size_t kdims() const
     {
         check_attribute_size();
-        return padding.size();
+        return stride.size();
     }
 };
 

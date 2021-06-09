@@ -2,6 +2,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/functional.hpp>
@@ -122,10 +123,10 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
-            assert(ins != p.end());
-            if(contains(partitions, ins))
-                return;
+            assert(not is_end(ins, p.end()));
             if(not p.has_instruction(ins))
+                return;
+            if(contains(partitions, ins))
                 return;
 
             // Add an entry so we know the instruction was visited

@@ -7,6 +7,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+template <class T>
+auto equal_to(const T& x)
+{
+    return [&](const T& y) { return std::equal_to<T>{}(x, y); };
+}
+
 instruction::instruction(operation o, shape r, std::vector<instruction_ref> args)
     : op(std::move(o)), result(std::move(r)), arguments(std::move(args))
 {
@@ -133,8 +139,13 @@ const std::vector<instruction_ref>& instruction::outputs() const { return output
 
 bool operator==(const instruction& x, const instruction& y)
 {
-    if(std::tie(x.result, x.op, x.arguments, x.module_args) !=
-       std::tie(y.result, y.op, y.arguments, y.module_args))
+    if(not std::equal(x.arguments.begin(),
+                      x.arguments.end(),
+                      y.arguments.begin(),
+                      y.arguments.end(),
+                      std::equal_to<instruction_ref>{}))
+        return false;
+    if(std::tie(x.result, x.op, x.module_args) != std::tie(y.result, y.op, y.module_args))
         return false;
     if(x.name() == "@literal")
         return x.lit == y.lit;
@@ -151,7 +162,7 @@ bool operator!=(instruction_ref ref, const instruction& i) { return !(i == ref);
 
 void instruction::add_output(instruction_ref ins)
 {
-    if(std::find(output.begin(), output.end(), ins) == output.end())
+    if(std::find_if(output.begin(), output.end(), equal_to(ins)) == output.end())
         output.push_back(ins);
 }
 
@@ -256,8 +267,8 @@ void instruction::replace(std::vector<instruction_ref> args, std::vector<module_
 
 void instruction::replace_argument(instruction_ref old, instruction_ref new_ins)
 {
-    assert(std::any_of(arguments.begin(), arguments.end(), [&](auto i) { return i == old; }));
-    std::replace(arguments.begin(), arguments.end(), old, new_ins);
+    assert(std::any_of(arguments.begin(), arguments.end(), equal_to(old)));
+    std::replace_if(arguments.begin(), arguments.end(), equal_to(old), new_ins);
     old->remove_output(*this);
 }
 

@@ -86,7 +86,7 @@ struct parse_slice : op_parser<parse_slice>
                 if(steps[i] < 0)
                     raxes.push_back(op.axes[i]); // populate negative only axis indices
             }
-            
+
             auto lens = args[0]->get_shape().lens();
             for(auto axis : raxes)
             {
@@ -99,8 +99,6 @@ struct parse_slice : op_parser<parse_slice>
                 std::swap(op.starts[axis], op.ends[axis]);
             }
         }
-
-        
 
         auto ins = info.add_instruction(op, args[0]);
         if(not raxes.empty())

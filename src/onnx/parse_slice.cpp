@@ -20,7 +20,7 @@ struct parse_slice : op_parser<parse_slice>
     {
         op::slice op;
 
-        std::vector<int> steps;
+        std::vector<int64_t> steps;
 
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice
@@ -79,32 +79,25 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         std::vector<int64_t> raxes;
-        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
+        for(auto i : op.axes)
         {
-            for(auto i : op.axes)
+            if(steps[i] < 0)
+                raxes.push_back(op.axes[i]); // populate negative only axis indices
+        }
+        for(auto axis : raxes)
+        {
+            op.starts[axis] += 1;
+            if(op.starts[axis] == 0)
             {
-                if(steps[i] < 0)
-                    raxes.push_back(op.axes[i]); // populate negative only axis indices
+                op.starts[axis] = INT_MAX;
             }
-
-            auto lens = args[0]->get_shape().lens();
-            for(auto axis : raxes)
-            {
-                op.starts[axis] += 1;
-                if(op.starts[axis] == 0)
-                {
-                    op.starts[axis] = INT_MAX;
-                }
-                op.ends[axis] += 1;
-                std::swap(op.starts[axis], op.ends[axis]);
-            }
+            op.ends[axis] += 1;
+            std::swap(op.starts[axis], op.ends[axis]);
         }
 
         auto ins = info.add_instruction(op, args[0]);
         if(not raxes.empty())
-        {
             return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
-        }
         else
             return ins;
     }

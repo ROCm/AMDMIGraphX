@@ -42,7 +42,7 @@ using nullopt_t        = std::experimental::nullopt_t;
 constexpr auto nullopt = std::experimental::nullopt;
 #endif
 
-template<class T>
+template <class T>
 bool has_value(const optional<T>& x)
 {
     return x != nullopt;

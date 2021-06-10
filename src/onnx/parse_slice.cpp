@@ -4,7 +4,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <cstdlib>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -80,19 +79,17 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         std::vector<int64_t> raxes;
-        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
+        
+        for(auto i : range(op.axes.size()))
         {
-            for(auto i : range(op.axes.size()))
-            {
-                if(steps[i] >= 0)
-                    continue;
-                op.starts[i] += 1;
-                if(op.starts[i] == 0)
-                    op.starts[i] = INT_MAX;
-                op.ends[i] += 1;
-                raxes.push_back(op.axes[i]);
-                std::swap(op.starts[i], op.ends[i]);
-            }
+            if(steps[i] >= 0)
+                continue;
+            op.starts[i] += 1;
+            if(op.starts[i] == 0)
+                op.starts[i] = INT_MAX;
+            op.ends[i] += 1;
+            raxes.push_back(op.axes[i]);
+            std::swap(op.starts[i], op.ends[i]);
         }
 
         auto ins = info.add_instruction(op, args[0]);

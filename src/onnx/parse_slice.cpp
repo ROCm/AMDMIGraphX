@@ -79,8 +79,12 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         std::vector<int64_t> raxes;
-        
-        for(auto i : range(op.axes.size()))
+
+        assert(steps.empty() or steps.size() == op.axes.size());
+        assert(op.axes.size() == op.starts.size());
+        assert(op.axes.size() == op.ends.size());
+
+        for(auto i : range(steps.size()))
         {
             if(steps[i] >= 0)
                 continue;

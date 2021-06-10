@@ -6,6 +6,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
@@ -30,7 +31,7 @@ struct module_impl
 
     bool contains(instruction_ref ins) const
     {
-        if(ins == instructions.end())
+        if(is_end(ins, instructions.end()))
             return false;
         return instruction_set.count(std::addressof(*ins)) > 0;
     }
@@ -498,7 +499,7 @@ void module::debug_print() const { std::cout << *this << std::endl; }
 void module::debug_print(instruction_ref ins,
                          std::unordered_map<instruction_ref, std::string>& names) const
 {
-    if(ins == this->end())
+    if(is_end(ins, this->end()))
     {
         std::cout << "End instruction" << std::endl;
         return;

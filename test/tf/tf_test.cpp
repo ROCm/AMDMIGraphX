@@ -301,7 +301,7 @@ migraphx::program create_conv()
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
-    op.padding      = {1, 1};
+    op.padding      = {1, 1, 1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     auto l2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {3, 2, 0, 1}}}), l1);

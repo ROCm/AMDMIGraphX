@@ -4,6 +4,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <cstdlib>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -77,24 +78,20 @@ struct parse_slice : op_parser<parse_slice>
             std::iota(axes.begin(), axes.end(), int64_t{0});
             op.axes = axes;
         }
-
+        
         std::vector<int64_t> raxes;
         if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
         {
             for(auto i : range(op.axes.size()))
             {
-                if(steps[i] < 0)
-                    raxes.push_back(op.axes[i]); // populate negative only axis indices
-            }
-            for(auto axis : raxes)
-            {
-                op.starts[axis] += 1;
-                if(op.starts[axis] == 0)
-                {
-                    op.starts[axis] = INT_MAX;
-                }
-                op.ends[axis] += 1;
-                std::swap(op.starts[axis], op.ends[axis]);
+                if(steps[i] >= 0)
+                    continue;
+                op.starts[i] += 1;
+                if(op.starts[i] == 0)
+                    op.starts[i] = INT_MAX;
+                op.ends[i] += 1;
+                raxes.push_back(op.axes[i]);
+                std::swap(op.starts[i], op.ends[i]);
             }
         }
 

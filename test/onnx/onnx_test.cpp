@@ -2992,9 +2992,10 @@ TEST_CASE(slice_5arg_reverse_test)
     mm->add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
     mm->add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
     mm->add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
-    auto ret = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {-1, -2}}, {"starts", {-5, -3}}, {"ends", {-1, -1}}}),
+    auto slice_out = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {-1, -2}}, {"starts", {0, -3}}, {"ends", {-4, -1}}}),
         l0);
+    auto ret = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {-1}}}), slice_out);
     mm->add_return({ret});
 
     auto prog = migraphx::parse_onnx("slice_5arg_reverse_test.onnx");

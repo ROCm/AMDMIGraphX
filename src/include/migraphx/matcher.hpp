@@ -25,14 +25,14 @@ struct matcher_context
     template <class M>
     bool matched(M m, instruction_ref ins)
     {
-        return bool{m.match(*this, ins)};
+        return has_value(m.match(*this, ins));
     }
 
     template <class M>
     bool matched(M m, optional<instruction_ref> ins)
     {
         if(ins)
-            return bool{m.match(*this, *ins)};
+            return has_value(m.match(*this, *ins));
         return false;
     }
 

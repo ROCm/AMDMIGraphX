@@ -78,7 +78,7 @@ struct parse_slice : op_parser<parse_slice>
             std::iota(axes.begin(), axes.end(), int64_t{0});
             op.axes = axes;
         }
-        
+
         std::vector<int64_t> raxes;
         if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
         {

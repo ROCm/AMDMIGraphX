@@ -44,6 +44,11 @@ https://jupyter.org/install
 2) Connect to your jupyter, server and utilize `nfnet_inference.ipynb` notebook file.
 
 ### How to compare MIGraphX to ONNX Runtime for NFNet ONNX model:
+First install requirements:
+```
+pip3 install -r requirements_nfnet.txt
+```
+
 On your terminal, invoke:
 ```
 python3 ort_comparison.py

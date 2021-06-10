@@ -79,20 +79,23 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         std::vector<int64_t> raxes;
-        for(auto i : op.axes)
+        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return s < 0; }))
         {
-            if(steps[i] < 0)
-                raxes.push_back(op.axes[i]); // populate negative only axis indices
-        }
-        for(auto axis : raxes)
-        {
-            op.starts[axis] += 1;
-            if(op.starts[axis] == 0)
+            for(auto i : range(op.axes.size()))
             {
-                op.starts[axis] = INT_MAX;
+                if(steps[i] < 0)
+                    raxes.push_back(op.axes[i]); // populate negative only axis indices
             }
-            op.ends[axis] += 1;
-            std::swap(op.starts[axis], op.ends[axis]);
+            for(auto axis : raxes)
+            {
+                op.starts[axis] += 1;
+                if(op.starts[axis] == 0)
+                {
+                    op.starts[axis] = INT_MAX;
+                }
+                op.ends[axis] += 1;
+                std::swap(op.starts[axis], op.ends[axis]);
+            }
         }
 
         auto ins = info.add_instruction(op, args[0]);

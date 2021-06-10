@@ -1,7 +1,7 @@
 # NFNet Inference with MIGraphX
 
 ## NFNet
-NFNet: Normalizer-Free Nets. An image recognition model that can be trained without batch normalization layers. It instead uses gradient clipping algorithm to provide same affects of BatchNorm, such as training stability.
+NFNet: Normalizer-Free Nets. An image recognition model that can be trained without batch normalization layers. It instead uses gradient clipping algorithm to provide same affects of BatchNorm.
 
 <ins>**Summary:**</ins>
 - SOTA on ImageNet (86.5% top-1 w/o extra data)
@@ -29,7 +29,7 @@ Instead:
 
 There is no ONNX model released for NFNet, as of June 2021, however PyTorch model is available at:
 https://github.com/rwightman/pytorch-image-models. 
-We provide an in-house produced and optimized ONNX model, which can be parsed and compiled using MIGraphX for AMD GPUs. The ONNX model file can be fetched using the notebook we provide
+We provide an in-house produced and optimized ONNX model, which can be parsed and compiled using MIGraphX for AMD GPUs. The ONNX model file can be fetched using the Jupyter notebook we provide.
 
 ### Requirements:
 1) AMD GPU system with ROCm installed.
@@ -41,7 +41,7 @@ Please utilize the notebook example provided:
 ```
 https://jupyter.org/install
 ```
-2) Connect to your jupyter, server and utilize `nfnet_inference.ipynb` notebook file.
+2) Connect to your jupyter server and utilize `nfnet_inference.ipynb` notebook file.
 
 ### How to compare MIGraphX to ONNX Runtime for NFNet ONNX model:
 First install requirements:

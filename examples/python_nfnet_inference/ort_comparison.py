@@ -17,7 +17,6 @@ print("output shape", output_shape)
 output_type = sess.get_outputs()[0].type
 print("output type", output_type)
 
-import numpy
 x = numpy.random.random((1,3,192,192))
 x = x.astype(numpy.float32)
 

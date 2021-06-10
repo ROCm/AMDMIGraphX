@@ -63,7 +63,7 @@ struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
     shape compute_shape(std::vector<shape> inputs) const
     {
         inputs.pop_back();
-        return op.compute_shape(inputs);
+        return op.normalize_compute_shape(inputs);
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
@@ -129,15 +129,18 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
 
     dnnl::pooling_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        auto algo = op.mode == "max" ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
+        auto algo  = op.mode == "max" ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
+        auto kdims = op.kdims();
+        std::vector<size_t> padding_l(op.padding.begin(), op.padding.begin() + kdims);
+        std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());
         return {dnnl::prop_kind::forward_inference,
                 algo,
                 m.at(DNNL_ARG_SRC),
                 m.at(DNNL_ARG_DST),
                 to_dnnl_dims(op.stride),
                 to_dnnl_dims(op.lengths),
-                to_dnnl_dims(op.padding),
-                to_dnnl_dims(op.padding)};
+                to_dnnl_dims(padding_l),
+                to_dnnl_dims(padding_r)};
     }
 };
 

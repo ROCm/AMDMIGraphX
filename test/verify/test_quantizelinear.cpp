@@ -18,7 +18,8 @@ struct test_quantizelinear : verify_program<test_quantizelinear>
         auto input1 = mm->add_parameter("x", sx);
         auto input2 = mm->add_parameter("y_scale", ss);
         auto input3 = mm->add_parameter("y_zero_point", sz);
-        auto r      = mm->add_instruction(migraphx::make_op("quantizelinear", {{"axis", axis}}), input1, input2, input3);
+        auto r      = mm->add_instruction(
+            migraphx::make_op("quantizelinear", {{"axis", axis}}), input1, input2, input3);
         mm->add_return({r});
         return p;
     };

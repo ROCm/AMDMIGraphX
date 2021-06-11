@@ -46,16 +46,16 @@ struct dequantizelinear
         auto x_scale = args[1];
 
         auto output_lens = output_shape.lens();
-        auto tuned_axis = tune_axis(output_lens.size(), axis, this->name());
+        auto tuned_axis  = tune_axis(output_lens.size(), axis, this->name());
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
-        
-        if (x_scale.get_shape().elements() != 1)
+
+        if(x_scale.get_shape().elements() != 1)
             bcast_strides[tuned_axis] = 1;
         migraphx::shape bcast_scales{x_scale.get_shape().type(), output_lens, bcast_strides};
-        x_scale = x_scale.reshape(bcast_scales);
+        x_scale                   = x_scale.reshape(bcast_scales);
         bcast_strides[tuned_axis] = 0;
 
-        if (x_zero_point.get_shape().elements() != 1)
+        if(x_zero_point.get_shape().elements() != 1)
             bcast_strides[tuned_axis] = 1;
         migraphx::shape bcast_zeros{x_zero_point.get_shape().type(), output_lens, bcast_strides};
         x_zero_point = x_zero_point.reshape(bcast_zeros);
@@ -64,7 +64,9 @@ struct dequantizelinear
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = static_cast<double>(static_cast<int64_t>(input[i]) - static_cast<int64_t>(zero_pts[i])) * scales[i];
+                    output[i] = static_cast<double>(static_cast<int64_t>(input[i]) -
+                                                    static_cast<int64_t>(zero_pts[i])) *
+                                scales[i];
                 });
             });
         });

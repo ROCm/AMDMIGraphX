@@ -1231,7 +1231,7 @@ TEST_CASE(dequantizelinear)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(9);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{0, 2, 4, 10, 20, 100, 200, 300, 500};
@@ -1257,7 +1257,7 @@ TEST_CASE(dequantizelinear)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(9);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{-256, -200, -100, -2, 0, 2, 100, 200, 254};
@@ -3291,7 +3291,7 @@ TEST_CASE(quantizelinear)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{0, 255, 65, 0, 2, 2, 0, 255, 255, 0, 255, 65, 0, 2, 2, 0, 255, 255};
@@ -3315,7 +3315,7 @@ TEST_CASE(quantizelinear)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{
@@ -3347,7 +3347,7 @@ TEST_CASE(quantizelinear_axes)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{0, 255, 65, 0, 2, 2, 0, 255, 255, 0, 150, 32, 0, 1, 1, 0, 150, 138};
@@ -3375,7 +3375,7 @@ TEST_CASE(quantizelinear_axes)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{0, 255, 65, 0, 1, 1, 0, 100, 92, 0, 255, 65, 0, 1, 1, 0, 100, 92};
@@ -3403,7 +3403,7 @@ TEST_CASE(quantizelinear_axes)
 
         migraphx::program p1 = create_program();
         p1.compile(migraphx::ref::target{});
-        auto result          = p1.eval({}).back();
+        auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold{0, 150, 22, 0, 1, 1, 0, 150, 92, 0, 150, 22, 0, 1, 1, 0, 150, 92};

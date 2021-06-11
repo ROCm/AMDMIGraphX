@@ -50,16 +50,16 @@ struct quantizelinear
         auto y_scale = args[1];
 
         auto output_lens = output_shape.lens();
-        auto tuned_axis = tune_axis(output_lens.size(), axis, this->name());
+        auto tuned_axis  = tune_axis(output_lens.size(), axis, this->name());
         std::vector<size_t> bcast_strides(output_lens.size(), 0);
 
-        if (y_scale.get_shape().elements() != 1)
+        if(y_scale.get_shape().elements() != 1)
             bcast_strides[tuned_axis] = 1;
         migraphx::shape bcast_scales{y_scale.get_shape().type(), output_lens, bcast_strides};
-        y_scale = y_scale.reshape(bcast_scales);
+        y_scale                   = y_scale.reshape(bcast_scales);
         bcast_strides[tuned_axis] = 0;
 
-        if (y_zero_point.get_shape().elements() != 1)
+        if(y_zero_point.get_shape().elements() != 1)
             bcast_strides[tuned_axis] = 1;
         migraphx::shape bcast_zeros{y_zero_point.get_shape().type(), output_lens, bcast_strides};
         y_zero_point = y_zero_point.reshape(bcast_zeros);
@@ -67,11 +67,12 @@ struct quantizelinear
         argument result{output_shape};
         visit_all(x, y_scale)([&](auto input, auto scales) {
             visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
-                using quant_type = typename decltype(output)::value_type;
+                using quant_type  = typename decltype(output)::value_type;
                 int64_t min_value = std::numeric_limits<quant_type>::min();
                 int64_t max_value = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
-                    int64_t quantized = static_cast<int>(std::round(input[i] / scales[i])) + static_cast<int>(zero_pts[i]);
+                    int64_t quantized = static_cast<int>(std::round(input[i] / scales[i])) +
+                                        static_cast<int>(zero_pts[i]);
                     output[i] = std::max(min_value, std::min(max_value, quantized));
                 });
             });

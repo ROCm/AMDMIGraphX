@@ -99,14 +99,15 @@ struct parse_slice : op_parser<parse_slice>
             std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
                 return std::abs(s);
             });
-            auto lens = args[0]->get_shape().lens().size();
-            for(auto& axis : op.axes)
+            auto lens      = args[0]->get_shape().lens().size();
+            auto axes_norm = op.axes;
+            for(auto& axis : axes_norm)
             {
-                if(axis < 0)
-                    axis = axis + lens;
+                while(axis < 0)
+                    axis = axis + lens; // need to be positive for step
             }
-            ins =
-                info.add_instruction(make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+            ins = info.add_instruction(make_op("step", {{"axes", axes_norm}, {"steps", nsteps}}),
+                                       ins);
         }
         if(not raxes.empty())
             return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);

@@ -347,8 +347,8 @@ struct argument_parser
     struct argument
     {
         std::vector<std::string> flags = {};
-        std::string help = "";
-        int nargs = 1;
+        std::string help               = "";
+        int nargs                      = 1;
     };
 
     void add_arg(const std::vector<std::string>& flags, const std::string& help = "")
@@ -367,7 +367,8 @@ struct argument_parser
         std::cout << "    ";
         std::cout << "<test-case>...";
         std::cout << std::endl;
-        std::cout << "        " << "Test case name to run" << std::endl;
+        std::cout << "        "
+                  << "Test case name to run" << std::endl;
         for(auto&& arg : arguments)
         {
             std::string prefix = "    ";
@@ -386,17 +387,17 @@ struct argument_parser
     {
         std::vector<std::string> args(argv + 1, argv + argc);
         string_map keys;
-        for(auto&& arg:arguments)
+        for(auto&& arg : arguments)
         {
-            for(auto&& flag:arg.flags)
+            for(auto&& flag : arg.flags)
             {
                 keys[flag] = {arg.flags.front()};
-                if (arg.nargs == 0)
+                if(arg.nargs == 0)
                     keys[flag].push_back("");
             }
         }
         return generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
-            if (keys.count(s) > 0)
+            if(keys.count(s) > 0)
                 return keys[s];
             else
                 return {};
@@ -431,7 +432,7 @@ inline bool is_debugger_present()
 {
     static bool in_debugger = [] {
 #ifndef _WIN32
-        if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0)
+        if(ptrace(PTRACE_TRACEME, 0, 1, 0) < 0)
             return true;
         ptrace(PTRACE_DETACH, 0, 1, 0);
 #endif
@@ -444,7 +445,7 @@ inline void run_test_case(const std::string& name, const std::function<void()>& 
 {
     std::cout << "[   RUN    ] " << name << std::endl;
     // If debugger is attached then dont catch the exception
-    if (is_debugger_present())
+    if(is_debugger_present())
     {
         f();
     }
@@ -462,7 +463,6 @@ inline void run_test_case(const std::string& name, const std::function<void()>& 
         catch(...)
         {
             std::cout << "FAILED: Unknown exception occured" << std::endl;
-
         }
     }
     std::cout << "[ COMPLETE ] " << name << std::endl;
@@ -474,12 +474,12 @@ inline void run(int argc, const char* argv[])
     ap.add_flag({"--help", "-h"}, "Show help");
     ap.add_flag({"--list", "-l"}, "List all test cases");
     auto args = ap.parse(argc, argv);
-    if (args.count("--help") > 0) 
+    if(args.count("--help") > 0)
     {
         ap.show_help();
         return;
     }
-    if (args.count("--list") > 0) 
+    if(args.count("--list") > 0)
     {
         for(auto&& tc : get_test_cases())
             std::cout << tc.first << std::endl;

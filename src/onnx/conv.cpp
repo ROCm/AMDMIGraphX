@@ -7,7 +7,7 @@ namespace onnx {
 
 void recalc_conv_attributes(value& v, size_t kdims)
 {
-    if(v["padding"].size() != kdims)
+    if(not(v["padding"].size() == kdims or v["padding"].size() == kdims * 2))
     {
         v["padding"].resize(kdims);
         std::fill_n(v["padding"].begin(), kdims, 0);

@@ -10,7 +10,7 @@ shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
     check_shapes{inputs, *this}.has(2).standard();
     std::vector<shape> pooling_input = {inputs.at(0)};
     check_shapes{pooling_input, *this}.max_ndims(5);
-    return op.compute_shape(pooling_input);
+    return op.normalize_compute_shape(pooling_input);
 }
 
 inline void reshape_if_1d(shape& input)

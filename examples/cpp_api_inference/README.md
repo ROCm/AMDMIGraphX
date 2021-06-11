@@ -118,7 +118,7 @@ This directory contains everything that is needed to perform inference on an MNI
 ```
 $ mkdir build
 $ cd build
-$ cmake ..
+$ CXX=/opt/rocm/llvm/bin/clang++ cmake ..
 $ make
 ```
 There will now be an executable named `mnist_inference` in the `build` directory. This can be run with or without options. Executing without any options will produce the following output:

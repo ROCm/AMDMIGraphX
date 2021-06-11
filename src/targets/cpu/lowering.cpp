@@ -66,7 +66,10 @@ struct cpu_im2col
     }
 
     static std::string name() { return "cpu::im2col"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return op.normalize_compute_shape(inputs);
+    }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {

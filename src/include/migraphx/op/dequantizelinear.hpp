@@ -4,14 +4,15 @@
 #include <array>
 #include <migraphx/op/common.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/op/tanh.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
 #include <migraphx/literal.hpp>
-#include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/tune_axis.hpp>
 #include <cmath>
 #include <utility>
 
@@ -30,7 +31,7 @@ struct dequantizelinear
     }
 
     std::string name() const { return "dequantizelinear"; }
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         return {shape::float_type, inputs[0].lens(), inputs[0].strides()};
     }
@@ -43,17 +44,27 @@ struct dequantizelinear
 
         auto x       = args[0];
         auto x_scale = args[1];
+
+        auto output_lens = output_shape.lens();
+        auto tuned_axis = tune_axis(output_lens.size(), axis, this->name());
+        std::vector<size_t> bcast_strides(output_lens.size(), 0);
+        
+        if (x_scale.get_shape().elements() != 1)
+            bcast_strides[tuned_axis] = 1;
+        migraphx::shape bcast_scales{x_scale.get_shape().type(), output_lens, bcast_strides};
+        x_scale = x_scale.reshape(bcast_scales);
+        bcast_strides[tuned_axis] = 0;
+
+        if (x_zero_point.get_shape().elements() != 1)
+            bcast_strides[tuned_axis] = 1;
+        migraphx::shape bcast_zeros{x_zero_point.get_shape().type(), output_lens, bcast_strides};
+        x_zero_point = x_zero_point.reshape(bcast_zeros);
+
         argument result{output_shape};
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
-                auto num_scales = scales.size();
-                auto num_zeros  = zero_pts.size();
                 par_for(output_shape.elements(), [&](auto i) {
-                    auto idx  = output_shape.multi(i);
-                    auto data = static_cast<int>(input(idx.begin(), idx.end())) -
-                                static_cast<int>(zero_pts[idx[axis] % num_zeros]);
-                    output(idx.begin(), idx.end()) =
-                        static_cast<float>(data) * scales[idx[axis] % num_scales];
+                    output[i] = static_cast<double>(static_cast<int64_t>(input[i]) - static_cast<int64_t>(zero_pts[i])) * scales[i];
                 });
             });
         });

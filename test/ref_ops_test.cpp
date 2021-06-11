@@ -1230,6 +1230,7 @@ TEST_CASE(dequantizelinear)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(9);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -1255,6 +1256,7 @@ TEST_CASE(dequantizelinear)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(9);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -3288,6 +3290,7 @@ TEST_CASE(quantizelinear)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -3311,6 +3314,7 @@ TEST_CASE(quantizelinear)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -3342,6 +3346,7 @@ TEST_CASE(quantizelinear_axes)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -3369,6 +3374,7 @@ TEST_CASE(quantizelinear_axes)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
@@ -3396,6 +3402,7 @@ TEST_CASE(quantizelinear_axes)
         };
 
         migraphx::program p1 = create_program();
+        p1.compile(migraphx::ref::target{});
         auto result          = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

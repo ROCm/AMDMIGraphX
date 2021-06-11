@@ -19,8 +19,6 @@ std::string target::name() const { return "ref"; }
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
     return {normalize_ops{},
-            rewrite_quantization{},
-            dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
             auto_contiguous{},

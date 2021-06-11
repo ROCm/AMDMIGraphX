@@ -4,11 +4,12 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void apply_quantizelinear(module& m, instruction_ref& ins)
+void apply_quantizelinear(module& m, instruction_ref ins)
 {
     auto val = ins->get_operator().to_value();
     assert(val.contains("axis"));
@@ -23,20 +24,18 @@ void apply_quantizelinear(module& m, instruction_ref& ins)
     else
         y_zero_point = m.add_literal(0);
 
-    int max_quant = 255;
-    int min_quant = 0;
+    int64_t max_quant = 0;
+    int64_t min_quant = 0;
+    ins->get_shape().visit_type([&](auto as) {
+        max_quant = as.max();
+        min_quant = as.min();
+    });
 
-    if(quant_type == shape::int8_type)
-    {
-        max_quant = 127;
-        min_quant = -128;
-    }
-
-    auto max_arg = m.add_literal(max_quant);
-    auto min_arg = m.add_literal(min_quant);
+    auto max_arg = m.add_literal(static_cast<int>(max_quant));
+    auto min_arg = m.add_literal(static_cast<int>(min_quant));
 
     auto input_lens = x->get_shape().lens();
-    int n_dim       = static_cast<int>(input_lens.size());
+    auto n_dim      = input_lens.size();
 
     instruction_ref divisor;
     if(y_scale->get_shape().elements() != 1)
@@ -93,7 +92,7 @@ void apply_quantizelinear(module& m, instruction_ref& ins)
     m.replace_instruction(ins, make_op("convert", {{"target_type", quant_type}}), saturate);
 }
 
-void apply_dequantizelinear(module& m, instruction_ref& ins)
+void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     auto val = ins->get_operator().to_value();
     assert(val.contains("axis"));
@@ -103,7 +102,7 @@ void apply_dequantizelinear(module& m, instruction_ref& ins)
     auto x_zero_point = ins->inputs().size() == 3 ? ins->inputs()[2] : m.add_literal(0);
 
     auto input_lens = x->get_shape().lens();
-    int n_dim       = static_cast<int>(input_lens.size());
+    auto n_dim      = input_lens.size();
 
     instruction_ref zero_point_int32;
     if(x_zero_point->get_shape().elements() != 1)

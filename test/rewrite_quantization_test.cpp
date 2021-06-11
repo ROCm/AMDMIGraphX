@@ -23,7 +23,7 @@ TEST_CASE(quantizelinear)
     std::vector<float> xv = {-300, 200, 129, 1, 2, 3, 500, 1000, 50};
     migraphx::shape ss{migraphx::shape::float_type, {1}};
     std::vector<float> sv = {2};
-    auto create_program     = [&]() {
+    auto create_program   = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_literal(xs, xv);

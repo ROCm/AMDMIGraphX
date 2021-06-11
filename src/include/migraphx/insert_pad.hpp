@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_PAD_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_PAD_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_INSERT_PAD_HPP
+#define MIGRAPHX_GUARD_RTGLIB_INSERT_PAD_HPP
 
 #include <string>
 #include <vector>
@@ -13,12 +13,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Remove pads if they can be written as an
- * attribute to another op (im2col, convolution, pooling)
+ * insert pads if attribute of padding is asymmetrical
  */
-struct eliminate_pad
+struct insert_pad
 {
-    std::string name() const { return "eliminate_pad"; }
+    std::string name() const { return "insert_pad"; }
 
     void apply(module& m) const;
 };

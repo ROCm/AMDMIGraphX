@@ -20,17 +20,18 @@ struct parse_slice : op_parser<parse_slice>
     {
         op::slice op;
 
+        std::vector<int64_t> steps;
+
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
-            std::vector<int> steps;
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
+            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return abs(s) == 1; }))
             {
-                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
+                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
             }
         }
 
@@ -77,7 +78,29 @@ struct parse_slice : op_parser<parse_slice>
             op.axes = axes;
         }
 
-        return info.add_instruction(op, args[0]);
+        std::vector<int64_t> raxes;
+
+        assert(steps.empty() or steps.size() == op.axes.size());
+        assert(op.axes.size() == op.starts.size());
+        assert(op.axes.size() == op.ends.size());
+
+        for(auto i : range(steps.size()))
+        {
+            if(steps[i] >= 0)
+                continue;
+            op.starts[i] += 1;
+            if(op.starts[i] == 0)
+                op.starts[i] = INT_MAX;
+            op.ends[i] += 1;
+            raxes.push_back(op.axes[i]);
+            std::swap(op.starts[i], op.ends[i]);
+        }
+
+        auto ins = info.add_instruction(op, args[0]);
+        if(not raxes.empty())
+            return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
+        else
+            return ins;
     }
 };
 

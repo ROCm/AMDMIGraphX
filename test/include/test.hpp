@@ -9,6 +9,11 @@
 #include <unordered_map>
 #include <vector>
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/ptrace.h>
+#endif
+
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
@@ -315,7 +320,7 @@ auto near(T px, U py, double ptol = 1e-6f)
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
-string_map parse(std::vector<std::string> as, Keyword keyword)
+string_map generic_parse(std::vector<std::string> as, Keyword keyword)
 {
     string_map result;
 
@@ -331,10 +336,75 @@ string_map parse(std::vector<std::string> as, Keyword keyword)
         {
             flag = f.front();
             result[flag]; // Ensure the flag exists
+            flag = f.back();
         }
     }
     return result;
 }
+
+struct argument_parser
+{
+    struct argument
+    {
+        std::vector<std::string> flags = {};
+        std::string help = "";
+        int nargs = 1;
+    };
+
+    void add_arg(const std::vector<std::string>& flags, const std::string& help = "")
+    {
+        arguments.push_back(argument{flags, help, 1});
+    }
+
+    void add_flag(const std::vector<std::string>& flags, const std::string& help = "")
+    {
+        arguments.push_back(argument{flags, help, 0});
+    }
+
+    void show_help() const
+    {
+        std::cout << std::endl;
+        std::cout << "    ";
+        std::cout << "<test-case>...";
+        std::cout << std::endl;
+        std::cout << "        " << "Test case name to run" << std::endl;
+        for(auto&& arg : arguments)
+        {
+            std::string prefix = "    ";
+            for(const std::string& a : arg.flags)
+            {
+                std::cout << prefix;
+                std::cout << a;
+                prefix = ", ";
+            }
+            std::cout << std::endl;
+            std::cout << "        " << arg.help << std::endl;
+        }
+    }
+
+    string_map parse(int argc, const char* argv[]) const
+    {
+        std::vector<std::string> args(argv + 1, argv + argc);
+        string_map keys;
+        for(auto&& arg:arguments)
+        {
+            for(auto&& flag:arg.flags)
+            {
+                keys[flag] = {arg.flags.front()};
+                if (arg.nargs == 0)
+                    keys[flag].push_back("");
+            }
+        }
+        return generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
+            if (keys.count(s) > 0)
+                return keys[s];
+            else
+                return {};
+        });
+    }
+
+    std::vector<argument> arguments;
+};
 
 inline auto& get_test_cases()
 {
@@ -357,18 +427,65 @@ struct auto_register_test_case
     }
 };
 
+inline bool is_debugger_present()
+{
+    static bool in_debugger = [] {
+#ifndef _WIN32
+        if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0)
+            return true;
+        ptrace(PTRACE_DETACH, 0, 1, 0);
+#endif
+        return false;
+    }();
+    return in_debugger;
+}
+
 inline void run_test_case(const std::string& name, const std::function<void()>& f)
 {
     std::cout << "[   RUN    ] " << name << std::endl;
-    f();
+    // If debugger is attached then dont catch the exception
+    if (is_debugger_present())
+    {
+        f();
+    }
+    else
+    {
+        try
+        {
+            f();
+        }
+        catch(const std::exception& e)
+        {
+            std::cout << "FAILED:" << std::endl;
+            std::cout << "    what(): " << e.what() << std::endl;
+        }
+        catch(...)
+        {
+            std::cout << "FAILED: Unknown exception occured" << std::endl;
+
+        }
+    }
     std::cout << "[ COMPLETE ] " << name << std::endl;
 }
 
 inline void run(int argc, const char* argv[])
 {
-    std::vector<std::string> as(argv + 1, argv + argc);
+    argument_parser ap;
+    ap.add_flag({"--help", "-h"}, "Show help");
+    ap.add_flag({"--list", "-l"}, "List all test cases");
+    auto args = ap.parse(argc, argv);
+    if (args.count("--help") > 0) 
+    {
+        ap.show_help();
+        return;
+    }
+    if (args.count("--list") > 0) 
+    {
+        for(auto&& tc : get_test_cases())
+            std::cout << tc.first << std::endl;
+        return;
+    }
 
-    auto args  = parse(as, [](auto &&) -> std::vector<std::string> { return {}; });
     auto cases = args[""];
     if(cases.empty())
     {

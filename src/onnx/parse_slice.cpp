@@ -29,10 +29,6 @@ struct parse_slice : op_parser<parse_slice>
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            // if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return abs(s) == 1; }))
-            // {
-            //     MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
-            // }
         }
 
         if(args.size() >= 4)

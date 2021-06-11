@@ -67,13 +67,14 @@ struct quantizelinear
         argument result{output_shape};
         visit_all(x, y_scale)([&](auto input, auto scales) {
             visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
-                using quant_type  = typename decltype(output)::value_type;
-                auto min_value = std::numeric_limits<quant_type>::min();
-                auto max_value = std::numeric_limits<quant_type>::max();
+                using quant_type = typename decltype(output)::value_type;
+                auto min_value   = std::numeric_limits<quant_type>::min();
+                auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
                     int64_t quantized = static_cast<int>(std::round(input[i] / scales[i])) +
                                         static_cast<int>(zero_pts[i]);
-                    output[i] = std::max(static_cast<int64_t>(min_value), std::min(static_cast<int64_t>(max_value), quantized));
+                    output[i] = std::max(static_cast<int64_t>(min_value),
+                                         std::min(static_cast<int64_t>(max_value), quantized));
                 });
             });
         });

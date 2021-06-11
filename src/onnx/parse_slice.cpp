@@ -29,10 +29,10 @@ struct parse_slice : op_parser<parse_slice>
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return abs(s) == 1; }))
-            {
-                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
-            }
+            // if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return abs(s) == 1; }))
+            // {
+            //     MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1 or -1");
+            // }
         }
 
         if(args.size() >= 4)
@@ -97,6 +97,21 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         auto ins = info.add_instruction(op, args[0]);
+        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
+        {
+            std::vector<int64_t> nsteps;
+            std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
+                return std::abs(s);
+            });
+            auto lens = args[0]->get_shape().lens().size();
+            for(auto& axis : op.axes)
+            {
+                if(axis < 0)
+                    axis = axis + lens;
+            }
+            ins =
+                info.add_instruction(make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+        }
         if(not raxes.empty())
             return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
         else

@@ -11,6 +11,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+#define MIGRAPHX_NO_DPP
+#endif
+
 struct sum
 {
     template <class T, class U>

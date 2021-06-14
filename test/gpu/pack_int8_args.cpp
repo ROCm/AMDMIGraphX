@@ -133,26 +133,26 @@ TEST_CASE(quant_dot_trans)
         auto contb = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl2, allocb);
 
         auto packb = contb;
-        if (int8_x4)
+        if(int8_x4)
         {
             auto allocpb = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
             packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), contb, allocpb);
         }
-        auto gemm =
-            m.add_instruction(migraphx::make_op("gpu::quant_gemm",
-                                                {{"alpha", 3}, {"beta", 0}, {"int8_x4_format", int8_x4}}),
-                              conta,
-                              packb,
-                              output);
+        auto gemm = m.add_instruction(
+            migraphx::make_op("gpu::quant_gemm",
+                              {{"alpha", 3}, {"beta", 0}, {"int8_x4_format", int8_x4}}),
+            conta,
+            packb,
+            output);
         m.add_return({gemm});
 
         return m;
     };
 
-    auto m1 = create_module();
+    auto m1   = create_module();
     bool flag = get_int8_x4_format();
-    auto m2 = create_optimized_int8_x4(flag);
+    auto m2   = create_optimized_int8_x4(flag);
 
     run_passes(m1);
 
@@ -188,10 +188,10 @@ TEST_CASE(quant_dot_pad)
         auto l3     = m.add_parameter("c", s3);
         auto output = m.add_parameter("test:#output_0", s3);
 
-        auto pl1 = l1;
+        auto pl1   = l1;
         auto packa = l2;
         migraphx::instruction_ref pl2{};
-        if (int8_x4)
+        if(int8_x4)
         {
             auto po1 = m.insert_instruction(
                 l1, migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps1)}}));
@@ -209,29 +209,29 @@ TEST_CASE(quant_dot_pad)
                 po2);
         }
 
-        auto cout  = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
-        if (int8_x4)
+        auto cout = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
+        if(int8_x4)
         {
             auto alloc = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
             packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pl2, alloc);
         }
 
-        auto gemm =
-            m.add_instruction(migraphx::make_op("gpu::quant_gemm",
-                                                {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", int8_x4}}),
-                              pl1,
-                              packa,
-                              cout,
-                              cout);
+        auto gemm = m.add_instruction(
+            migraphx::make_op("gpu::quant_gemm",
+                              {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", int8_x4}}),
+            pl1,
+            packa,
+            cout,
+            cout);
         m.add_return({gemm});
 
         return m;
     };
 
-    auto m1 = create_module();
+    auto m1   = create_module();
     bool flag = get_int8_x4_format();
-    auto m2 = create_optimized_int8_x4(flag);
+    auto m2   = create_optimized_int8_x4(flag);
 
     run_passes(m1);
 
@@ -272,19 +272,19 @@ TEST_CASE(quant_dot_trans_pad)
         auto ta = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
         migraphx::instruction_ref pta{};
-        if (int8_x4)
+        if(int8_x4)
         {
             pta = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps1)}}));
         }
         auto conta = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl1, ta);
-        auto pa = conta;
-        if (int8_x4)
+        auto pa    = conta;
+        if(int8_x4)
         {
-            pa    = m.add_instruction(
-            migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 0, 3, 0, 0, 0, 0}}}),
-            conta,
-            pta);
+            pa = m.add_instruction(
+                migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 0, 3, 0, 0, 0, 0}}}),
+                conta,
+                pta);
         }
 
         auto tl2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
@@ -292,16 +292,16 @@ TEST_CASE(quant_dot_trans_pad)
         auto tb = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
         migraphx::instruction_ref ptb{};
-        if (int8_x4)
+        if(int8_x4)
         {
             ptb = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
         }
         auto contb = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl2, tb);
         auto packb = contb;
-        if (int8_x4)
+        if(int8_x4)
         {
-            auto pb    = m.add_instruction(
+            auto pb = m.add_instruction(
                 migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 3, 0, 0, 0, 0, 0}}}),
                 contb,
                 ptb);
@@ -310,20 +310,20 @@ TEST_CASE(quant_dot_trans_pad)
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
             packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pb, allocpb);
         }
-        auto gemm =
-            m.add_instruction(migraphx::make_op("gpu::quant_gemm",
-                                                {{"alpha", 3}, {"beta", 0}, {"int8_x4_format", int8_x4}}),
-                              pa,
-                              packb,
-                              output);
+        auto gemm = m.add_instruction(
+            migraphx::make_op("gpu::quant_gemm",
+                              {{"alpha", 3}, {"beta", 0}, {"int8_x4_format", int8_x4}}),
+            pa,
+            packb,
+            output);
         m.add_return({gemm});
 
         return m;
     };
 
-    auto m1 = create_module();
+    auto m1   = create_module();
     bool flag = get_int8_x4_format();
-    auto m2 = create_optimized_int8_x4(flag);
+    auto m2   = create_optimized_int8_x4(flag);
 
     run_passes(m1);
 

@@ -52,14 +52,7 @@ static void inline_submodule(module& m, instruction_ref ins)
                 break;
             }
 
-            if(mod_args.empty())
-            {
-                copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs);
-            }
-            else
-            {
-                copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
-            }
+            copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
         }
         map_ins[sins] = copy_ins;
         mod_outputs   = {copy_ins};
@@ -105,7 +98,6 @@ void inline_module::apply(module& m) const
                     mod_outputs.push_back(last);
                 }
 
-                // only one output is considered for now
                 for(const auto& out : mod_outputs)
                 {
                     auto mod_out = out->eval();

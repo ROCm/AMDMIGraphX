@@ -10,9 +10,7 @@
 
 void run_pass(migraphx::program& p)
 {
-    auto* mm = p.get_main_module();
-    migraphx::run_passes(*mm, {migraphx::inline_module{}, migraphx::dead_code_elimination{}});
-    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::inline_module{}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(cannot_inline_both)
@@ -397,24 +395,11 @@ TEST_CASE(if_recursive_cond0_test)
 
         auto lx   = mm->add_literal(migraphx::literal(xs, datax));
         auto ly   = mm->add_literal(migraphx::literal(ys, datay));
-        auto cond = mm->add_literal(migraphx::literal(cond_s, {0}));
         mm->add_parameter("x1", xs);
         auto x2 = mm->add_parameter("x2", xs);
         auto y2 = mm->add_parameter("y2", ys);
-
-        auto* then_mod1 = p.create_module("If_6_if");
-        auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
-        auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
-        then_mod1->add_return({a11, l11});
-
-        auto* else_mod1 = p.create_module("If_6_else");
-        auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
-        auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
-        else_mod1->add_return({l21, a21});
-
-        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
-        mm->add_return({r});
+        auto m  = mm->add_instruction(migraphx::make_op("mul"), y2, ly);
+        mm->add_return({m});
 
         return p;
     };

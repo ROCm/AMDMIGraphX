@@ -28,10 +28,10 @@ bool get_int8_x4_format()
 {
     bool int8_x4_format = true;
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        auto& ctx = get_context();
-        rocblas_gemm_flags flag;
-        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+    auto& ctx = get_context();
+    rocblas_gemm_flags flag;
+    rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+    int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
 #endif
     return int8_x4_format;
 }
@@ -65,30 +65,29 @@ TEST_CASE(quant_dot)
 
         auto cout  = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
         auto packa = l2;
-        if (int8_x4)
+        if(int8_x4)
         {
             auto alloc = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m2_shape)}}));
             packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), l2, alloc);
         }
-        auto gemm =
-            m.add_instruction(migraphx::make_op("gpu::quant_gemm",
-                                                {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", int8_x4}}),
-                              l1,
-                              packa,
-                              cout,
-                              cout);
+        auto gemm = m.add_instruction(
+            migraphx::make_op("gpu::quant_gemm",
+                              {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", int8_x4}}),
+            l1,
+            packa,
+            cout,
+            cout);
         m.add_return({gemm});
 
         return m;
     };
 
-
     auto m1 = create_module();
     run_passes(m1);
 
     bool flag = get_int8_x4_format();
-    auto m2 = create_optimized_int8_x4(flag);
+    auto m2   = create_optimized_int8_x4(flag);
 
     EXPECT(m1 == m2);
 }

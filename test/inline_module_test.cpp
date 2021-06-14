@@ -393,8 +393,8 @@ TEST_CASE(if_recursive_cond0_test)
         std::vector<float> datax = {1, 2, 3, 4, 5, 6};
         std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
 
-        auto lx   = mm->add_literal(migraphx::literal(xs, datax));
-        auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+        auto lx = mm->add_literal(migraphx::literal(xs, datax));
+        auto ly = mm->add_literal(migraphx::literal(ys, datay));
         mm->add_parameter("x1", xs);
         auto x2 = mm->add_parameter("x2", xs);
         auto y2 = mm->add_parameter("y2", ys);

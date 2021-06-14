@@ -1,3 +1,4 @@
+#include "migraphx/instruction_ref.hpp"
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -186,10 +187,10 @@ TEST_CASE(quant_dot_pad)
         auto l2     = m.add_parameter("b", s2);
         auto l3     = m.add_parameter("c", s3);
         auto output = m.add_parameter("test:#output_0", s3);
-        auto cout  = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
 
         auto pl1 = l1;
         auto packa = l2;
+        migraphx::instruction_ref pl2{};
         if (int8_x4)
         {
             auto po1 = m.insert_instruction(
@@ -201,11 +202,16 @@ TEST_CASE(quant_dot_pad)
 
             auto po2 = m.insert_instruction(
                 l2, migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
-            auto pl2 = m.insert_instruction(
+            pl2 = m.insert_instruction(
                 std::next(l2),
                 migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {2, 0, 0, 0}}, {"value", 0}}),
                 l2,
                 po2);
+        }
+
+        auto cout  = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
+        if (int8_x4)
+        {
             auto alloc = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
             packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pl2, alloc);

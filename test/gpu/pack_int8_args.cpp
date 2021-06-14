@@ -3,6 +3,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
+#include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
@@ -23,6 +24,18 @@ void run_passes(migraphx::module& m)
                           migraphx::dead_code_elimination{}});
 }
 
+bool get_int8_x4_format()
+{
+    bool int8_x4_format = true;
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+        auto& ctx = get_context();
+        rocblas_gemm_flags flag;
+        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+#endif
+    return int8_x4_format;
+}
+
 TEST_CASE(quant_dot)
 {
     auto create_module = [] {
@@ -39,7 +52,7 @@ TEST_CASE(quant_dot)
         return m;
     };
 
-    auto create_optimized_int8_x4 = [] {
+    auto create_optimized_int8_x4 = [](bool int8_x4) {
         migraphx::module m("test");
         migraphx::shape m1_shape{migraphx::shape::int8_type, {5, 8}};
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
@@ -51,12 +64,16 @@ TEST_CASE(quant_dot)
         auto output = m.add_parameter("test:#output_0", m3_shape);
 
         auto cout  = m.add_instruction(migraphx::make_op("hip::copy"), l3, output);
-        auto alloc = m.add_instruction(
-            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m2_shape)}}));
-        auto packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), l2, alloc);
+        auto packa = l2;
+        if (int8_x4)
+        {
+            auto alloc = m.add_instruction(
+                migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m2_shape)}}));
+            packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), l2, alloc);
+        }
         auto gemm =
             m.add_instruction(migraphx::make_op("gpu::quant_gemm",
-                                                {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", 1}}),
+                                                {{"alpha", 1}, {"beta", 1}, {"int8_x4_format", int8_x4}}),
                               l1,
                               packa,
                               cout,
@@ -66,10 +83,12 @@ TEST_CASE(quant_dot)
         return m;
     };
 
-    auto m1 = create_module();
-    auto m2 = create_optimized_int8_x4();
 
+    auto m1 = create_module();
     run_passes(m1);
+
+    bool flag = get_int8_x4_format();
+    auto m2 = create_optimized_int8_x4(flag);
 
     EXPECT(m1 == m2);
 }
@@ -91,7 +110,7 @@ TEST_CASE(quant_dot_trans)
         return m;
     };
 
-    auto create_optimized_int8_x4 = [] {
+    auto create_optimized_int8_x4 = []() {
         migraphx::module m("test");
         migraphx::shape s1{migraphx::shape::int8_type, {3, 2, 8, 5}};
         migraphx::shape s2{migraphx::shape::int8_type, {3, 2, 7, 8}};

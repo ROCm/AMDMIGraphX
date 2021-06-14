@@ -160,6 +160,7 @@ struct miopen_apply
         add_extend_op("reduce_min");
         add_extend_op("reduce_prod");
         add_extend_op("reduce_sum");
+        add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");

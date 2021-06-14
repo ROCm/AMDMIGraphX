@@ -1,4 +1,5 @@
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/normalize_ops.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -10,7 +11,9 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m,
+        {migraphx::normalize_ops{}, migraphx::eliminate_pad{}, migraphx::dead_code_elimination{}});
 }
 
 migraphx::instruction_ref
@@ -66,15 +69,15 @@ TEST_CASE(rewrite_pad)
     auto om1 = l1->get_operator().to_value();
     auto om2 = l2->get_operator().to_value();
 
-    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
-    EXPECT(om1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
-    EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1});
+    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
+    EXPECT(om1["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
+    EXPECT(om2["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{1, 1, 1, 1});
 
     EXPECT(std::none_of(
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 
-TEST_CASE(rewrite_pad_im2col_asymetric)
+TEST_CASE(rewrite_pad_im2col_asymmetric)
 {
     migraphx::module m;
 
@@ -95,10 +98,10 @@ TEST_CASE(rewrite_pad_im2col_asymetric)
     EXPECT(l0->get_shape() == s0);
     auto op0 = l0->get_operator().to_value();
 
-    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0});
+    EXPECT(op0["padding"].to_vector<std::size_t>() == std::vector<std::size_t>{0, 0, 2, 2});
 
     run_pass(m);
-    EXPECT(std::any_of(
+    EXPECT(std::none_of(
         m.begin(), m.end(), [](const migraphx::instruction& ins) { return ins.name() == "pad"; }));
 }
 

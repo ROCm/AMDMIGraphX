@@ -75,6 +75,26 @@ TEST_CASE(gather_test_1)
     EXPECT(m1 == m2);
 }
 
+migraphx::module create_padded_op(const std::vector<size_t>& pad_vals)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+    auto si = m.add_parameter("data", s);
+    auto r  = m.add_instruction(migraphx::make_op("pooling", {{"padding", pad_vals}}), si);
+    m.add_return({r});
+
+    return m;
+}
+
+TEST_CASE(padding_attr_test)
+{
+    migraphx::module m1 = create_padded_op({0, 1});
+    migraphx::module m2 = create_padded_op({0, 1, 0, 1});
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
 migraphx::module create_reduce_mean(const std::vector<int64_t>& axes)
 {
     migraphx::module m;

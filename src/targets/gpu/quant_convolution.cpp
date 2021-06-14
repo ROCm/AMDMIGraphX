@@ -10,7 +10,7 @@ namespace gpu {
 shape miopen_quant_convolution::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(4).standard();
-    return op.compute_shape({inputs.at(0), inputs.at(1)});
+    return op.normalize_compute_shape({inputs.at(0), inputs.at(1)});
 }
 argument miopen_quant_convolution::compute(context& ctx,
                                            const shape& output_shape,

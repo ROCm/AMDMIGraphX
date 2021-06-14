@@ -76,7 +76,7 @@ void inline_module::apply(module& m) const
         if(ins->name() != "if")
             continue;
 
-        auto arg_cond          = ins->inputs().front()->eval();
+        auto arg_cond = ins->inputs().front()->eval();
         if(not arg_cond.empty())
         {
             inline_submodule(m, ins);

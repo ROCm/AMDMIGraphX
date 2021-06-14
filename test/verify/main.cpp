@@ -45,5 +45,6 @@ int main(int argc, const char* argv[])
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
     rv.disable_test_for("cpu", {"test_if_lp", "test_if_param", "test_if_literal"});
+    rv.disable_test_for("gpu", {"batch_quant_dot_2.cpp", "batch_quant_dot_3.cpp", "batch_quant_dot_5.cpp", "quant_dot_3args_1.cpp", "quant_dot_3args_2.cpp", "quant_dot_3args_3.cpp", "quant_dot_3args_4.cpp", "quant_dot_3args_5.cpp"});
     rv.run(argc, argv);
 }

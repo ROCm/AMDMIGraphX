@@ -71,10 +71,11 @@ const auto& get_original_idx_op(const std::string& mode)
     return idx_ops.at(mode);
 }
 
-static std::vector<int> calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
-                                             int i_dim,
-                                             const std::vector<std::vector<std::size_t>>& vec_dims,
-                                             const shape& in_s)
+static std::vector<int>
+calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
+                     int i_dim,
+                     const std::vector<std::vector<std::size_t>>& vec_dims,
+                     const shape& in_s)
 {
     if(i_dim == vvv_ind.size())
     {

@@ -23,6 +23,7 @@ add_library(migraphx
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
+    insert_pad.cpp
     file_buffer.cpp
     rewrite_batchnorm.cpp
     rewrite_rnn.cpp

@@ -919,12 +919,12 @@ TEST_CASE(dequantizelinear_test)
     auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
-    l2 = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-        l2);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
+    l2_mbcast = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        l2_mbcast);
     l0 = mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
@@ -2332,12 +2332,12 @@ TEST_CASE(quantizelinear_test)
 
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    l2         = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-        l2);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
+    l2_mbcast         = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        l2_mbcast);
 
     round = mm->add_instruction(
         migraphx::make_op("convert",

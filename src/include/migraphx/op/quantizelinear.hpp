@@ -42,27 +42,14 @@ struct quantizelinear
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto y_zero_point = literal({shape::int8_type, {1}}, {0}).get_argument();
+        auto x       = args.at(0);
+        auto y_scale = args.at(1);
+        std::vector<int8_t> zeros(output_shape.elements(), 0);
+        argument y_zero_point{output_shape, zeros.data()}; 
         if(args.size() == 3)
-            y_zero_point = args[2];
-
-        auto x       = args[0];
-        auto y_scale = args[1];
-
-        auto output_lens = output_shape.lens();
-        auto tuned_axis  = tune_axis(output_lens.size(), axis, this->name());
-        std::vector<size_t> bcast_strides(output_lens.size(), 0);
-
-        if(y_scale.get_shape().elements() != 1)
-            bcast_strides[tuned_axis] = 1;
-        migraphx::shape bcast_scales{y_scale.get_shape().type(), output_lens, bcast_strides};
-        y_scale                   = y_scale.reshape(bcast_scales);
-        bcast_strides[tuned_axis] = 0;
-
-        if(y_zero_point.get_shape().elements() != 1)
-            bcast_strides[tuned_axis] = 1;
-        migraphx::shape bcast_zeros{y_zero_point.get_shape().type(), output_lens, bcast_strides};
-        y_zero_point = y_zero_point.reshape(bcast_zeros);
+        {
+            y_zero_point = args.at(2);
+        }
 
         argument result{output_shape};
         visit_all(x, y_scale)([&](auto input, auto scales) {

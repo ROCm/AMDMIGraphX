@@ -22,14 +22,6 @@ namespace op {
 
 struct dequantizelinear
 {
-    int axis = 1;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -38,27 +30,14 @@ struct dequantizelinear
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto x_zero_point = literal({shape::int8_type, {1}}, {0}).get_argument();
+        auto x       = args.at(0);
+        auto x_scale = args.at(1);
+        std::vector<int8_t> zeros(output_shape.elements(), 0);
+        argument x_zero_point{{x.get_shape().type(), output_shape.lens()}, zeros.data()}; 
         if(args.size() == 3)
-            x_zero_point = args[2];
-
-        auto x       = args[0];
-        auto x_scale = args[1];
-
-        auto output_lens = output_shape.lens();
-        auto tuned_axis  = tune_axis(output_lens.size(), axis, this->name());
-        std::vector<size_t> bcast_strides(output_lens.size(), 0);
-
-        if(x_scale.get_shape().elements() != 1)
-            bcast_strides[tuned_axis] = 1;
-        migraphx::shape bcast_scales{x_scale.get_shape().type(), output_lens, bcast_strides};
-        x_scale                   = x_scale.reshape(bcast_scales);
-        bcast_strides[tuned_axis] = 0;
-
-        if(x_zero_point.get_shape().elements() != 1)
-            bcast_strides[tuned_axis] = 1;
-        migraphx::shape bcast_zeros{x_zero_point.get_shape().type(), output_lens, bcast_strides};
-        x_zero_point = x_zero_point.reshape(bcast_zeros);
+        {
+            x_zero_point = args.at(2);
+        }
 
         argument result{output_shape};
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {

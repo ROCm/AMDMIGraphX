@@ -21,14 +21,14 @@ TEST_CASE(quantizelinear)
 
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 3}};
     std::vector<float> xv = {-300, 200, 129, 1, 2, 3, 500, 1000, 50};
-    migraphx::shape ss{migraphx::shape::float_type, {1}};
-    std::vector<float> sv = {2};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
+    std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
     auto create_program   = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_literal(xs, xv);
         auto s   = mm->add_literal(ss, sv);
-        mm->add_instruction(migraphx::make_op("quantizelinear", {{"axis", 1}}), x, s);
+        mm->add_instruction(migraphx::make_op("quantizelinear"), x, s);
         return p;
     };
 
@@ -46,17 +46,17 @@ TEST_CASE(dequantizelinear)
 
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 3}};
     std::vector<float> xv = {0, 1, 2, 5, 10, 50, 100, 150, 250};
-    migraphx::shape ss{migraphx::shape::float_type, {1}};
-    std::vector<float> sv = {2};
-    migraphx::shape zs{migraphx::shape::uint8_type, {1}};
-    std::vector<uint8_t> zv = {0};
+    migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
+    std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+    migraphx::shape zs{migraphx::shape::uint8_type, {1, 3, 3}};
+    std::vector<uint8_t> zv = {0, 0, 0, 0, 0, 0, 0, 0, 0};
     auto create_program     = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_literal(xs, xv);
         auto s   = mm->add_literal(ss, sv);
         auto z   = mm->add_literal(zs, zv);
-        mm->add_instruction(migraphx::make_op("dequantizelinear", {{"axis", 1}}), x, s, z);
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, s, z);
         return p;
     };
 

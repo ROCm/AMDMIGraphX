@@ -4,7 +4,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>

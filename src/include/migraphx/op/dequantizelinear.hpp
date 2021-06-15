@@ -33,7 +33,7 @@ struct dequantizelinear
         auto x       = args.at(0);
         auto x_scale = args.at(1);
         std::vector<int8_t> zeros(output_shape.elements(), 0);
-        argument x_zero_point{{x.get_shape().type(), output_shape.lens()}, zeros.data()}; 
+        argument x_zero_point{{x.get_shape().type(), output_shape.lens()}, zeros.data()};
         if(args.size() == 3)
         {
             x_zero_point = args.at(2);

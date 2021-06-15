@@ -45,7 +45,7 @@ struct quantizelinear
         auto x       = args.at(0);
         auto y_scale = args.at(1);
         std::vector<int8_t> zeros(output_shape.elements(), 0);
-        argument y_zero_point{output_shape, zeros.data()}; 
+        argument y_zero_point{output_shape, zeros.data()};
         if(args.size() == 3)
         {
             y_zero_point = args.at(2);

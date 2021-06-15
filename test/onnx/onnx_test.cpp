@@ -2334,7 +2334,7 @@ TEST_CASE(quantizelinear_test)
     auto round = mm->add_instruction(migraphx::make_op("round"), div);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
-    l2_mbcast         = mm->add_instruction(
+    l2_mbcast = mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
         l2_mbcast);

@@ -1243,7 +1243,7 @@ TEST_CASE(dequantizelinear)
         std::vector<int8_t> xv = {-128, -100, -50, -1, 0, 1, 50, 100, 127};
         migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
         std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
-        auto create_program    = [&]() {
+        auto create_program   = [&]() {
             migraphx::program p;
             auto* mm = p.get_main_module();
             auto x   = mm->add_literal(xs, xv);

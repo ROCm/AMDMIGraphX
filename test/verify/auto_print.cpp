@@ -56,7 +56,7 @@ static bool in_exception()
 
 auto_print::~auto_print()
 {
-    if (in_exception())
+    if(in_exception())
     {
         std::cout << std::endl;
         for(const auto& tname : migraphx::get_targets())

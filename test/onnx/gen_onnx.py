@@ -3454,7 +3454,7 @@ def slice_5arg_reverse_test():
                                 outputs=['arg_axis'],
                                 value=axis_tensor)
 
-    end = np.array([-1, -1])
+    end = np.array([-5, -1])
     end_tensor = helper.make_tensor(name="end",
                                     data_type=TensorProto.INT32,
                                     dims=end.shape,
@@ -3464,7 +3464,7 @@ def slice_5arg_reverse_test():
                                outputs=['arg_end'],
                                value=end_tensor)
 
-    start = np.array([-5, -3])
+    start = np.array([-1, -3])
     start_tensor = helper.make_tensor(name="start",
                                       data_type=TensorProto.INT32,
                                       dims=start.shape,
@@ -3487,7 +3487,7 @@ def slice_5arg_reverse_test():
 
 @onnx_test
 def slice_5arg_step_test():
-    step = np.array([-2, 4])
+    step = np.array([-2, 2])
     step_tensor = helper.make_tensor(name="step",
                                      data_type=TensorProto.INT32,
                                      dims=step.shape,
@@ -3507,7 +3507,7 @@ def slice_5arg_step_test():
                                 outputs=['arg_axis'],
                                 value=axis_tensor)
 
-    end = np.array([-1, -1])
+    end = np.array([-5, -1])
     end_tensor = helper.make_tensor(name="end",
                                     data_type=TensorProto.INT32,
                                     dims=end.shape,
@@ -3517,7 +3517,7 @@ def slice_5arg_step_test():
                                outputs=['arg_end'],
                                value=end_tensor)
 
-    start = np.array([-5, -3])
+    start = np.array([-1, -3])
     start_tensor = helper.make_tensor(name="start",
                                       data_type=TensorProto.INT32,
                                       dims=start.shape,

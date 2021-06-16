@@ -9,6 +9,7 @@
 #include <migraphx/onnx.hpp>
 #include "test.hpp"
 
+
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");
@@ -277,6 +278,107 @@ TEST_CASE(selu_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0.55, 1.05, 0, -0.10912, -0.149251, 6};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(slice_test)
+{
+    migraphx::program p = migraphx::parse_onnx("slice_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sh_data{migraphx::shape::float_type, {3, 2}};
+    std::vector<float> data           = {0,1,2,3,4,5};
+    
+    migraphx::parameter_map pp;
+    pp["0"]         = migraphx::argument(sh_data, data.data());
+   
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {2, 3};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(slice_5arg_test)
+{
+    migraphx::program p = migraphx::parse_onnx("slice_5arg_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sh_data{migraphx::shape::float_type, {5, 5}}; //start
+    std::vector<float> data           = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24};
+    
+    migraphx::parameter_map pp;
+    pp["0"]         = migraphx::argument(sh_data, data.data());
+   
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::cout << "CAGRI OUT:" << std::endl;
+    for(auto k: result_vector){
+        std::cout << k << "-";
+    }
+    std::cout << std::endl;
+
+    std::vector<float> gold = {10,11,12,13,15,16,17,18};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+
+
+TEST_CASE(slice_reverse_test)
+{
+    migraphx::program p = migraphx::parse_onnx("slice_5arg_reverse_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sh_data{migraphx::shape::float_type, {5, 5}}; //start
+    std::vector<float> data           = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24};
+    
+    migraphx::parameter_map pp;
+    pp["0"]         = migraphx::argument(sh_data, data.data());
+   
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::cout << "CAGRI OUT:" << std::endl;
+    for(auto k: result_vector){
+        std::cout << k << "-";
+    }
+    std::cout << std::endl;
+
+    std::vector<float> gold = {14,13,12,11,19,18,17,16};
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+
+TEST_CASE(slice_step_test)
+{
+    migraphx::program p = migraphx::parse_onnx("slice_5arg_step_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape sh_data{migraphx::shape::float_type, {5, 5}};
+
+    std::vector<float> data           = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24};
+
+
+    migraphx::parameter_map pp;
+    pp["0"]         = migraphx::argument(sh_data, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::cout << "CAGRI OUT:" << std::endl;
+    for(auto k: result_vector){
+        std::cout << k << "-";
+    }
+    std::cout << std::endl;
+
+    std::vector<float> gold = {14,12};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

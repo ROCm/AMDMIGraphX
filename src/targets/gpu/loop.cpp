@@ -74,7 +74,7 @@ hip_loop::compute(const shape&,
         std::unordered_map<std::string, argument> params;
         for(auto pn : param_name_shapes)
         {
-            auto name = pn.first;
+            auto name     = pn.first;
             auto io_index = get_name_index(name, param_prefix);
             assert(io_index.first != -1);
             // name is for input
@@ -87,7 +87,7 @@ hip_loop::compute(const shape&,
                 if(io_index.first >= dep_num)
                 {
                     const auto& arg = out_args.at(io_index.first);
-                    params[name] = arg.load(pn.second, arg.data() + iter * pn.second.bytes());
+                    params[name]    = arg.load(pn.second, arg.data() + iter * pn.second.bytes());
                 }
                 else
                 {

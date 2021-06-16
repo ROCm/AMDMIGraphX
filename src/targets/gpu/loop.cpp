@@ -10,6 +10,8 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
 {
     auto offset = inputs.size() - mods.front()->get_output_shapes().size();
     inputs.erase(inputs.begin() + offset, inputs.end());
+    inputs.erase(inputs.begin() + 3);
+    inputs.erase(inputs.begin() + 1);
     return op.compute_shape(inputs, mods);
 }
 
@@ -18,7 +20,6 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
     auto loc = name.find(param_prefix);
     if(loc != std::string::npos)
     {
-        std::cout << "index_str1 = " << name.substr(loc + param_prefix.size()) << std::endl;
         int index = std::stoi(name.substr(loc + param_prefix.size()));
         return {index, true};
     }
@@ -27,7 +28,6 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
     loc                    = name.find(out_prefix);
     if(loc != std::string::npos)
     {
-        std::cout << "index_str2 = " << name.substr(loc + out_prefix.size()) << std::endl;
         int index = std::stoi(name.substr(loc + out_prefix.size()));
         return {index, false};
     }
@@ -42,33 +42,30 @@ hip_loop::compute(const shape&,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    auto iter_num            = args.at(0).at<int64_t>();
-    auto cond                = args.at(1).at<bool>();
+    auto cpy_args = args;
+    std::vector<argument> cpu_args;
+    cpu_args.push_back(cpy_args.at(1));
+    cpu_args.push_back(cpy_args.at(3));
+    cpy_args.erase(cpy_args.begin() + 3);
+    cpy_args.erase(cpy_args.begin() + 1);
+
+    auto iter_num            = cpu_args.at(0).at<int64_t>();
+    auto cond                = cpu_args.at(1).at<bool>();
     module_ref mod           = mods.at(0);
     auto mod_out_num         = mod->get_output_shapes().size();
-    auto input_num           = args.size() - mod_out_num;
+    auto input_num           = cpy_args.size() - mod_out_num;
     auto dep_num             = input_num - 2;
     auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
 
-    std::vector<argument> in_args(args.begin() + 2, args.begin() + input_num);
-    std::vector<argument> out_args(args.begin() + input_num, args.end());
-
-    shape s_iter{shape::int64_type};
-    shape s_cond{shape::bool_type};
-    int64_t* iter_ptr{};
-    hipMalloc((void**)&iter_ptr, sizeof(int64_t));
-    bool* cond_ptr{};
-    hipMalloc((void**)&cond_ptr, sizeof(bool));
-    // insert iter and cond as the first and second elements
-    hipMemcpy(cond_ptr, &cond, sizeof(bool), hipMemcpyHostToDevice);
-    in_args.insert(in_args.begin(), {args.at(1).get_shape(), cond_ptr});
-    in_args.insert(in_args.begin(), {args.at(0).get_shape(), iter_ptr});
-
+    std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
+    std::vector<argument> out_args(cpy_args.begin() + input_num, cpy_args.end());
+    std::cout << "iter_num = " << iter_num << std::endl;
     for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
     {
+        std::cout << "loop = " << iter << std::endl;
         // copy iter num and cond to device memory
-        hipMemcpy(iter_ptr, &iter, sizeof(int64_t), hipMemcpyHostToDevice);
+        (void)hipMemcpy(in_args.at(0).data(), &iter, sizeof(int64_t), hipMemcpyHostToDevice);
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
@@ -99,7 +96,8 @@ hip_loop::compute(const shape&,
         auto mod_args = run(mod, params);
 
         // copy back cond to be used next iteration
-        hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
+        (void)hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
+        std::cout << "cond = " << std::endl;
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
     }
 

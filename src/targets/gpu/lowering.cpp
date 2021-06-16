@@ -474,8 +474,10 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
             auto sync_iter =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
-            inputs.front() = sync_iter;
-            inputs.at(1)   = cpu_cond;
+            inputs.insert(inputs.begin() + 2, cpu_cond);
+            inputs.insert(inputs.begin() + 1, sync_iter);
+            // inputs.front() = sync_iter;
+            // inputs.at(1)   = cpu_cond;
 
             auto mod_args = ins->module_inputs();
             // auto sub_mod  = mod_args.front();

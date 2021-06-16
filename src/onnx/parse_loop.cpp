@@ -12,21 +12,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-static void add_parameter_prefix(module& mod, const std::string& name, const std::string& prefix)
-{
-    auto ins = mod.get_parameter(name);
-    if(ins == mod.end())
-    {
-        MIGRAPHX_THROW("PARSE_LOOP: parameter \"" + name + "\" does not exist for module \"" +
-                       mod.name());
-    }
-    auto s               = ins->get_shape();
-    std::string mgx_name = "@mgx_" + mod.name() + prefix + name;
-    auto mgx_ins         = mod.add_parameter(mgx_name, s);
-    mod.replace_instruction(ins, mgx_ins);
-    mod.remove_instruction(ins);
-}
-
 struct parse_loop : op_parser<parse_loop>
 {
     std::vector<op_desc> operators() const { return {{"Loop"}}; }

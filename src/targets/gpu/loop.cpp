@@ -36,7 +36,7 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
 }
 
 argument
-hip_loop::compute(const shape& output_shape,
+hip_loop::compute(const shape&,
                   const std::vector<argument>& args,
                   const std::vector<module_ref>& mods,
                   const std::function<std::vector<argument>(
@@ -65,63 +65,46 @@ hip_loop::compute(const shape& output_shape,
     in_args.insert(in_args.begin(), {args.at(1).get_shape(), cond_ptr});
     in_args.insert(in_args.begin(), {args.at(0).get_shape(), iter_ptr});
 
-    std::cout << "loop_compute1" << std::endl;
     for(int64_t iter = 0; (iter < iter_num) and cond; ++iter)
     {
-        std::cout << "loop_compute2, iter = " << iter << std::endl;
         // copy iter num and cond to device memory
         hipMemcpy(iter_ptr, &iter, sizeof(int64_t), hipMemcpyHostToDevice);
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
-        std::cout << "param_num = " << param_name_shapes.size() << std::endl;
         for(auto pn : param_name_shapes)
         {
             auto name = pn.first;
-            std::cout << "loop_compute3, name = " << name << std::endl;
             auto io_index = get_name_index(name, param_prefix);
             assert(io_index.first != -1);
             // name is for input
-            std::cout << "loop_compute4, index = " << io_index.first << std::endl;
             if(io_index.second)
             {
-                std::cout << "loop_compute5" << std::endl;
                 params[name] = in_args.at(io_index.first);
             }
             else
             {
-                std::cout << "loop_compute6" << std::endl;
                 if(io_index.first >= dep_num)
                 {
-                    std::cout << "loop_compute7" << std::endl;
                     const auto& arg = out_args.at(io_index.first);
-                    std::cout << "arg_shape = " << arg.get_shape() << std::endl;
                     params[name] = arg.load(pn.second, arg.data() + iter * pn.second.bytes());
                 }
                 else
                 {
-                    std::cout << "loop_compute8" << std::endl;
                     params[name] = out_args.at(io_index.first);
                 }
-                std::cout << "loop_compute9" << std::endl;
             }
         }
 
-        std::cout << "loop_compute10" << std::endl;
         auto mod_args = run(mod, params);
 
-        std::cout << "loop_compute11" << std::endl;
         // copy back cond to be used next iteration
         hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
-        std::cout << "loop_compute12" << std::endl;
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
-        std::cout << "loop_compute13" << std::endl;
     }
 
-    std::cout << "loop_compute14" << std::endl;
     out_args.erase(out_args.begin());
 
-    std::cout << "loop_compute15" << std::endl;
     return argument(out_args);
 }
 

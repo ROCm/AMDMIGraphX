@@ -111,7 +111,7 @@ struct loop
             std::unordered_map<std::string, argument> params;
             for(auto pn : param_name_shapes)
             {
-                auto name = pn.first;
+                auto name     = pn.first;
                 auto io_index = get_name_index(name, param_prefix);
                 assert((io_index.first != -1) and (io_index.second));
 

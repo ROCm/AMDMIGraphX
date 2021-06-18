@@ -21,17 +21,20 @@
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
+// NOLINTNEXTLINE
 #define TEST_SANITIZE_ADDRESS 1
 #endif
 #endif
 
 #if defined(__SANITIZE_ADDRESS__)
 #if __SANITIZE_ADDRESS__
+// NOLINTNEXTLINE
 #define TEST_SANITIZE_ADDRESS 1
 #endif
 #endif
 
 #ifndef TEST_SANITIZE_ADDRESS
+// NOLINTNEXTLINE
 #define TEST_SANITIZE_ADDRESS 0
 #endif
 
@@ -448,7 +451,9 @@ struct auto_register_test_case
 
 #if TEST_SANITIZE_ADDRESS
 extern "C" {
+// NOLINTNEXTLINE
 void __sanitizer_start_switch_fiber(void** fake_stack_save, const void* bottom, size_t size);
+// NOLINTNEXTLINE
 void __sanitizer_finish_switch_fiber(void* fake_stack_save,
                                      const void** bottom_old,
                                      size_t* size_old);
@@ -486,7 +491,7 @@ void fork(F f)
             return 0;
         },
         stack.data() + stack.size(),
-        SIGCHLD | CLONE_PTRACE,
+        SIGCHLD | CLONE_PTRACE, // NOLINT
         &f);
     if(pid == -1)
         std::cout << "FAILED to fork process" << std::endl;

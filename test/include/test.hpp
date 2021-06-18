@@ -447,50 +447,52 @@ struct auto_register_test_case
 };
 
 #if TEST_SANITIZE_ADDRESS
-extern "C"
-{
-    void __sanitizer_start_switch_fiber(void **fake_stack_save,
-                                    const void *bottom, size_t size);
-    void __sanitizer_finish_switch_fiber(void *fake_stack_save,
-                                     const void **bottom_old,
-                                     size_t *size_old);
+extern "C" {
+void __sanitizer_start_switch_fiber(void** fake_stack_save, const void* bottom, size_t size);
+void __sanitizer_finish_switch_fiber(void* fake_stack_save,
+                                     const void** bottom_old,
+                                     size_t* size_old);
 }
 struct asan_switch_stack
 {
-    void * s = nullptr;
-    asan_switch_stack(char* stack, size_t size)
-    {
-        __sanitizer_start_switch_fiber(&s, stack, size);
-    }
+    void* s = nullptr;
+    asan_switch_stack(char* stack, size_t size) { __sanitizer_start_switch_fiber(&s, stack, size); }
     ~asan_switch_stack()
     {
         const void* olds = nullptr;
-        size_t size = 0;
+        size_t size      = 0;
         __sanitizer_finish_switch_fiber(s, &olds, &size);
     }
 };
 #else
-struct asan_switch_stack {
-    template<class... Ts>
-    asan_switch_stack(Ts&&...) {}
+struct asan_switch_stack
+{
+    template <class... Ts>
+    asan_switch_stack(Ts&&...)
+    {
+    }
 };
 #endif
 
-template<class F>
+template <class F>
 void fork(F f)
 {
 #ifdef __linux__
-    static std::vector<char> stack(8*1024*1024);
-    int pid = clone(+[](void* g) {
-        asan_switch_stack s(stack.data(), stack.size());
-        (*reinterpret_cast<F*>(g))();
-        return 0;
-    }, stack.data() + stack.size(), SIGCHLD | CLONE_PTRACE, &f);
-    if (pid == -1)
+    static std::vector<char> stack(8 * 1024 * 1024);
+    int pid = clone(
+        +[](void* g) {
+            asan_switch_stack s(stack.data(), stack.size());
+            (*reinterpret_cast<F*>(g))();
+            return 0;
+        },
+        stack.data() + stack.size(),
+        SIGCHLD | CLONE_PTRACE,
+        &f);
+    if(pid == -1)
         std::cout << "FAILED to fork process" << std::endl;
     int status = 0;
     wait(&status);
-    if (status != 0)
+    if(status != 0)
         std::cout << "FAILED: Exited with " << status << std::endl;
 #else
     f();

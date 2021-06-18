@@ -9,13 +9,31 @@
 #include <unordered_map>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef __linux__
 #include <sys/types.h>
 #include <sys/ptrace.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #endif
 
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
+
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define TEST_SANITIZE_ADDRESS 1
+#endif
+#endif
+
+#if defined(__SANITIZE_ADDRESS__)
+#if __SANITIZE_ADDRESS__
+#define TEST_SANITIZE_ADDRESS 1
+#endif
+#endif
+
+#ifndef TEST_SANITIZE_ADDRESS
+#define TEST_SANITIZE_ADDRESS 0
+#endif
 
 namespace test {
 // clang-format off
@@ -428,43 +446,61 @@ struct auto_register_test_case
     }
 };
 
-inline bool is_debugger_present()
+#if TEST_SANITIZE_ADDRESS
+extern "C"
 {
-    static bool in_debugger = [] {
-#ifndef _WIN32
-        if(ptrace(PTRACE_TRACEME, 0, 1, 0) < 0)
-            return true;
-        ptrace(PTRACE_DETACH, 0, 1, 0);
+    void __sanitizer_start_switch_fiber(void **fake_stack_save,
+                                    const void *bottom, size_t size);
+    void __sanitizer_finish_switch_fiber(void *fake_stack_save,
+                                     const void **bottom_old,
+                                     size_t *size_old);
+}
+struct asan_switch_stack
+{
+    void * s = nullptr;
+    asan_switch_stack(char* stack, size_t size)
+    {
+        __sanitizer_start_switch_fiber(&s, stack, size);
+    }
+    ~asan_switch_stack()
+    {
+        const void* olds = nullptr;
+        size_t size = 0;
+        __sanitizer_finish_switch_fiber(s, &olds, &size);
+    }
+};
+#else
+struct asan_switch_stack {
+    template<class... Ts>
+    asan_switch_stack(Ts&&...) {}
+};
 #endif
-        return false;
-    }();
-    return in_debugger;
+
+template<class F>
+void fork(F f)
+{
+#ifdef __linux__
+    static std::vector<char> stack(8*1024*1024);
+    int pid = clone(+[](void* g) {
+        asan_switch_stack s(stack.data(), stack.size());
+        (*reinterpret_cast<F*>(g))();
+        return 0;
+    }, stack.data() + stack.size(), SIGCHLD | CLONE_PTRACE, &f);
+    if (pid == -1)
+        std::cout << "FAILED to fork process" << std::endl;
+    int status = 0;
+    wait(&status);
+    if (status != 0)
+        std::cout << "FAILED: Exited with " << status << std::endl;
+#else
+    f();
+#endif
 }
 
 inline void run_test_case(const std::string& name, const std::function<void()>& f)
 {
     std::cout << "[   RUN    ] " << name << std::endl;
-    // If debugger is attached then dont catch the exception
-    if(is_debugger_present())
-    {
-        f();
-    }
-    else
-    {
-        try
-        {
-            f();
-        }
-        catch(const std::exception& e)
-        {
-            std::cout << "FAILED:" << std::endl;
-            std::cout << "    what(): " << e.what() << std::endl;
-        }
-        catch(...)
-        {
-            std::cout << "FAILED: Unknown exception occured" << std::endl;
-        }
-    }
+    fork(f);
     std::cout << "[ COMPLETE ] " << name << std::endl;
 }
 

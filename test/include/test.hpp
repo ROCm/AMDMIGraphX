@@ -290,6 +290,28 @@ struct capture
     }
 };
 
+enum class color {
+    reset = 0,
+    bold = 1,
+    underlined = 4,
+    fg_red      = 31,
+    fg_green    = 32,
+    fg_blue     = 34,
+    fg_default    = 39,
+    bg_red      = 41,
+    bg_green    = 42,
+    bg_blue     = 44,
+    bg_default    = 49
+};
+inline std::ostream& operator<<(std::ostream& os, const color& c) {
+#ifndef _WIN32
+    static const bool use_color = isatty(STDOUT_FILENO);
+    if (use_color)
+        return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#endif
+    return os;
+}
+
 template <class T, class F>
 void failed(T x, const char* msg, const char* func, const char* file, int line, F f)
 {
@@ -297,7 +319,7 @@ void failed(T x, const char* msg, const char* func, const char* file, int line, 
     {
         std::cout << func << std::endl;
         std::cout << file << ":" << line << ":" << std::endl;
-        std::cout << "    FAILED: " << msg << " "
+        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
                   << "[ " << x << " ]" << std::endl;
         f();
     }
@@ -480,7 +502,7 @@ struct asan_switch_stack
 #endif
 
 template <class F>
-void fork(F f)
+std::string fork(F f)
 {
 #ifdef __linux__
     static std::vector<char> stack(8 * 1024 * 1024);
@@ -494,21 +516,26 @@ void fork(F f)
         SIGCHLD | CLONE_PTRACE, // NOLINT
         &f);
     if(pid == -1)
-        std::cout << "FAILED to fork process" << std::endl;
-    int status = 0;
+        return "Unable to fork process";
+    int status = -1;
     wait(&status);
     if(status != 0)
-        std::cout << "FAILED: Exited with " << status << std::endl;
+        return "Exited with " + std::to_string(status);
+    return {};
 #else
     f();
+    return {};
 #endif
 }
 
 inline void run_test_case(const std::string& name, const std::function<void()>& f)
 {
-    std::cout << "[   RUN    ] " << name << std::endl;
-    fork(f);
-    std::cout << "[ COMPLETE ] " << name << std::endl;
+    std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name << color::reset << std::endl;
+    std::string msg = fork(f);
+    if (msg.empty())
+        std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name << color::reset << std::endl;
+    else
+        std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name << color::reset << ": " << msg << std::endl;
 }
 
 inline void run(int argc, const char* argv[])
@@ -543,7 +570,7 @@ inline void run(int argc, const char* argv[])
         {
             auto f = m.find(name);
             if(f == m.end())
-                std::cout << "[  ERROR   ] Test case '" << name << "' not found." << std::endl;
+                std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found." << color::reset << std::endl;
             else
                 run_test_case(name, f->second);
         }

@@ -290,23 +290,25 @@ struct capture
     }
 };
 
-enum class color {
-    reset = 0,
-    bold = 1,
+enum class color
+{
+    reset      = 0,
+    bold       = 1,
     underlined = 4,
-    fg_red      = 31,
-    fg_green    = 32,
-    fg_blue     = 34,
-    fg_default    = 39,
-    bg_red      = 41,
-    bg_green    = 42,
-    bg_blue     = 44,
-    bg_default    = 49
+    fg_red     = 31,
+    fg_green   = 32,
+    fg_blue    = 34,
+    fg_default = 39,
+    bg_red     = 41,
+    bg_green   = 42,
+    bg_blue    = 44,
+    bg_default = 49
 };
-inline std::ostream& operator<<(std::ostream& os, const color& c) {
+inline std::ostream& operator<<(std::ostream& os, const color& c)
+{
 #ifndef _WIN32
     static const bool use_color = isatty(STDOUT_FILENO);
-    if (use_color)
+    if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
 #endif
     return os;
@@ -530,12 +532,15 @@ std::string fork(F f)
 
 inline void run_test_case(const std::string& name, const std::function<void()>& f)
 {
-    std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name << color::reset << std::endl;
+    std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
+              << color::reset << std::endl;
     std::string msg = fork(f);
-    if (msg.empty())
-        std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name << color::reset << std::endl;
+    if(msg.empty())
+        std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
+                  << color::reset << std::endl;
     else
-        std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name << color::reset << ": " << msg << std::endl;
+        std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
+                  << color::reset << ": " << msg << std::endl;
 }
 
 inline void run(int argc, const char* argv[])
@@ -570,7 +575,8 @@ inline void run(int argc, const char* argv[])
         {
             auto f = m.find(name);
             if(f == m.end())
-                std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found." << color::reset << std::endl;
+                std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found."
+                          << color::reset << std::endl;
             else
                 run_test_case(name, f->second);
         }

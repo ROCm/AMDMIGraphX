@@ -62,7 +62,7 @@ struct quantizelinear
                         int64_t quantized = static_cast<int>(std::round(input[i] / scales[i])) +
                                             static_cast<int>(zero_pts[i]);
                         output[i] = std::max(static_cast<int64_t>(min_value),
-                                                std::min(static_cast<int64_t>(max_value), quantized));
+                                             std::min(static_cast<int64_t>(max_value), quantized));
                     });
                 });
             });

@@ -3291,7 +3291,8 @@ TEST_CASE(quantizelinear)
         auto result = p1.eval({}).back();
         std::vector<float> results_vector(18);
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{-128, 127, 65, -128, 1, 1, -1, 100, 92, -128, 127, 65, -128, 1, 1, -1, 100, 92};
+        std::vector<float> gold{
+            -128, 127, 65, -128, 1, 1, -1, 100, 92, -128, 127, 65, -128, 1, 1, -1, 100, 92};
         EXPECT(results_vector == gold);
     }
 

@@ -46,6 +46,8 @@ struct topk
         auto lens = inputs.at(0).lens();
         auto type = inputs.at(0).type();
 
+        lens[axis] = k;
+
         shape s_val{type, lens};
         shape s_ind{shape::int64_type, lens};
 

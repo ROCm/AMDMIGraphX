@@ -19,15 +19,13 @@ struct topk
 {
     int64_t k;
     int64_t axis = 0;
-    bool larget = true;
-    bool sorted = true;
+    bool larget  = true;
+    bool sorted  = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), 
-                    f(self.largest, "largest"), 
-                    f(self.sorted, "sort"));
+        return pack(f(self.axis, "axis"), f(self.largest, "largest"), f(self.sorted, "sort"));
     }
 
     value attributes() const
@@ -53,8 +51,7 @@ struct topk
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto vec_ss = output_shape.get
-        argument res_val{output_shape};
+        auto vec_ss = output_shape.get argument res_val{output_shape};
         // negative axis means counting dimensions from back
         auto lens                 = args[0].get_shape().lens();
         std::size_t axis_dim_size = lens[axis];

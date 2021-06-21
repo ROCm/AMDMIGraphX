@@ -19,13 +19,16 @@ struct topk
 {
     int64_t k;
     int64_t axis = 0;
-    bool largest  = true;
+    bool largest = true;
     bool sorted  = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.k, "topk"), f(self.axis, "axis"), f(self.largest, "largest"), f(self.sorted, "sort"));
+        return pack(f(self.k, "topk"),
+                    f(self.axis, "axis"),
+                    f(self.largest, "largest"),
+                    f(self.sorted, "sort"));
     }
 
     value attributes() const

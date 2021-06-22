@@ -483,7 +483,7 @@ struct miopen_apply
             inputs.insert(inputs.begin() + 1, gpu_cond);
             inputs.insert(inputs.begin(), gpu_iter);
 
-            auto mod_args = ins->module_inputs();
+            auto mod_args       = ins->module_inputs();
             auto ins_s          = ins->get_shape();
             auto vec_ss         = ins->get_shape().sub_shapes();
             const auto* sub_mod = mod_args.front();

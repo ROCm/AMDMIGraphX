@@ -49,12 +49,12 @@ hip_loop::compute(const shape&,
     cpy_args.erase(cpy_args.begin() + 3);
     cpy_args.erase(cpy_args.begin() + 1);
 
-    auto iter_num            = cpu_args.at(0).at<int64_t>();
-    auto cond                = cpu_args.at(1).at<bool>();
-    module_ref mod           = mods.at(0);
-    auto mod_out_num         = mod->get_output_shapes().size();
-    auto input_num           = cpy_args.size() - mod_out_num;
-    auto dep_num             = input_num - 2;
+    auto iter_num    = cpu_args.at(0).at<int64_t>();
+    auto cond        = cpu_args.at(1).at<bool>();
+    module_ref mod   = mods.at(0);
+    auto mod_out_num = mod->get_output_shapes().size();
+    auto input_num   = cpy_args.size() - mod_out_num;
+    auto dep_num     = input_num - 2;
     std::cout << "dep_num = " << dep_num << std::endl;
     auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
@@ -74,7 +74,7 @@ hip_loop::compute(const shape&,
         std::unordered_map<std::string, argument> params;
         for(auto pn : param_name_shapes)
         {
-            auto name     = pn.first;
+            auto name = pn.first;
             std::cout << "param_name = " << name << std::endl;
             auto io_index = get_name_index(name, param_prefix);
             assert(io_index.first != -1);
@@ -82,7 +82,8 @@ hip_loop::compute(const shape&,
             if(io_index.second)
             {
                 params[name] = in_args.at(io_index.first);
-                std::cout << "in_idx = " << io_index.first << ", name = " << name << ", shape = " << params[name].get_shape() << std::endl;
+                std::cout << "in_idx = " << io_index.first << ", name = " << name
+                          << ", shape = " << params[name].get_shape() << std::endl;
                 auto arg = migraphx::gpu::from_gpu(in_args.at(io_index.first));
                 std::cout << "name = " << name << ", val = " << arg << std::endl;
             }
@@ -96,7 +97,8 @@ hip_loop::compute(const shape&,
                 else
                 {
                     params[name] = out_args.at(io_index.first);
-                    std::cout << "out_idx = " << io_index.first << ", name = " << name << ", shape = " << params[name].get_shape() << std::endl;
+                    std::cout << "out_idx = " << io_index.first << ", name = " << name
+                              << ", shape = " << params[name].get_shape() << std::endl;
                     auto arg = migraphx::gpu::from_gpu(out_args.at(io_index.first));
                     std::cout << "name = " << name << ", val = " << arg << std::endl;
                 }
@@ -111,7 +113,7 @@ hip_loop::compute(const shape&,
         std::cout << "cond = " << cond << std::endl << std::endl;
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
         std::cout << "out_args = " << std::endl;
-        for (const auto& arg : mod_args)
+        for(const auto& arg : mod_args)
         {
             auto cpu_arg = migraphx::gpu::from_gpu(arg);
             std::cout << "out_arg = " << cpu_arg << std::endl;

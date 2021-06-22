@@ -491,7 +491,6 @@ struct miopen_apply
             std::vector<instruction_ref> vec_outs;
             vec_outs.push_back(insert_allocation(ins, sub_mod->get_output_shapes().front()));
             std::transform(vec_ss.begin(), vec_ss.end(), std::back_inserter(vec_outs), [&](auto s) {
-                std::cout << "s = " << s << std::endl;
                 return insert_allocation(ins, s);
             });
             inputs.insert(inputs.end(), vec_outs.begin(), vec_outs.end());

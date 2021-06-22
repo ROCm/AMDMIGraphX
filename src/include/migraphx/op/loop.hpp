@@ -104,10 +104,8 @@ struct loop
         in_args.insert(in_args.begin(), {s_cond, &cond});
         in_args.insert(in_args.begin(), {s_iter, &iter});
         const auto& param_name_shapes = mod->get_parameter_shapes();
-        std::cout << "iter_num = " << iter_num << std::endl;
         for(iter = 0; (iter < iter_num) and cond; ++iter)
         {
-            std::cout << "loop = " << iter << std::endl;
             std::unordered_map<std::string, argument> params;
             for(auto pn : param_name_shapes)
             {
@@ -126,7 +124,6 @@ struct loop
             // copy loop carried dependency from mod outputs to inputs
             std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
             cond = mod_args.at(0).at<bool>();
-            std::cout << "cond = " << cond << std::endl;
 
             // concat scan outputs
             std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());

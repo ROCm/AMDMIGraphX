@@ -49,12 +49,12 @@ hip_loop::compute(const shape&,
     cpy_args.erase(cpy_args.begin() + 3);
     cpy_args.erase(cpy_args.begin() + 1);
 
-    auto iter_num    = cpu_args.at(0).at<int64_t>();
-    auto cond        = cpu_args.at(1).at<bool>();
-    module_ref mod   = mods.at(0);
-    auto mod_out_num = mod->get_output_shapes().size();
-    auto input_num   = cpy_args.size() - mod_out_num;
-    auto dep_num     = input_num - 2;
+    auto iter_num            = cpu_args.at(0).at<int64_t>();
+    auto cond                = cpu_args.at(1).at<bool>();
+    module_ref mod           = mods.at(0);
+    auto mod_out_num         = mod->get_output_shapes().size();
+    auto input_num           = cpy_args.size() - mod_out_num;
+    auto dep_num             = input_num - 2;
     auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
 
@@ -70,7 +70,7 @@ hip_loop::compute(const shape&,
         std::unordered_map<std::string, argument> params;
         for(auto pn : param_name_shapes)
         {
-            auto name = pn.first;
+            auto name     = pn.first;
             auto io_index = get_name_index(name, param_prefix);
             assert(io_index.first != -1);
             // name is for input

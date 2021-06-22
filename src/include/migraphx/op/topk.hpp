@@ -28,7 +28,7 @@ struct topk
         return pack(f(self.k, "topk"),
                     f(self.axis, "axis"),
                     f(self.largest, "largest"),
-                    f(self.sorted, "sort"));
+                    f(self.sorted, "sorted"));
     }
 
     value attributes() const

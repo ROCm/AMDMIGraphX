@@ -8,7 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_pad : op_parser<parse_pad>
+struct parse_topk : op_parser<parse_topk>
 {
     std::vector<op_desc> operators() const { return {{"TopK"}}; }
 
@@ -48,7 +48,7 @@ struct parse_pad : op_parser<parse_pad>
         }
 
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}, {"sorted", sorted}}),
+            make_op("topk", {{"topk", k}, {"axis", axis}, {"largest", largest}, {"sorted", sorted}}),
             args.at(0));
         auto out_s = topk_ret->get_shape();
         assert(out_s.type() == shape::tuple_type);

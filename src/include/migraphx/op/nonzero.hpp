@@ -26,19 +26,6 @@ struct nonzero
         return {shape::int64_type, out_lens};
     }
 
-    template <class T>
-    std::vector<std::size_t> nonzero_indices(const std::vector<T>& data) const
-    {
-        std::vector<std::size_t> indices;
-        for(std::size_t i = 0; i < data.size(); ++i)
-        {
-            if(!float_equal(data[i], 0))
-                indices.push_back(i);
-        }
-
-        return indices;
-    }
-
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         std::vector<std::vector<std::size_t>> indices;

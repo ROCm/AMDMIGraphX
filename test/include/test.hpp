@@ -540,11 +540,16 @@ struct driver
                   << color::reset << std::endl;
         std::string msg = fork(f);
         if(msg.empty())
+        {
             std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
                       << color::reset << std::endl;
+        }
         else
+        {
+            status = 1;
             std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
                       << color::reset << ": " << msg << std::endl;
+        }
     }
 
     void run(int argc, const char* argv[])
@@ -585,8 +590,11 @@ struct driver
                 }
             }
         }
+        if (status != 0)
+            std::exit(1);
     }
 
+    int status = 0;
     std::function<std::vector<std::string>(const std::string&)> get_case_names =
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};

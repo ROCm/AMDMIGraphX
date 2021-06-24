@@ -1048,6 +1048,7 @@ def make_dequantizelinear_axis_graph(axis):
 
     return ([node], [arg0, arg1, arg2], [arg_out])
 
+
 @onnx_test
 def dequantizelinear_axis_test():
     return make_dequantizelinear_axis_graph(2)

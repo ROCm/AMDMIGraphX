@@ -55,9 +55,9 @@ struct quantizelinear
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             x.visit([&](auto input) {
                 y_scale.visit([&](auto scales) {
-                    using quant_type = typename decltype(output)::value_type;
-                    int64_t min_value   = std::numeric_limits<quant_type>::min();
-                    int64_t max_value   = std::numeric_limits<quant_type>::max();
+                    using quant_type  = typename decltype(output)::value_type;
+                    int64_t min_value = std::numeric_limits<quant_type>::min();
+                    int64_t max_value = std::numeric_limits<quant_type>::max();
                     par_for(output_shape.elements(), [&](auto i) {
                         int64_t quantized = static_cast<int64_t>(std::round(input[i] / scales[i])) +
                                             static_cast<int64_t>(zero_pts[i]);

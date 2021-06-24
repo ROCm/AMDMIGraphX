@@ -47,8 +47,13 @@ struct parse_roialign : op_parser<parse_roialign>
             spatial_scale = info.attributes.at("spatial_scale").f();
         }
 
-        return info.add_instruction(make_op("roialign", {{"mode", mode}, {"output_height", output_height}, 
-                {"output_width", output_width}, {"sampling_ratio", sampling_ratio}, {"spatial_scale", spatial_scale}}), args);
+        return info.add_instruction(make_op("roialign",
+                                            {{"mode", mode},
+                                             {"output_height", output_height},
+                                             {"output_width", output_width},
+                                             {"sampling_ratio", sampling_ratio},
+                                             {"spatial_scale", spatial_scale}}),
+                                    args);
     }
 };
 

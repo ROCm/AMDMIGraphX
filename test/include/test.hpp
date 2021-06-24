@@ -587,7 +587,8 @@ struct driver
         }
     }
 
-    std::function<std::vector<std::string>(const std::string&)> get_case_names = [](const std::string& name) -> std::vector<std::string> { return {name}; };
+    std::function<std::vector<std::string>(const std::string&)> get_case_names =
+        [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};
 };
 

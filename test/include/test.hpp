@@ -590,7 +590,7 @@ struct driver
                 }
             }
         }
-        if (status != 0)
+        if(status != 0)
             std::exit(1);
     }
 

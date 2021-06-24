@@ -1,8 +1,7 @@
-dequantizelinear_test:
- 
+dequantizelinear_test:k
+
 0
-1
-2out"DequantizeLineardequantizelinear_testZ
+1out"DequantizeLineardequantizelinear_testZ
 0
 
 
@@ -10,10 +9,6 @@
 1
 
 
-Z
-2
-
-
 b
 out
 

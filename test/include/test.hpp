@@ -571,13 +571,13 @@ struct driver
         else
         {
             std::unordered_map<std::string, test_case> m(get_test_cases().begin(),
-                                                                     get_test_cases().end());
+                                                         get_test_cases().end());
             for(auto&& name : cases)
             {
                 auto f = m.find(name);
                 if(f == m.end())
-                    std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found."
-                              << color::reset << std::endl;
+                    std::cout << color::fg_red << "[  ERROR   ] Test case '" << name
+                              << "' not found." << color::reset << std::endl;
                 else
                     run_test_case(name, f->second);
             }

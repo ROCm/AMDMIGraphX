@@ -387,79 +387,16 @@ string_map generic_parse(std::vector<std::string> as, Keyword keyword)
     return result;
 }
 
-struct argument_parser
-{
-    struct argument
-    {
-        std::vector<std::string> flags = {};
-        std::string help               = "";
-        int nargs                      = 1;
-    };
-
-    void add_arg(const std::vector<std::string>& flags, const std::string& help = "")
-    {
-        arguments.push_back(argument{flags, help, 1});
-    }
-
-    void add_flag(const std::vector<std::string>& flags, const std::string& help = "")
-    {
-        arguments.push_back(argument{flags, help, 0});
-    }
-
-    void show_help() const
-    {
-        std::cout << std::endl;
-        std::cout << "    ";
-        std::cout << "<test-case>...";
-        std::cout << std::endl;
-        std::cout << "        "
-                  << "Test case name to run" << std::endl;
-        for(auto&& arg : arguments)
-        {
-            std::string prefix = "    ";
-            for(const std::string& a : arg.flags)
-            {
-                std::cout << prefix;
-                std::cout << a;
-                prefix = ", ";
-            }
-            std::cout << std::endl;
-            std::cout << "        " << arg.help << std::endl;
-        }
-    }
-
-    string_map parse(int argc, const char* argv[]) const
-    {
-        std::vector<std::string> args(argv + 1, argv + argc);
-        string_map keys;
-        for(auto&& arg : arguments)
-        {
-            for(auto&& flag : arg.flags)
-            {
-                keys[flag] = {arg.flags.front()};
-                if(arg.nargs == 0)
-                    keys[flag].push_back("");
-            }
-        }
-        return generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
-            if(keys.count(s) > 0)
-                return keys[s];
-            else
-                return {};
-        });
-    }
-
-    std::vector<argument> arguments;
-};
+using test_case = std::function<void()>;
 
 inline auto& get_test_cases()
 {
     // NOLINTNEXTLINE
-    static std::vector<std::pair<std::string, std::function<void()>>> cases;
+    static std::vector<std::pair<std::string, test_case>> cases;
     return cases;
 }
 
-inline void add_test_case(std::string name, std::function<void()> f)
+inline void add_test_case(std::string name, test_case f)
 {
     get_test_cases().emplace_back(std::move(name), std::move(f));
 }
@@ -530,57 +467,130 @@ std::string fork(F f)
 #endif
 }
 
-inline void run_test_case(const std::string& name, const std::function<void()>& f)
+struct driver
 {
-    std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
-              << color::reset << std::endl;
-    std::string msg = fork(f);
-    if(msg.empty())
-        std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
+    driver()
+    {
+        add_flag({"--help", "-h"}, "Show help");
+        add_flag({"--list", "-l"}, "List all test cases");
+    }
+    struct argument
+    {
+        std::vector<std::string> flags = {};
+        std::string help               = "";
+        int nargs                      = 1;
+    };
+
+    void add_arg(const std::vector<std::string>& flags, const std::string& help = "")
+    {
+        arguments.push_back(argument{flags, help, 1});
+    }
+
+    void add_flag(const std::vector<std::string>& flags, const std::string& help = "")
+    {
+        arguments.push_back(argument{flags, help, 0});
+    }
+
+    void show_help() const
+    {
+        std::cout << std::endl;
+        std::cout << "    ";
+        std::cout << "<test-case>...";
+        std::cout << std::endl;
+        std::cout << "        "
+                  << "Test case name to run" << std::endl;
+        for(auto&& arg : arguments)
+        {
+            std::string prefix = "    ";
+            for(const std::string& a : arg.flags)
+            {
+                std::cout << prefix;
+                std::cout << a;
+                prefix = ", ";
+            }
+            std::cout << std::endl;
+            std::cout << "        " << arg.help << std::endl;
+        }
+    }
+
+    string_map parse(int argc, const char* argv[]) const
+    {
+        std::vector<std::string> args(argv + 1, argv + argc);
+        string_map keys;
+        for(auto&& arg : arguments)
+        {
+            for(auto&& flag : arg.flags)
+            {
+                keys[flag] = {arg.flags.front()};
+                if(arg.nargs == 0)
+                    keys[flag].push_back("");
+            }
+        }
+        return generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
+            if(keys.count(s) > 0)
+                return keys[s];
+            else
+                return {};
+        });
+    }
+
+    void run_test_case(const std::string& name, const test_case& f)
+    {
+        std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
                   << color::reset << std::endl;
-    else
-        std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                  << color::reset << ": " << msg << std::endl;
-}
+        std::string msg = fork(f);
+        if(msg.empty())
+            std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
+                      << color::reset << std::endl;
+        else
+            std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
+                      << color::reset << ": " << msg << std::endl;
+    }
+
+    void run(int argc, const char* argv[])
+    {
+        auto args = parse(argc, argv);
+        if(args.count("--help") > 0)
+        {
+            show_help();
+            return;
+        }
+        if(args.count("--list") > 0)
+        {
+            for(auto&& tc : get_test_cases())
+                std::cout << tc.first << std::endl;
+            return;
+        }
+
+        auto cases = args[""];
+        if(cases.empty())
+        {
+            for(auto&& tc : get_test_cases())
+                run_test_case(tc.first, tc.second);
+        }
+        else
+        {
+            std::unordered_map<std::string, test_case> m(get_test_cases().begin(),
+                                                                     get_test_cases().end());
+            for(auto&& name : cases)
+            {
+                auto f = m.find(name);
+                if(f == m.end())
+                    std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found."
+                              << color::reset << std::endl;
+                else
+                    run_test_case(name, f->second);
+            }
+        }
+    }
+
+    std::vector<argument> arguments;
+};
 
 inline void run(int argc, const char* argv[])
 {
-    argument_parser ap;
-    ap.add_flag({"--help", "-h"}, "Show help");
-    ap.add_flag({"--list", "-l"}, "List all test cases");
-    auto args = ap.parse(argc, argv);
-    if(args.count("--help") > 0)
-    {
-        ap.show_help();
-        return;
-    }
-    if(args.count("--list") > 0)
-    {
-        for(auto&& tc : get_test_cases())
-            std::cout << tc.first << std::endl;
-        return;
-    }
-
-    auto cases = args[""];
-    if(cases.empty())
-    {
-        for(auto&& tc : get_test_cases())
-            run_test_case(tc.first, tc.second);
-    }
-    else
-    {
-        std::unordered_map<std::string, std::function<void()>> m(get_test_cases().begin(),
-                                                                 get_test_cases().end());
-        for(auto&& name : cases)
-        {
-            auto f = m.find(name);
-            if(f == m.end())
-                std::cout << color::fg_red << "[  ERROR   ] Test case '" << name << "' not found."
-                          << color::reset << std::endl;
-            else
-                run_test_case(name, f->second);
-        }
-    }
+    driver d{};
+    d.run(argc, argv);
 }
 
 } // namespace test

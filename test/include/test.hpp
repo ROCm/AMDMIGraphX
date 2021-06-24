@@ -572,19 +572,23 @@ struct driver
         {
             std::unordered_map<std::string, test_case> m(get_test_cases().begin(),
                                                          get_test_cases().end());
-            for(auto&& name : cases)
+            for(auto&& iname : cases)
             {
-                auto f = m.find(name);
-                if(f == m.end())
-                    std::cout << color::fg_red << "[  ERROR   ] Test case '" << name
-                              << "' not found." << color::reset << std::endl;
-                else
-                    run_test_case(name, f->second);
+                for(auto&& name : get_case_names(iname))
+                {
+                    auto f = m.find(name);
+                    if(f == m.end())
+                        std::cout << color::fg_red << "[  ERROR   ] Test case '" << name
+                                  << "' not found." << color::reset << std::endl;
+                    else
+                        run_test_case(name, f->second);
+                }
             }
         }
     }
 
-    std::vector<argument> arguments;
+    std::function<std::vector<std::string>(const std::string&)> get_case_names = [](const std::string& name) -> std::vector<std::string> { return {name}; };
+    std::vector<argument> arguments = {};
 };
 
 inline void run(int argc, const char* argv[])

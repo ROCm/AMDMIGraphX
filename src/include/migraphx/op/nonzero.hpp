@@ -19,8 +19,8 @@ struct nonzero
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
-        auto elem_num = inputs[0].elements();
-        auto idx_num = inputs[0].lens().size();
+        auto elem_num                     = inputs[0].elements();
+        auto idx_num                      = inputs[0].lens().size();
         std::vector<std::size_t> out_lens = {idx_num, elem_num};
 
         return {shape::int64_type, out_lens};
@@ -46,7 +46,7 @@ struct nonzero
         args.front().visit([&](auto v) {
             using type = typename decltype(v)::value_type;
             shape_for_each(s, [&](auto idx) {
-                if (not float_equal(v[s.index(idx)], type{0}))
+                if(not float_equal(v[s.index(idx)], type{0}))
                 {
                     indices.push_back(idx);
                 }
@@ -54,13 +54,12 @@ struct nonzero
         });
 
         auto out_lens = output_shape.lens();
-        out_lens[1] = indices.size();
+        out_lens[1]   = indices.size();
         shape out_s{shape::int64_type, out_lens};
         argument result{out_s};
         result.visit([&](auto output) {
-            shape_for_each(out_s, [&](auto idx) {
-                output[out_s.index(idx)] = indices[idx[1]][idx[0]];
-            });
+            shape_for_each(out_s,
+                           [&](auto idx) { output[out_s.index(idx)] = indices[idx[1]][idx[0]]; });
         });
 
         return result;

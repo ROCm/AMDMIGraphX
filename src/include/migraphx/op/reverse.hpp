@@ -39,10 +39,7 @@ struct reverse
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        auto lens = inputs[0].lens();
-        auto type = inputs[0].type();
-        shape reverse_shape{type, lens};
-        return reverse_shape.with_lens(type, lens);
+        return inputs[0].with_lens(inputs[0].lens());
     }
 
     argument compute(const shape& s, std::vector<argument> args) const

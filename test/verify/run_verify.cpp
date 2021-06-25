@@ -195,7 +195,7 @@ void run_verify::run(int argc, const char* argv[]) const
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
-        if(labels.count(name))
+        if(labels.count(name) > 0)
             return labels.at(name);
         return {name};
     };

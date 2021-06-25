@@ -297,10 +297,12 @@ enum class color
     underlined = 4,
     fg_red     = 31,
     fg_green   = 32,
+    fg_yellow  = 33,
     fg_blue    = 34,
     fg_default = 39,
     bg_red     = 41,
     bg_green   = 42,
+    bg_yellow  = 43,
     bg_blue    = 44,
     bg_default = 49
 };
@@ -496,21 +498,30 @@ struct driver
     void show_help() const
     {
         std::cout << std::endl;
+        std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    ";
-        std::cout << "<test-case>...";
+        std::cout << "<exe> <options> <test-case>..." << std::endl;
+        std::cout << std::endl;
+
+        std::cout << color::fg_yellow << "ARGS:" << color::reset << std::endl;
+        std::cout << "    ";
+        std::cout << color::fg_green << "<test-case>..." << color::reset;
         std::cout << std::endl;
         std::cout << "        "
                   << "Test case name to run" << std::endl;
+        std::cout << std::endl;
+        std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
         for(auto&& arg : arguments)
         {
             std::string prefix = "    ";
+            std::cout << color::fg_green;
             for(const std::string& a : arg.flags)
             {
                 std::cout << prefix;
                 std::cout << a;
                 prefix = ", ";
             }
-            std::cout << std::endl;
+            std::cout << color::reset << std::endl;
             std::cout << "        " << arg.help << std::endl;
         }
     }
@@ -538,6 +549,7 @@ struct driver
 
     void run_test_case(const std::string& name, const test_case& f)
     {
+        ran++;
         std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
                   << color::reset << std::endl;
         std::string msg = fork(f);
@@ -548,9 +560,9 @@ struct driver
         }
         else
         {
-            status = 1;
+            failed.push_back(name);
             std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                      << color::reset << ": " << msg << std::endl;
+                      << color::reset << ": " << color::fg_yellow << msg << color::reset << std::endl;
         }
     }
 
@@ -585,21 +597,31 @@ struct driver
                 {
                     auto f = m.find(name);
                     if(f == m.end())
+                    {
                         std::cout << color::fg_red << "[  ERROR   ] Test case '" << name
                                   << "' not found." << color::reset << std::endl;
+                        failed.push_back(name);
+                    }
                     else
                         run_test_case(name, f->second);
                 }
             }
         }
-        if(status != 0)
+        std::cout << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran" << color::reset << std::endl;
+        if (not failed.empty())
+        {
+            std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size() << " tests failed" << color::reset << std::endl;
+            for(auto&& name:failed)
+                std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name << color::reset << std::endl;
             std::exit(1);
+        }
     }
 
-    int status = 0;
     std::function<std::vector<std::string>(const std::string&)> get_case_names =
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};
+    std::vector<std::string> failed = {};
+    std::size_t ran = 0;
 };
 
 inline void run(int argc, const char* argv[])

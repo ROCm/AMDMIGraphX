@@ -48,7 +48,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 
     bool needs_contiguous(const std::string& op_name) const
     {
-        return contains({"gather"}, op_name);
+        return contains({"gather", "scatter"}, op_name);
     }
 
     instruction_ref parse(const op_desc& opd,

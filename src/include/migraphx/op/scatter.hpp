@@ -51,9 +51,9 @@ struct scatter
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx                        = idx;
-                    auto index = indices[ind_s.index(idx)];
-                    index = (index < 0) ? index + axis_dim_size : index;
+                    auto out_idx  = idx;
+                    auto index    = indices[ind_s.index(idx)];
+                    index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
                     output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
                 });

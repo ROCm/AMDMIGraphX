@@ -117,14 +117,43 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     return result;
 }
 
+auto tune_pad_attribute(const value& val)
+{
+
+    std::vector<size_t> vec_attrs = val.to_vector<size_t>();
+    std::vector<size_t> result(vec_attrs.begin(), vec_attrs.end());
+    std::copy(vec_attrs.begin(), vec_attrs.end(), std::back_inserter(result));
+
+    return result;
+}
+
 bool normalize_attributes(operation& op, const std::vector<std::size_t>& lens)
 {
     bool tuned = false;
     auto attrs = op.attributes();
     auto val   = op.to_value();
+    if(attrs.contains("normalize_padding"))
+    {
+        auto padding      = val.at(attrs.at("normalize_padding").to<std::string>());
+        auto padding_size = padding.size();
+        // for now, assume the dimensions to pad start at dim 2
+        auto padding_start = 2;
+
+        if(padding_size == 2 * (lens.size() - padding_start))
+            tuned = true;
+        else if(padding_size != (lens.size() - padding_start))
+            MIGRAPHX_THROW("inconsistent padding size");
+        else
+        {
+            auto result    = tune_pad_attribute(padding);
+            val["padding"] = result;
+            op.from_value(val);
+            tuned = true;
+        }
+    }
     if(!attrs.contains("normalize_axes"))
     {
-        return false;
+        return tuned;
     }
 
     auto attr_v = attrs.at("normalize_axes").without_key();

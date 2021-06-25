@@ -66,7 +66,10 @@ struct cpu_im2col
     }
 
     static std::string name() { return "cpu::im2col"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        return op.normalize_compute_shape(inputs);
+    }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
@@ -490,20 +493,6 @@ struct cpu_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s)
     {
-        auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and prog_output_names.count(ins_alias) > 0)
-        {
-            return modl->insert_instruction(
-                ins,
-                make_op("cpu::preallocate",
-                        {{"shape", to_value(s)}, {"id", prog_output_names[ins_alias]}}));
-        }
-        else if(ins == last)
-        {
-            return modl->insert_instruction(
-                ins, make_op("cpu::preallocate", {{"shape", to_value(s)}, {"id", "output"}}));
-        }
-
         return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
     }
 };

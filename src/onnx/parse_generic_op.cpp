@@ -36,6 +36,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Relu", "relu"},
                 {"Round", "round"},
                 {"Scatter", "scatter"},
+                {"ScatterElements", "scatter"},
                 {"Sigmoid", "sigmoid"},
                 {"Sign", "sign"},
                 {"Sin", "sin"},

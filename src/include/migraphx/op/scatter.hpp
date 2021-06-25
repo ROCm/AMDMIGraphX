@@ -45,13 +45,16 @@ struct scatter
     {
         argument result{output_shape};
         // max dimension in axis
+        auto axis_dim_size = output_shape.lens()[axis];
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx                        = idx;
-                    out_idx[axis]                       = indices[ind_s.index(idx)];
+                    auto index = indices[ind_s.index(idx)];
+                    index = (index < 0) ? index + axis_dim_size : index;
+                    out_idx[axis] = index;
                     output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
                 });
             });

@@ -442,6 +442,14 @@ struct asan_switch_stack
 };
 #endif
 
+[[noreturn]] inline void fail()
+{
+#ifndef __linux__
+    std::abort();
+#else
+    throw std::runtime_error("FAILED");
+#endif
+}
 template <class F>
 std::string fork(F f)
 {
@@ -466,7 +474,18 @@ std::string fork(F f)
         return "Exited with " + std::to_string(WEXITSTATUS(status));         // NOLINT
     return {};
 #else
-    f();
+    try
+    {
+        f();
+    }
+    catch(const std::exception& e)
+    {
+        return e.what();
+    }
+    catch(...)
+    {
+        return "Unknown exception";
+    }
     return {};
 #endif
 }
@@ -648,7 +667,7 @@ inline void run(int argc, const char* argv[])
                  __PRETTY_FUNCTION__,           \
                  __FILE__,                      \
                  __LINE__,                      \
-                 &std::abort)
+                 &test::fail)
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

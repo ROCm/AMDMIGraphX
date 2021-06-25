@@ -444,7 +444,7 @@ struct asan_switch_stack
 
 [[noreturn]] inline void fail()
 {
-#ifndef __linux__
+#ifdef __linux__
     std::abort();
 #else
     throw std::runtime_error("FAILED");

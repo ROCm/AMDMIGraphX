@@ -446,10 +446,10 @@ std::string fork(F f)
 #ifdef __linux__
     static std::vector<char> stack(8 * 1024 * 1024);
     int pid = clone(
-        +[](void* g) {
+        +[](void* g) -> int {
             asan_switch_stack s(stack.data(), stack.size());
             (*reinterpret_cast<F*>(g))();
-            return 0;
+            std::quick_exit(0);
         },
         stack.data() + stack.size(),
         SIGCHLD | CLONE_PTRACE, // NOLINT
@@ -458,8 +458,10 @@ std::string fork(F f)
         return "Unable to fork process";
     int status = -1;
     wait(&status);
-    if(status != 0)
-        return "Exited with " + std::to_string(status);
+    if(WIFSIGNALED(status))
+        return "Terminated with signal " + std::to_string(WTERMSIG(status));
+    if(not WIFEXITED(status))
+        return "Exited with " + std::to_string(WEXITSTATUS(status));
     return {};
 #else
     f();

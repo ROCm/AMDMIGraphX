@@ -9,7 +9,7 @@ struct test_scatter0 : verify_program<test_scatter0>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto *mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
         migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
         std::vector<int> vi = {1, 0, 2, 0, 2, 1};
@@ -18,9 +18,9 @@ struct test_scatter0 : verify_program<test_scatter0>
         auto pd = mm->add_parameter("data", sd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -1}}), pd, li, pu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -1}}), pd, li, pu);
         mm->add_return({r});
 
-		return p;
+        return p;
     }
 };

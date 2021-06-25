@@ -3685,7 +3685,7 @@ TEST_CASE(scatter_test)
         std::vector<float> vd(sd.elements(), 0.0f);
 
         migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+        std::vector<int> vi = {1, 0, -1, 0, 2, -2};
 
         migraphx::shape su{migraphx::shape::float_type, {2, 3}};
         std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};

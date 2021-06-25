@@ -172,6 +172,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_reduce.*')
         backend_test.include(r'.*test_ReLU*')
         backend_test.include(r'.*test_relu.*')
+        backend_test.include(r'.*test_scatter.*')
+        backend_test.include(r'.*test_Scatter.*')
         backend_test.include(r'.*test_selu.*')
         backend_test.include(r'.*test_shape.*')
         backend_test.include(r'.*test_Sigmoid*')
@@ -272,6 +274,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_mean_one_input_cpu')
         backend_test.exclude(r'test_mean_two_inputs_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
+        backend_test.exclude(r'test_scatternd_*')
 
         # all reduce ops have dynamic axes inputs
         backend_test.exclude(r'test_size_cpu')

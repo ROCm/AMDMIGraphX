@@ -460,10 +460,10 @@ std::string fork(F f)
         return "Unable to fork process";
     int status = -1;
     wait(&status);
-    if(WIFSIGNALED(status)) // NOLINT
+    if(WIFSIGNALED(status))                                                  // NOLINT
         return "Terminated with signal " + std::to_string(WTERMSIG(status)); // NOLINT
-    if(not WIFEXITED(status)) // NOLINT
-        return "Exited with " + std::to_string(WEXITSTATUS(status)); // NOLINT
+    if(not WIFEXITED(status))                                                // NOLINT
+        return "Exited with " + std::to_string(WEXITSTATUS(status));         // NOLINT
     return {};
 #else
     f();

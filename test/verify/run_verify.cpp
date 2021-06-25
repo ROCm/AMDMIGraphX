@@ -180,6 +180,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                 std::cout << tname << ":\n" << cp << std::endl;
                 std::cout << std::endl;
             }
+            EXPECT(passed);
         }
     }
     std::set_terminate(nullptr);

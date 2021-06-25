@@ -562,7 +562,8 @@ struct driver
         {
             failed.push_back(name);
             std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                      << color::reset << ": " << color::fg_yellow << msg << color::reset << std::endl;
+                      << color::reset << ": " << color::fg_yellow << msg << color::reset
+                      << std::endl;
         }
     }
 
@@ -607,12 +608,15 @@ struct driver
                 }
             }
         }
-        std::cout << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran" << color::reset << std::endl;
-        if (not failed.empty())
+        std::cout << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
+                  << color::reset << std::endl;
+        if(not failed.empty())
         {
-            std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size() << " tests failed" << color::reset << std::endl;
-            for(auto&& name:failed)
-                std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name << color::reset << std::endl;
+            std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
+                      << " tests failed" << color::reset << std::endl;
+            for(auto&& name : failed)
+                std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name
+                          << color::reset << std::endl;
             std::exit(1);
         }
     }
@@ -621,7 +625,7 @@ struct driver
         [](const std::string& name) -> std::vector<std::string> { return {name}; };
     std::vector<argument> arguments = {};
     std::vector<std::string> failed = {};
-    std::size_t ran = 0;
+    std::size_t ran                 = 0;
 };
 
 inline void run(int argc, const char* argv[])

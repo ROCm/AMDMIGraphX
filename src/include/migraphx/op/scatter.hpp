@@ -50,8 +50,8 @@ struct scatter
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx = idx;
-                    out_idx[axis] = indices[ind_s.index(idx)];
+                    auto out_idx                        = idx;
+                    out_idx[axis]                       = indices[ind_s.index(idx)];
                     output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
                 });
             });

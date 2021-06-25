@@ -191,13 +191,11 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] {
-            verify(p.name, p.get_program());
-        });
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program()); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
-        if (labels.count(name))
+        if(labels.count(name))
             return labels.at(name);
         return {name};
     };

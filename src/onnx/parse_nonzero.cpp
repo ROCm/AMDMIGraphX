@@ -31,7 +31,7 @@ struct parse_nonzero : op_parser<parse_nonzero>
                           std::vector<instruction_ref> args) const
     {
         migraphx::argument data_arg = args.back()->eval();
-        if (data_arg.empty())
+        if(data_arg.empty())
         {
             return info.add_instruction(make_op("nonzero"), args);
         }

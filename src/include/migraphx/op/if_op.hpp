@@ -35,14 +35,14 @@ struct if_op
             MIGRAPHX_THROW("IF: output shapes of submodules must be the same.");
         }
 
-        return out_shapes0.front();
+        return shape(out_shapes0);
     }
 
-    argument compute(
-        const std::vector<argument>& args,
-        const std::vector<module_ref>& mods,
-        const std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>& run) const
+    argument compute(const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& mods,
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         auto cond      = args.front().at<bool>();
         module_ref mod = cond ? mods[0] : mods[1];
@@ -63,7 +63,7 @@ struct if_op
                        [](auto&& name, auto&& arg) { return std::make_pair(name, arg); });
 
         auto results = run(mod, params);
-        return results[0];
+        return argument{results};
     }
 };
 

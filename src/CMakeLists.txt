@@ -30,6 +30,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     env.cpp
     generate.cpp
+    inline_module.cpp
     instruction.cpp
     load_save.cpp
     make_op.cpp
@@ -100,6 +101,7 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    get_tuple_elem
     greater
     gru
     identity

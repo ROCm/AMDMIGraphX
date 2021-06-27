@@ -52,6 +52,7 @@ def test_neg_int64():
     r = p.run(params)
     print(r)
 
+
 def test_nonzero_dynamic():
     p = migraphx.parse_onnx("nonzero_dynamic_test.onnx")
     print(p)
@@ -61,10 +62,12 @@ def test_nonzero_dynamic():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["data"] = np.array([1, 1, 0, 1]).reshape(shapes["data"].lens()).astype(np.bool)
+    params["data"] = np.array([1, 1, 0, 1]).reshape(
+        shapes["data"].lens()).astype(np.bool)
 
     r = p.run(params)
     print(r)
+
 
 def test_fp16_imagescaler():
     p = migraphx.parse_onnx("imagescaler_half_test.onnx")
@@ -112,4 +115,3 @@ test_neg_int64()
 test_fp16_imagescaler()
 test_if_pl()
 test_nonzero_dynamic()
-

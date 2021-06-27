@@ -144,8 +144,7 @@ struct hip_copy_from_gpu
         check_shapes{inputs, *this}.has(1, 2);
         return inputs.at(0);
     }
-    argument
-    compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
         if(args.size() == 1)
         {

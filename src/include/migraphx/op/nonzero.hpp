@@ -16,7 +16,7 @@ struct nonzero
 {
     std::string name() const { return "nonzero"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto elem_num                     = inputs[0].elements();

@@ -161,6 +161,7 @@ struct miopen_apply
         add_extend_op("leaky_relu");
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
+        add_extend_op("nonzero");
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("reduce_max");

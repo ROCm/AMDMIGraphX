@@ -290,6 +290,25 @@ TEST_CASE(lessorequal_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(nonzero_dynamic_test)
+{
+    migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
+    std::vector<char> data = {1, 1, 1, 0};
+
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 0, 1, 0, 1, 0};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p = migraphx::parse_onnx("resize_downsample_f_test.onnx");

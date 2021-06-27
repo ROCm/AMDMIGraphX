@@ -2524,6 +2524,18 @@ def no_pad_test():
 
 
 @onnx_test
+def nonzero_dynamic_test():
+    x = helper.make_tensor_value_info('data', TensorProto.BOOL, [2, 2])
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 3])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def nonzero_test():
     data1 = np.array([[1., 0.], [1., 1.]])
     data = helper.make_tensor(name='data',

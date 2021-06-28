@@ -2669,8 +2669,7 @@ TEST_CASE(not_test)
         auto result = p.eval({}).back();
         std::vector<char> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<bool> gold(data.size());
-        std::transform(data.begin(), data.end(), gold.begin(), [](float n) -> bool { return !n; });
+        std::vector<char> gold{1, 0, 0, 0};
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 

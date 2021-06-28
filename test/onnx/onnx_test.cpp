@@ -1396,17 +1396,25 @@ TEST_CASE(if_else_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    mm->add_literal(migraphx::literal(sc, {0}));
+    auto cond = mm->add_literal(migraphx::literal(sc, {0}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
-    mm->add_literal(s, ones);
+    auto l1                 = mm->add_literal(s, ones);
     std::vector<float> rand = {-0.583375, 0.633757, 0.0668345, -0.479422, -0.604634, 0.0388589};
     auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
 
-    mm->add_parameter("x", s);
-    auto y = mm->add_parameter("y", s);
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
 
-    auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
     std::ifstream ifs("if_else_test.onnx", std::ios::binary);
@@ -1418,7 +1426,6 @@ TEST_CASE(if_else_test)
     ifs.close();
 
     auto prog = migraphx::parse_onnx_buffer(onnx_buffer.data(), length, {});
-
     EXPECT(p == prog);
 }
 
@@ -1444,7 +1451,8 @@ TEST_CASE(if_literal_test)
     else_mod->add_return({l2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_literal_test.onnx");
     EXPECT(p == prog);
@@ -1483,7 +1491,8 @@ TEST_CASE(if_param_test)
     else_mod->add_return({a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_param_test.onnx");
     EXPECT(p == prog);
@@ -1516,7 +1525,9 @@ TEST_CASE(if_pl_test)
     else_mod->add_return({l2, a2});
 
     auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+    mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_pl_test.onnx");
     EXPECT(p == prog);
@@ -1527,21 +1538,70 @@ TEST_CASE(if_then_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    mm->add_literal(migraphx::literal(sc, {1}));
+    auto cond = mm->add_literal(migraphx::literal(sc, {1}));
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     std::vector<float> ones(s.elements(), 1.0f);
     auto l1                 = mm->add_literal(s, ones);
     std::vector<float> rand = {-1.26487, -2.42279, 0.990835, 1.63072, 0.812238, -0.174946};
-    mm->add_literal(s, rand);
+    auto l2                 = mm->add_literal(s, rand);
+    auto x                  = mm->add_parameter("x", s);
+    auto y                  = mm->add_parameter("y", s);
 
-    auto x = mm->add_parameter("x", s);
-    mm->add_parameter("y", s);
+    auto* then_mod = p.create_module("If_5_if");
+    auto rt        = then_mod->add_instruction(migraphx::make_op("add"), x, l1);
+    then_mod->add_return({rt});
 
-    auto r = mm->add_instruction(migraphx::make_op("add"), x, l1);
+    auto* else_mod = p.create_module("If_5_else");
+    auto re        = else_mod->add_instruction(migraphx::make_op("mul"), y, l2);
+    else_mod->add_return({re});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("if_then_test.onnx");
+    EXPECT(p == prog);
+}
 
+TEST_CASE(if_tuple_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {1}};
+    auto l1 = mm->add_literal(migraphx::literal(sd, {1}));
+    auto l2 = mm->add_literal(migraphx::literal(sd, {2}));
+    auto l3 = mm->add_literal(migraphx::literal(sd, {3}));
+    migraphx::shape sx{migraphx::shape::float_type, {1, 4}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape sc{migraphx::shape::bool_type};
+    auto cond = mm->add_parameter("cond", sc);
+    auto x    = mm->add_parameter("x", sx);
+    auto y    = mm->add_parameter("y", sy);
+
+    auto* then_mod = p.create_module("If_6_if");
+    auto m1        = then_mod->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
+    auto add0 = then_mod->add_instruction(migraphx::make_op("add"), x, m1);
+    auto m2   = then_mod->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
+    auto mul0 = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
+    then_mod->add_return({add0, mul0});
+
+    auto* else_mod = p.create_module("If_6_else");
+    auto me1       = else_mod->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
+    auto mul1 = else_mod->add_instruction(migraphx::make_op("mul"), x, me1);
+    auto me2  = else_mod->add_instruction(
+        migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
+    auto add1 = else_mod->add_instruction(migraphx::make_op("add"), y, me2);
+    else_mod->add_return({mul1, add1});
+
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    auto r1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+    mm->add_return({r0, r1});
+
+    auto prog = migraphx::parse_onnx("if_tuple_test.onnx");
     EXPECT(p == prog);
 }
 

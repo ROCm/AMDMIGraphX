@@ -440,7 +440,7 @@ struct cpu_apply
         }
     }
 
-    instruction_ref apply_pow(instruction_ref ins)
+    instruction_ref apply_pow(instruction_ref ins) const
     {
         auto beta = read_scalar<float>(ins->inputs()[1]);
         if(beta.empty())
@@ -451,7 +451,7 @@ struct cpu_apply
                        {ins->inputs().front()});
     }
 
-    instruction_ref apply_pooling(instruction_ref ins)
+    instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = ins->get_operator();
         auto v    = op.to_value();
@@ -479,13 +479,13 @@ struct cpu_apply
         return {r.at<T>()};
     }
 
-    instruction_ref replace(instruction_ref ins, const operation& op)
+    instruction_ref replace(instruction_ref ins, const operation& op) const
     {
         return replace(ins, op, ins->inputs());
     }
 
     instruction_ref
-    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs) const
     {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);

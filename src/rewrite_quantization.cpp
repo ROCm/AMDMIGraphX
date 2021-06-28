@@ -69,7 +69,8 @@ void apply_dequantizelinear(module& m, instruction_ref ins)
         x = m.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
     }
 
-    auto dequant_input = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
+    auto dequant_input =
+        m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
     m.replace_instruction(ins, make_op("mul"), dequant_input, x_scale);
 }
 

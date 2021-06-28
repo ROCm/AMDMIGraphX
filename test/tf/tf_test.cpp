@@ -16,7 +16,6 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/slice.hpp>
 
-
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"

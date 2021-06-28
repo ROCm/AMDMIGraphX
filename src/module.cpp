@@ -150,14 +150,7 @@ void module::assign(const module& m)
             }
             else
             {
-                if(module_args.empty())
-                {
-                    copy_ins = add_instruction(ins->get_operator(), copy_inputs);
-                }
-                else
-                {
-                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
-                }
+                copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }
 

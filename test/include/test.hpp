@@ -452,7 +452,7 @@ struct asan_switch_stack
 }
 
 #ifdef __linux__
-extern "C" __attribute__((weak)) void __gcov_flush() {}
+extern "C" __attribute__((weak)) void __gcov_flush() {} // NOLINT
 #endif
 
 template <class F>

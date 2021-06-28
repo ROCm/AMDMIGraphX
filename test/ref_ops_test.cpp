@@ -1,5 +1,4 @@
 #include <iostream>
-#include <math.h>
 #include <vector>
 #include <cmath>
 #include <migraphx/literal.hpp>
@@ -2163,11 +2162,10 @@ TEST_CASE(less_test)
     std::vector<bool> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<bool> gold(data1.size());
-    std::transform(data1.begin(),
-                   data1.end(),
-                   data2.begin(),
-                   gold.begin(),
-                   [](const float& n1, const float& n2) -> bool { return n1 < n2; });
+    std::transform(
+        data1.begin(), data1.end(), data2.begin(), gold.begin(), [](float n1, float n2) -> bool {
+            return n1 < n2;
+        });
     EXPECT(results_vector == gold);
 }
 
@@ -2204,11 +2202,10 @@ TEST_CASE(logical_and_test)
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<bool> gold(data2.size());
-    std::transform(data1.begin(),
-                   data1.end(),
-                   data2.begin(),
-                   gold.begin(),
-                   [](const bool n1, const bool n2) -> bool { return n1 && n2; });
+    std::transform(
+        data1.begin(), data1.end(), data2.begin(), gold.begin(), [](bool n1, bool n2) -> bool {
+            return n1 and n2;
+        });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -2227,11 +2224,10 @@ TEST_CASE(logical_or_test)
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<bool> gold(data1.size());
-    std::transform(data1.begin(),
-                   data1.end(),
-                   data2.begin(),
-                   gold.begin(),
-                   [](const bool n1, const bool n2) -> bool { return n1 || n2; });
+    std::transform(
+        data1.begin(), data1.end(), data2.begin(), gold.begin(), [](bool n1, bool n2) -> bool {
+            return n1 or n2;
+        });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -2634,11 +2630,10 @@ TEST_CASE(mul_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(data1.size());
-    std::transform(data1.begin(),
-                   data1.end(),
-                   data2.begin(),
-                   gold.begin(),
-                   [](const float& n1, const float& n2) -> float { return n1 * n2; });
+    std::transform(
+        data1.begin(), data1.end(), data2.begin(), gold.begin(), [](float n1, float n2) -> float {
+            return n1 * n2;
+        });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -2675,8 +2670,7 @@ TEST_CASE(not_test)
         std::vector<char> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<bool> gold(data.size());
-        std::transform(
-            data.begin(), data.end(), gold.begin(), [](const float& n) -> bool { return !n; });
+        std::transform(data.begin(), data.end(), gold.begin(), [](float n) -> bool { return !n; });
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 
@@ -2693,8 +2687,7 @@ TEST_CASE(not_test)
         std::vector<char> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<bool> gold(data.size());
-        std::transform(
-            data.begin(), data.end(), gold.begin(), [](const bool n) -> bool { return !n; });
+        std::transform(data.begin(), data.end(), gold.begin(), [](bool n) -> bool { return !n; });
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 }

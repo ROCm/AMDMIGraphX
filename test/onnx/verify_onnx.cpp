@@ -483,7 +483,7 @@ TEST_CASE(slice_step_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {13, 11};
+    std::vector<float> gold = {14, 12};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

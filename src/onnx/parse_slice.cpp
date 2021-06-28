@@ -93,17 +93,17 @@ struct parse_slice : op_parser<parse_slice>
         }
 
         auto ins = info.add_instruction(op, args[0]);
+        if(not raxes.empty())
+            ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
         if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
         {
             std::vector<int64_t> nsteps;
             std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
                 return std::abs(s);
             });
-            ins =
-                info.add_instruction(make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+            return ins = info.add_instruction(
+                       make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
         }
-        if(not raxes.empty())
-            return info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
         else
             return ins;
     }

@@ -3341,10 +3341,11 @@ TEST_CASE(slice_5arg_step_test)
         migraphx::make_op("slice",
                           {{"axes", {-1, -2}}, {"starts", {-4, -3}}, {"ends", {2147483647, -1}}}),
         l0);
+    auto reverse_out =
+        mm->add_instruction(migraphx::make_op("reverse", {{"axes", {-1}}}), slice_out);
     auto step_out = mm->add_instruction(
-        migraphx::make_op("step", {{"axes", {-1, -2}}, {"steps", {2, 2}}}), slice_out);
-    auto ret = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {-1}}}), step_out);
-    mm->add_return({ret});
+        migraphx::make_op("step", {{"axes", {-1, -2}}, {"steps", {2, 2}}}), reverse_out);
+    mm->add_return({step_out});
 
     auto prog = migraphx::parse_onnx("slice_5arg_step_test.onnx");
 

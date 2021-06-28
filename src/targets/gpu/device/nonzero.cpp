@@ -28,7 +28,7 @@ argument nonzero(hipStream_t stream,
             (void)hipMemset(idx_ptr, 0, sizeof(int));
             gs_launch(stream, 1, 1)([=](auto) __device__ {
                 int index = 0;
-                for (std::size_t i = 0; i < elem_num; ++i)
+                for(std::size_t i = 0; i < elem_num; ++i)
                     if(not float_equal(input_ptr[i], 0))
                     {
                         out_ptr[index++] = i;
@@ -45,7 +45,7 @@ argument nonzero(hipStream_t stream,
         hip_visit_all(arg_data.get_shape())([&](auto si) {
             gs_launch(stream, nonzero_num)([=](auto i) __device__ {
                 auto index = si.multi(out_ptr[i]);
-                for (std::size_t j = 0; j < index.size(); ++j)
+                for(std::size_t j = 0; j < index.size(); ++j)
                 {
                     out_ptr[j * nonzero_num + i] = index[j];
                 }

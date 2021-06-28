@@ -1,3 +1,4 @@
+#include "migraphx/gpu/device/visit.hpp"
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/nonzero.hpp>
@@ -5,6 +6,7 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/float_equal.hpp>
+#include <migraphx/gpu/device/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -18,16 +20,20 @@ argument nonzero(hipStream_t stream,
 {
     auto elem_num = arg_data.get_shape().elements();
     int nonzero_num;
-    arg_idx.visit([&](auto idx) {
+    visit_all(result, arg_idx)([&](auto output, auto idx) {
         auto* idx_ptr = reinterpret_cast<int*>(device_cast(idx.data()));
+        auto* out_ptr = device_cast(output.data());
         arg_data.visit([&](auto input) {
             const auto* input_ptr = device_cast(input.data());
             (void)hipMemset(idx_ptr, 0, sizeof(int));
-            gs_launch(stream, elem_num)([=](auto i) __device__ {
-                if(not float_equal(input_ptr[i], 0))
-                {
-                    atomicAdd(idx_ptr, 1);
-                }
+            gs_launch(stream, 1, 1)([=](auto) __device__ {
+                int index = 0;
+                for (std::size_t i = 0; i < elem_num; ++i)
+                    if(not float_equal(input_ptr[i], 0))
+                    {
+                        out_ptr[index++] = i;
+                    }
+                *idx_ptr = index;
             });
         });
         (void)hipDeviceSynchronize();
@@ -35,20 +41,14 @@ argument nonzero(hipStream_t stream,
     });
 
     result.visit([&](auto output) {
-        hip_visit_all(arg_data, arg_data.get_shape())([&](auto input, auto si) {
-            const auto* input_ptr = device_cast(input.data());
-            auto* output_ptr      = device_cast(output.data());
-            gs_launch(stream, 1, 1)([=](auto) __device__ {
-                // this process have to be serial, so only use the first thread
-                std::size_t out_idx = 0;
-                for(std::size_t i = 0; i < elem_num; ++i)
-                    if(not float_equal(input_ptr[i], 0))
-                    {
-                        auto idx = si.multi(i);
-                        for(std::size_t j = 0; j < idx.size(); ++j)
-                            output_ptr[j * nonzero_num + out_idx] = idx[j];
-                        ++out_idx;
-                    }
+        auto* out_ptr = device_cast(output.data());
+        hip_visit_all(arg_data.get_shape())([&](auto si) {
+            gs_launch(stream, nonzero_num)([=](auto i) __device__ {
+                auto index = si.multi(out_ptr[i]);
+                for (std::size_t j = 0; j < index.size(); ++j)
+                {
+                    out_ptr[j * nonzero_num + i] = index[j];
+                }
             });
         });
     });

@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument nonzero(hipStream_t stream, argument result, argument arg);
+argument nonzero(hipStream_t stream, argument result, argument arg_idx, argument arg_data);
 
 } // namespace device
 } // namespace gpu

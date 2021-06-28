@@ -161,7 +161,7 @@ struct miopen_apply
         add_extend_op("leaky_relu");
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
-        add_extend_op("nonzero");
+        // add_extend_op("nonzero");
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("reduce_max");
@@ -175,14 +175,15 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("softmax");
 
-        add_gemm_op<op::dot>("dot");
-        add_gemm_op<op::quant_dot>("quant_dot");
+        add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
-        add_quant_convolution_op();
-        add_batch_norm_inference_op();
-        add_neg_op();
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
         add_if_op();
+        add_neg_op();
+        add_nonzero_op();
+        add_quant_convolution_op();
     }
 
     void copy_params()
@@ -458,6 +459,20 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+        });
+    }
+
+    void add_nonzero_op()
+    {
+        apply_map.emplace("nonzero", [=](instruction_ref ins) {
+            auto s = ins->get_shape();
+            auto inputs = ins->inputs();
+            shape s_idx{shape::int32_type, {1}};
+            auto idx = mod->insert_instruction(
+                        ins, make_op("hip::allocate", {{"shape", to_value(s_idx)}}));
+            auto output = insert_allocation(ins, s);
+            return mod->replace_instruction(
+                ins, make_op("gpu::nonzero"), ins->inputs().front(), idx, output);
         });
     }
 };

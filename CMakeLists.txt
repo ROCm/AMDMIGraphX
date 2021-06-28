@@ -148,6 +148,7 @@ rocm_enable_clang_tidy(
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers
+        -*-narrowing-conversions
         -*-non-private-member-variables-in-classes
         -*-use-auto
         -*-use-emplace

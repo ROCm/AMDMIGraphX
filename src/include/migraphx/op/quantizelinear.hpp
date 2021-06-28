@@ -22,14 +22,6 @@ namespace op {
 
 struct quantizelinear
 {
-    int axis = 1;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
     std::string name() const { return "quantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -3282,7 +3282,7 @@ TEST_CASE(slice_5arg_step_test)
                           {{"axes", {-1, -2}}, {"starts", {-4, -3}}, {"ends", {2147483647, -1}}}),
         l0);
     auto step_out = mm->add_instruction(
-        migraphx::make_op("step", {{"axes", {1, 0}}, {"steps", {2, 2}}}), slice_out);
+        migraphx::make_op("step", {{"axes", {-1, -2}}, {"steps", {2, 2}}}), slice_out);
     auto ret = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {-1}}}), step_out);
     mm->add_return({ret});
 

@@ -459,8 +459,8 @@ template <class F>
 std::string fork(F f)
 {
 #ifdef __linux__
-    static std::array<char, 8*1024*1024> stack = {};
-    int pid = clone(
+    static std::array<char, 8 * 1024 * 1024> stack = {};
+    int pid                                        = clone(
         +[](void* g) -> int {
             asan_switch_stack s(stack.data(), stack.size());
             (*reinterpret_cast<F*>(g))();
@@ -474,7 +474,7 @@ std::string fork(F f)
     if(pid == -1)
         return "Unable to fork process";
     int status = -1;
-    if (wait(&status) == -1)
+    if(wait(&status) == -1)
         return "Wait error";
     if(WIFSIGNALED(status))                                                  // NOLINT
         return "Terminated with signal " + std::to_string(WTERMSIG(status)); // NOLINT

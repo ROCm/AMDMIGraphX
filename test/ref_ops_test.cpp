@@ -1,4 +1,5 @@
 #include <iostream>
+#include <math.h>
 #include <vector>
 #include <cmath>
 #include <migraphx/literal.hpp>
@@ -51,7 +52,7 @@ TEST_CASE(acos_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acos(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -69,7 +70,7 @@ TEST_CASE(acosh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acosh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return acoshf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -302,7 +303,7 @@ TEST_CASE(asin_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return asin(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return asinf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -320,7 +321,7 @@ TEST_CASE(asinh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return asinh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return asinhf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -338,7 +339,7 @@ TEST_CASE(atan_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return atan(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return atanf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -356,7 +357,7 @@ TEST_CASE(atanh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return atanh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return atanhf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1113,7 +1114,7 @@ TEST_CASE(cos_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return cos(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return cosf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1131,7 +1132,7 @@ TEST_CASE(cosh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return cosh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return coshf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1330,7 +1331,7 @@ TEST_CASE(erf_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return erf(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return erff(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -1347,7 +1348,7 @@ TEST_CASE(exp_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return exp(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return expf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -2180,7 +2181,7 @@ TEST_CASE(log_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return log(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return logf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -2244,7 +2245,7 @@ TEST_CASE(logical_xor_test)
     auto result = p.eval({}).back();
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold = {0, 1, 1, 0};
+    std::vector<bool> gold = {false, true, true, false};
     std::transform(
         data1.begin(), data1.end(), data2.begin(), gold.begin(), [](bool n1, bool n2) -> bool {
             return n1 ^ n2;
@@ -2669,9 +2670,9 @@ TEST_CASE(not_test)
         auto result = p.eval({}).back();
         std::vector<char> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<char> gold(data.size());
+        std::vector<bool> gold(data.size());
         std::transform(
-            data.begin(), data.end(), gold.begin(), [](const float& n) -> char { return !n; });
+            data.begin(), data.end(), gold.begin(), [](const float& n) -> bool { return !n; });
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 
@@ -3771,7 +3772,7 @@ TEST_CASE(sin_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sin(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sinf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -3789,7 +3790,7 @@ TEST_CASE(sinh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sinh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sinhf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -3945,7 +3946,7 @@ TEST_CASE(sqrt_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sqrt(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sqrtf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -4055,7 +4056,7 @@ TEST_CASE(tan_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
-    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return tan(n); });
+    std::transform(gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return tanf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
@@ -4073,7 +4074,7 @@ TEST_CASE(tanh_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = data;
     std::transform(
-        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return tanh(n); });
+        gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return tanhf(n); });
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 

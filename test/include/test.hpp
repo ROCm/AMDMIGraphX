@@ -450,15 +450,22 @@ struct asan_switch_stack
     throw std::runtime_error("FAILED");
 #endif
 }
+
+#ifdef __linux__
+extern "C" __attribute__((weak)) void __gcov_flush() {}
+#endif
+
 template <class F>
 std::string fork(F f)
 {
 #ifdef __linux__
-    static std::vector<char> stack(8 * 1024 * 1024);
+    static std::array<char, 8*1024*1024> stack = {};
     int pid = clone(
         +[](void* g) -> int {
             asan_switch_stack s(stack.data(), stack.size());
             (*reinterpret_cast<F*>(g))();
+            reinterpret_cast<F*>(g)->~F();
+            __gcov_flush();
             std::quick_exit(0);
         },
         stack.data() + stack.size(),
@@ -467,7 +474,8 @@ std::string fork(F f)
     if(pid == -1)
         return "Unable to fork process";
     int status = -1;
-    wait(&status);
+    if (wait(&status) == -1)
+        return "Wait error";
     if(WIFSIGNALED(status))                                                  // NOLINT
         return "Terminated with signal " + std::to_string(WTERMSIG(status)); // NOLINT
     if(not WIFEXITED(status))                                                // NOLINT

@@ -1720,7 +1720,8 @@ TEST_CASE(if_literal_test)
         else_mod->add_return({l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     };
@@ -1782,7 +1783,8 @@ TEST_CASE(if_param_test)
         else_mod->add_return({a2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond, x, y}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     };
@@ -1848,7 +1850,8 @@ TEST_CASE(if_pl_test)
 
         auto ret     = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
         auto outline = mm->add_outline(s);
-        mm->add_return({outline, ret});
+        auto r = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({outline, r});
 
         return p;
     };

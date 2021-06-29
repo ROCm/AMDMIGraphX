@@ -62,22 +62,16 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
-    auto x       = ins->inputs()[0];
+    auto x       = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[0]);
     auto x_scale = ins->inputs()[1];
 
     if(ins->inputs().size() == 3)
     {
-        auto x_zero_point     = ins->inputs()[2];
-        auto zero_point_int32 = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::int32_type}}), x_zero_point);
-        auto sub_zp_int32 =
-            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::int32_type}}), x);
-        x = m.insert_instruction(ins, make_op("sub"), sub_zp_int32, zero_point_int32);
+        auto x_zero_point = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+        x = m.insert_instruction(ins, make_op("sub"), x, x_zero_point);
     }
 
-    auto dequant_input =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
-    m.replace_instruction(ins, make_op("mul"), dequant_input, x_scale);
+    m.replace_instruction(ins, make_op("mul"), x, x_scale);
 }
 
 void rewrite_quantization::apply(module& m) const

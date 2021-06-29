@@ -946,19 +946,15 @@ TEST_CASE(dequantizelinear_zero_point_test)
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l2);
     l2_mbcast = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
     l0 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
 
     auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
-    auto dequant = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-        sub);
-    mm->add_instruction(migraphx::make_op("mul"), dequant, l1_mbcast);
+    mm->add_instruction(migraphx::make_op("mul"), sub, l1_mbcast);
 
     auto prog = optimize_onnx("dequantizelinear_zero_point_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
@@ -979,19 +975,15 @@ migraphx::program make_dequantizelinear_axis_prog()
         migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l2);
     l2_bcast = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
     l0 = mm->add_instruction(
         migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
     auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
-    auto dequant = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-        sub);
 
-    mm->add_instruction(migraphx::make_op("mul"), dequant, l1_bcast);
+    mm->add_instruction(migraphx::make_op("mul"), sub, l1_bcast);
     return p;
 }
 

@@ -278,24 +278,6 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void print(std::ostream& os, const std::vector<std::size_t>& dims)
-{
-    os << "{";
-    for(std::size_t i = 0; i < dims.size(); ++i)
-    {
-        if(i != 0)
-            os << ", ";
-        os << dims[i];
-    }
-    os << "}";
-}
-
-std::ostream& operator<<(std::ostream& os, const std::vector<std::size_t>& dims)
-{
-    print(os, dims);
-    return os;
-}
-
 void onnx_parser::parse_graph(module* mod,
                               const onnx::GraphProto& graph,
                               std::unordered_map<std::string, instruction_ref> instructions,

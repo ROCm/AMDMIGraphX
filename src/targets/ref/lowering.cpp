@@ -981,32 +981,6 @@ struct ref_apply
         else if(op.mode == "average")
             mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
-
-    // void apply_loop(instruction_ref ins) const
-    // {
-    //     auto&& op                 = any_cast<op::loop>(ins->get_operator());
-    //     auto max_iter_num         = op.max_iter_num;
-    //     auto mod                  = ins->module_inputs().front();
-    //     std::size_t mod_input_num = mod->get_parameter_names().size();
-    //     const auto& ins_s         = ins->get_shape();
-    //     if(ins_s.type() != shape::tuple_type)
-    //     {
-    //         MIGRAPHX_THROW("Loop output shape is not a tuple type!");
-    //     }
-    //     auto vec_s = ins_s.sub_shapes();
-    //     vec_s.erase(vec_s.begin(), vec_s.begin() + mod_input_num);
-    //     std::vector<argument> arg_outs;
-    //     for(const auto& s : vec_s)
-    //     {
-    //         argument arg_out(s);
-    //         for(int64_t i = 0; i < max_iter_num; ++i)
-    //         {
-    //             mod->add_instruction(
-    //                 ins, make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), )
-    //         }
-    //         arg_outs.push_back({s});
-    //     }
-    // }
 };
 
 void lowering::apply(module& m) const { ref_apply{&m}.apply(); }

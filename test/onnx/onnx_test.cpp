@@ -953,7 +953,7 @@ TEST_CASE(dequantizelinear_zero_point_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
 
-    auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
+    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, l2_mbcast);
     mm->add_instruction(migraphx::make_op("mul"), sub, l1_mbcast);
 
     auto prog = optimize_onnx("dequantizelinear_zero_point_test.onnx", true);
@@ -981,7 +981,7 @@ migraphx::program make_dequantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto sub     = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
+    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, l2_bcast);
 
     mm->add_instruction(migraphx::make_op("mul"), sub, l1_bcast);
     return p;

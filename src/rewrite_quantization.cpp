@@ -62,12 +62,14 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
-    auto x       = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[0]);
+    auto x = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[0]);
     auto x_scale = ins->inputs()[1];
 
     if(ins->inputs().size() == 3)
     {
-        auto x_zero_point = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+        auto x_zero_point = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
         x = m.insert_instruction(ins, make_op("sub"), x, x_zero_point);
     }
 

@@ -452,7 +452,7 @@ struct asan_switch_stack
 }
 
 #ifdef __linux__
-extern "C" __attribute__((weak)) void __gcov_flush() {} // NOLINT
+extern "C" void __gcov_flush() __attribute__((weak)); // NOLINT
 #endif
 
 template <class F>
@@ -465,7 +465,8 @@ std::string fork(F f)
             asan_switch_stack s(stack.data(), stack.size());
             (*reinterpret_cast<F*>(g))();
             reinterpret_cast<F*>(g)->~F();
-            __gcov_flush();
+            if (__gcov_flush)
+                __gcov_flush();
             std::quick_exit(0);
         },
         stack.data() + stack.size(),

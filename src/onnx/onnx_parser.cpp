@@ -207,14 +207,13 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
     return op;
 }
 
-void onnx_parser::parse_undefined(
-    module* mod,
-    const std::string& name,
-    std::unordered_map<std::string, instruction_ref>& instructions)
+void onnx_parser::parse_undefined(module* mod,
+                                  const std::string& name,
+                                  std::unordered_map<std::string, instruction_ref>& instructions)
 {
     if(!contains(instructions, name))
     {
-        auto ins = mod->add_instruction(make_op("undefined"));
+        auto ins           = mod->add_instruction(make_op("undefined"));
         instructions[name] = ins;
     }
 }
@@ -297,11 +296,10 @@ std::ostream& operator<<(std::ostream& os, const std::vector<std::size_t>& dims)
     return os;
 }
 
-void onnx_parser::parse_graph(
-    module* mod,
-    const onnx::GraphProto& graph,
-    std::unordered_map<std::string, instruction_ref> instructions,
-    bool use_prefix)
+void onnx_parser::parse_graph(module* mod,
+                              const onnx::GraphProto& graph,
+                              std::unordered_map<std::string, instruction_ref> instructions,
+                              bool use_prefix)
 {
     std::unordered_map<std::string, instruction_ref> mod_instructions;
     for(auto&& f : graph.initializer())
@@ -383,12 +381,11 @@ void onnx_parser::parse_graph(
         }
 
         output_num = std::min<std::size_t>(output_num, result.size());
-        std::transform(
-            node.output().begin(),
-            node.output().begin() + output_num,
-            result.begin(),
-            std::inserter(instructions, instructions.end()),
-            [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+        std::transform(node.output().begin(),
+                       node.output().begin() + output_num,
+                       result.begin(),
+                       std::inserter(instructions, instructions.end()),
+                       [](auto&& x, auto&& y) { return std::make_pair(x, y); });
     }
 
     // Find instructions corresponding to the output

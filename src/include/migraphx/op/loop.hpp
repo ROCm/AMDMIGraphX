@@ -139,8 +139,17 @@ struct loop
             }
         }
 
+        // adjust scan output shapes
+        std::transform(scan_outputs.begin(), scan_outputs.end(), scan_outputs.begin(), [&](auto arg_o) {
+            auto s = arg_o.get_shape();
+            auto lens = s.lens();
+            lens[0] = static_cast<std::size_t>(iter);
+            return arg_o.reshape({s.type(), lens});
+        });
+
         // copy loop carried dependency to final output
         std::vector<argument> outputs(in_args.begin() + 2, in_args.end());
+        // append scan outputs
         outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
 
         return argument{outputs};

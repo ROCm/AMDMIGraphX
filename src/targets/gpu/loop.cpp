@@ -105,12 +105,13 @@ hip_loop::compute(const shape&,
     std::vector<argument> scan_outputs(out_args.begin() + dep_num, out_args.end());
 
     // adjust scan output shapes
-    std::transform(out_args.begin() + dep_num, out_args.end(), out_args.begin() + dep_num, [&](auto arg_o) {
-        auto s = arg_o.get_shape();
-        auto lens = s.lens();
-        lens[0] = static_cast<std::size_t>(iter);
-        return arg_o.reshape({s.type(), lens});
-    });
+    std::transform(
+        out_args.begin() + dep_num, out_args.end(), out_args.begin() + dep_num, [&](auto arg_o) {
+            auto s    = arg_o.get_shape();
+            auto lens = s.lens();
+            lens[0]   = static_cast<std::size_t>(iter);
+            return arg_o.reshape({s.type(), lens});
+        });
 
     return argument(out_args);
 }

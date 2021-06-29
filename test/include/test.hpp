@@ -465,7 +465,7 @@ std::string fork(F f)
             asan_switch_stack s(stack.data(), stack.size());
             (*reinterpret_cast<F*>(g))();
             reinterpret_cast<F*>(g)->~F();
-            if (__gcov_flush)
+            if(__gcov_flush)
                 __gcov_flush();
             std::quick_exit(0);
         },

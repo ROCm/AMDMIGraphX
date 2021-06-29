@@ -11,6 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
+    assert(ins->name() == "quantizelinear");
     auto x       = ins->inputs()[0];
     auto y_scale = ins->inputs()[1];
 
@@ -24,6 +25,10 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     auto max_arg = m.add_literal(static_cast<int>(max_quant));
     auto min_arg = m.add_literal(static_cast<int>(min_quant));
 
+    if (x->get_shape().type() != y_scale->get_shape().type())
+    {
+        x = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
+    }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
     auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
     add_zero_point      = m.insert_instruction(
@@ -56,6 +61,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
+    assert(ins->name() == "dequantizelinear");
     auto x       = ins->inputs()[0];
     auto x_scale = ins->inputs()[1];
 

@@ -2,7 +2,6 @@
 #include <fstream>
 #include <vector>
 #include <migraphx/literal.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -12,6 +11,12 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/pad.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/lrn.hpp>
+#include <migraphx/op/reshape.hpp>
+#include <migraphx/op/unknown.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -2421,6 +2426,37 @@ TEST_CASE(quantizelinear_test)
         clip);
 
     auto prog = optimize_onnx("quantizelinear_test.onnx", true);
+    EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(quantizelinear_int32_test)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto l0      = mm->add_parameter("0", {migraphx::shape::int32_type, {5}});
+    auto l1      = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
+    auto min_val = mm->add_literal(0);
+    auto max_val = mm->add_literal(255);
+    auto l1_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
+    l0 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}), l0);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    round      = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
+        round);
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), max_val);
+    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_val, max_val);
+    mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
+        clip);
+
+    auto prog = optimize_onnx("quantizelinear_int32_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
 

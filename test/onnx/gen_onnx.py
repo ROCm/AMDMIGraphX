@@ -2780,6 +2780,21 @@ def quantizelinear_test():
 
 
 @onnx_test
+def quantizelinear_int32_test():
+    arg0 = helper.make_tensor_value_info('0', TensorProto.INT32, [5])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QuantizeLinear',
+        inputs=['0', '1'],
+        outputs=['out'],
+    )
+
+    return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test
 def quantizelinear_zero_point_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])

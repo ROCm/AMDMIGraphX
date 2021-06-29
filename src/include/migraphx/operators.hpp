@@ -26,7 +26,6 @@
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
 #include <migraphx/op/deconvolution.hpp>
-#include <migraphx/op/dequantizelinear.hpp>
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
@@ -65,7 +64,6 @@
 #include <migraphx/op/prelu.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/quantizelinear.hpp>
 #include <migraphx/op/recip.hpp>
 #include <migraphx/op/reduce_max.hpp>
 #include <migraphx/op/reduce_mean.hpp>

@@ -2439,7 +2439,10 @@ TEST_CASE(quantizelinear_int32_test)
     auto max_val = mm->add_literal(255);
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
-    l0 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}), l0);
+    l0 = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+        l0);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto round = mm->add_instruction(migraphx::make_op("round"), div);
     round      = mm->add_instruction(

@@ -25,7 +25,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     auto max_arg = m.add_literal(static_cast<int>(max_quant));
     auto min_arg = m.add_literal(static_cast<int>(min_quant));
 
-    if (x->get_shape().type() != y_scale->get_shape().type())
+    if(x->get_shape().type() != y_scale->get_shape().type())
     {
         x = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
     }

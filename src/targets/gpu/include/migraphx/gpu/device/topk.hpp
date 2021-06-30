@@ -10,7 +10,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument topk(hipStream_t stream, argument val_res, argument ind_res, argument arg, int64_t k, int64_t axis, bool largest);
+argument topk(hipStream_t stream,
+              argument val_res,
+              argument ind_res,
+              argument arg,
+              int64_t k,
+              int64_t axis,
+              bool largest);
 
 } // namespace device
 } // namespace gpu

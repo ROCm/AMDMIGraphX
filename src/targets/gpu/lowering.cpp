@@ -465,10 +465,10 @@ struct miopen_apply
     {
         apply_map.emplace("top", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
-            auto s = ins->get_shape();
-            auto ss = s.sub_shapes();
-            auto out_val = insert_allocation(ins, ss.front());
-            auto out_ind = insert_allocation(ins, ss.back());
+            auto s                              = ins->get_shape();
+            auto ss                             = s.sub_shapes();
+            auto out_val                        = insert_allocation(ins, ss.front());
+            auto out_ind                        = insert_allocation(ins, ss.back());
             inputs.push_back(out_ind);
             inputs.push_back(out_val);
 

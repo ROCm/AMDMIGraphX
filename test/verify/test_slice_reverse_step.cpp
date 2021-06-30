@@ -15,10 +15,10 @@ struct test_slice_reverse_step : verify_program<test_slice_reverse_step>
         auto slice_out = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 2}}, {"ends", {2, -1}}}),
             x);
-        auto step_out = mm->add_instruction(
-            migraphx::make_op("reverse", {{"axes", {0, 1}}}), slice_out);
-        mm->add_instruction(
-            migraphx::make_op("step", {{"axes", {0, 1}}, {"steps", {2, 2}}}), step_out);
+        auto step_out =
+            mm->add_instruction(migraphx::make_op("reverse", {{"axes", {0, 1}}}), slice_out);
+        mm->add_instruction(migraphx::make_op("step", {{"axes", {0, 1}}, {"steps", {2, 2}}}),
+                            step_out);
         return p;
     }
 };

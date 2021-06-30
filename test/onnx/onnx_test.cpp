@@ -2394,19 +2394,19 @@ TEST_CASE(prelu_brcst_test)
 TEST_CASE(quantizelinear_test)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto l0      = mm->add_parameter("0", {migraphx::shape::float_type, {5}});
-    auto l1      = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {5}});
+    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s = round->get_shape();
+    auto s     = round->get_shape();
     std::vector<int> min_data(s.elements(), 0);
     std::vector<int> max_data(s.elements(), 255);
     auto min_arg = mm->add_literal(s, min_data);
     auto max_arg = mm->add_literal(s, max_data);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
+    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -2419,9 +2419,9 @@ TEST_CASE(quantizelinear_test)
 TEST_CASE(quantizelinear_int32_test)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto l0      = mm->add_parameter("0", {migraphx::shape::int32_type, {5}});
-    auto l1      = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::int32_type, {5}});
+    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
     l0 = mm->add_instruction(
@@ -2430,12 +2430,12 @@ TEST_CASE(quantizelinear_int32_test)
         l0);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s = round->get_shape();
+    auto s     = round->get_shape();
     std::vector<int> min_data(s.elements(), 0);
     std::vector<int> max_data(s.elements(), 255);
     auto min_arg = mm->add_literal(s, min_data);
     auto max_arg = mm->add_literal(s, max_data);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
+    auto clip    = mm->add_instruction(migraphx::make_op("clip"), round, min_arg, max_arg);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -2448,10 +2448,10 @@ TEST_CASE(quantizelinear_int32_test)
 TEST_CASE(quantizelinear_zero_point_test)
 {
     migraphx::program p;
-    auto* mm     = p.get_main_module();
-    auto l0      = mm->add_parameter("0", {migraphx::shape::float_type, {5}});
-    auto l1      = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
-    auto l2      = mm->add_parameter("2", {migraphx::shape::int8_type, {1}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {5}});
+    auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
+    auto l2  = mm->add_parameter("2", {migraphx::shape::int8_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
@@ -2463,12 +2463,12 @@ TEST_CASE(quantizelinear_zero_point_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
     auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    auto s = round->get_shape();
+    auto s   = round->get_shape();
     std::vector<int> min_data(s.elements(), -128);
     std::vector<int> max_data(s.elements(), 127);
     auto min_arg = mm->add_literal(s, min_data);
     auto max_arg = mm->add_literal(s, max_data);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
+    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -2485,9 +2485,9 @@ migraphx::program make_quantizelinear_axis_prog()
     int axis = 2;
     auto* mm = p.get_main_module();
 
-    auto l0      = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
-    auto l1      = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
-    auto l2      = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
+    auto l0       = mm->add_parameter("0", {migraphx::shape::float_type, input_lens});
+    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {5}});
+    auto l2       = mm->add_parameter("2", {migraphx::shape::int8_type, {5}});
     auto l1_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), l1);
 
@@ -2500,12 +2500,12 @@ migraphx::program make_quantizelinear_axis_prog()
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
     auto add = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    auto s = round->get_shape();
+    auto s   = round->get_shape();
     std::vector<int> min_data(s.elements(), -128);
     std::vector<int> max_data(s.elements(), 127);
     auto min_arg = mm->add_literal(s, min_data);
     auto max_arg = mm->add_literal(s, max_data);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
+    auto clip    = mm->add_instruction(migraphx::make_op("clip"), add, min_arg, max_arg);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),

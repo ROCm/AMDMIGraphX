@@ -24,7 +24,8 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 
     if(ins->inputs().size() == 3)
     {
-        auto zero_point = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+        auto zero_point = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
         add_zero_point = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
     }
 
@@ -41,7 +42,8 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     auto max_arg = m.add_literal(literal(s, max_data));
 
     auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_arg, max_arg);
-    m.replace_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
+    m.replace_instruction(
+        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
 }
 
 void apply_dequantizelinear(module& m, instruction_ref ins)

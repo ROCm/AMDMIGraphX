@@ -390,12 +390,11 @@ struct auto_register_test_case
     }
 };
 
-struct failure_error {};
-
-[[noreturn]] inline void fail()
+struct failure_error
 {
-    throw failure_error{};
-}
+};
+
+[[noreturn]] inline void fail() { throw failure_error{}; }
 
 struct driver
 {
@@ -462,7 +461,7 @@ struct driver
         };
         static null_buffer buffer;
         static std::ostream null_stream(&buffer);
-        if (quiet)
+        if(quiet)
             return null_stream;
         return std::cout;
     }
@@ -493,19 +492,19 @@ struct driver
     static std::string create_command(const string_map& args)
     {
         std::string result = args.at("__exe__").front();
-        if (args.count("") > 0)
+        if(args.count("") > 0)
         {
-            for(auto&& arg:args.at(""))
+            for(auto&& arg : args.at(""))
                 result += " " + arg;
         }
-        for(auto&& p:args)
+        for(auto&& p : args)
         {
-            if (p.first == "__exe__")
+            if(p.first == "__exe__")
                 continue;
-            if (p.first.empty())
+            if(p.first.empty())
                 continue;
             result += " " + p.first;
-            for(auto&& arg:p.second)
+            for(auto&& arg : p.second)
                 result += " " + arg;
         }
         return result;
@@ -518,8 +517,8 @@ struct driver
         args.erase("--continue");
         args["--quiet"];
         auto cmd = create_command(args);
-        auto r = std::system(cmd.c_str());
-        if (r != 0)
+        auto r   = std::system(cmd.c_str());
+        if(r != 0)
             msg = "Exited with " + std::to_string(r);
         return msg;
     }
@@ -528,9 +527,9 @@ struct driver
     {
         ran++;
         out() << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
-                  << color::reset << std::endl;
+              << color::reset << std::endl;
         std::string msg;
-        if (args.count("--continue") > 0)
+        if(args.count("--continue") > 0)
         {
             msg = fork(name, args);
         }
@@ -548,14 +547,13 @@ struct driver
         if(msg.empty())
         {
             out() << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
-                      << color::reset << std::endl;
+                  << color::reset << std::endl;
         }
         else
         {
             failed.push_back(name);
             out() << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                      << color::reset << ": " << color::fg_yellow << msg << color::reset
-                      << std::endl;
+                  << color::reset << ": " << color::fg_yellow << msg << color::reset << std::endl;
         }
     }
 
@@ -595,7 +593,7 @@ struct driver
                     if(f == m.end())
                     {
                         out() << color::fg_red << "[  ERROR   ] Test case '" << name
-                                  << "' not found." << color::reset << std::endl;
+                              << "' not found." << color::reset << std::endl;
                         failed.push_back(name);
                     }
                     else
@@ -604,14 +602,14 @@ struct driver
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
-                  << color::reset << std::endl;
+              << color::reset << std::endl;
         if(not failed.empty())
         {
             out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
-                      << " tests failed" << color::reset << std::endl;
+                  << " tests failed" << color::reset << std::endl;
             for(auto&& name : failed)
                 out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name
-                          << color::reset << std::endl;
+                      << color::reset << std::endl;
             std::exit(1);
         }
     }
@@ -621,7 +619,7 @@ struct driver
     std::vector<argument> arguments = {};
     std::vector<std::string> failed = {};
     std::size_t ran                 = 0;
-    bool quiet = false;
+    bool quiet                      = false;
 };
 
 inline void run(int argc, const char* argv[])

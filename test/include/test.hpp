@@ -422,12 +422,12 @@ struct driver
         arguments.push_back(argument{flags, help, 0});
     }
 
-    void show_help() const
+    void show_help(const std::string& exe) const
     {
         std::cout << std::endl;
         std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    ";
-        std::cout << "<exe> <options> <test-case>..." << std::endl;
+        std::cout << exe << " <test-case>... <options>" << std::endl;
         std::cout << std::endl;
 
         std::cout << color::fg_yellow << "ARGS:" << color::reset << std::endl;
@@ -562,7 +562,7 @@ struct driver
         auto args = parse(argc, argv);
         if(args.count("--help") > 0)
         {
-            show_help();
+            show_help(args.at("__exe__").front());
             return;
         }
         if(args.count("--list") > 0)

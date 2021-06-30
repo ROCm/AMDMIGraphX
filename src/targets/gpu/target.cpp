@@ -10,6 +10,8 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/inline_module.hpp>
+#include <migraphx/insert_pad.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/propagate_constant.hpp>
@@ -50,6 +52,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
+    unsupported_types.erase(shape::type_t::tuple_type);
     // clang-format off
     return
     {
@@ -61,10 +64,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
+        insert_pad{},
+        dead_code_elimination{},
         rewrite_batchnorm{},
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
+        inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
         eliminate_common_subexpression{},

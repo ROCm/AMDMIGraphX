@@ -27,7 +27,9 @@ struct test_if_lp : verify_program<test_if_lp>
         else_mod->add_return({s2, l2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        auto r1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
+        mm->add_return({r0, r1});
 
         return p;
     }

@@ -43,6 +43,9 @@ struct dnnl_convolution
         auto dilation = op.dilation;
         std::transform(
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
+        auto kdims = op.kdims();
+        std::vector<size_t> padding_l(op.padding.begin(), op.padding.begin() + kdims);
+        std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());
         return {dnnl::prop_kind::forward_inference,
                 dnnl::algorithm::convolution_auto,
                 m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC)),
@@ -50,8 +53,8 @@ struct dnnl_convolution
                 m.at(MIGRAPHX_CPU_BACKEND(ARG_DST)),
                 to_dnnl_dims(op.stride),
                 to_dnnl_dims(dilation),
-                to_dnnl_dims(op.padding),
-                to_dnnl_dims(op.padding)};
+                to_dnnl_dims(padding_l),
+                to_dnnl_dims(padding_r)};
     }
 };
 

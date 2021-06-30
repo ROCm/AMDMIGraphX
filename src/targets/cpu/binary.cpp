@@ -14,6 +14,8 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
         return pack_join(self.reflect_base(self, f), pack(f(self.algo, "algo")));
     }
 
+    std::string group() const { return this->name() + "::" + algo; }
+
     std::string name() const { return "dnnl::binary"; }
 
     shape compute_shape(std::vector<shape> inputs) const

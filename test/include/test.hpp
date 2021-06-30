@@ -491,11 +491,12 @@ struct driver
 
     static std::string create_command(const string_map& args)
     {
-        std::string result = args.at("__exe__").front();
+        std::stringstream ss;
+        ss << args.at("__exe__").front();
         if(args.count("") > 0)
         {
             for(auto&& arg : args.at(""))
-                result += " " + arg;
+                ss << " \"" << arg << "\"";
         }
         for(auto&& p : args)
         {
@@ -503,11 +504,11 @@ struct driver
                 continue;
             if(p.first.empty())
                 continue;
-            result += " " + p.first;
+            ss << " " << p.first;
             for(auto&& arg : p.second)
-                result += " " + arg;
+                ss << " \"" << arg << "\"";
         }
-        return result;
+        return ss.str();
     }
 
     static std::string fork(const std::string& name, string_map args)
@@ -517,7 +518,7 @@ struct driver
         args.erase("--continue");
         args["--quiet"];
         auto cmd = create_command(args);
-        auto r   = std::system(cmd.c_str());
+        auto r   = std::system(cmd.c_str()); // NOLINT
         if(r != 0)
             msg = "Exited with " + std::to_string(r);
         return msg;

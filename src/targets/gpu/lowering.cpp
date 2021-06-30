@@ -182,6 +182,7 @@ struct miopen_apply
         add_batch_norm_inference_op();
         add_neg_op();
         add_if_op();
+        add_topk_op();
     }
 
     void copy_params()
@@ -457,6 +458,21 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+        });
+    }
+
+    void add_topk_op()
+    {
+        apply_map.emplace("top", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            auto s = ins->get_shape();
+            auto ss = s.sub_shapes();
+            auto out_val = insert_allocation(ins, ss.front());
+            auto out_ind = insert_allocation(ins, ss.back());
+            inputs.push_back(out_ind);
+            inputs.push_back(out_val);
+
+            return mod->replace_instruction(ins, make_op("gpu::topk"), inputs);
         });
     }
 };

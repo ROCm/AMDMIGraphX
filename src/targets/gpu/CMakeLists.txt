@@ -82,6 +82,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/topk.cpp
     device/unary_not.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -148,6 +149,7 @@ add_library(migraphx_gpu
     schedule_model.cpp
     sync_device.cpp
     target.cpp
+    topk.cpp
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
@@ -212,6 +214,7 @@ register_migraphx_gpu_ops(hip_
     sub
     tanh
     tan
+    topk
     unary_not
 )
 register_migraphx_gpu_ops(miopen_

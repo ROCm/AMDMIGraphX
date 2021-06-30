@@ -15,7 +15,10 @@ namespace cpu {
 struct dnnl_convolution
     : dnnl_extend_op<dnnl_convolution, dnnl::convolution_forward, op::convolution>
 {
-    std::vector<int> arg_map(int) const { return {MIGRAPHX_CPU_BACKEND(ARG_SRC), MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)}; }
+    std::vector<int> arg_map(int) const
+    {
+        return {MIGRAPHX_CPU_BACKEND(ARG_SRC), MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)};
+    }
 
     shape adjust_shape(const shape& x, int i) const
     {

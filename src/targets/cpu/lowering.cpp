@@ -389,10 +389,10 @@ struct cpu_apply
         extend_op("concat", "dnnl::concat");
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
-        #ifndef ENABLE_ZENDNN
+#ifndef ENABLE_ZENDNN
         extend_op("deconvolution", "dnnl::deconvolution");
         extend_op("dot", "dnnl::dot");
-        #endif
+#endif
         extend_op("erf", "cpu::erf");
         extend_op("gather", "cpu::gather");
         extend_op("logsoftmax", "dnnl::logsoftmax");

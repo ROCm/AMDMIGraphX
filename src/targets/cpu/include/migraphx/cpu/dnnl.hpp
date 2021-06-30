@@ -21,9 +21,9 @@ namespace cpu {
 
 #ifdef ENABLE_ZENDNN
 namespace dnnl = zendnn;
-#define CONCAT_BACKEND(b) ZENDNN_ ## b
+#define CONCAT_BACKEND(b) ZENDNN_##b
 #else
-#define CONCAT_BACKEND(b) DNNL_ ## b
+#define CONCAT_BACKEND(b) DNNL_##b
 #endif
 #define MIGRAPHX_CPU_BACKEND(b) CONCAT_BACKEND(b)
 
@@ -95,7 +95,8 @@ struct dnnl_op : auto_register_op<Derived>
 
     static std::size_t get_binary_post_op_arg(std::size_t pos)
     {
-        return MIGRAPHX_CPU_BACKEND(ARG_ATTR_MULTIPLE_POST_OP)(pos) | MIGRAPHX_CPU_BACKEND(ARG_SRC_1); // NOLINT
+        return MIGRAPHX_CPU_BACKEND(ARG_ATTR_MULTIPLE_POST_OP)(pos) |
+               MIGRAPHX_CPU_BACKEND(ARG_SRC_1); // NOLINT
     }
 
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
@@ -110,11 +111,11 @@ struct dnnl_op : auto_register_op<Derived>
     {
         auto desc       = prim.get_primitive_desc();
         const char* str = nullptr;
-        #ifdef ENABLE_ZENDNN
+#ifdef ENABLE_ZENDNN
         zendnn_primitive_desc_query(desc, zendnn_query_impl_info_str, 0, &str);
-        #else
+#else
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
-        #endif
+#endif
         return str == nullptr ? "" : str;
     }
     // Map arg index to arg in dnnl
@@ -180,8 +181,9 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
-        result[MIGRAPHX_CPU_BACKEND(ARG_DST)] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
-        auto m               = create_arg_map(inputs.size());
+        result[MIGRAPHX_CPU_BACKEND(ARG_DST)] =
+            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
+        auto m = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
@@ -325,7 +327,8 @@ struct dnnl_op : auto_register_op<Derived>
             }
 #endif
             std::unordered_map<int, dnnl::memory> m;
-            m[MIGRAPHX_CPU_BACKEND(ARG_DST)] = to_dnnl_memory(md.at(MIGRAPHX_CPU_BACKEND(ARG_DST)), args.back());
+            m[MIGRAPHX_CPU_BACKEND(ARG_DST)] =
+                to_dnnl_memory(md.at(MIGRAPHX_CPU_BACKEND(ARG_DST)), args.back());
             for(int i = 0; i < args.size() - 1; i++)
                 m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
             prim.execute(get_dnnl_context().stream, m);

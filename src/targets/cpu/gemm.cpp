@@ -13,13 +13,20 @@ namespace cpu {
 
 struct dnnl_gemm : dnnl_extend_op<dnnl_gemm, dnnl::matmul, op::dot>
 {
-    std::vector<int> arg_map(int) const { return {MIGRAPHX_CPU_BACKEND(ARG_SRC), MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS), MIGRAPHX_CPU_BACKEND(ARG_BIAS)}; }
+    std::vector<int> arg_map(int) const
+    {
+        return {MIGRAPHX_CPU_BACKEND(ARG_SRC),
+                MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS),
+                MIGRAPHX_CPU_BACKEND(ARG_BIAS)};
+    }
 
     void required(const check_shapes& cs) const { cs.not_broadcasted(); }
 
     dnnl::matmul::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC)), m.at(MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)), m.at(MIGRAPHX_CPU_BACKEND(ARG_DST))};
+        return {m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC)),
+                m.at(MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)),
+                m.at(MIGRAPHX_CPU_BACKEND(ARG_DST))};
     }
 };
 

@@ -815,8 +815,8 @@ struct ref_apply
         apply_map["batch_norm_inference"] =
             extend_op<ref_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<ref_convolution<op::convolution>, op::convolution>();
-        apply_map["dot"]       = extend_op<ref_gemm, op::dot>();
-        apply_map["quant_dot"] = extend_op<ref_quant_gemm, op::quant_dot>();
+        apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
+        apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] =
             extend_op<ref_convolution<op::quant_convolution>, op::quant_convolution>();
         apply_map["elu"]        = extend_op<ref_unary<elu_op>, op::elu>();

@@ -10,33 +10,11 @@
 #include <vector>
 
 #ifdef __linux__
-#include <sys/types.h>
-#include <sys/ptrace.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
-
-#if defined(__has_feature)
-#if __has_feature(address_sanitizer)
-// NOLINTNEXTLINE
-#define TEST_SANITIZE_ADDRESS 1
-#endif
-#endif
-
-#if defined(__SANITIZE_ADDRESS__)
-#if __SANITIZE_ADDRESS__
-// NOLINTNEXTLINE
-#define TEST_SANITIZE_ADDRESS 1
-#endif
-#endif
-
-#ifndef TEST_SANITIZE_ADDRESS
-// NOLINTNEXTLINE
-#define TEST_SANITIZE_ADDRESS 0
-#endif
 
 namespace test {
 // clang-format off
@@ -412,91 +390,11 @@ struct auto_register_test_case
     }
 };
 
-#if TEST_SANITIZE_ADDRESS
-extern "C" {
-// NOLINTNEXTLINE
-void __sanitizer_start_switch_fiber(void** fake_stack_save, const void* bottom, size_t size);
-// NOLINTNEXTLINE
-void __sanitizer_finish_switch_fiber(void* fake_stack_save,
-                                     const void** bottom_old,
-                                     size_t* size_old);
-}
-struct asan_switch_stack
-{
-    void* s = nullptr;
-    asan_switch_stack(char* stack, size_t size) { __sanitizer_start_switch_fiber(&s, stack, size); }
-    ~asan_switch_stack()
-    {
-        const void* olds = nullptr;
-        size_t size      = 0;
-        __sanitizer_finish_switch_fiber(s, &olds, &size);
-    }
-};
-#else
-struct asan_switch_stack
-{
-    template <class... Ts>
-    asan_switch_stack(Ts&&...)
-    {
-    }
-};
-#endif
+struct failure_error {};
 
 [[noreturn]] inline void fail()
 {
-#ifdef __linux__
-    std::abort();
-#else
-    throw std::runtime_error("FAILED");
-#endif
-}
-
-#ifdef __linux__
-extern "C" void __gcov_flush() __attribute__((weak)); // NOLINT
-#endif
-
-template <class F>
-std::string fork(F f)
-{
-#ifdef __linux__
-    static std::array<char, 8 * 1024 * 1024> stack = {};
-    int pid                                        = clone(
-        +[](void* g) -> int {
-            asan_switch_stack s(stack.data(), stack.size());
-            (*reinterpret_cast<F*>(g))();
-            reinterpret_cast<F*>(g)->~F();
-            if(__gcov_flush)
-                __gcov_flush();
-            std::quick_exit(0);
-        },
-        stack.data() + stack.size(),
-        SIGCHLD | CLONE_PTRACE, // NOLINT
-        &f);
-    if(pid == -1)
-        return "Unable to fork process";
-    int status = -1;
-    if(wait(&status) == -1)
-        return "Wait error";
-    if(WIFSIGNALED(status))                                                  // NOLINT
-        return "Terminated with signal " + std::to_string(WTERMSIG(status)); // NOLINT
-    if(not WIFEXITED(status))                                                // NOLINT
-        return "Exited with " + std::to_string(WEXITSTATUS(status));         // NOLINT
-    return {};
-#else
-    try
-    {
-        f();
-    }
-    catch(const std::exception& e)
-    {
-        return e.what();
-    }
-    catch(...)
-    {
-        return "Unknown exception";
-    }
-    return {};
-#endif
+    throw failure_error{};
 }
 
 struct driver
@@ -505,6 +403,8 @@ struct driver
     {
         add_flag({"--help", "-h"}, "Show help");
         add_flag({"--list", "-l"}, "List all test cases");
+        add_flag({"--continue", "-c"}, "Continue after failure");
+        add_flag({"--quiet", "-q"}, "Don't print out extra output");
     }
     struct argument
     {
@@ -554,6 +454,19 @@ struct driver
         }
     }
 
+    std::ostream& out() const
+    {
+        struct null_buffer : std::streambuf
+        {
+            virtual int overflow(int c) override { return c; }
+        };
+        static null_buffer buffer;
+        static std::ostream null_stream(&buffer);
+        if (quiet)
+            return null_stream;
+        return std::cout;
+    }
+
     string_map parse(int argc, const char* argv[]) const
     {
         std::vector<std::string> args(argv + 1, argv + argc);
@@ -567,29 +480,80 @@ struct driver
                     keys[flag].push_back("");
             }
         }
-        return generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
+        auto result = generic_parse(args, [&](auto&& s) -> std::vector<std::string> {
             if(keys.count(s) > 0)
                 return keys[s];
             else
                 return {};
         });
+        result["__exe__"].push_back(argv[0]);
+        return result;
     }
 
-    void run_test_case(const std::string& name, const test_case& f)
+    static std::string create_command(const string_map& args)
+    {
+        std::string result = args.at("__exe__").front();
+        if (args.count("") > 0)
+        {
+            for(auto&& arg:args.at(""))
+                result += " " + arg;
+        }
+        for(auto&& p:args)
+        {
+            if (p.first == "__exe__")
+                continue;
+            if (p.first.empty())
+                continue;
+            result += " " + p.first;
+            for(auto&& arg:p.second)
+                result += " " + arg;
+        }
+        return result;
+    }
+
+    static std::string fork(const std::string& name, string_map args)
+    {
+        std::string msg;
+        args[""] = {name};
+        args.erase("--continue");
+        args["--quiet"];
+        auto cmd = create_command(args);
+        auto r = std::system(cmd.c_str());
+        if (r != 0)
+            msg = "Exited with " + std::to_string(r);
+        return msg;
+    }
+
+    void run_test_case(const std::string& name, const test_case& f, const string_map& args)
     {
         ran++;
-        std::cout << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
+        out() << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
                   << color::reset << std::endl;
-        std::string msg = fork(f);
+        std::string msg;
+        if (args.count("--continue") > 0)
+        {
+            msg = fork(name, args);
+        }
+        else
+        {
+            try
+            {
+                f();
+            }
+            catch(const failure_error&)
+            {
+                msg = "Test failure";
+            }
+        }
         if(msg.empty())
         {
-            std::cout << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
+            out() << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
                       << color::reset << std::endl;
         }
         else
         {
             failed.push_back(name);
-            std::cout << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
+            out() << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
                       << color::reset << ": " << color::fg_yellow << msg << color::reset
                       << std::endl;
         }
@@ -606,15 +570,18 @@ struct driver
         if(args.count("--list") > 0)
         {
             for(auto&& tc : get_test_cases())
-                std::cout << tc.first << std::endl;
+                out() << tc.first << std::endl;
             return;
         }
+
+        if(args.count("--quiet") > 0)
+            quiet = true;
 
         auto cases = args[""];
         if(cases.empty())
         {
             for(auto&& tc : get_test_cases())
-                run_test_case(tc.first, tc.second);
+                run_test_case(tc.first, tc.second, args);
         }
         else
         {
@@ -627,23 +594,23 @@ struct driver
                     auto f = m.find(name);
                     if(f == m.end())
                     {
-                        std::cout << color::fg_red << "[  ERROR   ] Test case '" << name
+                        out() << color::fg_red << "[  ERROR   ] Test case '" << name
                                   << "' not found." << color::reset << std::endl;
                         failed.push_back(name);
                     }
                     else
-                        run_test_case(name, f->second);
+                        run_test_case(name, f->second, args);
                 }
             }
         }
-        std::cout << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
+        out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"
                   << color::reset << std::endl;
         if(not failed.empty())
         {
-            std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
+            out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << failed.size()
                       << " tests failed" << color::reset << std::endl;
             for(auto&& name : failed)
-                std::cout << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name
+                out() << color::fg_red << "[  FAILED  ] " << color::fg_yellow << name
                           << color::reset << std::endl;
             std::exit(1);
         }
@@ -654,6 +621,7 @@ struct driver
     std::vector<argument> arguments = {};
     std::vector<std::string> failed = {};
     std::size_t ran                 = 0;
+    bool quiet = false;
 };
 
 inline void run(int argc, const char* argv[])

@@ -57,9 +57,9 @@ struct topk
         auto vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
-        auto in_s = args.front().get_shape();
-        auto out_s = vec_ss.front();
-        auto in_lens = in_s.lens();
+        auto in_s     = args.front().get_shape();
+        auto out_s    = vec_ss.front();
+        auto in_lens  = in_s.lens();
         auto axis_dim = in_lens[axis];
         std::vector<int> indices(axis_dim);
 
@@ -79,18 +79,19 @@ struct topk
                         idx2.insert(idx2.begin() + axis, i2);
                         auto ini1 = in_s.index(idx1);
                         auto ini2 = in_s.index(idx2);
-                        return (largest) ? (input[ini1] > input[ini2]) : (input[ini1] < input[ini2]);
+                        return (largest) ? (input[ini1] > input[ini2])
+                                         : (input[ini1] < input[ini2]);
                     });
 
                     // copy values to output
                     auto out_idx = idx;
-                    auto in_idx = idx;
-                    for (auto i : range(indices.size()))
+                    auto in_idx  = idx;
+                    for(auto i : range(indices.size()))
                     {
                         in_idx.insert(in_idx.begin() + axis, indices[i]);
                         out_idx.insert(out_idx.begin() + axis, i);
-                        auto outi = out_s.index(out_idx);
-                        auto ini = in_s.index(in_idx);
+                        auto outi     = out_s.index(out_idx);
+                        auto ini      = in_s.index(in_idx);
                         out_val[outi] = input[ini];
                         out_ind[outi] = indices[i];
                     }

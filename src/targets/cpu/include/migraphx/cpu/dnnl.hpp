@@ -7,13 +7,25 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <unordered_map>
-#include <dnnl.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/assert.hpp>
+#ifdef ENABLE_ZENDNN
+#include <zendnn.hpp>
+#else
+#include <dnnl.hpp>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
+
+#ifdef ENABLE_ZENDNN
+namespace dnnl = zendnn;
+#define CONCAT_BACKEND(b) ZENDNN_ ## b
+#else
+#define CONCAT_BACKEND(b) DNNL_ ## b
+#endif
+#define MIGRAPHX_CPU_BACKEND(b) CONCAT_BACKEND(b)
 
 struct dnnl_context
 {
@@ -83,7 +95,7 @@ struct dnnl_op : auto_register_op<Derived>
 
     static std::size_t get_binary_post_op_arg(std::size_t pos)
     {
-        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(pos) | DNNL_ARG_SRC_1; // NOLINT
+        return MIGRAPHX_CPU_BACKEND(ARG_ATTR_MULTIPLE_POST_OP)(pos) | MIGRAPHX_CPU_BACKEND(ARG_SRC_1); // NOLINT
     }
 
     static std::vector<shape> to_shapes(const std::vector<argument>& args)
@@ -98,14 +110,18 @@ struct dnnl_op : auto_register_op<Derived>
     {
         auto desc       = prim.get_primitive_desc();
         const char* str = nullptr;
+        #ifdef ENABLE_ZENDNN
+        zendnn_primitive_desc_query(desc, zendnn_query_impl_info_str, 0, &str);
+        #else
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);
+        #endif
         return str == nullptr ? "" : str;
     }
     // Map arg index to arg in dnnl
     std::vector<int> arg_map(int size) const
     {
         std::vector<int> result(size);
-        std::iota(result.begin(), result.end(), DNNL_ARG_SRC_0);
+        std::iota(result.begin(), result.end(), MIGRAPHX_CPU_BACKEND(ARG_SRC_0));
         return result;
     }
     shape base_adjust_shape(const shape& s) const
@@ -164,7 +180,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
-        result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
+        result[MIGRAPHX_CPU_BACKEND(ARG_DST)] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
         auto m               = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
@@ -182,7 +198,7 @@ struct dnnl_op : auto_register_op<Derived>
             if(contains(op.algo, "binary_add"))
             {
                 auto desc = m.at(arg);
-                if(desc == m.at(DNNL_ARG_DST))
+                if(desc == m.at(MIGRAPHX_CPU_BACKEND(ARG_DST)))
                     po.append_sum(1.0f);
                 else
                     po.append_binary(to_dnnl_algo(op.algo), m.at(arg));
@@ -309,7 +325,7 @@ struct dnnl_op : auto_register_op<Derived>
             }
 #endif
             std::unordered_map<int, dnnl::memory> m;
-            m[DNNL_ARG_DST] = to_dnnl_memory(md.at(DNNL_ARG_DST), args.back());
+            m[MIGRAPHX_CPU_BACKEND(ARG_DST)] = to_dnnl_memory(md.at(MIGRAPHX_CPU_BACKEND(ARG_DST)), args.back());
             for(int i = 0; i < args.size() - 1; i++)
                 m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
             prim.execute(get_dnnl_context().stream, m);

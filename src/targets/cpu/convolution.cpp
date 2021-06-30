@@ -15,7 +15,7 @@ namespace cpu {
 struct dnnl_convolution
     : dnnl_extend_op<dnnl_convolution, dnnl::convolution_forward, op::convolution>
 {
-    std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
+    std::vector<int> arg_map(int) const { return {MIGRAPHX_CPU_BACKEND(ARG_SRC), MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)}; }
 
     shape adjust_shape(const shape& x, int i) const
     {
@@ -42,9 +42,9 @@ struct dnnl_convolution
             dilation.begin(), dilation.end(), dilation.begin(), [](auto x) { return x - 1; });
         return {dnnl::prop_kind::forward_inference,
                 dnnl::algorithm::convolution_auto,
-                m.at(DNNL_ARG_SRC),
-                m.at(DNNL_ARG_WEIGHTS),
-                m.at(DNNL_ARG_DST),
+                m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC)),
+                m.at(MIGRAPHX_CPU_BACKEND(ARG_WEIGHTS)),
+                m.at(MIGRAPHX_CPU_BACKEND(ARG_DST)),
                 to_dnnl_dims(op.stride),
                 to_dnnl_dims(dilation),
                 to_dnnl_dims(op.padding),

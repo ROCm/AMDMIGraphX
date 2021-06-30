@@ -30,12 +30,30 @@ add_library(migraphx_cpu
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
+set(ENABLE_ZENDNN Off CACHE BOOL "")
+
 find_package(Threads)
-find_package(dnnl REQUIRED)
+
+if(ENABLE_ZENDNN)
+    find_path(ZENDNN_INC_PATH zendnn.hpp)
+    find_library(ZENDNN_LIB amdZenDNN)
+    find_library(BLIS_LIB blis)
+else()
+    find_package(dnnl REQUIRED)
+endif()
 
 rocm_clang_tidy_check(migraphx_cpu)
-target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)
-target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
+if(ENABLE_ZENDNN)
+    target_compile_definitions(migraphx_cpu PRIVATE -DENABLE_ZENDNN)
+    target_include_directories(migraphx_cpu PRIVATE ${ZENDNN_INC_PATH})
+    message(STATUS "ZENDNN_LIB: ${ZENDNN_LIB}")
+    target_link_libraries(migraphx_cpu PRIVATE ${BLIS_LIB})
+    target_link_libraries(migraphx_cpu PRIVATE ${ZENDNN_LIB})
+    target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)   
+else()
+    target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)
+    target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
+endif()
 
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)

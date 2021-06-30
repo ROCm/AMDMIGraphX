@@ -9,6 +9,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gemm.hpp>
+// #include <migraphx/ref/gemm.hpp>
 #include <cmath>
 #include <utility>
 
@@ -79,6 +80,50 @@ struct dot
             [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, alpha, beta); });
         return result;
     }
+
+    // argument compute(shape output_shape, std::vector<argument> args) const
+    // {
+    //     argument result{output_shape};
+    //     // 3 inputs, it is alpha * A * B + beta * C, then
+    //     // A and B are matrices, and C is of the same shape to A * B
+
+    //     // first, convert the args[0] and args[1] from int8_t to int32_t
+    //     argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
+    //     argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
+    //     arg_0.visit([&](auto output) {
+    //         args.at(0).visit(
+    //             [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+    //     });
+
+    //     arg_1.visit([&](auto output) {
+    //         args.at(1).visit(
+    //             [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+    //     });
+
+    //     if(args.size() == 3)
+    //     {
+    //         // no need to consider the value of args[2]
+    //         if(beta == 0)
+    //         {
+    //             result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
+    //         }
+    //         else
+    //         {
+    //             visit_all(result, args[2])([&](auto output, auto input) {
+    //                 std::copy(input.begin(), input.end(), output.begin());
+    //             });
+    //         }
+
+    //         migemm(result, arg_0, arg_1, alpha, beta);
+
+    //         return result;
+    //     }
+
+    //     // 2 input arguments
+    //     migemm(result, arg_0, arg_1, alpha, int32_t{0});
+
+    //     return result;
+    // }
 };
 
 } // namespace op

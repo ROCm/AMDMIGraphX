@@ -38,9 +38,9 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
     dnnl::binary::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         return {to_dnnl_algo(algo),
-                m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC_0)),
-                m.at(MIGRAPHX_CPU_BACKEND(ARG_SRC_1)),
-                m.at(MIGRAPHX_CPU_BACKEND(ARG_DST))};
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_1)),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST))};
     }
 };
 

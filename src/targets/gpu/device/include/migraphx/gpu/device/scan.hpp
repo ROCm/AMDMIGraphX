@@ -22,14 +22,13 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
 
         for(index_int s = 1; s < idx.nlocal(); s *= 2)
         {
-            const index_int index = 2 * s * idx.local;
-            if(index + s < idx.nlocal())
+            if(idx.local + s < idx.nlocal())
             {
-                buffer[index + s] = op(buffer[index], buffer[index + s]);
+                buffer[idx.local + s] = op(buffer[idx.local], buffer[idx.local + s]);
             }
             __syncthreads();
         }
-        x = buffer[N - 1];
+        x = buffer[idx.nlocal() - 1];
         output(i, buffer[idx.local]);
     });
 }

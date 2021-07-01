@@ -115,7 +115,7 @@ struct dnnl_op : auto_register_op<Derived>
     static std::size_t get_binary_post_op_arg(std::size_t pos)
     {
         return MIGRAPHX_DNNL_PREFIX(ARG_ATTR_MULTIPLE_POST_OP)(pos) | // NOLINT
-               MIGRAPHX_DNNL_PREFIX(ARG_SRC_1); // NOLINT
+               MIGRAPHX_DNNL_PREFIX(ARG_SRC_1);                       // NOLINT
     }
 
     static std::vector<shape> to_shapes(const std::vector<argument>& args)

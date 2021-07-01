@@ -55,7 +55,7 @@ __device__ void heap_heapify(T* arr, int* idx, int n, int i, Op op)
         if(r < n && op(arr[idx[r]], arr[idx[index]]))
         {
             index = r;
-            if (op(arr[idx[l]], arr[idx[r]]))
+            if(op(arr[idx[l]], arr[idx[r]]))
             {
                 index = l;
             }
@@ -137,7 +137,7 @@ argument topk(hipStream_t stream,
             ind_res.visit([&](auto out_ind) {
                 auto* ind = device_cast(out_ind.data());
                 gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
-                    auto idx = css.multi(i);
+                    auto idx   = css.multi(i);
                     auto idata = iss.index(idx);
                     // for (int j = 0; j < axis_dim; ++j)
                     // {

@@ -10,12 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <index_int N,
-          class Op,
-          class T,
-          class ForStride,
-          class Input,
-          class Output>
+template <index_int N, class Op, class T, class ForStride, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
 {
     using type = decltype(input(deduce_for_stride(fs)));
@@ -34,7 +29,7 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
             }
             __syncthreads();
         }
-        x = buffer[N-1];
+        x = buffer[N - 1];
         output(i, buffer[idx.local]);
     });
 }

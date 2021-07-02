@@ -13,8 +13,14 @@ shape hip_topk::compute_shape(std::vector<shape> inputs) const
 
 argument hip_topk::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::topk(
-        ctx.get_stream().get(), args.back(), args[1], args[0], op.k, op.axis, op.sorted, op.largest);
+    return device::topk(ctx.get_stream().get(),
+                        args.back(),
+                        args[1],
+                        args[0],
+                        op.k,
+                        op.axis,
+                        op.sorted,
+                        op.largest);
 }
 
 } // namespace gpu

@@ -17,9 +17,11 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
     MIGRAPHX_DEVICE_SHARED type buffer[N];
     type x = init;
     fs([&](auto i) {
-        buffer[idx.local] = op(input(i), x);
+        if (idx.local == 0)
+            buffer[idx.local] = op(input(i), x);
+        else
+            buffer[idx.local] = input(i);
         __syncthreads();
-
         for(index_int s = 1; s < idx.nlocal(); s *= 2)
         {
             if(idx.local + s < idx.nlocal())

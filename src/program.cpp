@@ -9,6 +9,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
@@ -242,20 +243,10 @@ std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            if(not mod_args.empty())
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        values, mod_args, module_eval);
-                                }));
-            }
-            else
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        ctx, ins->get_shape(), values);
-                                }));
-            }
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }
@@ -598,7 +589,7 @@ void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
-           return (pp.second.end() == ins);
+           return is_end(pp.second.end(), ins);
        }))
     {
         std::cout << "End instruction" << std::endl;

@@ -68,6 +68,7 @@ add_library(migraphx_device
     device/reduce_sum.cpp
     device/reduce_prod.cpp
     device/relu.cpp
+    device/reverse.cpp
     device/rnn_variable_seq_lens.cpp
     device/round.cpp
     device/rsqrt.cpp
@@ -141,6 +142,7 @@ add_library(migraphx_gpu
     pooling.cpp
     preallocate_param.cpp
     quant_convolution.cpp
+    reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
     softmax.cpp
@@ -198,6 +200,7 @@ register_migraphx_gpu_ops(hip_
     reduce_prod
     reduce_sum
     relu
+    reverse
     round
     rsqrt
     sigmoid

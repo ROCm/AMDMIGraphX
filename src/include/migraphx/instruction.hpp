@@ -164,6 +164,18 @@ struct hash<migraphx::instruction_ref>
     }
 };
 
+template <>
+struct equal_to<migraphx::instruction_ref>
+{
+    using argument_type = migraphx::instruction_ref;
+    using result_type   = bool;
+    result_type operator()(const migraphx::instruction_ref& x,
+                           const migraphx::instruction_ref& y) const noexcept
+    {
+        return &*x == &*y;
+    }
+};
+
 } // namespace std
 
 #endif

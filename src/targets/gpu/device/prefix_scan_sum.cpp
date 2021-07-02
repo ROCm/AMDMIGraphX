@@ -28,7 +28,7 @@ void prefix_scan_sum(hipStream_t stream, const argument& result, const argument&
                         idx,
                         sum{},
                         0,
-                        [&](auto f) -> decltype(f(index_int{})) { return idx.local_stride(n, f); },
+                        n,
                         [&](auto j) { return input[compute_idx(j)]; },
                         [&](auto j, auto x) { output[compute_idx(j)] = x; });
                 });

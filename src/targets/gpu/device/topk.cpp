@@ -188,7 +188,7 @@ argument topk(hipStream_t stream,
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
             auto* ind  = reinterpret_cast<int64_t*>(ind_res.data());
-            auto op = compare_op{largest};
+            auto op    = compare_op{largest};
             gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
                 auto idx = css.multi(i);
                 for(int j = 0; j < k; ++j)
@@ -196,7 +196,6 @@ argument topk(hipStream_t stream,
                     idx[axis]           = j;
                     ind[oss.index(idx)] = j;
                 }
-
 
                 topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, op);
 

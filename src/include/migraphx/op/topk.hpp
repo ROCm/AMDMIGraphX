@@ -62,45 +62,51 @@ struct topk
         }
     };
 
-    template<class T>
+    template <class T>
     void swap(T& v1, T& v2) const
     {
         T v = v1;
-        v1 = v2;
-        v2 = v;
+        v1  = v2;
+        v2  = v;
     }
 
-    template<class T, class Op>
-    void heapify(const T& data, const shape& iss, std::vector<std::size_t> sidx, std::vector<int>& indices, int n, int i, Op op) const
+    template <class T, class Op>
+    void heapify(const T& data,
+                 const shape& iss,
+                 std::vector<std::size_t> sidx,
+                 std::vector<int>& indices,
+                 int n,
+                 int i,
+                 Op op) const
     {
         int index = i;
-        auto idx = sidx;
+        auto idx  = sidx;
         auto idxl = sidx;
         auto idxr = sidx;
         auto idxp = sidx;
-        while (index < n)
+        while(index < n)
         {
             auto pre_index = index;
-            int l = 2 * index + 1;
-            int r = 2 * index + 2;
-            idx[axis] = indices[index];
-            idxl[axis] = indices[l];
-            idxr[axis] = indices[r];
-            if (l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))
+            int l          = 2 * index + 1;
+            int r          = 2 * index + 2;
+            idx[axis]      = indices[index];
+            idxl[axis]     = indices[l];
+            idxr[axis]     = indices[r];
+            if(l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))
             {
                 index = l;
             }
 
-            if (r < n && op(data[iss.index(idxr)], data[iss.index(idx)]))
+            if(r < n && op(data[iss.index(idxr)], data[iss.index(idx)]))
             {
                 index = r;
-                if (op(data[iss.index(idxl)], data[iss.index(idxr)]))
+                if(op(data[iss.index(idxl)], data[iss.index(idxr)]))
                 {
                     index = l;
                 }
             }
 
-            if (index == pre_index)
+            if(index == pre_index)
             {
                 break;
             }
@@ -108,21 +114,32 @@ struct topk
         }
     }
 
-    template<class T, class Op>
-    void build_heap(const T& data, const shape& iss, std::vector<std::size_t> sidx, std::vector<int>& indices, int n, Op op) const
+    template <class T, class Op>
+    void build_heap(const T& data,
+                    const shape& iss,
+                    std::vector<std::size_t> sidx,
+                    std::vector<int>& indices,
+                    int n,
+                    Op op) const
     {
-        for (int i = n / 2 - 1; i >= 0; i--)
+        for(int i = n / 2 - 1; i >= 0; i--)
         {
             heapify(data, iss, sidx, indices, n, i, op);
         }
     }
 
-    template<class T, class Op>
-    void heap_add(const T& data, const shape& iss,  std::vector<std::size_t> sidx, std::vector<int>& indices, int n, const int& val, Op op) const
+    template <class T, class Op>
+    void heap_add(const T& data,
+                  const shape& iss,
+                  std::vector<std::size_t> sidx,
+                  std::vector<int>& indices,
+                  int n,
+                  const int& val,
+                  Op op) const
     {
-        auto idx = sidx;
+        auto idx  = sidx;
         idx[axis] = val;
-        if (op(data[iss.index(idx)], data[iss.index(sidx)]))
+        if(op(data[iss.index(idx)], data[iss.index(sidx)]))
         {
             return;
         }
@@ -131,23 +148,34 @@ struct topk
         heapify(data, iss, sidx, indices, n, 0, op);
     }
 
-    template<class T, class Op>
-    void heap_sort(const T& data, const shape& iss, std::vector<std::size_t> sidx, std::vector<int>& indices, int n, Op op) const
+    template <class T, class Op>
+    void heap_sort(const T& data,
+                   const shape& iss,
+                   std::vector<std::size_t> sidx,
+                   std::vector<int>& indices,
+                   int n,
+                   Op op) const
     {
         build_heap(data, iss, sidx, indices, n, op);
 
-        for (int i = n - 1; i > 0; i--)
+        for(int i = n - 1; i > 0; i--)
         {
             swap(indices[0], indices[i]);
             heapify(data, iss, sidx, indices, i, 0, op);
         }
     }
 
-    template<class T, class Op>
-    void topk_value(const T& data, const shape& iss, std::vector<std::size_t> sidx, std::vector<int>& indices, int n, int kk, Op op) const
+    template <class T, class Op>
+    void topk_value(const T& data,
+                    const shape& iss,
+                    std::vector<std::size_t> sidx,
+                    std::vector<int>& indices,
+                    int n,
+                    int kk,
+                    Op op) const
     {
         build_heap(data, iss, sidx, indices, kk, op);
-        for (int i = kk; i < n; ++i)
+        for(int i = kk; i < n; ++i)
         {
             heap_add(data, iss, sidx, indices, kk, indices[i], op);
         }
@@ -177,17 +205,17 @@ struct topk
                     std::iota(indices.begin(), indices.end(), 0);
                     topk_value(input, in_s, idx, indices, axis_dim, k, op);
 
-                    if (sorted)
+                    if(sorted)
                     {
                         heap_sort(input, in_s, idx, indices, k, op);
                     }
 
                     auto out_idx = idx;
-                    auto in_idx = idx;
-                    for (auto j : range(indices.size()))
+                    auto in_idx  = idx;
+                    for(auto j : range(indices.size()))
                     {
-                        out_idx[axis] = j;
-                        in_idx[axis] = indices[j];
+                        out_idx[axis]                 = j;
+                        in_idx[axis]                  = indices[j];
                         out_val[out_s.index(out_idx)] = input[in_s.index(in_idx)];
                         out_ind[out_s.index(out_idx)] = indices[j];
                     }

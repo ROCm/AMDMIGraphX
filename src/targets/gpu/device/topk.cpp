@@ -38,9 +38,18 @@ __device__ void swap(T& v1, T& v2)
 }
 
 template <class T, class Op>
-__device__ void heap_heapify(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, int index, const int64_t axis, Op op)
+__device__ void heap_heapify(T* arr,
+                             int64_t* ind,
+                             const int64_t i,
+                             const auto& oss,
+                             const auto& iss,
+                             const auto& css,
+                             int n,
+                             int index,
+                             const int64_t axis,
+                             Op op)
 {
-    auto idx = css.multi(i);
+    auto idx  = css.multi(i);
     auto idxl = idx;
     auto idxr = idx;
     auto idxp = idx;
@@ -50,7 +59,7 @@ __device__ void heap_heapify(T* arr, int64_t* ind, const int64_t i, const auto& 
         int l          = 2 * index + 1;
         int r          = 2 * index + 2;
 
-        idx[axis] = index;
+        idx[axis]  = index;
         idxl[axis] = l;
         idxr[axis] = r;
 
@@ -72,14 +81,22 @@ __device__ void heap_heapify(T* arr, int64_t* ind, const int64_t i, const auto& 
         {
             break;
         }
-        
+
         idxp[axis] = pre_index;
         swap(ind[oss.index(idx)], ind[oss.index(idxp)]);
     }
 }
 
 template <class T, class Op>
-__device__ void build_heap(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int64_t axis, Op op)
+__device__ void build_heap(T* arr,
+                           int64_t* ind,
+                           const int64_t i,
+                           const auto& oss,
+                           const auto& iss,
+                           const auto& css,
+                           int n,
+                           const int64_t axis,
+                           Op op)
 {
     for(int j = n / 2 - 1; j >= 0; j--)
     {
@@ -88,7 +105,16 @@ __device__ void build_heap(T* arr, int64_t* ind, const int64_t i, const auto& os
 }
 
 template <class T, class Op>
-__device__ void heap_add(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int& val, const int64_t axis, Op op)
+__device__ void heap_add(T* arr,
+                         int64_t* ind,
+                         const int64_t i,
+                         const auto& oss,
+                         const auto& iss,
+                         const auto& css,
+                         int n,
+                         const int& val,
+                         const int64_t axis,
+                         Op op)
 {
     auto idx = css.multi(i);
     if(op(arr[val], arr[ind[oss.index(idx)]]))
@@ -101,10 +127,18 @@ __device__ void heap_add(T* arr, int64_t* ind, const int64_t i, const auto& oss,
 }
 
 template <class T, class Op>
-__device__ void heap_sort(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int64_t axis, Op op)
+__device__ void heap_sort(T* arr,
+                          int64_t* ind,
+                          const int64_t i,
+                          const auto& oss,
+                          const auto& iss,
+                          const auto& css,
+                          int n,
+                          const int64_t axis,
+                          Op op)
 {
     build_heap(arr, ind, i, oss, iss, css, n, axis, op);
-    auto idx = css.multi(i);
+    auto idx  = css.multi(i);
     auto idxj = idx;
     for(int j = n - 1; j > 0; --j)
     {
@@ -115,14 +149,23 @@ __device__ void heap_sort(T* arr, int64_t* ind, const int64_t i, const auto& oss
 }
 
 template <class T, class Op>
-__device__ void topk_value(const T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, int k, const int64_t axis, Op op)
+__device__ void topk_value(const T* arr,
+                           int64_t* ind,
+                           const int64_t i,
+                           const auto& oss,
+                           const auto& iss,
+                           const auto& css,
+                           int n,
+                           int k,
+                           const int64_t axis,
+                           Op op)
 {
     build_heap(arr, ind, i, oss, iss, css, k, axis, op);
     for(int j = k; j < n; ++j)
     {
-        auto idx = css.multi(i);
+        auto idx  = css.multi(i);
         idx[axis] = j;
-        auto val = ind[oss.index(idx)];
+        auto val  = ind[oss.index(idx)];
         heap_add(arr, ind, i, oss, iss, css, k, val, axis, op);
     }
 }
@@ -153,27 +196,27 @@ argument topk(hipStream_t stream,
                 auto* ind = device_cast(out_ind.data());
                 gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
                     auto idx = css.multi(i);
-                    for (int j = 0; j < k; ++j)
+                    for(int j = 0; j < k; ++j)
                     {
-                        idx[axis] = j;
+                        idx[axis]           = j;
                         ind[oss.index(idx)] = j;
                     }
 
                     topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, greater{});
 
                     // if outputs are sorted, sort them
-                    if (sorted)
+                    if(sorted)
                     {
                         heap_sort(data, ind, i, oss, iss, css, k, axis_dim, greater{});
                     }
 
                     // read output
                     idx = css.multi(i);
-                    for (int j = 0; j < k; ++j)
+                    for(int j = 0; j < k; ++j)
                     {
-                        auto in_idx = idx;
-                        idx[axis] = j;
-                        in_idx[axis] = ind[oss.index(idx)];
+                        auto in_idx         = idx;
+                        idx[axis]           = j;
+                        in_idx[axis]        = ind[oss.index(idx)];
                         out[oss.index(idx)] = data[iss.index(in_idx)];
                     }
                 });

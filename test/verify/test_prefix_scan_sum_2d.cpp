@@ -23,7 +23,7 @@ struct test_prefix_scan_sum_2d_large : verify_program<test_prefix_scan_sum_2d_la
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 1024}};
+        migraphx::shape s{migraphx::shape::float_type, {3, 1000}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), x);

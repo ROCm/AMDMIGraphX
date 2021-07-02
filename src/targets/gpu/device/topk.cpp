@@ -195,34 +195,38 @@ argument topk(hipStream_t stream,
         [&](auto out_val, auto input, auto oss, auto iss, auto css) {
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
-            ind_res.visit([&](auto out_ind) {
-                auto* ind = (int64_t*)device_cast(out_ind.data());
-                gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
-                    auto idx = css.multi(i);
-                    for(int j = 0; j < k; ++j)
-                    {
-                        idx[axis]           = j;
-                        ind[oss.index(idx)] = j;
-                    }
+            auto* ind = reinterpret_cast<int64_t*>(ind_res.data());
+            gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
+                auto idx = css.multi(i);
+                for(int j = 0; j < k; ++j)
+                {
+                    idx[axis]           = j;
+                    ind[oss.index(idx)] = j;
+                }
 
+                if (largest)
                     topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, greater{});
+                else
+                    topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, less{});
 
-                    // if outputs are sorted, sort them
-                    if(sorted)
-                    {
+                // if outputs are sorted, sort them
+                if(sorted)
+                {
+                    if (largest)
                         heap_sort(data, ind, i, oss, iss, css, k, axis_dim, greater{});
-                    }
+                    else
+                        heap_sort(data, ind, i, oss, iss, css, k, axis_dim, less{});
+                }
 
-                    // read output
-                    idx = css.multi(i);
-                    for(int j = 0; j < k; ++j)
-                    {
-                        auto in_idx         = idx;
-                        idx[axis]           = j;
-                        in_idx[axis]        = ind[oss.index(idx)];
-                        out[oss.index(idx)] = data[iss.index(in_idx)];
-                    }
-                });
+                // read output
+                idx = css.multi(i);
+                for(int j = 0; j < k; ++j)
+                {
+                    auto in_idx         = idx;
+                    idx[axis]           = j;
+                    in_idx[axis]        = ind[oss.index(idx)];
+                    out[oss.index(idx)] = data[iss.index(in_idx)];
+                }
             });
         });
 

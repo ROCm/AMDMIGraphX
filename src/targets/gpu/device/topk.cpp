@@ -38,24 +38,31 @@ __device__ void swap(T& v1, T& v2)
 }
 
 template <class T, class Op>
-__device__ void heap_heapify(T* arr, int* idx, int n, int i, Op op)
+__device__ void heap_heapify(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, int index, const int64_t axis, Op op)
 {
-    int index = i;
+    auto idx = css.multi(i);
+    auto idxl = idx;
+    auto idxr = idx;
+    auto idxp = idx;
     while(index < n)
     {
         auto pre_index = index;
         int l          = 2 * index + 1;
         int r          = 2 * index + 2;
 
-        if(l < n && op(arr[idx[l]], arr[idx[index]]))
+        idx[axis] = index;
+        idxl[axis] = l;
+        idxr[axis] = r;
+
+        if(l < n && op(arr[ind[oss.index(idxl)]], arr[ind[oss.index(idx)]]))
         {
             index = l;
         }
 
-        if(r < n && op(arr[idx[r]], arr[idx[index]]))
+        if(r < n && op(arr[ind[oss.index(idxr)]], arr[ind[oss.index(idx)]]))
         {
             index = r;
-            if(op(arr[idx[l]], arr[idx[r]]))
+            if(op(arr[ind[oss.index(idxl)]], arr[ind[oss.index(idxr)]]))
             {
                 index = l;
             }
@@ -65,50 +72,58 @@ __device__ void heap_heapify(T* arr, int* idx, int n, int i, Op op)
         {
             break;
         }
-        swap(idx[index], idx[pre_index]);
+        
+        idxp[axis] = pre_index;
+        swap(ind[oss.index(idx)], ind[oss.index(idxp)]);
     }
 }
 
 template <class T, class Op>
-__device__ void build_heap(T* arr, int* idx, int n, Op op)
+__device__ void build_heap(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int64_t axis, Op op)
 {
-    for(int i = n / 2 - 1; i >= 0; i--)
+    for(int j = n / 2 - 1; j >= 0; j--)
     {
-        heap_heapify(arr, idx, n, i, op);
+        heap_heapify(arr, ind, i, oss, iss, css, n, j, axis, op);
     }
 }
 
 template <class T, class Op>
-__device__ void heap_add(T* arr, int* idx, int n, const int& val, Op op)
+__device__ void heap_add(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int& val, const int64_t axis, Op op)
 {
-    if(op(arr[val], arr[idx[0]]))
+    auto idx = css.multi(i);
+    if(op(arr[val], arr[ind[oss.index(idx)]]))
     {
         return;
     }
 
-    idx[0] = val;
+    ind[oss.index(idx)] = val;
     heap_heapify(arr, idx, n, 0, op);
 }
 
 template <class T, class Op>
-__device__ void heapSort(T* arr, int* idx, int n, Op op)
+__device__ void heap_sort(T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, const int64_t axis, Op op)
 {
-    build_heap(arr, idx, n, op);
-
-    for(int i = n - 1; i > 0; i--)
+    build_heap(arr, ind, i, oss, iss, css, n, axis, op);
+    auto idx = css.multi(i);
+    auto idxj = idx;
+    for(int j = n - 1; j > 0; --j)
     {
-        swap(idx[0], idx[i]);
-        heap_heapify(arr, idx, i, 0, op);
+        idxj[axis] = j;
+        swap(ind[oss.index(idx)], ind[idxj.index(idxj)]);
+        heap_heapify(arr, ind, i, oss, iss, css, 0, axis, op);
     }
 }
 
 template <class T, class Op>
-__device__ void topk_value(T* arr, int* idx, int n, int k, Op op)
+__device__ void topk_value(const T* arr, int64_t* ind, const int64_t i, const auto& oss, const auto& iss, const auto& css, int n, int k, const int64_t axis, Op op)
 {
-    build_heap(arr, idx, k, op);
-    for(int i = k; i < n; ++i)
+    build_heap(arr, ind, i, oss, iss, css, k, axis, op);
+    for(int j = k; j < n; ++j)
     {
-        heap_add(arr, idx, k, idx[i], op);
+        auto idx = css.multi(i);
+        idx[axis] = j;
+        auto val = ind[oss.index(idx)];
+        heap_add(arr, ind, i, oss, iss, css, k, val, axis, op);
     }
 }
 
@@ -118,6 +133,7 @@ argument topk(hipStream_t stream,
               argument arg,
               int64_t k,
               int64_t axis,
+              bool sorted,
               bool largest)
 {
     auto in_s       = arg.get_shape();
@@ -131,21 +147,35 @@ argument topk(hipStream_t stream,
 
     hip_visit_all(val_res, arg, out_s, in_s, comp_s)(
         [&](auto out_val, auto input, auto oss, auto iss, auto css) {
-            using type = typename decltype(input)::value_type;
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
             ind_res.visit([&](auto out_ind) {
                 auto* ind = device_cast(out_ind.data());
                 gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
-                    auto idx   = css.multi(i);
-                    auto idata = iss.index(idx);
-                    // for (int j = 0; j < axis_dim; ++j)
-                    // {
-                    //     sidx[j] = j;
-                    //     idx[axis] = j;
-                    //     val[j] = data[iss.index(idx)];
-                    // }
-                    // topk_value(val, sidx, axis_dim, k, greater{});
+                    auto idx = css.multi(i);
+                    for (int j = 0; j < k; ++j)
+                    {
+                        idx[axis] = j;
+                        ind[oss.index(idx)] = j;
+                    }
+
+                    topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, greater{});
+
+                    // if outputs are sorted, sort them
+                    if (sorted)
+                    {
+                        heap_sort(data, ind, i, oss, iss, css, k, axis_dim, greater{});
+                    }
+
+                    // read output
+                    idx = css.multi(i);
+                    for (int j = 0; j < k; ++j)
+                    {
+                        auto in_idx = idx;
+                        idx[axis] = j;
+                        in_idx[axis] = ind[oss.index(idx)];
+                        out[oss.index(idx)] = data[iss.index(in_idx)];
+                    }
                 });
             });
         });

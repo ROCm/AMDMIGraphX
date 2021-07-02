@@ -127,7 +127,7 @@ argument::data_t argument::data_t::from_args(const std::vector<argument>& args)
 argument argument::copy() const
 {
     argument result{this->get_shape()};
-    auto src = this->data();
+    auto* src = this->data();
     std::copy(src, src + this->get_shape().bytes(), result.data());
     return result;
 }

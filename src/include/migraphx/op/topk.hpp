@@ -177,7 +177,7 @@ struct topk
         build_heap(data, iss, sidx, indices, kk, op);
         for(int i = kk; i < n; ++i)
         {
-            heap_add(data, iss, sidx, indices, kk, indices[i], op);
+            heap_add(data, iss, sidx, indices, kk, i, op);
         }
     }
 
@@ -188,12 +188,11 @@ struct topk
         argument res_ind{vec_ss.back()};
         auto in_s     = args.front().get_shape();
         auto out_s    = vec_ss.front();
-        auto in_lens  = in_s.lens();
-        auto axis_dim = in_lens[axis];
+        auto comp_lens  = in_s.lens();
+        auto axis_dim = comp_lens[axis];
 
         // compute shape
-        auto comp_lens = in_lens;
-        comp_lens.erase(comp_lens.begin() + axis);
+        comp_lens[axis] = 1;
         shape comp_s{in_s.type(), comp_lens};
         auto op = compare_op{largest};
 

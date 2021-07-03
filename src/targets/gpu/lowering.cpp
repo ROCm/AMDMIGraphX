@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -421,7 +422,7 @@ struct miopen_apply
         });
     }
 
-    // replace the if operator with gpu_if operator
+    // add input and output argument for the if operator
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
@@ -463,16 +464,17 @@ struct miopen_apply
 
     void add_topk_op()
     {
-        apply_map.emplace("top", [=](instruction_ref ins) {
+        apply_map.emplace("topk", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             auto s                              = ins->get_shape();
             auto ss                             = s.sub_shapes();
-            auto out_val                        = insert_allocation(ins, ss.front());
-            auto out_ind                        = insert_allocation(ins, ss.back());
+            auto out_val = insert_allocation(ins, ss.front());
+            auto out_ind = insert_allocation(ins, ss.back());
             inputs.push_back(out_ind);
             inputs.push_back(out_val);
 
-            return mod->replace_instruction(ins, make_op("gpu::topk"), inputs);
+            return mod->replace_instruction(
+                ins, make_op("gpu::topk", ins->get_operator().to_value()), inputs);
         });
     }
 };

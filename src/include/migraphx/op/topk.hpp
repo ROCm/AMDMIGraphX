@@ -186,10 +186,10 @@ struct topk
         auto vec_ss = output_shape.sub_shapes();
         argument res_val{vec_ss.front()};
         argument res_ind{vec_ss.back()};
-        auto in_s     = args.front().get_shape();
-        auto out_s    = vec_ss.front();
-        auto comp_lens  = in_s.lens();
-        auto axis_dim = comp_lens[axis];
+        auto in_s      = args.front().get_shape();
+        auto out_s     = vec_ss.front();
+        auto comp_lens = in_s.lens();
+        auto axis_dim  = comp_lens[axis];
 
         // compute shape
         comp_lens[axis] = 1;

@@ -138,6 +138,7 @@ struct topk
                   Op op) const
     {
         auto idx  = sidx;
+        sidx[axis] = indices[0];
         idx[axis] = val;
         if(op(data[iss.index(idx)], data[iss.index(sidx)]))
         {

@@ -23,7 +23,7 @@ struct topk
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.k, "topk"),
+        return pack(f(self.k, "k"),
                     f(self.axis, "axis"),
                     f(self.largest, "largest"),
                     f(self.sorted, "sorted"));

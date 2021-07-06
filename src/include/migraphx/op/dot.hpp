@@ -80,7 +80,6 @@ struct dot
             [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, alpha, beta); });
         return result;
     }
-
 };
 
 } // namespace op

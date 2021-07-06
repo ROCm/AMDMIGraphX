@@ -58,7 +58,7 @@ hip_loop::compute(const shape&,
     std::string param_prefix = "#" + mod->name() + "_in_";
     std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
     std::vector<argument> out_args = {cpy_args.at(input_num)};
-    auto mod_outputs = cpy_args.back().get_sub_objects();
+    auto mod_outputs               = cpy_args.back().get_sub_objects();
     out_args.insert(out_args.end(), mod_outputs.begin(), mod_outputs.end());
 
     int64_t iter = 0;

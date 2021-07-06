@@ -20,18 +20,15 @@ struct parse_slice : op_parser<parse_slice>
     {
         op::slice op;
 
+        std::vector<int64_t> steps;
+
         // slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGRAPHX can handle this slice
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
-            std::vector<int> steps;
             step_arg.visit([&](auto s) { steps.assign(s.begin(), s.end()); });
-            if(!std::all_of(steps.begin(), steps.end(), [](auto s) { return s == 1; }))
-            {
-                MIGRAPHX_THROW("PARSE_SLICE: cannot handle step other than 1");
-            }
         }
 
         if(args.size() >= 4)
@@ -77,7 +74,38 @@ struct parse_slice : op_parser<parse_slice>
             op.axes = axes;
         }
 
-        return info.add_instruction(op, args[0]);
+        std::vector<int64_t> raxes;
+
+        assert(steps.empty() or steps.size() == op.axes.size());
+        assert(op.axes.size() == op.starts.size());
+        assert(op.axes.size() == op.ends.size());
+
+        for(auto i : range(steps.size()))
+        {
+            if(steps[i] >= 0)
+                continue;
+            op.starts[i] += 1;
+            if(op.starts[i] == 0)
+                op.starts[i] = INT_MAX;
+            op.ends[i] += 1;
+            raxes.push_back(op.axes[i]);
+            std::swap(op.starts[i], op.ends[i]);
+        }
+
+        auto ins = info.add_instruction(op, args[0]);
+        if(not raxes.empty())
+            ins = info.add_instruction(make_op("reverse", {{"axes", raxes}}), ins);
+        if(std::any_of(steps.begin(), steps.end(), [](auto s) { return std::abs(s) != 1; }))
+        {
+            std::vector<int64_t> nsteps;
+            std::transform(steps.begin(), steps.end(), std::back_inserter(nsteps), [](auto s) {
+                return std::abs(s);
+            });
+            return ins = info.add_instruction(
+                       make_op("step", {{"axes", op.axes}, {"steps", nsteps}}), ins);
+        }
+        else
+            return ins;
     }
 };
 

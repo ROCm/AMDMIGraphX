@@ -62,16 +62,7 @@ struct parse_conv : op_parser<parse_conv>
                 calculate_padding(0, pads, input_dims[2], op.stride[0], op.dilation[0], weight_h);
                 calculate_padding(1, pads, input_dims[3], op.stride[1], op.dilation[1], weight_w);
 
-                if(pads[0] != pads[2] || pads[1] != pads[3])
-                {
-                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0 = info.add_instruction(migraphx::make_op("pad", {{"pads", padding}}), l0);
-                }
-                else
-                {
-                    op.padding[0] = pads[0];
-                    op.padding[1] = pads[1];
-                }
+                op.padding = std::vector<size_t>(pads.begin(), pads.end());
             }
             else if(pad_mode.find("VALID") != std::string::npos)
             {

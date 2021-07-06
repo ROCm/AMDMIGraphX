@@ -24,48 +24,53 @@ migraphx::program create_program()
     return p;
 }
 
-TEST_CASE(module_ins_clear)
+TEST_CASE(calc_implict_deps)
 {
-    migraphx::program p1 = create_program();
-    migraphx::program p2;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape cond_s{migraphx::shape::bool_type};
+    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
+    std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
 
-    p2 = p1;
+    auto lx   = mm->add_literal(migraphx::literal(xs, datax));
+    auto ly   = mm->add_literal(migraphx::literal(ys, datay));
+    auto cond = mm->add_parameter("cond", cond_s);
+    auto x1   = mm->add_parameter("x1", xs);
+    auto x2   = mm->add_parameter("x2", xs);
+    auto y2   = mm->add_parameter("y2", ys);
 
-    EXPECT(p1 == p2);
-}
+    auto* then_mod = p.create_module("If_5_if");
+    auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
+    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x1, lx);
+    then_mod->add_return({a1, l1});
 
-TEST_CASE(module_print_graph)
-{
-    migraphx::program p1 = create_program();
-    migraphx::program p2 = create_program();
+    auto* then_mod1 = p.create_module("If_6_if");
+    auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
+    auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
+    then_mod1->add_return({a11, l11});
 
-    auto* mm1 = p1.get_main_module();
-    auto* mm2 = p2.get_main_module();
+    auto* else_mod1 = p.create_module("If_6_else");
+    auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
+    auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
+    else_mod1->add_return({l21, a21});
 
-    std::stringstream ss1;
-    mm1->print_graph(ss1, true);
+    auto* else_mod = p.create_module("If_5_else");
+    auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
+    auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
+    auto a3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), a2);
+    else_mod->add_return({a3, l2});
 
-    std::stringstream ss2;
-    mm2->print_graph(ss2, true);
+    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+    auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+    mm->add_return({r});
 
-    EXPECT(ss1.str() == ss2.str());
-}
-
-TEST_CASE(module_print_cpp)
-{
-    migraphx::program p1 = create_program();
-    migraphx::program p2 = create_program();
-
-    auto* mm1 = p1.get_main_module();
-    auto* mm2 = p2.get_main_module();
-
-    std::stringstream ss1;
-    mm1->print_cpp(ss1);
-
-    std::stringstream ss2;
-    mm2->print_cpp(ss2);
-
-    EXPECT(ss1.str() == ss2.str());
+    auto implicit_deps = mm->calc_implicit_deps();
+    EXPECT(migraphx::contains(implicit_deps, ret));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), x1));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), x2));
+    EXPECT(migraphx::contains(implicit_deps.at(ret), y2));
 }
 
 TEST_CASE(module_annotate)
@@ -86,6 +91,16 @@ TEST_CASE(module_annotate)
     EXPECT(ss1.str() == ss2.str());
 }
 
+TEST_CASE(module_ins_clear)
+{
+    migraphx::program p1 = create_program();
+    migraphx::program p2;
+
+    p2 = p1;
+
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(module_name)
 {
     migraphx::module m1("name");
@@ -103,6 +118,40 @@ TEST_CASE(module_name_main)
     migraphx::program p;
     auto* mm = p.get_main_module();
     EXPECT(mm->name() == "main");
+}
+
+TEST_CASE(module_print_cpp)
+{
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+
+    auto* mm1 = p1.get_main_module();
+    auto* mm2 = p2.get_main_module();
+
+    std::stringstream ss1;
+    mm1->print_cpp(ss1);
+
+    std::stringstream ss2;
+    mm2->print_cpp(ss2);
+
+    EXPECT(ss1.str() == ss2.str());
+}
+
+TEST_CASE(module_print_graph)
+{
+    migraphx::program p1 = create_program();
+    migraphx::program p2 = create_program();
+
+    auto* mm1 = p1.get_main_module();
+    auto* mm2 = p2.get_main_module();
+
+    std::stringstream ss1;
+    mm1->print_graph(ss1, true);
+
+    std::stringstream ss2;
+    mm2->print_graph(ss2, true);
+
+    EXPECT(ss1.str() == ss2.str());
 }
 
 TEST_CASE(program_module_assign)
@@ -202,53 +251,6 @@ TEST_CASE(submodule_copy)
 
     EXPECT(mm == mm2);
     EXPECT(mm.get_sub_modules() == mm2.get_sub_modules());
-}
-
-TEST_CASE(calc_implict_deps)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape cond_s{migraphx::shape::bool_type};
-    migraphx::shape xs{migraphx::shape::float_type, {2, 3}};
-    migraphx::shape ys{migraphx::shape::float_type, {3, 3}};
-    std::vector<float> datax = {1, 2, 3, 4, 5, 6};
-    std::vector<float> datay = {8, 7, 6, 5, 4, 3, 2, 1, 0};
-
-    auto lx   = mm->add_literal(migraphx::literal(xs, datax));
-    auto ly   = mm->add_literal(migraphx::literal(ys, datay));
-    auto cond = mm->add_parameter("cond", cond_s);
-    auto x1   = mm->add_parameter("x1", xs);
-    auto x2   = mm->add_parameter("x2", xs);
-    auto y2   = mm->add_parameter("y2", ys);
-
-    auto* then_mod = p.create_module("If_5_if");
-    auto l1        = then_mod->add_literal(migraphx::literal(ys, datay));
-    auto a1        = then_mod->add_instruction(migraphx::make_op("add"), x1, lx);
-    then_mod->add_return({a1, l1});
-
-    auto* then_mod1 = p.create_module("If_6_if");
-    auto l11        = then_mod1->add_literal(migraphx::literal(ys, datay));
-    auto a11        = then_mod1->add_instruction(migraphx::make_op("add"), x2, lx);
-    then_mod1->add_return({a11, l11});
-
-    auto* else_mod1 = p.create_module("If_6_else");
-    auto l21        = else_mod1->add_literal(migraphx::literal(xs, datax));
-    auto a21        = else_mod1->add_instruction(migraphx::make_op("mul"), y2, ly);
-    else_mod1->add_return({l21, a21});
-
-    auto* else_mod = p.create_module("If_5_else");
-    auto l2        = else_mod->add_literal(migraphx::literal(ys, datay));
-    auto a2 = else_mod->add_instruction(migraphx::make_op("if"), {cond}, {then_mod1, else_mod1});
-    else_mod->add_return({a2, l2});
-
-    auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-    mm->add_return({ret});
-
-    auto implicit_deps = mm->calc_implicit_deps();
-    EXPECT(migraphx::contains(implicit_deps, ret));
-    EXPECT(migraphx::contains(implicit_deps.at(ret), x1));
-    EXPECT(migraphx::contains(implicit_deps.at(ret), x2));
-    EXPECT(migraphx::contains(implicit_deps.at(ret), y2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

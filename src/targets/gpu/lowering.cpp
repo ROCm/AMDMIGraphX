@@ -55,7 +55,8 @@ struct miopen_apply
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
-    bool offload_copy = false;
+    bool offload_copy   = false;
+    bool int8_x4_format = true;
 
     context& get_context() const
     {
@@ -96,6 +97,13 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
+
+#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
+        auto& ctx = get_context();
+        rocblas_gemm_flags flag;
+        rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
+        int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
+#endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
         create_output_names();
@@ -160,6 +168,7 @@ struct miopen_apply
         add_extend_op("reduce_min");
         add_extend_op("reduce_prod");
         add_extend_op("reduce_sum");
+        add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
@@ -313,7 +322,8 @@ struct miopen_apply
                 }
             }
 
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}}, refs);
+            return mod->replace_instruction(
+                ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format}, refs);
         });
     }
 

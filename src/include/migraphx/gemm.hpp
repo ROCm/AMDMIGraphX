@@ -3,6 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/par_dfor.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/tensor_view.hpp>
 
@@ -25,7 +26,7 @@ void gemm(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha
         auto a_idx = c_idx;
         auto b_idx = c_idx;
         double s   = 0.0;
-        dfor(k)([&](auto kk) {
+        par_dfor(k)([&](auto kk) {
             a_idx[dim_1] = b_idx[dim_0] = kk;
             s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
         });

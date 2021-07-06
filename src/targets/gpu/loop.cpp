@@ -48,21 +48,19 @@ hip_loop::compute(const shape&,
     cpu_args.push_back(cpy_args.at(3));
     cpy_args.erase(cpy_args.begin() + 3);
     cpy_args.erase(cpy_args.begin() + 1);
-    auto ins_out = cpy_args.back();
-    cpy_args.pop_back();
-    auto outputs = ins_out.get_sub_objects();
-    cpy_args.insert(cpy_args.end(), outputs.begin(), outputs.end());
 
     auto iter_num            = cpu_args.at(0).at<int64_t>();
     auto cond                = cpu_args.at(1).at<bool>();
     module_ref mod           = mods.at(0);
-    auto mod_out_num         = mod->get_output_shapes().size();
-    auto input_num           = cpy_args.size() - mod_out_num;
+    auto input_num           = cpy_args.size() - 2;
     auto dep_num             = input_num - 2;
     auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
     std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
-    std::vector<argument> out_args(cpy_args.begin() + input_num, cpy_args.end());
+    std::vector<argument> out_args = {cpy_args.at(input_num)};
+    auto mod_outputs = cpy_args.back().get_sub_objects();
+    out_args.insert(out_args.end(), mod_outputs.begin(), mod_outputs.end());
+
     int64_t iter = 0;
     for(iter = 0; (iter < iter_num) and cond; ++iter)
     {

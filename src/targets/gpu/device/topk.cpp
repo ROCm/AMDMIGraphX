@@ -77,7 +77,7 @@ __device__ void heap_heapify(T* arr,
             break;
         }
 
-        idx[axis] = index;
+        idx[axis]  = index;
         idxp[axis] = pre_index;
         swap(ind[oss.index(idx)], ind[oss.index(idxp)]);
     }
@@ -112,9 +112,9 @@ __device__ void heap_add(T* arr,
                          const int64_t axis,
                          Op op)
 {
-    auto idx = css.multi(i);
-    idx[axis] = ind[oss.index(idx)];
-    auto vidx = idx;
+    auto idx   = css.multi(i);
+    idx[axis]  = ind[oss.index(idx)];
+    auto vidx  = idx;
     vidx[axis] = val;
 
     if(op(arr[iss.index(vidx)], arr[iss.index(idx)]))

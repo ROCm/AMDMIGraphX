@@ -16,7 +16,7 @@ argument fill_argument(shape s, unsigned long value)
 
 argument generate_argument(shape s, unsigned long seed)
 {
-    if (s.type() != shape::tuple_type)
+    if(s.type() != shape::tuple_type)
     {
         argument result;
         s.visit_type([&](auto as) {
@@ -40,22 +40,22 @@ argument generate_argument(shape s, unsigned long seed)
     {
         auto vec_ss = s.sub_shapes();
         std::vector<argument> args;
-        for (auto& ss : vec_ss)
+        for(auto& ss : vec_ss)
         {
             ss.visit_type([&](auto as) {
                 // we use char type to store bool type internally, so bool_type
                 // needs special processing to generate data
                 if(s.type() == shape::bool_type)
                 {
-                    auto v = generate_tensor_data<bool>(s, seed);
+                    auto v       = generate_tensor_data<bool>(s, seed);
                     argument arg = {s, v};
                     args.push_back(arg);
                 }
                 else
                 {
-                    using type = typename decltype(as)::type;
-                    auto v     = generate_tensor_data<type>(s, seed);
-                    argument arg     = {s, v};
+                    using type   = typename decltype(as)::type;
+                    auto v       = generate_tensor_data<type>(s, seed);
+                    argument arg = {s, v};
                     args.push_back(arg);
                 }
             });

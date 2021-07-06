@@ -467,7 +467,7 @@ struct miopen_apply
         apply_map.emplace("topk", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             auto s                              = ins->get_shape();
-            auto output = insert_allocation(ins, s);
+            auto output                         = insert_allocation(ins, s);
             inputs.push_back(output);
 
             return mod->replace_instruction(

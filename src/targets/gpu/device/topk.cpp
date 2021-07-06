@@ -32,15 +32,15 @@ __device__ void swap(T& v1, T& v2)
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_heapify(T* arr,
-                             int64_t* ind,
-                             const int64_t i,
-                             const hip_shape<N>& oss,
-                             const hip_shape<N>& iss,
-                             const hip_shape<N>& css,
-                             int n,
-                             int index,
-                             const int64_t axis,
-                             Op op)
+                                    int64_t* ind,
+                                    const int64_t i,
+                                    const hip_shape<N>& oss,
+                                    const hip_shape<N>& iss,
+                                    const hip_shape<N>& css,
+                                    int n,
+                                    int index,
+                                    const int64_t axis,
+                                    Op op)
 {
     auto idx  = css.multi(i);
     auto idxl = idx;
@@ -86,14 +86,14 @@ __device__ inline void heap_heapify(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void build_heap(T* arr,
-                           int64_t* ind,
-                           const int64_t i,
-                           const hip_shape<N>& oss,
-                           const hip_shape<N>& iss,
-                           const hip_shape<N>& css,
-                           int n,
-                           const int64_t axis,
-                           Op op)
+                                  int64_t* ind,
+                                  const int64_t i,
+                                  const hip_shape<N>& oss,
+                                  const hip_shape<N>& iss,
+                                  const hip_shape<N>& css,
+                                  int n,
+                                  const int64_t axis,
+                                  Op op)
 {
     for(int j = n / 2 - 1; j >= 0; j--)
     {
@@ -103,15 +103,15 @@ __device__ inline void build_heap(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_add(T* arr,
-                         int64_t* ind,
-                         const int64_t i,
-                         const hip_shape<N>& oss,
-                         const hip_shape<N>& iss,
-                         const hip_shape<N>& css,
-                         int n,
-                         int val,
-                         const int64_t axis,
-                         Op op)
+                                int64_t* ind,
+                                const int64_t i,
+                                const hip_shape<N>& oss,
+                                const hip_shape<N>& iss,
+                                const hip_shape<N>& css,
+                                int n,
+                                int val,
+                                const int64_t axis,
+                                Op op)
 {
     auto idx   = css.multi(i);
     auto vidx  = idx;
@@ -130,14 +130,14 @@ __device__ inline void heap_add(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_sort(T* arr,
-                          int64_t* ind,
-                          const int64_t i,
-                          const hip_shape<N>& oss,
-                          const hip_shape<N>& iss,
-                          const hip_shape<N>& css,
-                          int n,
-                          const int64_t axis,
-                          Op op)
+                                 int64_t* ind,
+                                 const int64_t i,
+                                 const hip_shape<N>& oss,
+                                 const hip_shape<N>& iss,
+                                 const hip_shape<N>& css,
+                                 int n,
+                                 const int64_t axis,
+                                 Op op)
 {
     build_heap(arr, ind, i, oss, iss, css, n, axis, op);
     auto idx  = css.multi(i);
@@ -152,15 +152,15 @@ __device__ inline void heap_sort(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void topk_value(const T* arr,
-                           int64_t* ind,
-                           const int64_t i,
-                           const hip_shape<N>& oss,
-                           const hip_shape<N>& iss,
-                           const hip_shape<N>& css,
-                           int n,
-                           int k,
-                           const int64_t axis,
-                           Op op)
+                                  int64_t* ind,
+                                  const int64_t i,
+                                  const hip_shape<N>& oss,
+                                  const hip_shape<N>& iss,
+                                  const hip_shape<N>& css,
+                                  int n,
+                                  int k,
+                                  const int64_t axis,
+                                  Op op)
 {
     build_heap(arr, ind, i, oss, iss, css, k, axis, op);
     for(int j = k; j < n; ++j)

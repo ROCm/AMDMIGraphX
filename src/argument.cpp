@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <unordered_map>
@@ -7,8 +8,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 argument::argument(const shape& s) : m_shape(s)
 {
-    auto buffer = make_shared_array<char>(s.bytes());
-    m_data      = {[=]() mutable { return buffer.get(); }};
+    if (s.type() != shape::tuple_type)
+    {
+        auto buffer = make_shared_array<char>(s.bytes());
+        m_data      = {[=]() mutable { return buffer.get(); }};
+    }
+    else
+    {
+        auto ss = s.sub_shapes();
+        std::transform(ss.begin(), ss.end(), std::back_inserter(m_data.sub), [&](auto sss) {
+            auto buffer = make_shared_array<char>(sss.bytes());
+            data_t mm_data      = {[=]() mutable { return buffer.get(); }};
+            return mm_data;
+        });
+    }
 }
 
 argument::argument(shape s, std::nullptr_t)

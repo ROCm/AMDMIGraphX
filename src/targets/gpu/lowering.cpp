@@ -467,11 +467,8 @@ struct miopen_apply
         apply_map.emplace("topk", [=](instruction_ref ins) {
             std::vector<instruction_ref> inputs = ins->inputs();
             auto s                              = ins->get_shape();
-            auto ss                             = s.sub_shapes();
-            auto out_val                        = insert_allocation(ins, ss.front());
-            auto out_ind                        = insert_allocation(ins, ss.back());
-            inputs.push_back(out_ind);
-            inputs.push_back(out_val);
+            auto output = insert_allocation(ins, s);
+            inputs.push_back(output);
 
             return mod->replace_instruction(
                 ins, make_op("gpu::topk", ins->get_operator().to_value()), inputs);

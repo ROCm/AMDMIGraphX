@@ -4062,19 +4062,19 @@ def topk_neg_axis_test():
     k = np.array([3])
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [3, 3, 5, 6])
-    ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [3, 3, 5, 6])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [3, 3, 5, 6])
 
     k_tensor = helper.make_tensor(name='k',
-                                data_type=TensorProto.INT64,
-                                dims=k.shape,
-                                vals=k.astype(np.int64))
-    
-    node = onnx.helper.make_node(
-            'TopK',
-            inputs=['data', 'k'],
-            outputs=['val', 'indices'],
-            axis=-2,
-            sorted=0)
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 axis=-2,
+                                 sorted=0)
     return ([node], [x], [val, ind], [k_tensor])
 
 
@@ -4083,19 +4083,19 @@ def topk_test():
     k = np.array([4])
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
     val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 4, 3, 2])
-    ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 4, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 4, 3, 2])
 
     k_tensor = helper.make_tensor(name='k',
-                                data_type=TensorProto.INT64,
-                                dims=k.shape,
-                                vals=k.astype(np.int64))
-    
-    node = onnx.helper.make_node(
-            'TopK',
-            inputs=['data', 'k'],
-            outputs=['val', 'indices'],
-            largest=0,
-            axis=1)
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 largest=0,
+                                 axis=1)
     return ([node], [x], [val, ind], [k_tensor])
 
 

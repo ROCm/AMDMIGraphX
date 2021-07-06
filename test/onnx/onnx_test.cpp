@@ -3683,7 +3683,8 @@ TEST_CASE(topk_neg_axis_test)
     mm->add_literal(migraphx::literal(sk, {3}));
     migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
     auto data = mm->add_parameter("data", s);
-    auto out = mm->add_instruction(migraphx::make_op("topk", {{"k", 3}, {"axis", -2}, {"largest", 1}, {"sorted", 0}}), data);
+    auto out  = mm->add_instruction(
+        migraphx::make_op("topk", {{"k", 3}, {"axis", -2}, {"largest", 1}, {"sorted", 0}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     mm->add_return({val, ind});
@@ -3701,14 +3702,15 @@ TEST_CASE(topk_test)
     mm->add_literal(migraphx::literal(sk, {4}));
     migraphx::shape s{migraphx::shape::float_type, {2, 5, 3, 2}};
     auto data = mm->add_parameter("data", s);
-    auto out = mm->add_instruction(migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 0}, {"sorted", 1}}), data);
+    auto out  = mm->add_instruction(
+        migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 0}, {"sorted", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     mm->add_return({val, ind});
 
     auto prog = migraphx::parse_onnx("topk_test.onnx");
 
-    EXPECT(p == prog);    
+    EXPECT(p == prog);
 }
 
 TEST_CASE(transpose_gather_test)

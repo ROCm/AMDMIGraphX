@@ -474,18 +474,23 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
             auto sync_iter =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
-            inputs.at(0) = sync_iter;
-            inputs.at(1) = cpu_cond;
-            auto gpu_iter = mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(0)->get_shape())}}));
-            auto gpu_cond = mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(1)->get_shape())}}));
+            inputs.at(0)  = sync_iter;
+            inputs.at(1)  = cpu_cond;
+            auto gpu_iter = mod->insert_instruction(
+                ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(0)->get_shape())}}));
+            auto gpu_cond = mod->insert_instruction(
+                ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(1)->get_shape())}}));
             inputs.insert(inputs.begin() + 1, gpu_cond);
             inputs.insert(inputs.begin(), gpu_iter);
-            auto mod_args       = ins->module_inputs();
-            auto ins_s          = ins->get_shape();
-            auto output = insert_allocation(ins, ins_s);
+            auto mod_args = ins->module_inputs();
+            auto ins_s    = ins->get_shape();
+            auto output   = insert_allocation(ins, ins_s);
 
             const auto* sub_mod = mod_args.front();
-            auto cond_out = mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+            auto cond_out       = mod->insert_instruction(
+                ins,
+                make_op("hip::allocate",
+                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
             inputs.push_back(cond_out);
             inputs.push_back(output);
 

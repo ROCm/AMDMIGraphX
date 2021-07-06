@@ -77,6 +77,7 @@ __device__ void heap_heapify(T* arr,
             break;
         }
 
+        idx[axis] = index;
         idxp[axis] = pre_index;
         swap(ind[oss.index(idx)], ind[oss.index(idxp)]);
     }
@@ -112,7 +113,11 @@ __device__ void heap_add(T* arr,
                          Op op)
 {
     auto idx = css.multi(i);
-    if(op(arr[val], arr[ind[oss.index(idx)]]))
+    idx[axis] = ind[oss.index(idx)];
+    auto vidx = idx;
+    vidx[axis] = val;
+
+    if(op(arr[iss.index(vidx)], arr[iss.index(idx)]))
     {
         return;
     }
@@ -160,8 +165,8 @@ __device__ void topk_value(const T* arr,
     {
         auto idx  = css.multi(i);
         idx[axis] = j;
-        auto val  = ind[oss.index(idx)];
-        heap_add(arr, ind, i, oss, iss, css, k, val, axis, op);
+        // auto val  = ind[oss.index(idx)];
+        heap_add(arr, ind, i, oss, iss, css, k, j, axis, op);
     }
 }
 
@@ -189,7 +194,7 @@ argument topk(hipStream_t stream,
             auto* out  = device_cast(out_val.data());
             auto* ind  = reinterpret_cast<int64_t*>(ind_res.data());
             auto op    = compare_op{largest};
-            gs_launch(stream, elem_num, 256)([&](auto i) __device__ {
+            gs_launch(stream, elem_num, 256)([=](auto i) __device__ {
                 auto idx = css.multi(i);
                 for(int j = 0; j < k; ++j)
                 {

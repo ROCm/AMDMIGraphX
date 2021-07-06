@@ -53,6 +53,7 @@ __device__ void heap_heapify(T* arr,
         int r          = 2 * index + 2;
 
         idx[axis]  = index;
+        idx[axis] = ind[oss.index(idx)];
         idxl[axis] = l;
         idxl[axis] = ind[oss.index(idxl)];
         idxr[axis] = r;
@@ -113,8 +114,8 @@ __device__ void heap_add(T* arr,
                          Op op)
 {
     auto idx   = css.multi(i);
-    idx[axis]  = ind[oss.index(idx)];
     auto vidx  = idx;
+    idx[axis]  = ind[oss.index(idx)];
     vidx[axis] = val;
 
     if(op(arr[iss.index(vidx)], arr[iss.index(idx)]))
@@ -122,6 +123,7 @@ __device__ void heap_add(T* arr,
         return;
     }
 
+    idx = css.multi(i);
     ind[oss.index(idx)] = val;
     heap_heapify(arr, ind, i, oss, iss, css, n, 0, axis, op);
 }
@@ -163,8 +165,8 @@ __device__ void topk_value(const T* arr,
     build_heap(arr, ind, i, oss, iss, css, k, axis, op);
     for(int j = k; j < n; ++j)
     {
-        auto idx  = css.multi(i);
-        idx[axis] = j;
+        // auto idx  = css.multi(i);
+        // idx[axis] = j;
         // auto val  = ind[oss.index(idx)];
         heap_add(arr, ind, i, oss, iss, css, k, j, axis, op);
     }

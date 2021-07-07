@@ -243,6 +243,9 @@ migraphx_status migraphx_onnx_options_set_input_parameter_shape(
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);
 
+migraphx_status migraphx_onnx_options_set_default_loop_num(migraphx_onnx_options_t onnx_options,
+                                                           int64_t value);
+
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 

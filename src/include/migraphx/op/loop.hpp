@@ -11,6 +11,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module.hpp>
 #include <cmath>
+#include <string>
 #include <utility>
 #include <set>
 
@@ -84,6 +85,12 @@ struct loop
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         auto iter_num            = args.at(0).at<int64_t>();
+        if (iter_num > max_iter_num)
+        {
+            MIGRAPHX_THROW("LOOP compute(): iter_num " + std::to_string(iter_num) + " larger than max_iter_num " + std::to_string(max_iter_num) + 
+                    ", please set the max_iter_num to at least " + std::to_string(iter_num) + " in onnx_options before parsing onnx file!");
+        }
+
         auto cond                = args.at(1).at<bool>();
         std::size_t dep_num      = args.size() - 2;
         module_ref mod           = mods.at(0);

@@ -151,6 +151,9 @@ jobs:
           - debug
           - release
           - codecov
+        exclude:
+          - os: ubuntu-16.04
+            configuration: debug
 
     steps:
     - uses: actions/checkout@v2

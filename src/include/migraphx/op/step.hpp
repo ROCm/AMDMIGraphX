@@ -8,6 +8,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/lifetime.hpp>
+#include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
 
@@ -26,8 +27,15 @@ struct step
         return pack(f(self.axes, "axes"), f(self.steps, "steps"));
     }
 
+    value attributes() const
+    {
+        value normalize;
+        normalize["axes"] = value::array{normalize_attribute::include_min};
+        return {{"normalize_axes", normalize}};
+    }
+
     std::string name() const { return "step"; }
-    shape compute_shape(std::vector<shape> inputs) const
+    shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
         auto input   = inputs.at(0);

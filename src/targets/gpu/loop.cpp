@@ -108,6 +108,7 @@ hip_loop::compute(const shape&,
         // copy back cond to be used next iteration
         (void)hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, out_args.begin());
     }
 
     out_args.erase(out_args.begin());

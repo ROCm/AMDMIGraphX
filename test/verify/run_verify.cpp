@@ -99,7 +99,22 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     for(auto&& x : p.get_parameter_shapes())
     {
         if(m.count(x.first) == 0)
-            m[x.first] = t.allocate(x.second);
+        {
+            if (x.second.type() == migraphx::shape::tuple_type)
+            {
+                auto vec_ss = x.second.sub_shapes();
+                std::vector<migraphx::argument> arg_outs;
+                for (auto& ss : vec_ss)
+                {
+                    arg_outs.push_back(t.allocate(ss));
+                }
+                m[x.first] = migraphx::argument(arg_outs);
+            }
+            else
+            {
+                m[x.first] = t.allocate(x.second);                
+            }
+        }
     }
     validate(t, p, m);
     p.eval(m);

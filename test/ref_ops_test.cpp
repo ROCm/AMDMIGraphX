@@ -15,6 +15,7 @@
 
 #include <migraphx/serialize.hpp>
 
+#include "migraphx/module.hpp"
 #include "test.hpp"
 #include <migraphx/half.hpp>
 #include <iomanip>
@@ -2392,27 +2393,26 @@ TEST_CASE(logsoftmax_test_axis_3)
 
 TEST_CASE(loop_test)
 {
-    auto create_program = []() {
+    migraphx::shape si{migraphx::shape::int64_type};
+    migraphx::shape s{migraphx::shape::int64_type, {1}};
+    migraphx::shape sc{migraphx::shape::bool_type};
+    auto create_program = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape si{migraphx::shape::int64_type};
-        migraphx::shape sc{migraphx::shape::bool_type};
-
         auto in_iter = mm->add_parameter("iter_num", si);
         auto in_cond = mm->add_parameter("ccond", sc);
-        auto in_val  = mm->add_parameter("val", si);
+        auto in_val  = mm->add_parameter("val", s);
 
         auto* body = p.create_module("loop_module");
-        auto iter  = body->add_parameter("loop_module_in_0", si);
-        body->add_parameter("loop_module_in_1", sc);
-        auto in_v = body->add_parameter("loop_module_in_2", si);
-        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        auto iter  = body->add_parameter("#loop_module_in_0", si);
+        body->add_parameter("#loop_module_in_1", sc);
+        auto in_v = body->add_parameter("#loop_module_in_2", s);
         std::vector<int64_t> vd = {3};
         auto l                  = body->add_literal(migraphx::literal(s, vd));
         auto ad                 = body->add_instruction(migraphx::make_op("add"), iter, l);
         auto val                = body->add_instruction(migraphx::make_op("add"), in_v, ad);
-        auto eq                 = body->add_instruction(migraphx::make_op("equal"), l);
+        auto eq                 = body->add_instruction(migraphx::make_op("equal"), iter, l);
         auto beq                = body->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
         auto neq = body->add_instruction(migraphx::make_op("not"), beq);
@@ -2426,6 +2426,64 @@ TEST_CASE(loop_test)
 
         return p;
     };
+
+    auto run_prog = [&](int64_t iter_num, bool cond, int64_t val)
+    {
+        auto p = create_program();
+        p.compile(migraphx::ref::target{});
+        migraphx::parameter_map pp;
+        pp["iter_num"] = migraphx::argument(si, &iter_num);
+        pp["ccond"] = migraphx::argument(sc, &cond);
+        pp["val"] = migraphx::argument(s, &val);
+        auto rets = p.eval(pp);
+
+        std::vector<std::vector<int64_t>> res;
+        for (auto& arg : rets)
+        {
+            std::cout << "arg = " << arg << std::endl;
+            std::vector<int64_t> vec;
+            arg.visit([&](auto v) { vec.assign(v.begin(), v.end()); });
+            res.push_back(vec);
+        }
+
+        return res;
+    };
+
+    // case 1
+    {
+        auto ress = run_prog(10, true, 1);
+        std::vector<int64_t> gold_last = {19};
+        EXPECT(ress.front() == gold_last);
+        std::vector<int64_t> gold_concat = {4, 8, 13, 19};
+        EXPECT(ress.back() == gold_concat);
+    }
+
+    // case 2
+    {
+        auto ress = run_prog(4, true, 1);
+        std::vector<int64_t> gold_last = {19};
+        EXPECT(ress.front() == gold_last);
+        std::vector<int64_t> gold_concat = {4, 8, 13, 19};
+        EXPECT(ress.back() == gold_concat);
+    }
+
+    // case 3
+    {
+        auto ress = run_prog(3, true, 1);
+        std::vector<int64_t> gold_last = {13};
+        EXPECT(ress.front() == gold_last);
+        std::vector<int64_t> gold_concat = {4, 8, 13};
+        EXPECT(ress.back() == gold_concat);
+    }
+
+    // case 4
+    {
+        auto ress = run_prog(5, true, 2);
+        std::vector<int64_t> gold_last = {20};
+        EXPECT(ress.front() == gold_last);
+        std::vector<int64_t> gold_concat = {5, 9, 14, 20};
+        EXPECT(ress.back() == gold_concat);
+    }
 }
 
 TEST_CASE(lrn_test)

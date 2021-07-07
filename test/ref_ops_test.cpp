@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -2387,6 +2388,43 @@ TEST_CASE(logsoftmax_test_axis_3)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(loop_test)
+{
+    auto create_program = []()
+    {
+        migraphx::program p;
+        auto* mm             = p.get_main_module();
+
+        migraphx::shape si{migraphx::shape::int64_type};
+        migraphx::shape sc{migraphx::shape::bool_type};
+
+        auto in_iter = mm->add_parameter("iter_num", si);
+        auto in_cond = mm->add_parameter("ccond", sc);
+        auto in_val = mm->add_parameter("val", si);
+
+        auto *body = p.create_module("loop_module");
+        auto iter = body->add_parameter("loop_module_in_0", si);
+        body->add_parameter("loop_module_in_1", sc);
+        auto in_v = body->add_parameter("loop_module_in_2", si);
+        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        std::vector<int64_t> vd = {3};
+        auto l = body->add_literal(migraphx::literal(s, vd));
+        auto ad = body->add_instruction(migraphx::make_op("add"), iter, l);
+        auto val = body->add_instruction(migraphx::make_op("add"), in_v, ad);
+        auto eq = body->add_instruction(migraphx::make_op("equal"), l);
+        auto beq = body->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
+        auto neq = body->add_instruction(migraphx::make_op("not"), beq);
+        body->add_return({neq, val, val});
+
+        auto rl = mm->add_instruction(migraphx::make_op("loop", {{"max_iter_num", 10}}), {in_iter, in_cond, in_val}, {body});
+        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl);
+        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl);
+        mm->add_return({r0, r1});
+
+        return p;
+    };
 }
 
 TEST_CASE(lrn_test)

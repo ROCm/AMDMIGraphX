@@ -11,19 +11,19 @@ struct test_loop : verify_program<test_loop>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-		migraphx::shape si{migraphx::shape::int64_type};
-		migraphx::shape s{migraphx::shape::int64_type, {1}};
-		migraphx::shape sc{migraphx::shape::bool_type};
+        migraphx::shape si{migraphx::shape::int64_type};
+        migraphx::shape s{migraphx::shape::int64_type, {1}};
+        migraphx::shape sc{migraphx::shape::bool_type};
         int64_t iter_num = 10;
-        auto in_iter = mm->add_literal(migraphx::literal(si, {iter_num}));
-        auto in_cond = mm->add_parameter("ccond", sc);
-        int64_t value = 5;
-        auto in_val  = mm->add_literal(migraphx::literal(s, {value}));
+        auto in_iter     = mm->add_literal(migraphx::literal(si, {iter_num}));
+        auto in_cond     = mm->add_parameter("ccond", sc);
+        int64_t value    = 5;
+        auto in_val      = mm->add_literal(migraphx::literal(s, {value}));
 
         auto* body = p.create_module("loop_module");
         auto iter  = body->add_parameter("#loop_module_in_0", si);
         body->add_parameter("#loop_module_in_1", sc);
-        auto in_v = body->add_parameter("#loop_module_in_2", s);
+        auto in_v               = body->add_parameter("#loop_module_in_2", s);
         std::vector<int64_t> vd = {3};
         auto l                  = body->add_literal(migraphx::literal(s, vd));
         auto ad                 = body->add_instruction(migraphx::make_op("add"), iter, l);

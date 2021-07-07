@@ -24,14 +24,14 @@ struct parse_loop : op_parser<parse_loop>
         // default value of the max_iter_num
         int64_t max_iter_num = parser.max_iter_num;
         // iteration input is empty
-        if (args.at(0)->name() == "undefined")
+        if(args.at(0)->name() == "undefined")
         {
             shape iter_s{shape::int64_type};
             args[0] = info.add_literal(literal(iter_s, {max_iter_num}));
         }
         else
         {
-            auto arg_iters       = args.at(0)->eval();
+            auto arg_iters = args.at(0)->eval();
             if(not arg_iters.empty())
             {
                 max_iter_num = arg_iters.at<int64_t>();
@@ -39,7 +39,7 @@ struct parse_loop : op_parser<parse_loop>
         }
 
         // condition input is empty
-        if (args.at(1)->name() == "undefined")
+        if(args.at(1)->name() == "undefined")
         {
             shape cond_s{shape::bool_type};
             args[1] = info.add_literal(literal(cond_s, {true}));

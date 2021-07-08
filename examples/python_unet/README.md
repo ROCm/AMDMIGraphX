@@ -1,1 +1,0 @@
-# U-Net Image Segmentation Inference with AMD MIGraphX

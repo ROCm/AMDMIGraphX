@@ -1,1 +1,1 @@
-# U-Net Image Segmentation Inference with AMD MIGraphX
+# U-Net 3D BRATS Inference with AMD MIGraphX Graph Optimization Engine

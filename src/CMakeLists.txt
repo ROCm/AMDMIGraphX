@@ -37,6 +37,7 @@ add_library(migraphx
     msgpack.cpp
     operation.cpp
     permutation.cpp
+    preallocate_param.cpp
     process.cpp
     program.cpp
     module.cpp

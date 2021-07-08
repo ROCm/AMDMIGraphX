@@ -193,6 +193,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_Tanh*')
         backend_test.include(r'.*test_tanh.*')
         backend_test.include(r'.*test_thresholdedrelu.*')
+        backend_test.include(r'.*test_topk.*')
+        backend_test.include(r'.*test_Topk.*')
         backend_test.include(r'.*test_transpose.*')
         backend_test.include(r'.*test_unsqueeze.*')
         backend_test.include(r'.*test_where*')

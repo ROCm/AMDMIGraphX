@@ -16,52 +16,23 @@ argument fill_argument(shape s, unsigned long value)
 
 argument generate_argument(shape s, unsigned long seed)
 {
-    if(s.type() != shape::tuple_type)
-    {
-        argument result;
-        s.visit_type([&](auto as) {
-            // we use char type to store bool type internally, so bool_type
-            // needs special processing to generate data
-            if(s.type() == shape::bool_type)
-            {
-                auto v = generate_tensor_data<bool>(s, seed);
-                result = {s, v};
-            }
-            else
-            {
-                using type = typename decltype(as)::type;
-                auto v     = generate_tensor_data<type>(s, seed);
-                result     = {s, v};
-            }
-        });
-        return result;
-    }
-    else
-    {
-        auto vec_ss = s.sub_shapes();
-        std::vector<argument> args;
-        for(auto& ss : vec_ss)
+    argument result;
+    s.visit_type([&](auto as) {
+        // we use char type to store bool type internally, so bool_type
+        // needs special processing to generate data
+        if(s.type() == shape::bool_type)
         {
-            ss.visit_type([&](auto as) {
-                // we use char type to store bool type internally, so bool_type
-                // needs special processing to generate data
-                if(s.type() == shape::bool_type)
-                {
-                    auto v       = generate_tensor_data<bool>(s, seed);
-                    argument arg = {s, v};
-                    args.push_back(arg);
-                }
-                else
-                {
-                    using type   = typename decltype(as)::type;
-                    auto v       = generate_tensor_data<type>(s, seed);
-                    argument arg = {s, v};
-                    args.push_back(arg);
-                }
-            });
+            auto v = generate_tensor_data<bool>(s, seed);
+            result = {s, v};
         }
-        return argument(args);
-    }
+        else
+        {
+            using type = typename decltype(as)::type;
+            auto v     = generate_tensor_data<type>(s, seed);
+            result     = {s, v};
+        }
+    });
+    return result;
 }
 
 literal generate_literal(shape s, unsigned long seed)

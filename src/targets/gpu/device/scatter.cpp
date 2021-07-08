@@ -19,7 +19,7 @@ argument scatter(
     hip_visit_all(result, arg0, inds)([&](auto output, auto data, auto s1) {
         auto* output_ptr     = device_cast(output.data());
         const auto* data_ptr = device_cast(data.data());
-        gs_launch(stream, ds.elements(), 256)([=](auto i)
+        gs_launch(stream, ds.elements())([=](auto i)
                                                   __device__ { output_ptr[i] = data_ptr[i]; });
         hip_visit_all(arg1, arg2)([&](auto indices, auto update) {
             const auto* upd_ptr     = device_cast(update.data());

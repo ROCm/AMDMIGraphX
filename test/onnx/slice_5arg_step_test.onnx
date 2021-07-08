@@ -1,6 +1,6 @@
-slice_5arg_reverse_test:
+slice_5arg_step_test:ş
 9arg_step"Constant*#
-value**ÿÿÿÿÿÿÿÿÿBstep 
+value**şÿÿÿÿÿÿÿÿBstep 
 Barg_axis"Constant*,
 value* *ÿÿÿÿÿÿÿÿÿşÿÿÿÿÿÿÿÿBaxis 
 @arg_end"Constant*+
@@ -12,7 +12,7 @@ D	arg_start"Constant*-
 	arg_start
 arg_end
 arg_axis
-arg_step1"Sliceslice_5arg_reverse_testZ
+arg_step1"Sliceslice_5arg_step_testZ
 0
 
 

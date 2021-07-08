@@ -96,6 +96,9 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     {
         m[input.first] = t.copy_to(input.second);
     }
+    
+    std::vector<migraphx::argument> arg_outs;
+    arg_outs.reserve(20);
     for(auto&& x : p.get_parameter_shapes())
     {
         if(m.count(x.first) == 0)
@@ -103,7 +106,6 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
             if(x.second.type() == migraphx::shape::tuple_type)
             {
                 auto vec_ss = x.second.sub_shapes();
-                std::vector<migraphx::argument> arg_outs;
                 for(auto& ss : vec_ss)
                 {
                     arg_outs.push_back(t.allocate(ss));

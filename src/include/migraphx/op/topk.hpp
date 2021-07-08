@@ -203,11 +203,11 @@ struct topk
                     auto idx = comp_s.multi(i);
                     std::vector<int> indices(k);
                     std::iota(indices.begin(), indices.end(), 0);
-                    topk_value(input, in_s, idx, indices, axis_dim, k, op);
+                    this->topk_value(input, in_s, idx, indices, axis_dim, k, op);
 
                     if(sorted)
                     {
-                        heap_sort(input, in_s, idx, indices, k, op);
+                        this->heap_sort(input, in_s, idx, indices, k, op);
                     }
 
                     auto out_idx = idx;

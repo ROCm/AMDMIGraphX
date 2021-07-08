@@ -23,7 +23,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
-    if (s0 == s1)
+    if(s0 == s1)
         return s0;
     if(s0.size() > s1.size())
         s0.swap(s1);
@@ -46,20 +46,22 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
-    return transform_accumulate(shapes.begin()+1, shapes.end(), shapes.front().lens(), &compute_broadcasted_lens, [](auto s) {
-        return s.lens();
-    });
+    return transform_accumulate(shapes.begin() + 1,
+                                shapes.end(),
+                                shapes.front().lens(),
+                                &compute_broadcasted_lens,
+                                [](auto s) { return s.lens(); });
 }
 
 shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
 {
-    if (t1 == t2)
+    if(t1 == t2)
         return t1;
     shape::type_t result;
     shape::visit(t1, [&](auto x) {
         shape::visit(t2, [&](auto y) {
             using type = std::common_type_t<decltype(x()), decltype(y())>;
-            result = shape::get_type<type>{};
+            result     = shape::get_type<type>{};
         });
     });
     return result;
@@ -68,29 +70,35 @@ shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
 shape::type_t compute_common_types(const std::vector<shape>& shapes)
 {
     assert(not shapes.empty());
-    return transform_accumulate(shapes.begin()+1, shapes.end(), shapes.front().type(), &compute_common_type, [&](auto s) {
-        return s.type();
-    });
+    return transform_accumulate(
+        shapes.begin() + 1, shapes.end(), shapes.front().type(), &compute_common_type, [&](auto s) {
+            return s.type();
+        });
 }
 
 shape common_shape(const std::vector<shape>& shapes)
 {
-    if (shapes.empty())
+    if(shapes.empty())
         return {};
     return {compute_common_types(shapes), compute_common_lens(shapes)};
 }
 
-instruction_ref insert_common_op(module& m, instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+instruction_ref insert_common_op(module& m,
+                                 instruction_ref ins,
+                                 const operation& op,
+                                 std::vector<instruction_ref> inputs)
 {
     auto common = common_shape(to_shapes(inputs));
     std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-        if (input->get_shape().lens() != common.lens())
+        if(input->get_shape().lens() != common.lens())
         {
-            input = m.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", common.lens()}}), input);
+            input = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"output_lens", common.lens()}}), input);
         }
-        if (input->get_shape().type() != common.type())
+        if(input->get_shape().type() != common.type())
         {
-            input = m.insert_instruction(ins, make_op("convert", {{"target_type", common.type()}}), input);
+            input = m.insert_instruction(
+                ins, make_op("convert", {{"target_type", common.type()}}), input);
         }
         return input;
     });

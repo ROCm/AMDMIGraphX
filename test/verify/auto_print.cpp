@@ -44,3 +44,23 @@ void auto_print::set_terminate_handler(const std::string& name)
             get_handler(tname)();
     });
 }
+
+static bool in_exception()
+{
+#if __cplusplus >= 201703L
+    return std::uncaught_exceptions() > 0;
+#else
+    return std::uncaught_exception();
+#endif
+}
+
+auto_print::~auto_print()
+{
+    if(in_exception())
+    {
+        std::cout << std::endl;
+        for(const auto& tname : migraphx::get_targets())
+            get_handler(tname)();
+    }
+    get_handler(name) = [] {};
+}

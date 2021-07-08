@@ -56,8 +56,7 @@ argument nonzero(hipStream_t stream,
     auto out_lens = result.get_shape().lens();
     out_lens[1]   = nonzero_num;
     shape out_s{result.get_shape().type(), out_lens};
-
-    return {out_s, result.data()};
+    return result.reshape(out_s);
 }
 
 } // namespace device

@@ -125,6 +125,7 @@ struct hip_copy_to_gpu
             return input;
         argument result = args[1].share();
         gpu_copy(ctx, input, result);
+
         // Associate the input since it was registered with hip
         return {args[0].get_shape(), [input, result]() mutable { return result.data(); }};
     }
@@ -153,8 +154,10 @@ struct hip_copy_from_gpu
             return result;
         }
         copy_from_gpu(ctx, args[0], args[1]);
-        return {args[0].get_shape(), args[1].data()};
+
+        return args[1].reshape(args[0].get_shape());
     }
+
     std::ptrdiff_t output_alias(const std::vector<shape>& args) const
     {
         if(args.size() == 1)

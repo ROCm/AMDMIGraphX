@@ -1,6 +1,7 @@
 #include "run_verify.hpp"
 #include "auto_print.hpp"
 #include "verify_program.hpp"
+#include "test.hpp"
 #include <migraphx/env.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
@@ -121,7 +122,6 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
-    std::cout << "[   RUN    ] " << name << std::endl;
     auto_print::set_terminate_handler(name);
     std::vector<std::pair<std::string, result_future>> results;
     std::vector<std::string> target_names;
@@ -180,25 +180,27 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                 std::cout << tname << ":\n" << cp << std::endl;
                 std::cout << std::endl;
             }
+            EXPECT(passed);
         }
     }
     std::set_terminate(nullptr);
-    std::cout << "[ COMPLETE ] " << name << std::endl;
 }
 
 void run_verify::run(int argc, const char* argv[]) const
 {
-    std::set<std::string> args(argv + 1, argv + argc);
-    const auto& ps = get_programs();
-    for(auto&& p : ps)
+    std::unordered_map<std::string, std::vector<std::string>> labels;
+    for(auto&& p : get_programs())
     {
-        if(not args.empty())
-        {
-            if(args.count(p.name) == 0 and args.count(p.section) == 0)
-                continue;
-        }
-        verify(p.name, p.get_program());
+        labels[p.section].push_back(p.name);
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program()); });
     }
+    test::driver d{};
+    d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
+        if(labels.count(name) > 0)
+            return labels.at(name);
+        return {name};
+    };
+    d.run(argc, argv);
 }
 
 void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }

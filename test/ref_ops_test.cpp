@@ -4078,13 +4078,15 @@ TEST_CASE(tanh_test)
 
 TEST_CASE(topk_test)
 {
-    auto create_program = [](int64_t k, int64_t axis, int largest, int sorted)
-    {
+    auto create_program = [](int64_t k, int64_t axis, int largest, int sorted) {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto data = mm->add_parameter("data", s);
-        auto r = mm->add_instruction(migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}, {"sorted", sorted}}), data);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("topk",
+                              {{"axis", axis}, {"k", k}, {"largest", largest}, {"sorted", sorted}}),
+            data);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({r0, r1});
@@ -4092,15 +4094,15 @@ TEST_CASE(topk_test)
         return p;
     };
 
-    auto run_program = [&](int64_t k, int64_t axis, int largest, int sorted)
-    {
+    auto run_program = [&](int64_t k, int64_t axis, int largest, int sorted) {
         auto p = create_program(k, axis, largest, sorted);
         p.compile(migraphx::ref::target{});
-        std::vector<float> data = {2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+        std::vector<float> data = {
+            2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         migraphx::parameter_map pp;
         pp["data"] = migraphx::argument(s, data.data());
-        auto rets = p.eval(pp);
+        auto rets  = p.eval(pp);
         std::vector<float> ret_val;
         rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
         std::vector<int64_t> ret_ind;
@@ -4111,7 +4113,7 @@ TEST_CASE(topk_test)
 
     // case 1
     {
-        auto results = run_program(4, 1, 1, 1);
+        auto results                = run_program(4, 1, 1, 1);
         std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
         EXPECT(results.first == gold_val);
         std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
@@ -4120,7 +4122,7 @@ TEST_CASE(topk_test)
 
     // case 2
     {
-        auto results = run_program(4, 1, 0, 1);
+        auto results                = run_program(4, 1, 0, 1);
         std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
         EXPECT(results.first == gold_val);
         std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
@@ -4129,7 +4131,7 @@ TEST_CASE(topk_test)
 
     // case 3
     {
-        auto results = run_program(4, 1, 0, 0);
+        auto results                = run_program(4, 1, 0, 0);
         std::vector<float> gold_val = {2.3, 2.1, 2, 1.9, 3.3, 0.2, 0.8, 0.1, 2.1, 1, 1.5, 0.8};
         EXPECT(results.first == gold_val);
         std::vector<int64_t> gold_ind = {1, 0, 2, 4, 0, 1, 4, 3, 2, 0, 4, 3};
@@ -4138,7 +4140,7 @@ TEST_CASE(topk_test)
 
     // case 4
     {
-        auto results = run_program(2, -2, 0, 1);
+        auto results                = run_program(2, -2, 0, 1);
         std::vector<float> gold_val = {1, 0.2, 2, 0.1, 0.8, 2.1, 2.3, 2.1, 0.8, 1.5};
         EXPECT(results.first == gold_val);
         std::vector<int64_t> gold_ind = {2, 1, 0, 1, 1, 0, 0, 2, 2, 2};

@@ -60,6 +60,9 @@ shape::type_t compute_common_type(shape::type_t t1, shape::type_t t2)
     shape::type_t result;
     shape::visit(t1, [&](auto x) {
         shape::visit(t2, [&](auto y) {
+            // Workaround broken warning on gcc 5
+            (void)x;
+            (void)y;
             using type = std::common_type_t<decltype(x()), decltype(y())>;
             result     = shape::get_type<type>{};
         });

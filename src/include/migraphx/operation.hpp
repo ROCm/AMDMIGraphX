@@ -15,6 +15,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -435,9 +436,9 @@ void from_value_op(T& x, const value& v)
 }
 
 template <class T>
-bool is_borrowed_op(const T&)
+lifetime get_lifetime_op(const T&)
 {
-    return false;
+    return lifetime::local;
 }
 
 } // namespace detail
@@ -451,7 +452,7 @@ bool is_borrowed_op(const T&)
  *      bool is_context_free() const;
  *      bool need_normalization() const;
  *      bool has_finalize() const;
- *      bool is_borrowed() const;
+ *      lifetime get_lifetime() const;
  *      std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
  *      value compile(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
@@ -559,10 +560,10 @@ struct operation
         return (*this).private_detail_te_get_handle().has_finalize();
     }
 
-    bool is_borrowed() const
+    lifetime get_lifetime() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().is_borrowed();
+        return (*this).private_detail_te_get_handle().get_lifetime();
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& input) const
@@ -678,7 +679,7 @@ struct operation
         virtual bool is_context_free() const                                       = 0;
         virtual bool need_normalization() const                                    = 0;
         virtual bool has_finalize() const                                          = 0;
-        virtual bool is_borrowed() const                                           = 0;
+        virtual lifetime get_lifetime() const                                      = 0;
         virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
@@ -750,16 +751,16 @@ struct operation
     }
 
     template <class T>
-    static auto private_detail_te_default_is_borrowed(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.is_borrowed())
+    static auto private_detail_te_default_get_lifetime(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_lifetime())
     {
-        return private_detail_te_self.is_borrowed();
+        return private_detail_te_self.get_lifetime();
     }
 
     template <class T>
-    static bool private_detail_te_default_is_borrowed(float, T&& private_detail_te_self)
+    static lifetime private_detail_te_default_get_lifetime(float, T&& private_detail_te_self)
     {
-        return detail::is_borrowed_op(private_detail_te_self);
+        return detail::get_lifetime_op(private_detail_te_self);
     }
 
     template <class T>
@@ -1044,10 +1045,10 @@ struct operation
             return private_detail_te_default_has_finalize(char(0), private_detail_te_value);
         }
 
-        bool is_borrowed() const override
+        lifetime get_lifetime() const override
         {
 
-            return private_detail_te_default_is_borrowed(char(0), private_detail_te_value);
+            return private_detail_te_default_get_lifetime(char(0), private_detail_te_value);
         }
 
         std::ptrdiff_t output_alias(const std::vector<shape>& input) const override

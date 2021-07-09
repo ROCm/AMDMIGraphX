@@ -112,19 +112,30 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
-// This function is to convert any instructions specified in the input
-// from double or float to float16 by inserting a convert operator.
-// For the conversion, there could be cases of overflowing, but it
-// is very rare in the area of deeping learning, so we just do a
-// truncate of the input to get the fp16.
-void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
+void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool include_param = false)
 {
-    auto* mm = prog.get_main_module();
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
-    for(auto ins : iterator_for(*mm))
+    for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "@return")
+        if(ins->name() == "@return" and include_param)
+        {
+            auto inputs = ins->inputs();
+            auto converted_inputs = inputs;
+            std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto in) {
+                if (in->name() == "convert" and in->inputs().front()->get_shape().type() == shape::half_type)
+                {
+                    return in->inputs().front();
+                }
+                return in;
+            });
+
+            if (converted_inputs != inputs)
+            {
+                m.replace_instruction(ins, ins->get_operator(), converted_inputs);
+            }
+
             break;
+        }
 
         // all indicates every instruction is converted
         if((not contains(ins_names, "all")) and (not contains(ins_names, ins->name())))
@@ -132,7 +143,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
             continue;
         }
 
-        shape::type_t orig_type = ins->get_shape().type();
+        shape orig_shape = ins->get_shape();
         // process all inputs, if input is a fp32 or fp64, convert it
         // to a fp16 by adding a convert operator.
         auto inputs = ins->inputs();
@@ -142,17 +153,24 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
             auto s = input->get_shape();
             if(s.type() == shape::float_type || s.type() == shape::double_type)
             {
+                // if the input is a parameter of a subgraph
+                instruction_ref input_fp16{};
+                if ((input->name() == "param") and include_param)
+                {
+                    auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
+                    shape s16{shape::half_type, s.lens(), s.strides()};
+                    input_fp16 = m.add_parameter(param_name, s16);
+                }
                 // if the input is a convert operator, uses its input
                 // as its current input
-                instruction_ref input_fp16{};
-                if(input->name() == "convert" and
+                else if(input->name() == "convert" and
                    input->inputs().front()->get_shape().type() == shape::half_type)
                 {
                     input_fp16 = input->inputs().front();
                 }
                 else
                 {
-                    input_fp16 = insert_quant_ins(*mm, input, shape::half_type, map_fp16);
+                    input_fp16 = insert_quant_ins(m, input, shape::half_type, map_fp16);
                 }
                 converted_inputs.push_back(input_fp16);
             }
@@ -162,28 +180,44 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
             }
         }
 
-        // no change for the input, go to the next instruction
-        if(inputs == converted_inputs)
+        auto mod_inputs = ins->module_inputs();
+        for (auto* & smod : mod_inputs)
         {
-            continue;
+            quantize_fp16(*smod, ins_names, true);
         }
 
+        // // no change for the input, go to the next instruction
+        // if(inputs == converted_inputs)
+        // {
+        //     continue;
+        // }
+
         auto op        = ins->get_operator();
-        auto ins_shape = compute_shape(op, converted_inputs);
-        if(ins_shape.type() != orig_type)
+        auto ins_shape = compute_shape(op, converted_inputs, mod_inputs);
+        if(ins_shape != orig_shape)
         {
             // check the dead code case to avoid assert
             bool output_empty  = ins->outputs().empty();
-            auto ins_orig_type = mm->insert_instruction(
-                std::next(ins), make_op("convert", {{"target_type", orig_type}}), ins);
+            auto ins_orig_shape = m.insert_instruction(
+                std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
             if(!output_empty)
             {
-                mm->replace_instruction(ins, ins_orig_type);
+                m.replace_instruction(ins, ins_orig_shape);
             }
         }
-
-        mm->replace_instruction(ins, op, converted_inputs);
+        m.replace_instruction(ins, op, converted_inputs, mod_inputs);
     }
+}
+
+// This function is to convert any instructions specified in the input
+// from double or float to float16 by inserting a convert operator.
+// For the conversion, there could be cases of overflowing, but it
+// is very rare in the area of deeping learning, so we just do a
+// truncate of the input to get the fp16.
+void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
+{
+    auto* mm = prog.get_main_module();
+    quantize_fp16(*mm, ins_names);
 }
 
 static void ins_quantize_int8(module& modl,

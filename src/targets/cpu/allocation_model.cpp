@@ -11,6 +11,11 @@ operation cpu_allocation_model::allocate(const shape& s) const
     return make_op(name(), {{"shape", to_value(s)}});
 }
 
+operation cpu_allocation_model::preallocate(const shape& s, const std::string& id) const
+{
+    return make_op("cpu::preallocate", {{"shape", to_value(s)}, {"id", id}});
+}
+
 std::string cpu_allocation_model::copy() const { return "cpu::copy"; }
 
 } // namespace cpu

@@ -15,6 +15,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -435,9 +436,9 @@ void from_value_op(T& x, const value& v)
 }
 
 template <class T>
-bool is_borrowed_op(const T&)
+lifetime get_lifetime_op(const T&)
 {
-    return false;
+    return lifetime::local;
 }
 
 } // namespace detail
@@ -453,7 +454,8 @@ bool is_borrowed_op(const T&)
              const   = True,
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
-     virtual('is_borrowed', returns = 'bool', const = True, default = 'detail::is_borrowed_op'),
+     virtual(
+         'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',

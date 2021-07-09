@@ -23,7 +23,7 @@ argument scatter(
         hip_visit_all(arg1, arg2)([&](auto indices, auto update) {
             const auto* upd_ptr     = device_cast(update.data());
             const auto* indices_ptr = device_cast(indices.data());
-            gs_launch(stream, inds.elements(), 256)([=](auto i) __device__ {
+            gs_launch(stream, inds.elements())([=](auto i) __device__ {
                 auto out_idx    = s1.multi(i);
                 auto index      = indices_ptr[i];
                 index           = index < 0 ? index + axis_dim_size : index;

@@ -42,6 +42,7 @@ add_library(migraphx
     opt/memory_coloring_impl.cpp
     pass_manager.cpp
     permutation.cpp
+    preallocate_param.cpp
     process.cpp
     program.cpp
     propagate_constant.cpp

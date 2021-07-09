@@ -53,6 +53,7 @@ add_library(migraphx
     remap.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
+    rewrite_quantization.cpp
     rewrite_rnn.cpp
     schedule.cpp
     serialize.cpp

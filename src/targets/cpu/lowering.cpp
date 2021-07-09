@@ -440,7 +440,7 @@ struct cpu_apply
         }
     }
 
-    instruction_ref apply_pow(instruction_ref ins)
+    instruction_ref apply_pow(instruction_ref ins) const
     {
         auto beta = read_scalar<float>(ins->inputs()[1]);
         if(beta.empty())
@@ -451,7 +451,7 @@ struct cpu_apply
                        {ins->inputs().front()});
     }
 
-    instruction_ref apply_pooling(instruction_ref ins)
+    instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = ins->get_operator();
         auto v    = op.to_value();
@@ -479,30 +479,20 @@ struct cpu_apply
         return {r.at<T>()};
     }
 
-    instruction_ref replace(instruction_ref ins, const operation& op)
+    instruction_ref replace(instruction_ref ins, const operation& op) const
     {
         return replace(ins, op, ins->inputs());
     }
 
     instruction_ref
-    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs)
+    replace(instruction_ref ins, const operation& op, std::vector<instruction_ref> inputs) const
     {
         inputs.push_back(insert_allocation(ins, ins->get_shape()));
         return modl->replace_instruction(ins, op, inputs);
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s)
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and prog_output_names.count(ins_alias) > 0)
-        {
-            return modl->add_parameter(prog_output_names[ins_alias], s);
-        }
-        else if(ins == last)
-        {
-            return modl->add_parameter("output", s);
-        }
-
         return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
     }
 };

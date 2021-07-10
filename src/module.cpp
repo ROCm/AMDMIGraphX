@@ -304,7 +304,7 @@ instruction_ref module::add_outline(const shape& s)
 
 instruction_ref module::add_parameter(std::string name, shape s)
 {
-    assert(get_parameter_shape(name) == shape{});
+    // assert(get_parameter_shape(name) == shape{});
     impl->push_front({builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
     impl->nparams++;
     return impl->instructions.begin();

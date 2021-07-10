@@ -117,25 +117,46 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "@return" and include_param)
+        std::cout << "ins_name = " << ins->name() << std::endl;
+        std::cout << "m = " << std::endl;
+        std::cout << m << std::endl << std::endl;
+        if(ins->name() == "@return")
         {
-            auto inputs           = ins->inputs();
-            auto converted_inputs = inputs;
-            std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto in) {
-                if(in->name() == "convert" and
-                   in->inputs().front()->get_shape().type() == shape::half_type)
-                {
-                    return in->inputs().front();
-                }
-                return in;
-            });
-
-            if(converted_inputs != inputs)
+            if(include_param)
             {
-                m.replace_instruction(ins, ins->get_operator(), converted_inputs);
+                auto inputs           = ins->inputs();
+                for(auto in : inputs)
+                {
+                    if (in->name() == "convert")
+                    {
+                        auto conv_in = in->inputs().front();
+                        if (conv_in->get_shape().type() == shape::half_type)
+                        {
+                            instruction::replace_argument(ins, in, conv_in);
+                        }
+                    }
+                }
+                // std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto in) {
+                //     if(in->name() == "convert" and
+                //     in->inputs().front()->get_shape().type() == shape::half_type)
+                //     {
+                //         return in->inputs().front();
+                //     }
+                //     return in;
+                // });
+
+                // if(converted_inputs != inputs)
+                // {
+                //     m.replace_instruction(ins, ins->get_operator(), converted_inputs);
+                // }
             }
 
             break;
+        }
+
+        if (ins->name() == "@param" or ins->name() == "@literal")
+        {
+            continue;
         }
 
         // all indicates every instruction is converted
@@ -156,11 +177,13 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             {
                 // if the input is a parameter of a subgraph
                 instruction_ref input_fp16{};
-                if((input->name() == "param") and include_param)
+                if(input->name() == "@param" and include_param)
                 {
                     auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
+                    std::cout << "param_name = " << param_name << std::endl;
                     shape s16{shape::half_type, s.lens(), s.strides()};
                     input_fp16 = m.add_parameter(param_name, s16);
+                    converted_inputs.push_back(input_fp16);
                 }
                 // if the input is a convert operator, uses its input
                 // as its current input
@@ -168,12 +191,13 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                         input->inputs().front()->get_shape().type() == shape::half_type)
                 {
                     input_fp16 = input->inputs().front();
+                    converted_inputs.push_back(input_fp16);
                 }
                 else
                 {
                     input_fp16 = insert_quant_ins(m, input, shape::half_type, map_fp16);
+                    converted_inputs.push_back(input_fp16);
                 }
-                converted_inputs.push_back(input_fp16);
             }
             else
             {
@@ -218,7 +242,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     auto* mm = prog.get_main_module();
-    quantize_fp16(*mm, ins_names);
+    quantize_fp16(*mm, ins_names, true);
 }
 
 static void ins_quantize_int8(module& modl,

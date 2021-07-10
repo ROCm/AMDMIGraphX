@@ -124,19 +124,20 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
         {
             if(include_param)
             {
-                auto inputs           = ins->inputs();
+                auto inputs = ins->inputs();
                 for(auto in : inputs)
                 {
-                    if (in->name() == "convert")
+                    if(in->name() == "convert")
                     {
                         auto conv_in = in->inputs().front();
-                        if (conv_in->get_shape().type() == shape::half_type)
+                        if(conv_in->get_shape().type() == shape::half_type)
                         {
                             instruction::replace_argument(ins, in, conv_in);
                         }
                     }
                 }
-                // std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto in) {
+                // std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto
+                // in) {
                 //     if(in->name() == "convert" and
                 //     in->inputs().front()->get_shape().type() == shape::half_type)
                 //     {
@@ -154,7 +155,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             break;
         }
 
-        if (ins->name() == "@param" or ins->name() == "@literal")
+        if(ins->name() == "@param" or ins->name() == "@literal")
         {
             continue;
         }

@@ -1,3 +1,4 @@
+set(AMDGPU_TARGETS "gfx803;gfx900;gfx906" CACHE STRING "")
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
 find_package(miopen)
@@ -91,7 +92,6 @@ rocm_clang_tidy_check(migraphx_device)
 target_compile_options(migraphx_device PRIVATE -std=c++17 -fno-gpu-rdc -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
 target_link_libraries(migraphx_device migraphx hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
-    set(AMDGPU_TARGETS "gfx803;gfx900;gfx906" CACHE STRING "")
     foreach(AMDGPU_TARGET ${AMDGPU_TARGETS})
         target_compile_options(migraphx_device PRIVATE -amdgpu-target=${AMDGPU_TARGET})
         target_link_libraries(migraphx_device -amdgpu-target=${AMDGPU_TARGET})

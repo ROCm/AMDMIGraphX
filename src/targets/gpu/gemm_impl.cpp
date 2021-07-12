@@ -66,12 +66,12 @@ void gemm_impl(context& ctx,
     }
     auto compute_type = output_type;
     if(args[0].get_shape().type() == shape::half_type)
-            compute_type = rocblas_datatype_f32_r;
-    // if(ctx.get_stream().get_device_name() == "gfx908")
-    // {
-    //     if(args[0].get_shape().type() == shape::half_type)
-    //         compute_type = rocblas_datatype_f32_r;
-    // }
+        compute_type = rocblas_datatype_f32_r;
+        // if(ctx.get_stream().get_device_name() == "gfx908")
+        // {
+        //     if(args[0].get_shape().type() == shape::half_type)
+        //         compute_type = rocblas_datatype_f32_r;
+        // }
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag =

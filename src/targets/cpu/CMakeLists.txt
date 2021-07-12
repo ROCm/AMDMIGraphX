@@ -19,6 +19,7 @@ add_library(migraphx_cpu
     logsoftmax.cpp
     lowering.cpp
     lrn.cpp
+    preallocate.cpp
     pooling.cpp
     reduction.cpp
     reorder.cpp

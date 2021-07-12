@@ -128,7 +128,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                 auto inputs = ins->inputs();
                 for(auto in : inputs)
                 {
-                    if (in->get_shape().type() == shape::half_type)
+                    if(in->get_shape().type() == shape::half_type)
                     {
                         continue;
                     }

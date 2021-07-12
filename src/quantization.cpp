@@ -144,9 +144,10 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
         if(ins->name() == "@param" or ins->name() == "@literal")
         {
             auto s = ins->get_shape();
-            if (s.type() == shape::float_type or s.type() == shape::int64_type)
+            if(s.type() == shape::float_type or s.type() == shape::int64_type)
             {
-                m.insert_instruction(std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
+                m.insert_instruction(
+                    std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
             }
 
             std::cout << "module = " << std::endl;
@@ -154,7 +155,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             continue;
         }
 
-        if (ins->name() == "convert" and ins->get_shape().type() == shape::half_type)
+        if(ins->name() == "convert" and ins->get_shape().type() == shape::half_type)
         {
             continue;
         }
@@ -179,7 +180,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                 instruction_ref input_fp16{};
                 if(input->name() == "@param")
                 {
-                    if (m.has_instruction(input) and include_param)
+                    if(m.has_instruction(input) and include_param)
                     {
                         auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
                         shape s16{shape::half_type, s.lens(), s.strides()};

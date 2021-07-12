@@ -1279,7 +1279,9 @@ TEST_CASE(gemm_test)
     auto a_l   = mm->add_literal(alpha);
     auto a_b   = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), t0, a_b);
+    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
+    t_a      = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {7, 11}}}), l2);
@@ -1305,7 +1307,9 @@ TEST_CASE(gemm_ex_test)
     auto a_l   = mm->add_literal(alpha);
     auto a_b   = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), t0, a_b);
+    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
+    t_a      = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2->get_shape().lens()}}), b_l);
@@ -1331,7 +1335,9 @@ TEST_CASE(gemm_ex_brcst_test)
     auto a_l   = mm->add_literal(alpha);
     auto a_b   = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), t0, a_b);
+    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
+    t_a      = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", out_lens}}), l2);

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -1277,10 +1278,8 @@ TEST_CASE(gemm_test)
     auto alpha = 2.f;
     auto beta  = 2.0f;
     auto a_l   = mm->add_literal(alpha);
-    auto a_b   = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
-    t_a      = mm->add_instruction(
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto l2_b =
@@ -1305,10 +1304,8 @@ TEST_CASE(gemm_ex_test)
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
-    auto a_b   = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
-    t_a      = mm->add_instruction(
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto b_b = mm->add_instruction(
@@ -1333,10 +1330,8 @@ TEST_CASE(gemm_ex_brcst_test)
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
-    auto a_b   = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", t0->get_shape().lens()}}), a_l);
-    auto t_a = mm->add_instruction(migraphx::make_op("mul"), a_b, t0);
-    t_a      = mm->add_instruction(
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
     auto b_l = mm->add_literal(beta);
     auto l2_b =

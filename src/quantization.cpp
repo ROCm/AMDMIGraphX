@@ -118,8 +118,8 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
     for(auto ins : iterator_for(m))
     {
         std::cout << "ins_name = " << ins->name() << std::endl;
-        std::cout << "m = " << std::endl;
-        std::cout << m << std::endl << std::endl;
+        // std::cout << "m = " << std::endl;
+        // std::cout << m << std::endl << std::endl;
         if(ins->name() == "@return")
         {
             if(include_param)
@@ -136,20 +136,6 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                         }
                     }
                 }
-                // std::transform(inputs.begin(), inputs.end(), converted_inputs.begin(), [&](auto
-                // in) {
-                //     if(in->name() == "convert" and
-                //     in->inputs().front()->get_shape().type() == shape::half_type)
-                //     {
-                //         return in->inputs().front();
-                //     }
-                //     return in;
-                // });
-
-                // if(converted_inputs != inputs)
-                // {
-                //     m.replace_instruction(ins, ins->get_operator(), converted_inputs);
-                // }
             }
 
             break;
@@ -180,10 +166,25 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                 instruction_ref input_fp16{};
                 if(input->name() == "@param" and include_param)
                 {
-                    auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
-                    std::cout << "param_name = " << param_name << std::endl;
-                    shape s16{shape::half_type, s.lens(), s.strides()};
-                    input_fp16 = m.add_parameter(param_name, s16);
+                    auto in_outs = input->outputs();
+                    auto it = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                        return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
+                    });
+                    if (it != in_outs.end())
+                    {
+                        input_fp16 = *it;
+                    }
+                    else if(m.has_instruction(input))
+                    {
+                        auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
+                        std::cout << "param_name = " << param_name << std::endl;
+                        shape s16{shape::half_type, s.lens(), s.strides()};
+                        input_fp16 = m.add_parameter(param_name, s16);
+                    }
+                    else
+                    {
+                        input_fp16 = insert_quant_ins(m, input, shape::half_type, map_fp16);
+                    }
                     converted_inputs.push_back(input_fp16);
                 }
                 // if the input is a convert operator, uses its input
@@ -212,23 +213,37 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             quantize_fp16(*smod, ins_names, true);
         }
 
-        // // no change for the input, go to the next instruction
-        // if(inputs == converted_inputs)
-        // {
-        //     continue;
-        // }
-
         auto op        = ins->get_operator();
         auto ins_shape = compute_shape(op, converted_inputs, mod_inputs);
         if(ins_shape != orig_shape)
         {
-            // check the dead code case to avoid assert
-            bool output_empty   = ins->outputs().empty();
-            auto ins_orig_shape = m.insert_instruction(
-                std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
-            if(!output_empty)
+            // tuple type, followed by get_tuple_elem
+            std::cout << "ins_type = " << ins_shape.type() << std::endl;
+            if(ins_shape.type() == shape::tuple_type)
             {
-                m.replace_instruction(ins, ins_orig_shape);
+                std::cout << "in_if" << std::endl;
+                auto outputs = ins->outputs();
+                for (auto out : outputs)
+                {
+                    bool output_empty = out->outputs().empty();
+                    auto out1 = m.insert_instruction(std::next(out), make_op("convert", {{"target_type", out->get_shape().type()}}), out);
+                    if (!output_empty)
+                    {
+                        m.replace_instruction(out, out1);
+                    }
+                }
+            }
+            else
+            {
+                std::cout << "in_else" << std::endl;
+                // check the dead code case to avoid assert
+                bool output_empty   = ins->outputs().empty();
+                auto ins_orig_shape = m.insert_instruction(
+                    std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
+                if(!output_empty)
+                {
+                    m.replace_instruction(ins, ins_orig_shape);
+                }
             }
         }
         m.replace_instruction(ins, op, converted_inputs, mod_inputs);
@@ -243,7 +258,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     auto* mm = prog.get_main_module();
-    quantize_fp16(*mm, ins_names, true);
+    quantize_fp16(*mm, ins_names, false);
 }
 
 static void ins_quantize_int8(module& modl,

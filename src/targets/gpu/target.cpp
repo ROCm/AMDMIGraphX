@@ -58,6 +58,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     return
     {
         normalize_ops{},
+        dead_code_elimination{},
         decompose{},
         dead_code_elimination{},
         rewrite_quantization{},

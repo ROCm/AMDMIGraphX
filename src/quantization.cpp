@@ -167,10 +167,11 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                 if(input->name() == "@param" and include_param)
                 {
                     auto in_outs = input->outputs();
-                    auto it = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                        return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
+                    auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                        return (o->name() == "convert" and
+                                o->get_shape().type() == shape::half_type);
                     });
-                    if (it != in_outs.end())
+                    if(it != in_outs.end())
                     {
                         input_fp16 = *it;
                     }
@@ -223,11 +224,14 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             {
                 std::cout << "in_if" << std::endl;
                 auto outputs = ins->outputs();
-                for (auto out : outputs)
+                for(auto out : outputs)
                 {
                     bool output_empty = out->outputs().empty();
-                    auto out1 = m.insert_instruction(std::next(out), make_op("convert", {{"target_type", out->get_shape().type()}}), out);
-                    if (!output_empty)
+                    auto out1         = m.insert_instruction(
+                        std::next(out),
+                        make_op("convert", {{"target_type", out->get_shape().type()}}),
+                        out);
+                    if(!output_empty)
                     {
                         m.replace_instruction(out, out1);
                     }

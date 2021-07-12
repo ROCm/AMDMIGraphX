@@ -143,6 +143,19 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
 
         if(ins->name() == "@param" or ins->name() == "@literal")
         {
+            auto s = ins->get_shape();
+            if (s.type() == shape::float_type or s.type() == shape::int64_type)
+            {
+                m.insert_instruction(std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
+            }
+
+            std::cout << "module = " << std::endl;
+            std::cout << m << std::endl;
+            continue;
+        }
+
+        if (ins->name() == "convert" and ins->get_shape().type() == shape::half_type)
+        {
             continue;
         }
 
@@ -164,27 +177,24 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             {
                 // if the input is a parameter of a subgraph
                 instruction_ref input_fp16{};
-                if(input->name() == "@param" and include_param)
+                if(input->name() == "@param")
                 {
-                    auto in_outs = input->outputs();
-                    auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                        return (o->name() == "convert" and
-                                o->get_shape().type() == shape::half_type);
-                    });
-                    if(it != in_outs.end())
-                    {
-                        input_fp16 = *it;
-                    }
-                    else if(m.has_instruction(input))
+                    if (m.has_instruction(input) and include_param)
                     {
                         auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
-                        std::cout << "param_name = " << param_name << std::endl;
                         shape s16{shape::half_type, s.lens(), s.strides()};
                         input_fp16 = m.add_parameter(param_name, s16);
                     }
+                    // parameter is in the parent module
                     else
                     {
-                        input_fp16 = insert_quant_ins(m, input, shape::half_type, map_fp16);
+                        auto in_outs = input->outputs();
+                        auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                            return (o->name() == "convert" and
+                                    o->get_shape().type() == shape::half_type);
+                        });
+                        assert(it != in_outs.end());
+                        input_fp16 = *it;
                     }
                     converted_inputs.push_back(input_fp16);
                 }

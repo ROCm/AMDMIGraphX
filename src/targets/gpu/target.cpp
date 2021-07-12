@@ -75,6 +75,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_rnn{},
         dead_code_elimination{},
         inline_module{},
+        dead_code_elimination{},
         rewrite_pooling{},
         dead_code_elimination{},
         eliminate_common_subexpression{},

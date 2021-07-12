@@ -192,6 +192,7 @@ std::vector<argument> generic_eval(const module* mod,
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
     {
+        assert(results.find(ins) == results.end());
         const auto& name = ins->name();
         if(name == "@literal")
         {
@@ -249,6 +250,9 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
+        if (results.at(ins).get_shape() != ins->get_shape())
+            std::cout << "Mismatch: " << results.at(ins).get_shape() << " != " << ins->get_shape() << std::endl;
+        assert(results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -645,7 +649,7 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), [](auto&&...) { return argument{}; });
+    generic_eval(*this, ctx, std::move(params), [](auto ins, auto&&...) { return argument{ins->get_shape(), nullptr}; });
 }
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const

@@ -114,6 +114,7 @@ instruction_ref insert_quant_ins(module& modl,
 
 void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool include_param = false)
 {
+    std::cout << "quantize module: " << m.name() << " =======" << std::endl;
     std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(m))
     {
@@ -127,6 +128,11 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                 auto inputs = ins->inputs();
                 for(auto in : inputs)
                 {
+                    if (in->get_shape().type() == shape::half_type)
+                    {
+                        continue;
+                    }
+
                     if(in->name() == "convert")
                     {
                         auto conv_in = in->inputs().front();
@@ -144,7 +150,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
         if(ins->name() == "@param" or ins->name() == "@literal")
         {
             auto s = ins->get_shape();
-            if(s.type() == shape::float_type or s.type() == shape::int64_type)
+            if(s.type() == shape::float_type or s.type() == shape::double_type)
             {
                 m.insert_instruction(
                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);

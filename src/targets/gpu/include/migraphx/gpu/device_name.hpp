@@ -14,4 +14,3 @@ std::string get_device_name();
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_GPU_DEVICE_NAME_HPP
-

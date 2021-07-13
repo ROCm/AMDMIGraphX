@@ -94,7 +94,7 @@ inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
     return s;
 }
 
-template<class Stream>
+template <class Stream>
 inline Stream& operator<<(Stream& s, std::nullptr_t)
 {
     s << "nullptr";

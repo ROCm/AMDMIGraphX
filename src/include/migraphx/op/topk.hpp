@@ -52,16 +52,6 @@ struct topk
         return shape({s_val, s_ind});
     }
 
-    struct compare_op
-    {
-        bool larger;
-        template <class T, class U>
-        auto operator()(T x, U y) const
-        {
-            return (larger ? (x < y) : (x > y));
-        }
-    };
-
     template <class T, class Op>
     void heapify(const T& data,
                  const shape& iss,
@@ -187,7 +177,6 @@ struct topk
         // compute shape
         comp_lens[axis] = 1;
         shape comp_s{in_s.type(), comp_lens};
-        auto op = compare_op{largest};
 
         visit_all(res_val, args.front())([&](auto out_val, auto input) {
             res_ind.visit([&](auto out_ind) {
@@ -195,11 +184,11 @@ struct topk
                     auto idx = comp_s.multi(i);
                     std::vector<int> indices(k);
                     std::iota(indices.begin(), indices.end(), 0);
-                    this->topk_value(input, in_s, idx, indices, axis_dim, k, op);
+                    largest ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{}) : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{});
 
                     if(sorted)
                     {
-                        this->heap_sort(input, in_s, idx, indices, k, op);
+                        largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{}) : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
                     }
 
                     auto out_idx = idx;

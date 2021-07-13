@@ -12,16 +12,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-struct compare_op
-{
-    bool larger;
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        return (larger ? (x < y) : (x > y));
-    }
-};
-
 template <class T>
 __device__ void swap(T& v1, T& v2)
 {
@@ -192,7 +182,6 @@ argument topk(hipStream_t stream,
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
             auto* ind  = ind_res.cast<int64_t>();
-            auto op    = compare_op{largest};
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto idx = css.multi(i);
                 for(int j = 0; j < k; ++j)
@@ -201,12 +190,12 @@ argument topk(hipStream_t stream,
                     ind[oss.index(idx)] = j;
                 }
 
-                topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, op);
+                largest ? topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::less<>{}) : topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::greater<>{});
 
                 // if outputs are sorted, sort them
                 if(sorted)
                 {
-                    heap_sort(data, ind, i, oss, iss, css, k, axis, op);
+                    largest ? heap_sort(data, ind, i, oss, iss, css, k, axis, std::less<>{}) : heap_sort(data, ind, i, oss, iss, css, k, axis, std::greater<>{});
                 }
 
                 // read output

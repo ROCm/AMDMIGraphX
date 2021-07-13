@@ -26,6 +26,8 @@ struct allocation_model
     std::string copy() const;
     /// Create an allocation operator for the given shape
     operation allocate(const shape& s) const;
+    /// Create a preallocated operator for the given shape
+    operation preallocate(const shape& s, const std::string& id) const;
 };
 
 #else
@@ -38,6 +40,7 @@ struct allocation_model
  *      std::string name() const;
  *      std::string copy() const;
  *      operation allocate(const shape& s) const;
+ *      operation preallocate(const shape& s,std::string id) const;
  * };
  *
  */
@@ -123,6 +126,12 @@ struct allocation_model
         return (*this).private_detail_te_get_handle().allocate(s);
     }
 
+    operation preallocate(const shape& s, std::string id) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().preallocate(s, std::move(id));
+    }
+
     friend bool is_shared(const allocation_model& private_detail_x,
                           const allocation_model& private_detail_y)
     {
@@ -137,9 +146,10 @@ struct allocation_model
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                 = 0;
-        virtual std::string copy() const                 = 0;
-        virtual operation allocate(const shape& s) const = 0;
+        virtual std::string name() const                                    = 0;
+        virtual std::string copy() const                                    = 0;
+        virtual operation allocate(const shape& s) const                    = 0;
+        virtual operation preallocate(const shape& s, std::string id) const = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -178,6 +188,12 @@ struct allocation_model
         {
 
             return private_detail_te_value.allocate(s);
+        }
+
+        operation preallocate(const shape& s, std::string id) const override
+        {
+
+            return private_detail_te_value.preallocate(s, std::move(id));
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

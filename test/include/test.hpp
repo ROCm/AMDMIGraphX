@@ -83,8 +83,8 @@ struct function
     }
 };
 
-template <class Iterator>
-inline std::ostream& stream_range(std::ostream& s, Iterator start, Iterator last)
+template <class Stream, class Iterator>
+inline Stream& stream_range(Stream& s, Iterator start, Iterator last)
 {
     if(start != last)
     {
@@ -94,22 +94,15 @@ inline std::ostream& stream_range(std::ostream& s, Iterator start, Iterator last
     return s;
 }
 
-inline std::ostream& operator<<(std::ostream& s, std::nullptr_t)
+template<class Stream>
+inline Stream& operator<<(Stream& s, std::nullptr_t)
 {
     s << "nullptr";
     return s;
 }
 
-template <class T>
-inline std::ostream& operator<<(std::ostream& s, const std::vector<T>& v)
-{
-    s << "{ ";
-    stream_range(s, v.begin(), v.end());
-    s << "}";
-    return s;
-}
-
-inline std::ostream& operator<<(std::ostream& s, const std::vector<bool>& v)
+template <class Stream, class Range>
+inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.begin(), v.end()))
 {
     s << "{ ";
     stream_range(s, v.begin(), v.end());

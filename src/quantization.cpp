@@ -133,9 +133,11 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
                     {
                         continue;
                     }
-                    else if (in->get_shape().type() == shape::float_type or in->get_shape().type() == shape::double_type)
+                    else if(in->get_shape().type() == shape::float_type or
+                            in->get_shape().type() == shape::double_type)
                     {
-                        if (in->name() == "convert" and in->inputs().front()->get_shape().type() == shape::half_type)
+                        if(in->name() == "convert" and
+                           in->inputs().front()->get_shape().type() == shape::half_type)
                         {
                             instruction::replace_argument(ins, in, in->inputs().front());
                         }

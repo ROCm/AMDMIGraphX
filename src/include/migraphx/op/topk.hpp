@@ -184,11 +184,15 @@ struct topk
                     auto idx = comp_s.multi(i);
                     std::vector<int> indices(k);
                     std::iota(indices.begin(), indices.end(), 0);
-                    largest ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{}) : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{});
+                    largest
+                        ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{})
+                        : this->topk_value(
+                              input, in_s, idx, indices, axis_dim, k, std::greater<>{});
 
                     if(sorted)
                     {
-                        largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{}) : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
+                        largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{})
+                                : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
                     }
 
                     auto out_idx = idx;

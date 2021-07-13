@@ -112,16 +112,10 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
-void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool include_param = false)
+void quantize_fp16(module& m, const std::vector<std::string>& ins_names, std::unordered_map<instruction_ref, instruction_ref>& map_fp16, bool include_param = false)
 {
-    std::cout << "quantize module: " << m.name() << " =======" << std::endl;
-    std::unordered_map<instruction_ref, instruction_ref> map_fp16;
     for(auto ins : iterator_for(m))
     {
-        // std::cout << "ins_name = " << ins->name() << std::endl;
-        // std::cout << "m = " << std::endl;
-        // std::cout << m << std::endl << std::endl;
-        // std::cout <<"************************************" << std::endl;
         if(ins->name() == "@return")
         {
             if(include_param)
@@ -163,12 +157,11 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             auto s = ins->get_shape();
             if(s.type() == shape::float_type or s.type() == shape::double_type)
             {
-                m.insert_instruction(
+                auto fp16_ins = m.insert_instruction(
                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
+                map_fp16[ins] = fp16_ins;
             }
 
-            // std::cout << "module = " << std::endl;
-            // std::cout << m << std::endl;
             continue;
         }
 
@@ -239,7 +232,7 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
         auto mod_inputs = ins->module_inputs();
         for(auto*& smod : mod_inputs)
         {
-            quantize_fp16(*smod, ins_names, true);
+            quantize_fp16(*smod, ins_names, map_fp16, true);
         }
 
         auto op        = ins->get_operator();
@@ -247,7 +240,6 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
         if(ins_shape != orig_shape)
         {
             // tuple type, followed by get_tuple_elem
-            // std::cout << "ins_type = " << ins_shape.type() << std::endl;
             if(ins_shape.type() == shape::tuple_type)
             {
                 // std::cout << "in_if" << std::endl;
@@ -267,7 +259,6 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
             }
             else
             {
-                // std::cout << "in_else" << std::endl;
                 // check the dead code case to avoid assert
                 bool output_empty   = ins->outputs().empty();
                 auto ins_orig_shape = m.insert_instruction(
@@ -290,7 +281,8 @@ void quantize_fp16(module& m, const std::vector<std::string>& ins_names, bool in
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     auto* mm = prog.get_main_module();
-    quantize_fp16(*mm, ins_names, false);
+    std::unordered_map<instruction_ref, instruction_ref> map_fp16;
+    quantize_fp16(*mm, ins_names, map_fp16, false);
 }
 
 static void ins_quantize_int8(module& modl,

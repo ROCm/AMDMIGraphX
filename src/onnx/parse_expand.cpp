@@ -2,6 +2,7 @@
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
 namespace migraphx {

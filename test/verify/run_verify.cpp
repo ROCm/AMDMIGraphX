@@ -124,7 +124,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     std::transform(
         tres.begin(), tres.end(), res.begin(), [&](auto& argu) { return t.copy_from(argu); });
 
-    return std::make_pair(p, res);
+    return std::make_pair(std::move(p), res);
 }
 
 template <class T>

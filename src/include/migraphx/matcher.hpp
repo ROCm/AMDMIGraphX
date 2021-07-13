@@ -248,7 +248,7 @@ template <class M>
 matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
 {
     assert(ins != mod.end());
-    // assert(mod.has_instruction(ins));
+    assert(mod.has_instruction(ins));
     matcher_context ctx{mod};
     matcher_result result;
     if(m.match(ctx, ins))

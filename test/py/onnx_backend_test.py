@@ -52,6 +52,7 @@ def disabled_tests_onnx_1_7_0(backend_test):
 
 def disabled_tests_onnx_1_8_1(backend_test):
     backend_test.exclude(r'test_if_seq_cpu')
+    backend_test.exclude(r'test_if_seq_cpu')
     backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_example_cpu')
     backend_test.exclude(r'test_reduce_sum_default_axes_keepdims_random_cpu')
     backend_test.exclude(r'test_reduce_sum_do_not_keepdims_example_cpu')
@@ -237,6 +238,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_lrn_cpu')
         backend_test.exclude(r'test_lrn_default_cpu')
         backend_test.exclude(r'test_maxpool_2d_dilations_cpu')
+        backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
+        backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
         backend_test.exclude(
             r'test_maxpool_with_argmax_2d_precomputed_pads_cpu')
         backend_test.exclude(
@@ -267,6 +270,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_hardsigmoid_cpu')
         backend_test.exclude(r'test_hardsigmoid_default_cpu')
         backend_test.exclude(r'test_hardsigmoid_example_cpu')
+        backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_mean_example_cpu')
         backend_test.exclude(r'test_mean_one_input_cpu')

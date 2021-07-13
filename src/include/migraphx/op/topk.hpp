@@ -62,14 +62,6 @@ struct topk
         }
     };
 
-    template <class T>
-    void swap(T& v1, T& v2) const
-    {
-        T v = v1;
-        v1  = v2;
-        v2  = v;
-    }
-
     template <class T, class Op>
     void heapify(const T& data,
                  const shape& iss,
@@ -110,7 +102,7 @@ struct topk
             {
                 break;
             }
-            swap(indices[index], indices[pre_index]);
+            std::swap(indices[index], indices[pre_index]);
         }
     }
 
@@ -161,7 +153,7 @@ struct topk
 
         for(int i = n - 1; i > 0; i--)
         {
-            swap(indices[0], indices[i]);
+            std::swap(indices[0], indices[i]);
             heapify(data, iss, sidx, indices, i, 0, op);
         }
     }

@@ -191,7 +191,7 @@ argument topk(hipStream_t stream,
         [&](auto out_val, auto input, auto oss, auto iss, auto css) {
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
-            auto* ind  = reinterpret_cast<int64_t*>(ind_res.data());
+            auto* ind  = ind_res.cast<int64_t>();
             auto op    = compare_op{largest};
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto idx = css.multi(i);

@@ -190,12 +190,15 @@ argument topk(hipStream_t stream,
                     ind[oss.index(idx)] = j;
                 }
 
-                largest ? topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::less<>{}) : topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::greater<>{});
+                largest
+                    ? topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::less<>{})
+                    : topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::greater<>{});
 
                 // if outputs are sorted, sort them
                 if(sorted)
                 {
-                    largest ? heap_sort(data, ind, i, oss, iss, css, k, axis, std::less<>{}) : heap_sort(data, ind, i, oss, iss, css, k, axis, std::greater<>{});
+                    largest ? heap_sort(data, ind, i, oss, iss, css, k, axis, std::less<>{})
+                            : heap_sort(data, ind, i, oss, iss, css, k, axis, std::greater<>{});
                 }
 
                 // read output

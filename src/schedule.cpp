@@ -32,7 +32,7 @@ auto get_inputs()
 
 auto get_inputs(module& m)
 {
-    return [&](auto i) { 
+    return [&](auto i) {
         auto inputs = i->inputs();
         // discard inputs not in the module
         erase_if(inputs, [&](auto ins) { return not m.has_instruction(ins); });

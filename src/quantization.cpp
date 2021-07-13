@@ -112,7 +112,10 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
-void quantize_fp16(module& m, const std::vector<std::string>& ins_names, std::unordered_map<instruction_ref, instruction_ref>& map_fp16, bool include_param = false)
+void quantize_fp16(module& m,
+                   const std::vector<std::string>& ins_names,
+                   std::unordered_map<instruction_ref, instruction_ref>& map_fp16,
+                   bool include_param = false)
 {
     for(auto ins : iterator_for(m))
     {

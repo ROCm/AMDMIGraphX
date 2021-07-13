@@ -29,6 +29,7 @@ struct cpu_preallocate : auto_register_op<cpu_preallocate>
     }
     argument compute(context&, const shape&, const std::vector<argument>&) const { return data; }
     void finalize(context&, const shape&, const std::vector<shape>&) { data = argument(s); }
+    lifetime get_lifetime() const { return lifetime::global; }
 };
 
 } // namespace cpu

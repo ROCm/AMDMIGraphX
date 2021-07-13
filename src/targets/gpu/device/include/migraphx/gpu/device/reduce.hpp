@@ -5,6 +5,7 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/visit.hpp>
 #include <migraphx/gpu/device/multi_index.hpp>
+#include <migraphx/gpu/device/reduce_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -14,79 +15,6 @@ namespace device {
 #if __AMDGCN_WAVEFRONT_SIZE == 32
 #define MIGRAPHX_NO_DPP
 #endif
-
-struct sum
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        return x + y;
-    }
-};
-
-struct product
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        return x * y;
-    }
-};
-
-struct id
-{
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
-    {
-        return x;
-    }
-};
-
-struct mean
-{
-    size_t item_num = 1;
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
-    {
-        return x / static_cast<T>(item_num);
-    }
-};
-
-struct max
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        return (x > y) ? x : y;
-    }
-};
-
-struct min
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
-    {
-        return (x < y) ? x : y;
-    }
-};
-
-struct lowest
-{
-    template <class T>
-    __device__ __host__ operator T() const
-    {
-        return device_cast(std::numeric_limits<host_type<T>>::lowest());
-    }
-};
-
-struct highest
-{
-    template <class T>
-    __device__ __host__ operator T() const
-    {
-        return device_cast(std::numeric_limits<host_type<T>>::max());
-    }
-};
 
 #ifdef MIGRAPHX_NO_DPP
 template <index_int N,

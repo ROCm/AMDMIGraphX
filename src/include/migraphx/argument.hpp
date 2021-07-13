@@ -60,6 +60,8 @@ struct argument : raw_data<argument>
 
     argument reshape(const shape& s) const;
 
+    argument copy() const;
+
     /// Make copy of the argument that is always sharing the data
     argument share() const;
 

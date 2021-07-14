@@ -22,6 +22,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/preallocate_param.hpp>
 #include <migraphx/cpu/fuse_ops.hpp>
 #include <migraphx/cpu/write_literals.hpp>
 #include <migraphx/cpu/allocation_model.hpp>
@@ -76,6 +77,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             write_literals{},
             dead_code_elimination{},
             memory_coloring{"cpu::allocate"},
+            dead_code_elimination{},
+            preallocate_param{"scratch", cpu_allocation_model{}},
             dead_code_elimination{}};
 }
 

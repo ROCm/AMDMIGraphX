@@ -10,6 +10,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -50,7 +51,7 @@ struct flatten
     {
         return args[0].reshape(output_shape);
     }
-    bool is_borrowed() const { return true; }
+    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

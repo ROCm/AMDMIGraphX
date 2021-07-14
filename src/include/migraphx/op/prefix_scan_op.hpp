@@ -43,7 +43,7 @@ struct prefix_scan_op : op_name<Derived>
 
     argument compute(const shape&, std::vector<argument> args) const
     {
-        argument result = args[0];
+        argument result = args[0].copy();
         auto s          = result.get_shape();
         auto slice      = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
         auto lens       = s.lens();

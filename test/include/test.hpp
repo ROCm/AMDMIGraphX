@@ -102,7 +102,9 @@ inline Stream& operator<<(Stream& s, std::nullptr_t)
     return s;
 }
 
-template <class Stream, class Range, class=typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
+template <class Stream,
+          class Range,
+          class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>
 inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.begin(), v.end()))
 {
     s << "{ ";

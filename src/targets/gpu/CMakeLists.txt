@@ -61,6 +61,7 @@ add_library(migraphx_device
     device/pad.cpp
     device/pow.cpp
     device/prelu.cpp
+    device/prefix_scan_sum.cpp
     device/recip.cpp
     device/reduce_max.cpp
     device/reduce_mean.cpp
@@ -121,6 +122,7 @@ add_library(migraphx_gpu
     convert.cpp
     convolution.cpp
     deconvolution.cpp
+    device_name.cpp
     eliminate_workspace.cpp
     elu.cpp
     fuse_ops.cpp
@@ -140,7 +142,6 @@ add_library(migraphx_gpu
     pack_int8_args.cpp
     pad.cpp
     pooling.cpp
-    preallocate_param.cpp
     quant_convolution.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
@@ -194,6 +195,7 @@ register_migraphx_gpu_ops(hip_
     pad
     pow
     prelu
+    prefix_scan_sum
     recip
     reduce_max
     reduce_mean

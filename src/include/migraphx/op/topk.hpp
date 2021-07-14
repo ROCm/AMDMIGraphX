@@ -55,7 +55,7 @@ struct topk
     template <class T, class Op>
     void heapify(const T& data,
                  const shape& iss,
-                 std::vector<std::size_t> sidx,
+                 const std::vector<std::size_t>& sidx,
                  std::vector<int>& indices,
                  int n,
                  int i,
@@ -65,7 +65,6 @@ struct topk
         auto idx  = sidx;
         auto idxl = sidx;
         auto idxr = sidx;
-        auto idxp = sidx;
         while(index < n)
         {
             auto pre_index = index;
@@ -99,7 +98,7 @@ struct topk
     template <class T, class Op>
     void build_heap(const T& data,
                     const shape& iss,
-                    std::vector<std::size_t> sidx,
+                    const std::vector<std::size_t>& sidx,
                     std::vector<int>& indices,
                     int n,
                     Op op) const
@@ -134,7 +133,7 @@ struct topk
     template <class T, class Op>
     void heap_sort(const T& data,
                    const shape& iss,
-                   std::vector<std::size_t> sidx,
+                   const std::vector<std::size_t>& sidx,
                    std::vector<int>& indices,
                    int n,
                    Op op) const
@@ -151,7 +150,7 @@ struct topk
     template <class T, class Op>
     void topk_value(const T& data,
                     const shape& iss,
-                    std::vector<std::size_t> sidx,
+                    const std::vector<std::size_t>& sidx,
                     std::vector<int>& indices,
                     int n,
                     int kk,
@@ -179,32 +178,31 @@ struct topk
         shape comp_s{in_s.type(), comp_lens};
 
         visit_all(res_val, args.front())([&](auto out_val, auto input) {
-            res_ind.visit([&](auto out_ind) {
-                par_for(comp_s.elements(), [&](auto i) {
-                    auto idx = comp_s.multi(i);
-                    std::vector<int> indices(k);
-                    std::iota(indices.begin(), indices.end(), 0);
-                    largest
-                        ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{})
-                        : this->topk_value(
-                              input, in_s, idx, indices, axis_dim, k, std::greater<>{});
+            auto out_ind = res_ind.cast<int64_t>();
+            par_for(comp_s.elements(), [&](auto i) {
+                auto idx = comp_s.multi(i);
+                std::vector<int> indices(k);
+                std::iota(indices.begin(), indices.end(), 0);
+                largest
+                    ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{})
+                    : this->topk_value(
+                            input, in_s, idx, indices, axis_dim, k, std::greater<>{});
 
-                    if(sorted)
-                    {
-                        largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{})
-                                : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
-                    }
+                if(sorted)
+                {
+                    largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{})
+                            : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
+                }
 
-                    auto out_idx = idx;
-                    auto in_idx  = idx;
-                    for(auto j : range(indices.size()))
-                    {
-                        out_idx[axis]                 = j;
-                        in_idx[axis]                  = indices[j];
-                        out_val[out_s.index(out_idx)] = input[in_s.index(in_idx)];
-                        out_ind[out_s.index(out_idx)] = indices[j];
-                    }
-                });
+                auto out_idx = idx;
+                auto in_idx  = idx;
+                for(auto j : range(indices.size()))
+                {
+                    out_idx[axis]                 = j;
+                    in_idx[axis]                  = indices[j];
+                    out_val[out_s.index(out_idx)] = input[in_s.index(in_idx)];
+                    out_ind[out_s.index(out_idx)] = indices[j];
+                }
             });
         });
 

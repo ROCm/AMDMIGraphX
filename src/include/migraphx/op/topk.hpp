@@ -185,8 +185,7 @@ struct topk
                 std::iota(indices.begin(), indices.end(), 0);
                 largest
                     ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{})
-                    : this->topk_value(
-                            input, in_s, idx, indices, axis_dim, k, std::greater<>{});
+                    : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{});
 
                 if(sorted)
                 {

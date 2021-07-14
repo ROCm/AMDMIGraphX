@@ -626,7 +626,8 @@ auto tree(M main_op, Ms... ms)
             if(idx != leafs.size())
                 return nullopt;
             // Use explicit captures to workaround ICE on gcc
-            bool found = sequence_c<sizeof...(Ms)>([&ms..., &ctx, &leafs](auto... is) {
+            // Capture by value to workaround compile error on gcc 9
+            bool found = sequence_c<sizeof...(Ms)>([ms..., &ctx, &leafs](auto... is) {
                 return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)();
             });
             if(not found)

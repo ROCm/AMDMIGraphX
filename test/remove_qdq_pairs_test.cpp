@@ -21,13 +21,13 @@ bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "deq
 TEST_CASE(quantizelinear)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 3}};
-    std::vector<float> xv = {-300, 200, 129, 1, 2, 3, 500, 1000, 50};
+    std::vector<float> xv  = {-300, 200, 129, 1, 2, 3, 500, 1000, 50};
     std::vector<float> xv2 = {1, 2, 3, -300, 200, 129, 500, 1000, 50};
     migraphx::shape ss{migraphx::shape::float_type, {1, 3, 3}};
     std::vector<float> sv = {2, 2, 2, 2, 2, 2, 2, 2, 2};
     migraphx::shape zs{migraphx::shape::int8_type, {1}};
     std::vector<int8_t> zv = {0};
-    auto create_program   = [&]() {
+    auto create_program    = [&]() {
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_literal(xs, xv);
@@ -49,10 +49,12 @@ TEST_CASE(quantizelinear)
         return p;
     };
 
-    migraphx::program p1 = migraphx::parse_onnx("/home/amt/holding/quant1/mobilenetv2-7-opt.quant.onnx");//
-    //migraphx::program p1 = create_program();
-    migraphx::program p2 = migraphx::parse_onnx("/home/amt/holding/quant1/mobilenetv2-7-opt.quant.onnx");//
-    //migraphx::program p2 = create_program();
+    migraphx::program p1 =
+        migraphx::parse_onnx("/home/amt/holding/quant1/mobilenetv2-7-opt.quant.onnx"); //
+    // migraphx::program p1 = create_program();
+    migraphx::program p2 =
+        migraphx::parse_onnx("/home/amt/holding/quant1/mobilenetv2-7-opt.quant.onnx"); //
+    // migraphx::program p2 = create_program();
     std::cout << "Original: " << std::endl;
     p2.debug_print();
 

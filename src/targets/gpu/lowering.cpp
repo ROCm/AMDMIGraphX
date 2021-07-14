@@ -163,6 +163,7 @@ struct miopen_apply
         add_extend_op("lrn");
         add_extend_op("pad");
         add_extend_op("pooling");
+        add_extend_op("prefix_scan_sum");
         add_extend_op("reduce_max");
         add_extend_op("reduce_mean");
         add_extend_op("reduce_min");

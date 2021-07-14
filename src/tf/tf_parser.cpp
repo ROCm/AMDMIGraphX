@@ -17,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/tf/tf_parser.hpp>
@@ -74,66 +75,11 @@ instruction_ref tf_parser::node_info::make_contiguous(instruction_ref ins) const
         return mm->add_instruction(make_op("contiguous"), ins);
 }
 
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1)
-{
-    // Example:
-    // s0 = (3,2,4,5) and s1 = (2,1,1)
-    //
-    // In this case we need to broadcast (:,1,1) portion of
-    // s1 plus broadcast the 1st dimension of s1
-    // giving output_lens = (3,2,4,5)
-    //
-    // Another example:
-    // s0 = (3,2,1,5) and s1 = (2,7,5)
-    // In this case we need to broadcast the (:,:,1:,:) axis
-    // of s0 plus the 1st dimension of s1 giving
-    // output_lens = (3,2,7,5)
-    if(s0.size() > s1.size())
-    {
-        s0.swap(s1);
-    }
-
-    std::vector<std::size_t> out_lens(s1);
-    auto offset = s1.size() - s0.size();
-    std::transform(
-        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a != b and a != 1 and b != 1)
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
-                               to_string_range(s1) + "} mismatch!");
-            }
-            return std::max(a, b);
-        });
-
-    return out_lens;
-}
-
 instruction_ref tf_parser::node_info::add_broadcastable_binary_op(const std::string& op_name,
                                                                   instruction_ref arg0,
                                                                   instruction_ref arg1) const
 {
-    if(arg0->get_shape().lens() != arg1->get_shape().lens())
-    {
-        // Get lengths for both arguments
-        auto s0       = arg0->get_shape().lens();
-        auto s1       = arg1->get_shape().lens();
-        auto out_lens = compute_broadcasted_lens(s0, s1);
-
-        auto l0 = arg0;
-        if(arg0->get_shape().lens() != out_lens)
-            l0 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg0);
-
-        auto l1 = arg1;
-        if(arg1->get_shape().lens() != out_lens)
-            l1 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg1);
-
-        return add_instruction(make_op(op_name), l0, l1);
-    }
-    else
-    {
-        return add_instruction(make_op(op_name), {arg0, arg1});
-    }
+    return add_common_op(*mm, make_op(op_name), {arg0, arg1});
 }
 
 int64_t tf_parser::parse_axis(const int64_t dim, const size_t num_dims) const

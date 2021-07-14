@@ -124,6 +124,14 @@ argument::data_t argument::data_t::from_args(const std::vector<argument>& args)
     return result;
 }
 
+argument argument::copy() const
+{
+    argument result{this->get_shape()};
+    auto* src = this->data();
+    std::copy(src, src + this->get_shape().bytes(), result.data());
+    return result;
+}
+
 argument argument::share() const { return {m_shape, m_data.share()}; }
 
 std::vector<argument> argument::get_sub_objects() const

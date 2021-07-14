@@ -27,7 +27,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
         std::packaged_task<result_type()> task(std::forward<Function>(f));
         auto fut = task.get_future();
         std::thread(std::move(task)).detach();
-        return std::move(fut);
+        return fut;
     }
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
@@ -109,7 +109,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     std::transform(
         tres.begin(), tres.end(), res.begin(), [&](auto& argu) { return t.copy_from(argu); });
 
-    return std::make_pair(p, res);
+    return std::make_pair(std::move(p), res);
 }
 
 template <class T>

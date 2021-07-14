@@ -179,9 +179,9 @@ argument topk(hipStream_t stream,
 
     hip_visit_all(val_res, arg, out_s, in_s, comp_s)(
         [&](auto out_val, auto input, auto oss, auto iss, auto css) {
-            auto* data = device_cast(input.data());
-            auto* out  = device_cast(out_val.data());
-            auto* const ind  = ind_res.cast<int64_t>();
+            auto* data      = device_cast(input.data());
+            auto* out       = device_cast(out_val.data());
+            auto* const ind = ind_res.cast<int64_t>();
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto idx = css.multi(i);
                 for(int j = 0; j < k; ++j)

@@ -71,7 +71,7 @@ void gemm_impl(context& ctx,
         int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
 #else
     (void)int8_x4_format;
-    rocblas_gemm_flags flag = rocblas_gemm_flags_none;
+    int flag = 0;
 #endif
 
     auto a_lens = args[0].get_shape().lens();

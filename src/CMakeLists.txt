@@ -9,58 +9,59 @@ add_library(migraphx
     analyze_streams.cpp
     argument.cpp
     auto_contiguous.cpp
-    eliminate_common_subexpression.cpp
-    decompose.cpp
-    propagate_constant.cpp
+    common.cpp
     compile_src.cpp
+    convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    decompose.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
-    eliminate_contiguous.cpp
+    eliminate_common_subexpression.cpp
     eliminate_concat.cpp
+    eliminate_contiguous.cpp
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
-    insert_pad.cpp
-    file_buffer.cpp
-    rewrite_batchnorm.cpp
-    rewrite_rnn.cpp
-    rewrite_pooling.cpp
     env.cpp
+    file_buffer.cpp
     generate.cpp
     inline_module.cpp
+    insert_pad.cpp
     instruction.cpp
+    json.cpp
     load_save.cpp
     make_op.cpp
+    module.cpp
     msgpack.cpp
+    normalize_attributes.cpp
+    normalize_ops.cpp
     operation.cpp
+    opt/memory_coloring.cpp
+    opt/memory_coloring_impl.cpp
+    pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
     process.cpp
     program.cpp
-    module.cpp
+    propagate_constant.cpp
     quantization.cpp
     reduce_dims.cpp
-    remap.cpp
-    shape.cpp
-    schedule.cpp
-    serialize.cpp
-    pass_manager.cpp
     register_op.cpp
     register_target.cpp
+    remap.cpp
+    rewrite_batchnorm.cpp
+    rewrite_pooling.cpp
+    rewrite_rnn.cpp
+    schedule.cpp
+    serialize.cpp
+    shape.cpp
     simplify_algebra.cpp
     simplify_reshapes.cpp
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
-    json.cpp
-    convert_to_json.cpp
-    opt/memory_coloring.cpp
-    opt/memory_coloring_impl.cpp
-    normalize_attributes.cpp
-    normalize_ops.cpp
 )
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})

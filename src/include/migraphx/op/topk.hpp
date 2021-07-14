@@ -178,7 +178,7 @@ struct topk
         shape comp_s{in_s.type(), comp_lens};
 
         visit_all(res_val, args.front())([&](auto out_val, auto input) {
-            auto out_ind = res_ind.cast<int64_t>();
+            auto* out_ind = res_ind.cast<int64_t>();
             par_for(comp_s.elements(), [&](auto i) {
                 auto idx = comp_s.multi(i);
                 std::vector<int> indices(k);

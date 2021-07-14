@@ -22,7 +22,7 @@ __device__ void swap(T& v1, T& v2)
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_heapify(T* arr,
-                                    int64_t* ind,
+                                    int64_t* const ind,
                                     const int64_t i,
                                     const hip_shape<N>& oss,
                                     const hip_shape<N>& iss,
@@ -76,7 +76,7 @@ __device__ inline void heap_heapify(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void build_heap(T* arr,
-                                  int64_t* ind,
+                                  int64_t* const ind,
                                   const int64_t i,
                                   const hip_shape<N>& oss,
                                   const hip_shape<N>& iss,
@@ -93,7 +93,7 @@ __device__ inline void build_heap(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_add(T* arr,
-                                int64_t* ind,
+                                int64_t* const ind,
                                 const int64_t i,
                                 const hip_shape<N>& oss,
                                 const hip_shape<N>& iss,
@@ -120,7 +120,7 @@ __device__ inline void heap_add(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_sort(T* arr,
-                                 int64_t* ind,
+                                 int64_t* const ind,
                                  const int64_t i,
                                  const hip_shape<N>& oss,
                                  const hip_shape<N>& iss,
@@ -142,7 +142,7 @@ __device__ inline void heap_sort(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void topk_value(const T* arr,
-                                  int64_t* ind,
+                                  int64_t* const ind,
                                   const int64_t i,
                                   const hip_shape<N>& oss,
                                   const hip_shape<N>& iss,
@@ -181,7 +181,7 @@ argument topk(hipStream_t stream,
         [&](auto out_val, auto input, auto oss, auto iss, auto css) {
             auto* data = device_cast(input.data());
             auto* out  = device_cast(out_val.data());
-            auto* ind  = ind_res.cast<int64_t>();
+            auto* const ind  = ind_res.cast<int64_t>();
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto idx = css.multi(i);
                 for(int j = 0; j < k; ++j)

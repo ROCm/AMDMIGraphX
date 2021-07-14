@@ -52,7 +52,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
-    unsupported_types.erase(shape::type_t::tuple_type);
     // clang-format off
     return
     {

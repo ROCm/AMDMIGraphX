@@ -57,10 +57,13 @@ instruction_ref insert_quant_ins(module& modl,
     auto insert_loc = std::next(ins);
     if(type == shape::int8_type)
     {
-        auto ins_zero_point = modl.add_literal(static_cast<int8_t>(shift));
-        auto ins_scale      = modl.add_literal(scale);
+        auto zero_point = modl.add_literal(static_cast<int8_t>(shift));
+        auto ins_scale      = modl.add_literal(1.0f / scale);
+        auto lens = ins->get_shape().lens();
+        ins_scale = modl.insert_instruction(insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), ins_scale);
+        zero_point = modl.insert_instruction(insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
         quant_ins           = modl.insert_instruction(
-            insert_loc, make_op("quantizelinear"), ins, ins_scale, ins_zero_point);
+            insert_loc, make_op("quantizelinear"), ins, ins_scale, zero_point);
     }
     else
     {
@@ -271,7 +274,7 @@ static void ins_quantize_int8(module& modl,
             converted_inputs.pop_back();
         }
 
-        auto quant_dot = modl.replace_instruction(
+        auto quant_dot = modl.insert_instruction(
             ins, make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), converted_inputs);
         auto s = quant_dot->get_shape();
 
@@ -289,7 +292,8 @@ static void ins_quantize_int8(module& modl,
                 input_c = modl.insert_instruction(
                     ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
             }
-            zero_point = modl.insert_instruction(ins, make_op("mul"), l_beta, input_c);
+            std::cout << "l_beta_shape = " << l_beta->get_shape() << ", c_shape = " << input_c->get_shape() << std::endl;
+            zero_point = modl.insert_instruction(ins, make_op("mul"), zero_point, input_c);
             if(zero_point->get_shape().type() != s.type())
             {
                 zero_point = modl.insert_instruction(
@@ -304,6 +308,7 @@ static void ins_quantize_int8(module& modl,
                 ins, make_op("convert", {{"target_type", orig_type}}), quant_dot);
         }
         modl.replace_instruction(ins, quant_dot);
+        std::cout << "mod = " << modl << std::endl;
     }
     else if(ins->name() == "convolution")
     {
@@ -315,7 +320,7 @@ static void ins_quantize_int8(module& modl,
         auto dilation     = conv_op.dilation;
         auto padding_mode = conv_op.padding_mode;
         auto group        = conv_op.group;
-        auto scale_val    = ins_quant_params[0].first * ins_quant_params[1].first;
+        auto scale_val    = 1.0 / (ins_quant_params[0].first * ins_quant_params[1].first);
 
         auto quant_conv = modl.insert_instruction(
             ins,
@@ -325,7 +330,7 @@ static void ins_quantize_int8(module& modl,
         auto s = quant_conv->get_shape();
         std::vector<float> vec_scale(s.elements(), scale_val);
         shape s_scale{shape::float_type, s.lens()};
-        auto scale = modl.add_literal(literal(s, vec_scale));
+        auto scale = modl.add_literal(literal(s_scale, vec_scale));
         quant_conv = modl.insert_instruction(ins, make_op("dequantizelinear"), quant_conv, scale);
         if(quant_conv->get_shape().type() != orig_type)
         {
@@ -406,9 +411,13 @@ void quantize_int8_impl(program& prog,
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
             auto s                   = input->get_shape();
-            if((s.type() == shape::float_type or s.type() == shape::double_type or
+            if (inputs.size() == 3 and input == inputs.back())
+            {
+                converted_inputs.push_back(input);
+            }
+            else if((s.type() == shape::float_type or s.type() == shape::double_type or
                 s.type() == shape::half_type or s.type() == shape::int32_type) and
-               s.type() != quant_type and (inputs.size() == 3) and (input != inputs.back()))
+               s.type() != quant_type)
             {
                 // if the input is a convert operator, uses its input
                 // as its current input

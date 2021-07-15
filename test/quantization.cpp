@@ -438,10 +438,14 @@ TEST_CASE(dot_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
+std::cout << "Loc1" << std::endl;
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+std::cout << "Loc2" << std::endl;
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+std::cout << "Loc3" << std::endl;
 
     auto qp = create_int8_quantized_prog();
+std::cout << "Loc4" << std::endl;
 
     EXPECT(p == qp);
 }

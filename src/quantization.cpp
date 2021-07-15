@@ -58,11 +58,13 @@ instruction_ref insert_quant_ins(module& modl,
     if(type == shape::int8_type)
     {
         auto zero_point = modl.add_literal(static_cast<int8_t>(shift));
-        auto ins_scale      = modl.add_literal(1.0f / scale);
-        auto lens = ins->get_shape().lens();
-        ins_scale = modl.insert_instruction(insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), ins_scale);
-        zero_point = modl.insert_instruction(insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
-        quant_ins           = modl.insert_instruction(
+        auto ins_scale  = modl.add_literal(1.0f / scale);
+        auto lens       = ins->get_shape().lens();
+        ins_scale       = modl.insert_instruction(
+            insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), ins_scale);
+        zero_point = modl.insert_instruction(
+            insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
+        quant_ins = modl.insert_instruction(
             insert_loc, make_op("quantizelinear"), ins, ins_scale, zero_point);
     }
     else
@@ -292,7 +294,8 @@ static void ins_quantize_int8(module& modl,
                 input_c = modl.insert_instruction(
                     ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
             }
-            std::cout << "l_beta_shape = " << l_beta->get_shape() << ", c_shape = " << input_c->get_shape() << std::endl;
+            std::cout << "l_beta_shape = " << l_beta->get_shape()
+                      << ", c_shape = " << input_c->get_shape() << std::endl;
             zero_point = modl.insert_instruction(ins, make_op("mul"), zero_point, input_c);
             if(zero_point->get_shape().type() != s.type())
             {
@@ -411,13 +414,13 @@ void quantize_int8_impl(program& prog,
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
             auto s                   = input->get_shape();
-            if (inputs.size() == 3 and input == inputs.back())
+            if(inputs.size() == 3 and input == inputs.back())
             {
                 converted_inputs.push_back(input);
             }
             else if((s.type() == shape::float_type or s.type() == shape::double_type or
-                s.type() == shape::half_type or s.type() == shape::int32_type) and
-               s.type() != quant_type)
+                     s.type() == shape::half_type or s.type() == shape::int32_type) and
+                    s.type() != quant_type)
             {
                 // if the input is a convert operator, uses its input
                 // as its current input

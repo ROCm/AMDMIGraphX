@@ -1,3 +1,4 @@
+#include "migraphx/literal.hpp"
 #include <migraphx/quantization.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -16,6 +17,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/target.hpp>
+#include <new>
 #include <utility>
 #include <set>
 #include <iomanip>
@@ -48,58 +50,18 @@ instruction_ref insert_quant_ins(module& modl,
         return ins;
     }
 
-    assert(ins->get_shape().type() == shape::float_type or
-           ins->get_shape().type() == shape::double_type or
-           ins->get_shape().type() == shape::int32_type or
-           ins->get_shape().type() == shape::half_type);
+    auto ins_s = ins->get_shape();
+    assert(ins_s.type() == shape::float_type or
+           ins_s.type() == shape::double_type or
+           ins_s.type() == shape::int32_type or
+           ins_s.type() == shape::half_type);
     instruction_ref quant_ins{};
     auto insert_loc = std::next(ins);
     if(type == shape::int8_type)
     {
-        auto scaled_ins = ins;
-        if(scale != 1.0f)
-        {
-            auto float_ins = scaled_ins;
-            if(scaled_ins->get_shape().type() != shape::float_type)
-            {
-                float_ins = modl.insert_instruction(
-                    insert_loc,
-                    make_op("convert", {{"target_type", to_value(shape::float_type)}}),
-                    scaled_ins);
-            }
-            std::vector<float> vec_scale(scaled_ins->get_shape().elements(), scale);
-            auto l_scale = modl.add_literal(literal(float_ins->get_shape(), vec_scale));
-            scaled_ins   = modl.insert_instruction(insert_loc, make_op("mul"), l_scale, float_ins);
-        }
-
-        auto shifted_ins = scaled_ins;
-        if(shift != 0.0f)
-        {
-            auto float_ins = shifted_ins;
-            if(shifted_ins->get_shape().type() != shape::float_type)
-            {
-                float_ins = modl.insert_instruction(
-                    insert_loc,
-                    make_op("convert", {{"target_type", to_value(shape::float_type)}}),
-                    shifted_ins);
-            }
-            std::vector<float> vec_shift(shifted_ins->get_shape().elements(), shift);
-            auto l_shift = modl.add_literal(literal(float_ins->get_shape(), vec_shift));
-            shifted_ins  = modl.insert_instruction(insert_loc, make_op("add"), l_shift, float_ins);
-        }
-
-        auto rounded_ins  = modl.insert_instruction(insert_loc, make_op("round"), shifted_ins);
-        auto rounded_lens = rounded_ins->get_shape().lens();
-        auto max_clip     = modl.add_literal(127.0f);
-        auto min_clip     = modl.add_literal(-128.0f);
-        max_clip          = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", rounded_lens}}), max_clip);
-        min_clip = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", rounded_lens}}), min_clip);
-        auto clipped_ins =
-            modl.insert_instruction(insert_loc, make_op("clip"), rounded_ins, min_clip, max_clip);
-        quant_ins = modl.insert_instruction(
-            insert_loc, make_op("convert", {{"target_type", type}}), clipped_ins);
+        auto ins_zero_point = modl.add_literal(static_cast<int8_t>(shift));
+        auto ins_scale = modl.add_literal(scale);
+        quant_ins = modl.insert_instruction(insert_loc, make_op("quantizelinear"), ins, ins_scale, ins_zero_point);
     }
     else
     {
@@ -298,95 +260,45 @@ static void ins_quantize_int8(module& modl,
     if(ins->name() == "dot")
     {
         auto dot_op     = any_cast<op::dot>(ins->get_operator());
-        float new_alpha = dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
-        float new_beta  = dot_op.beta;
+        float scale_val = (ins_quant_params[0].first * ins_quant_params[1].first) / dot_op.alpha;
+        float beta  = (inputs.size() == 3) ? dot_op.beta : 0.0f;
         // We need additional checking about the quant_alpha value. If
         // abs(quant_alpha) > 50 (some tmp value set here), we can convert
         // it to an integer as the new_alpha in the quant_dot
-        float threshold = 50.0f;
-        if(fabs(new_alpha) >= threshold && fabs(new_beta) >= threshold)
+        instruction_ref input_c{};
+        if (converted_inputs.size() == 3)
         {
-            int32_t quant_alpha = static_cast<int32_t>(std::round(new_alpha));
-            int32_t quant_beta  = static_cast<int32_t>(std::round(new_beta));
-            if(shape::int32_type == orig_type)
+            input_c = converted_inputs.back();
+            converted_inputs.pop_back();
+        }
+
+        auto quant_dot = modl.replace_instruction(ins, make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), converted_inputs);
+        auto s = quant_dot->get_shape();
+
+        // wrap scale
+        shape s_scale{shape::float_type, s.lens()};
+        std::vector<float> vec(s.elements(), scale_val);
+        auto scale = modl.add_literal(literal(s_scale, vec));
+        auto l_beta = modl.add_literal(-1.0f * beta * scale_val);
+        auto zero_point = modl.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
+        if(inputs.size() == 3)
+        {
+            if (input_c->get_shape().type() != shape::float_type)
             {
-                modl.replace_instruction(
-                    ins,
-                    make_op("quant_dot", {{"alpha", quant_alpha}, {"beta", quant_beta}}),
-                    converted_inputs);
+                input_c = modl.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
             }
-            else
+            zero_point = modl.insert_instruction(ins, make_op("mul"), l_beta, input_c);
+            if (zero_point->get_shape().type() != s.type())
             {
-                auto quant_dot = modl.insert_instruction(
-                    ins,
-                    make_op("quant_dot", {{"alpha", quant_alpha}, {"beta", quant_beta}}),
-                    converted_inputs);
-                modl.replace_instruction(
-                    ins, make_op("convert", {{"target_type", to_value(orig_type)}}), quant_dot);
+                zero_point = modl.insert_instruction(ins, make_op("convert", {{"target_type", s.type()}}), zero_point);
             }
         }
-        // either alpha or beta cannot be quantized because of too big
-        // relative rounding error
-        else
+        quant_dot = modl.insert_instruction(ins, make_op("dequantizelinear"), quant_dot, scale, zero_point);
+        if (quant_dot->get_shape().type() != orig_type)
         {
-            if(converted_inputs.size() == 3)
-            {
-                converted_inputs.pop_back();
-            }
-            auto q_dot = modl.insert_instruction(
-                ins, make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), converted_inputs);
-            auto f_dot = modl.insert_instruction(
-                ins, make_op("convert", {{"target_type", to_value(shape::float_type)}}), q_dot);
-            auto c_shape = q_dot->get_shape();
-            std::vector<float> vec_alpha(c_shape.elements(), new_alpha);
-            auto l_alpha =
-                modl.add_literal(literal({shape::float_type, c_shape.lens()}, vec_alpha));
-
-            if(inputs.size() == 3 and dot_op.beta != 0.0f)
-            {
-                auto alpha_ab = modl.insert_instruction(ins, make_op("mul"), l_alpha, f_dot);
-                std::vector<float> vec_beta(c_shape.elements(), dot_op.beta);
-                auto l_beta =
-                    modl.add_literal(literal({shape::float_type, c_shape.lens()}, vec_beta));
-                instruction_ref beta_c{};
-                if(orig_type != shape::float_type)
-                {
-                    auto fp32_c = modl.insert_instruction(
-                        ins,
-                        make_op("convert", {{"target_type", to_value(shape::float_type)}}),
-                        inputs.back());
-                    beta_c = modl.insert_instruction(ins, make_op("mul"), l_beta, fp32_c);
-                }
-                else
-                {
-                    beta_c = modl.insert_instruction(ins, make_op("mul"), l_beta, inputs.back());
-                }
-
-                if(orig_type == shape::float_type)
-                {
-                    modl.replace_instruction(ins, make_op("add"), alpha_ab, beta_c);
-                }
-                else
-                {
-                    auto f_res = modl.insert_instruction(ins, make_op("add"), alpha_ab, beta_c);
-                    modl.replace_instruction(
-                        ins, make_op("convert", {{"target_type", to_value(orig_type)}}), f_res);
-                }
-            }
-            else
-            {
-                if(orig_type == shape::float_type)
-                {
-                    modl.replace_instruction(ins, make_op("mul"), l_alpha, f_dot);
-                }
-                else
-                {
-                    auto alpha_ab = modl.insert_instruction(ins, make_op("mul"), l_alpha, f_dot);
-                    modl.replace_instruction(
-                        ins, make_op("convert", {{"target_type", to_value(orig_type)}}), alpha_ab);
-                }
-            }
+            quant_dot = modl.insert_instruction(ins, make_op("convert", {{"target_type", orig_type}}), quant_dot);
         }
+        modl.replace_instruction(ins, quant_dot);
     }
     else if(ins->name() == "convolution")
     {
@@ -398,41 +310,23 @@ static void ins_quantize_int8(module& modl,
         auto dilation      = conv_op.dilation;
         auto padding_mode  = conv_op.padding_mode;
         auto group         = conv_op.group;
-        auto adjust_factor = 1.0f / (ins_quant_params[0].first * ins_quant_params[1].first);
+        auto scale_val = ins_quant_params[0].first * ins_quant_params[1].first;
 
         auto quant_conv = modl.insert_instruction(
             ins,
             op::quant_convolution{padding, stride, dilation, padding_mode, group},
             converted_inputs);
-        float threshold = 50.0f;
-        std::vector<float> vec_factor(quant_conv->get_shape().elements(), adjust_factor);
-        if(quant_conv->get_shape().type() == orig_type and adjust_factor >= threshold)
+
+        auto s = quant_conv->get_shape();
+        std::vector<float> vec_scale(s.elements(), scale_val);
+        shape s_scale{shape::float_type, s.lens()};
+        auto scale = modl.add_literal(literal(s, vec_scale));
+        quant_conv = modl.insert_instruction(ins, make_op("dequantizelinear"), quant_conv, scale);
+        if (quant_conv->get_shape().type() != orig_type)
         {
-            auto l_factor = modl.add_literal(
-                literal(quant_conv->get_shape(), vec_factor.begin(), vec_factor.end()));
-            modl.replace_instruction(ins, make_op("mul"), quant_conv, l_factor);
+            quant_conv = modl.insert_instruction(ins, make_op("convert", {{"target_type", orig_type}}), quant_conv);
         }
-        // convert quant_conv output to float type, multiply the factor and
-        // conver back to original type
-        else
-        {
-            auto float_conv = modl.insert_instruction(
-                ins,
-                make_op("convert", {{"target_type", to_value(shape::float_type)}}),
-                quant_conv);
-            auto l_factor = modl.add_literal(literal(float_conv->get_shape(), vec_factor));
-            if(orig_type == shape::float_type)
-            {
-                modl.replace_instruction(ins, make_op("mul"), l_factor, float_conv);
-            }
-            else
-            {
-                auto adjusted_conv =
-                    modl.insert_instruction(ins, make_op("mul"), l_factor, float_conv);
-                modl.replace_instruction(
-                    ins, make_op("convert", {{"target_type", to_value(orig_type)}}), adjusted_conv);
-            }
-        }
+        modl.replace_instruction(ins, quant_conv);
     }
     else
     {
@@ -505,15 +399,10 @@ void quantize_int8_impl(program& prog,
             // operation, if it has 3 inputs, then the last one should
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
-            if((ins->name() == "dot") and (inputs.size() == 3) and (input == inputs.back()))
-            {
-                quant_type = shape::int32_type;
-            }
-
             auto s = input->get_shape();
             if((s.type() == shape::float_type or s.type() == shape::double_type or
                 s.type() == shape::half_type or s.type() == shape::int32_type) and
-               s.type() != quant_type)
+                s.type() != quant_type and (inputs.size() == 3) and (input != inputs.back()))
             {
                 // if the input is a convert operator, uses its input
                 // as its current input

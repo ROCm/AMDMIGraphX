@@ -393,26 +393,38 @@ TEST_CASE(dot_float)
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        auto pa = mm->add_parameter("a", sa);
-        auto pb = mm->add_parameter("b", sb);
-        auto pc = mm->add_parameter("c", sc);
-        auto zp_a = mm->add_literal(static_cast<int8_t>(0));
+        auto pa      = mm->add_parameter("a", sa);
+        auto pb      = mm->add_parameter("b", sb);
+        auto pc      = mm->add_parameter("c", sc);
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_a = mm->add_literal(10.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
         std::vector<float> vec(sc.elements(), 200.0f);
-        auto dc = mm->add_literal(migraphx::literal(sc, vec));
-        auto beta = mm->add_literal(-0.0075f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto dc      = mm->add_literal(migraphx::literal(sc, vec));
+        auto beta    = mm->add_literal(-0.0075f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto mc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, pc);
-        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
+        auto ic = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
         mm->add_return({r});
 
@@ -439,7 +451,8 @@ TEST_CASE(dot_double_2args)
         migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 1.5f}}), pa, pb);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 1.5f}}), pa, pb);
         mm->add_return({r});
 
         return p;
@@ -454,24 +467,36 @@ TEST_CASE(dot_double_2args)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
 
-        auto zp_a = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_a = mm->add_literal(10.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
         std::vector<float> vec(sc.elements(), 200.0f);
-        auto dc = mm->add_literal(migraphx::literal(sc, vec));
+        auto dc   = mm->add_literal(migraphx::literal(sc, vec));
         auto beta = mm->add_literal(-0.0f);
-        auto zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto zp   = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, zp);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), fr);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), fr);
         mm->add_return({r});
         return p;
     };
@@ -496,7 +521,7 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto r = mm->add_instruction(
+        auto r  = mm->add_instruction(
             migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.5f}}), pa, pb, pc);
         mm->add_return({r});
 
@@ -509,28 +534,40 @@ TEST_CASE(dot_large_alpha_beta_float)
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        auto pa = mm->add_parameter("a", sa);
-        auto pb = mm->add_parameter("b", sb);
-        auto pc = mm->add_parameter("c", sc);
-        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto pa      = mm->add_parameter("a", sa);
+        auto pb      = mm->add_parameter("b", sb);
+        auto pc      = mm->add_parameter("c", sc);
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(1));
         auto scale_a = mm->add_literal(10.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
         std::vector<float> vec(sc.elements(), 2000.0f);
-        auto dc = mm->add_literal(migraphx::literal(sc, vec));
-        auto beta = mm->add_literal(-0.02525f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto dc      = mm->add_literal(migraphx::literal(sc, vec));
+        auto beta    = mm->add_literal(-0.02525f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto mc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, pc);
-        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
+        auto ic = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
         mm->add_return({r});
 
@@ -576,29 +613,43 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
 
-        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(1));
         auto scale_a = mm->add_literal(10.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
         std::vector<float> vec(sc.elements(), 2000.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
-        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto beta = mm->add_literal(-0.025f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
-        auto fc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
+        auto dc      = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta    = mm->add_literal(-0.025f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto fc = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
         auto bc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, fc);
-        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
+        auto ic = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
         auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
         mm->add_return({r});
         return p;
     };
@@ -620,7 +671,8 @@ TEST_CASE(dot_int32_one_arg)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {16, 16}};
         auto pa = mm->add_parameter("a", s);
-        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.0f}}), pa, pa);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.0f}}), pa, pa);
         mm->add_return({r});
 
         return p;
@@ -630,23 +682,28 @@ TEST_CASE(dot_int32_one_arg)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {16, 16}};
-        auto pa = mm->add_parameter("a", s);
-        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto pa      = mm->add_parameter("a", s);
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(1));
         auto scale_a = mm->add_literal(1.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}),
+                                   zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_a);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_a);
 
         std::vector<float> vec(s.elements(), 20.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, s.lens()};
         auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
 
-        auto beta = mm->add_literal(-0.0f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), beta);
+        auto beta    = mm->add_literal(-0.0f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), beta);
         auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
         mm->add_return({r});
 
         return p;
@@ -693,29 +750,43 @@ TEST_CASE(dot_int32)
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
 
-        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto zp_a    = mm->add_literal(static_cast<int8_t>(1));
         auto scale_a = mm->add_literal(10.0f);
-        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
-        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        scale_a      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
         std::vector<float> vec(sc.elements(), 200.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
-        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto beta = mm->add_literal(-0.0275f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
-        auto fc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
+        auto dc      = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta    = mm->add_literal(-0.0275f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto fc = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
         auto bc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, fc);
-        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
+        auto ic = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
         auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
         if(add_return)
         {
             mm->add_return({r});
@@ -757,7 +828,8 @@ TEST_CASE(dot_float_convert)
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
-        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 5.5f}}), fpa, pb);
+        auto r = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 5.5f}}), fpa, pb);
         mm->add_return({r});
 
         return p;
@@ -771,20 +843,29 @@ TEST_CASE(dot_float_convert)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
 
-        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_b = mm->add_literal(10.0f);
-        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
-        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
-        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        scale_b      = mm->insert_instruction(
+            std::next(pb),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            scale_b);
+        zp_b = mm->insert_instruction(
+            std::next(scale_b),
+            migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}),
+            zp_b);
+        auto quant_b = mm->insert_instruction(
+            std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), pa, quant_b);
+        auto quant = mm->add_instruction(
+            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), pa, quant_b);
 
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
         std::vector<float> vec(sc.elements(), 20.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
-        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto beta = mm->add_literal(-0.0f);
-        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto dc      = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta    = mm->add_literal(-0.0f);
+        auto mb_beta = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
         mm->add_return({r});
 
@@ -823,16 +904,25 @@ TEST_CASE(conv_float)
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
 
-        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_x    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_x = mm->add_literal(10.0f);
-        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
-        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        scale_x      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
         auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
-        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_w    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_w = mm->add_literal(10.0f);
-        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
-        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
-        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
+        scale_w      = mm->insert_instruction(
+            std::next(pw),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            scale_w);
+        zp_w = mm->insert_instruction(
+            std::next(scale_w),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            zp_w);
+        auto quant_w = mm->insert_instruction(
+            std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
 
         auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
 
@@ -840,7 +930,7 @@ TEST_CASE(conv_float)
         std::vector<float> vec(sc.elements(), 100.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
         auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        auto r       = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
         mm->add_return({r});
 
         return p;
@@ -878,25 +968,34 @@ TEST_CASE(conv_int32)
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
 
-
-        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_x    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_x = mm->add_literal(10.0f);
-        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
-        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        scale_x      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
         auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
-        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_w    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_w = mm->add_literal(10.0f);
-        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
-        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
-        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
+        scale_w      = mm->insert_instruction(
+            std::next(pw),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            scale_w);
+        zp_w = mm->insert_instruction(
+            std::next(scale_w),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            zp_w);
+        auto quant_w = mm->insert_instruction(
+            std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
 
         auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
         migraphx::shape sc{migraphx::shape::float_type, {4, 4, 1, 1}};
         std::vector<float> vec(sc.elements(), 100.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
         auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fr);
+        auto fr      = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        auto r       = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fr);
         mm->add_instruction(migraphx::make_op("identity"), r);
 
         return p;
@@ -932,25 +1031,34 @@ TEST_CASE(conv_half)
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
 
-
-        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_x    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_x = mm->add_literal(10.0f);
-        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
-        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        scale_x      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
         auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
-        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto zp_w    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_w = mm->add_literal(10.0f);
-        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
-        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
-        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
+        scale_w      = mm->insert_instruction(
+            std::next(pw),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            scale_w);
+        zp_w = mm->insert_instruction(
+            std::next(scale_w),
+            migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}),
+            zp_w);
+        auto quant_w = mm->insert_instruction(
+            std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
 
         auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
         migraphx::shape sc{migraphx::shape::float_type, {4, 4, 1, 1}};
         std::vector<float> vec(sc.elements(), 100.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
         auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
-        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), fr);
+        auto fr      = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        auto r       = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), fr);
         mm->add_instruction(migraphx::make_op("identity"), r);
 
         return p;

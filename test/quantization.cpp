@@ -15,6 +15,7 @@
 
 #include <migraphx/serialize.hpp>
 
+#include "migraphx/shape.hpp"
 #include "test.hpp"
 #include <migraphx/half.hpp>
 
@@ -379,8 +380,9 @@ TEST_CASE(dot_float)
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
 
-        mm->add_instruction(
+        auto r = mm->add_instruction(
             migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 1.5f}}), pa, pb, pc);
+        mm->add_return({r});
 
         return p;
     };
@@ -394,43 +396,25 @@ TEST_CASE(dot_float)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfa(sa.elements(), 0.1f);
-        auto fa = mm->add_literal(migraphx::literal(sa, vfa));
-        auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, pa);
-        auto ra = mm->add_instruction(migraphx::make_op("round"), ma);
-        auto ca = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
-
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal(sb, vfb));
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, pb);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
-
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
-        auto fdot = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            qdot);
-        std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
-        auto new_alpha = mm->add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
-        auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fdot);
-        std::vector<float> v_beta(pc->get_shape().elements(), 1.5f);
-        auto beta   = mm->add_literal(migraphx::literal(pc->get_shape(), v_beta));
-        auto beta_c = mm->add_instruction(migraphx::make_op("mul"), beta, pc);
-        mm->add_instruction(migraphx::make_op("add"), alpha_ab, beta_c);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_a = mm->add_literal(10.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        std::vector<float> vec(sc.elements(), 200.0f);
+        auto dc = mm->add_literal(migraphx::literal(sc, vec));
+        auto beta = mm->add_literal(-0.0075f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto mc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, pc);
+        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
+        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
+        mm->add_return({r});
 
         return p;
     };
@@ -438,14 +422,10 @@ TEST_CASE(dot_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    std::cout << "Loc1" << std::endl;
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
-    std::cout << "Loc2" << std::endl;
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
-    std::cout << "Loc3" << std::endl;
 
     auto qp = create_int8_quantized_prog();
-    std::cout << "Loc4" << std::endl;
 
     EXPECT(p == qp);
 }
@@ -459,8 +439,8 @@ TEST_CASE(dot_double_2args)
         migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-
-        mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 1.5f}}), pa, pb);
+        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 1.5f}}), pa, pb);
+        mm->add_return({r});
 
         return p;
     };
@@ -470,62 +450,36 @@ TEST_CASE(dot_double_2args)
         auto* mm = p.get_main_module();
         migraphx::shape sa{migraphx::shape::double_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
-        migraphx::shape sc{migraphx::shape::double_type, {2, 8}};
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfa(sa.elements(), 0.1f);
-        auto fpa = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pa);
-        auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
-        auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, fpa);
-        auto ra = mm->add_instruction(migraphx::make_op("round"), ma);
-        auto ca = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        auto fpb        = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, fpb);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_a = mm->add_literal(10.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
-        auto fdot = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            qdot);
-        std::vector<float> v_alpha(fdot->get_shape().elements(), 200.0f);
-        auto new_alpha = mm->add_literal(migraphx::literal(fdot->get_shape(), v_alpha));
-        auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fdot);
-        mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
-            alpha_ab);
-
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
+        std::vector<float> vec(sc.elements(), 200.0f);
+        auto dc = mm->add_literal(migraphx::literal(sc, vec));
+        auto beta = mm->add_literal(-0.0f);
+        auto zp = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, zp);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), fr);
+        mm->add_return({r});
         return p;
     };
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -542,9 +496,9 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-
-        mm->add_instruction(
+        auto r = mm->add_instruction(
             migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.5f}}), pa, pb, pc);
+        mm->add_return({r});
 
         return p;
     };
@@ -558,47 +512,27 @@ TEST_CASE(dot_large_alpha_beta_float)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfa(sa.elements(), 0.1f);
-        auto fa = mm->add_literal(migraphx::literal(sa, vfa));
-        auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, pa);
-        // add the shift
-        std::vector<float> vsa(sa.elements(), 1.0f);
-        auto sfta = mm->add_literal(migraphx::literal(sa, vsa));
-        auto msa  = mm->add_instruction(migraphx::make_op("add"), sfta, ma);
-        auto ra   = mm->add_instruction(migraphx::make_op("round"), msa);
-        auto ca   = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa   = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto scale_a = mm->add_literal(10.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal(sb, vfb));
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, pb);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
-        // quantize parameter c to int32 type
-        auto qc = mm->insert_instruction(
-            std::next(pc),
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-            pc);
-
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 2000}, {"beta", 51}}), qa, qb, qc);
-        mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            qdot);
+        std::vector<float> vec(sc.elements(), 2000.0f);
+        auto dc = mm->add_literal(migraphx::literal(sc, vec));
+        auto beta = mm->add_literal(-0.02525f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto mc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, pc);
+        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), mc);
+        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
+        mm->add_return({r});
 
         return p;
     };
@@ -607,6 +541,7 @@ TEST_CASE(dot_large_alpha_beta_float)
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -624,8 +559,9 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
 
-        mm->add_instruction(
+        auto r = mm->add_instruction(
             migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.0f}}), pa, pb, pc);
+        mm->add_return({r});
 
         return p;
     };
@@ -639,48 +575,31 @@ TEST_CASE(dot_large_alpha_beta_int32)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfa(sa.elements(), 0.1f);
-        auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
-        auto conv_a = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pa);
-        auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, conv_a);
 
-        // add the shift
-        std::vector<float> vsa(sa.elements(), 1.0f);
-        auto sfta =
-            mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
-        auto msa = mm->add_instruction(migraphx::make_op("add"), sfta, ma);
-        auto ra  = mm->add_instruction(migraphx::make_op("round"), msa);
-        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa  = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto scale_a = mm->add_literal(10.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
-        auto conv_b = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pb);
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, conv_b);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
-        mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 2000}, {"beta", 50}}), qa, qb, pc);
-
+        std::vector<float> vec(sc.elements(), 2000.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta = mm->add_literal(-0.025f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto fc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
+        auto bc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, fc);
+        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
+        auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
+        mm->add_return({r});
         return p;
     };
 
@@ -688,6 +607,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -700,8 +620,8 @@ TEST_CASE(dot_int32_one_arg)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {16, 16}};
         auto pa = mm->add_parameter("a", s);
-
-        mm->add_instruction(migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.0f}}), pa, pa);
+        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 20.0f}, {"beta", 50.0f}}), pa, pa);
+        mm->add_return({r});
 
         return p;
     };
@@ -711,36 +631,23 @@ TEST_CASE(dot_int32_one_arg)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {16, 16}};
         auto pa = mm->add_parameter("a", s);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto scale_a = mm->add_literal(1.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
 
-        // add the shift
-        auto fpa = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pa);
-        std::vector<float> vsa(s.elements(), 1.0f);
-        auto sfta =
-            mm->add_literal(migraphx::literal({migraphx::shape::float_type, s.lens()}, vsa));
-        auto msa = mm->add_instruction(migraphx::make_op("add"), sfta, fpa);
-        auto ra  = mm->add_instruction(migraphx::make_op("round"), msa);
-        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa  = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_a);
 
-        auto q_dot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qa);
-        auto f_dot = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            q_dot);
-        std::vector<float> v_alpha(f_dot->get_shape().elements(), 20.0f);
-        auto new_alpha = mm->add_literal(migraphx::literal{f_dot->get_shape(), v_alpha});
-        auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, f_dot);
-        mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-            alpha_ab);
+        std::vector<float> vec(s.elements(), 20.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, s.lens()};
+        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
+
+        auto beta = mm->add_literal(-0.0f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), beta);
+        auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
+        mm->add_return({r});
 
         return p;
     };
@@ -748,6 +655,7 @@ TEST_CASE(dot_int32_one_arg)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{1.0f, 1.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -784,85 +692,55 @@ TEST_CASE(dot_int32)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfa(sa.elements(), 0.1f);
-        auto fa = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vfa));
-        auto conv_a = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pa);
-        auto ma = mm->add_instruction(migraphx::make_op("mul"), fa, conv_a);
 
-        // add the shift
-        std::vector<float> vsa(sa.elements(), 1.0f);
-        auto sfta =
-            mm->add_literal(migraphx::literal({migraphx::shape::float_type, sa.lens()}, vsa));
-        auto msa = mm->add_instruction(migraphx::make_op("add"), sfta, ma);
-        auto ra  = mm->add_instruction(migraphx::make_op("round"), msa);
-        auto ca  = create_clip_op(p, 127.0f, -128.0f, ra);
-        auto qa  = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            ca);
+        auto zp_a = mm->add_literal(static_cast<int8_t>(1));
+        auto scale_a = mm->add_literal(10.0f);
+        scale_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), scale_a);
+        zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sa.lens()}}), zp_a);
+        auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
-        auto conv_b = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pb);
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, conv_b);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
 
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qa, qb);
-        auto fr = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            qdot);
-        std::vector<float> v_alpha(fr->get_shape().elements(), 20.0f);
-        auto new_alpha = mm->add_literal(migraphx::literal(fr->get_shape(), v_alpha));
-        auto alpha_ab  = mm->add_instruction(migraphx::make_op("mul"), new_alpha, fr);
-        auto fc        = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pc);
-        std::vector<float> v_beta(fc->get_shape().elements(), 5.5f);
-        auto beta   = mm->add_literal(migraphx::literal(fc->get_shape(), v_beta));
-        auto beta_c = mm->add_instruction(migraphx::make_op("mul"), beta, fc);
-        auto f_res  = mm->add_instruction(migraphx::make_op("add"), alpha_ab, beta_c);
-        auto res    = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-            f_res);
+        std::vector<float> vec(sc.elements(), 200.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta = mm->add_literal(-0.0275f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto fc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), pc);
+        auto bc = mm->add_instruction(migraphx::make_op("mul"), mb_beta, fc);
+        auto ic = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), bc);
+        auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, ic);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fdot);
         if(add_return)
         {
-            mm->add_return({res});
+            mm->add_return({r});
+        }
+        else
+        {
+            mm->add_instruction(migraphx::make_op("identity"), r);
         }
 
         return p;
     };
 
-    auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
-    auto qp = create_int8_quantized_prog();
-    EXPECT(p == qp);
-
     auto p_ret = create_program(true);
     migraphx::quantize_int8_impl(p_ret, quant_params, {"dot"});
+    migraphx::run_passes(*p_ret.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp_ret = create_int8_quantized_prog(true);
     EXPECT(p_ret == qp_ret);
+
+    auto p = create_program();
+    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+    auto qp = create_int8_quantized_prog();
+    EXPECT(p == qp);
 }
 
 TEST_CASE(dot_float_convert)
@@ -879,7 +757,8 @@ TEST_CASE(dot_float_convert)
             migraphx::make_op("convert",
                               {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
             pa);
-        mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 5.5f}}), fpa, pb);
+        auto r = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 2.0f}, {"beta", 5.5f}}), fpa, pb);
+        mm->add_return({r});
 
         return p;
     };
@@ -892,28 +771,22 @@ TEST_CASE(dot_float_convert)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pb);
-        std::vector<float> vfb(sb.elements(), 0.1f);
-        auto fb = mm->add_literal(migraphx::literal({migraphx::shape::float_type, sb.lens()}, vfb));
-        auto mb = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fb, pb);
-        auto rb = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mb);
-        auto cb = create_clip_op(insert_loc, p, 127.0f, -128.0f, rb);
-        auto qb = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cb);
+        auto zp_b = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_b = mm->add_literal(10.0f);
+        scale_b = mm->insert_instruction(std::next(pb), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), scale_b);
+        zp_b = mm->insert_instruction(std::next(scale_b), migraphx::make_op("multibroadcast", {{"output_lens", sb.lens()}}), zp_b);
+        auto quant_b = mm->insert_instruction(std::next(zp_b), migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
 
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), pa, qb);
-        auto fr = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            qdot);
-        std::vector<float> v_alpha(fr->get_shape().elements(), 10.0f);
-        auto new_alpha = mm->add_literal(migraphx::literal(fr->get_shape(), v_alpha));
-        mm->add_instruction(migraphx::make_op("mul"), new_alpha, fr);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), pa, quant_b);
+
+        migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
+        std::vector<float> vec(sc.elements(), 20.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto beta = mm->add_literal(-0.0f);
+        auto mb_beta = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
+        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
+        mm->add_return({r});
 
         return p;
     };
@@ -936,7 +809,8 @@ TEST_CASE(conv_float)
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto r = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        mm->add_return({r});
 
         return p;
     };
@@ -948,38 +822,26 @@ TEST_CASE(conv_float)
         migraphx::shape sw{migraphx::shape::float_type, {4, 3, 3, 3}};
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
-        // quantize parameter a to int8 type, multiply the scale
-        std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx = mm->add_literal(migraphx::literal(sx, vfx));
-        auto mx = mm->add_instruction(migraphx::make_op("mul"), fx, px);
-        auto rx = mm->add_instruction(migraphx::make_op("round"), mx);
-        auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
-        auto qx = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cx);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pw);
-        std::vector<float> vfw(sw.elements(), 0.1f);
-        auto fw = mm->add_literal(migraphx::literal(sw, vfw));
-        auto mw = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fw, pw);
-        auto rw = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mw);
-        auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cw);
+        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_x = mm->add_literal(10.0f);
+        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
+        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_w = mm->add_literal(10.0f);
+        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
+        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
+        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
 
-        auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
-        auto f_conv = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            q_conv);
-        std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
-        auto adj = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
-        mm->add_instruction(migraphx::make_op("mul"), adj, f_conv);
+        auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
+
+        migraphx::shape sc{migraphx::shape::float_type, {4, 4, 1, 1}};
+        std::vector<float> vec(sc.elements(), 100.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        mm->add_return({r});
 
         return p;
     };
@@ -987,6 +849,7 @@ TEST_CASE(conv_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
+    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -1014,43 +877,27 @@ TEST_CASE(conv_int32)
         migraphx::shape sw{migraphx::shape::int32_type, {4, 3, 3, 3}};
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
-        // quantize parameter a to int8 type, multiply the scale
-        auto fpx = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            px);
-        std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx = mm->add_literal(migraphx::literal(fpx->get_shape(), vfx));
-        auto mx = mm->add_instruction(migraphx::make_op("mul"), fx, fpx);
-        auto rx = mm->add_instruction(migraphx::make_op("round"), mx);
-        auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
-        auto qx = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cx);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pw);
-        auto fpw        = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pw);
-        std::vector<float> vfw(sw.elements(), 0.1f);
-        auto fw = mm->add_literal(migraphx::literal(fpw->get_shape(), vfw));
-        auto mw = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fw, fpw);
-        auto rw = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mw);
-        auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cw);
 
-        auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
-        std::vector<float> v_adj(q_conv->get_shape().elements(), 100.0f);
-        auto adj = mm->add_literal(migraphx::literal(q_conv->get_shape(), v_adj));
-        mm->add_instruction(migraphx::make_op("mul"), q_conv, adj);
+        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_x = mm->add_literal(10.0f);
+        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
+        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_w = mm->add_literal(10.0f);
+        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
+        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
+        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
+
+        auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
+        migraphx::shape sc{migraphx::shape::float_type, {4, 4, 1, 1}};
+        std::vector<float> vec(sc.elements(), 100.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int32_type}}), fr);
+        mm->add_instruction(migraphx::make_op("identity"), r);
 
         return p;
     };
@@ -1084,51 +931,27 @@ TEST_CASE(conv_half)
         migraphx::shape sw{migraphx::shape::half_type, {4, 3, 3, 3}};
         auto px = mm->add_parameter("x", sx);
         auto pw = mm->add_parameter("w", sw);
-        // quantize parameter a to int8 type, multiply the scale
-        auto fpx = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            px);
-        std::vector<float> vfx(sx.elements(), 0.1f);
-        auto fx = mm->add_literal(migraphx::literal(fpx->get_shape(), vfx));
-        auto mx = mm->add_instruction(migraphx::make_op("mul"), fx, fpx);
-        auto rx = mm->add_instruction(migraphx::make_op("round"), mx);
-        auto cx = create_clip_op(p, 127.0f, -128.0f, rx);
-        auto qx = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cx);
 
-        // quantize parameter b to int8 type
-        auto insert_loc = std::next(pw);
-        auto fpw        = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pw);
-        std::vector<float> vfw(sw.elements(), 0.1f);
-        auto fw = mm->add_literal(migraphx::literal(fpw->get_shape(), vfw));
-        auto mw = mm->insert_instruction(insert_loc, migraphx::make_op("mul"), fw, fpw);
-        auto rw = mm->insert_instruction(insert_loc, migraphx::make_op("round"), mw);
-        auto cw = create_clip_op(insert_loc, p, 127.0f, -128.0f, rw);
-        auto qw = mm->insert_instruction(
-            insert_loc,
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
-            cw);
 
-        auto q_conv = mm->add_instruction(migraphx::make_op("quant_convolution"), qx, qw);
-        auto f_conv = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            q_conv);
-        std::vector<float> v_adj(f_conv->get_shape().elements(), 100.0f);
-        auto adj   = mm->add_literal(migraphx::literal(f_conv->get_shape(), v_adj));
-        auto f_res = mm->add_instruction(migraphx::make_op("mul"), adj, f_conv);
-        mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
-            f_res);
+        auto zp_x = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_x = mm->add_literal(10.0f);
+        scale_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), scale_x);
+        zp_x = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", sx.lens()}}), zp_x);
+        auto quant_x = mm->add_instruction(migraphx::make_op("quantizelinear"), px, scale_x, zp_x);
+        auto zp_w = mm->add_literal(static_cast<int8_t>(0));
+        auto scale_w = mm->add_literal(10.0f);
+        scale_w = mm->insert_instruction(std::next(pw), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), scale_w);
+        zp_w = mm->insert_instruction(std::next(scale_w), migraphx::make_op("multibroadcast", {{"output_lens", sw.lens()}}), zp_w);
+        auto quant_w = mm->insert_instruction(std::next(zp_w), migraphx::make_op("quantizelinear"), pw, scale_w, zp_w);
+
+        auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), quant_x, quant_w);
+        migraphx::shape sc{migraphx::shape::float_type, {4, 4, 1, 1}};
+        std::vector<float> vec(sc.elements(), 100.0f);
+        migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
+        auto d_scale = mm->add_literal(migraphx::literal(s_scale, vec));
+        auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, d_scale);
+        auto r = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), fr);
+        mm->add_instruction(migraphx::make_op("identity"), r);
 
         return p;
     };

@@ -91,7 +91,7 @@ TEST_CASE(int8_quantization)
         migraphx::target gpu_t = migraphx::gpu::target{};
         run_prog(p, gpu_t, m, gpu_result);
 
-        EXPECT(migraphx::verify_range(ref_result, gpu_result));
+        EXPECT(migraphx::verify_range(ref_result, gpu_result, 1000));
     }
 }
 

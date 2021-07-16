@@ -211,7 +211,6 @@ void quantize_fp16(module& m,
             // tuple type, followed by get_tuple_elem
             if(ins_shape.type() == shape::tuple_type)
             {
-                // std::cout << "in_if" << std::endl;
                 auto outputs = ins->outputs();
                 for(auto out : outputs)
                 {
@@ -309,7 +308,6 @@ static void ins_quantize_int8(module& modl,
                 ins, make_op("convert", {{"target_type", orig_type}}), quant_dot);
         }
         modl.replace_instruction(ins, quant_dot);
-        std::cout << "mod = " << modl << std::endl;
     }
     else if(ins->name() == "convolution")
     {

@@ -280,6 +280,10 @@ if(MIGRAPHX_ENABLE_MLIR)
     target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
 endif()
 
+set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")
+if(MIGRAPHX_USE_HIPRTC)
+target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
+else()
 # Get flags needed to compile hip
 include(TargetFlags)
 target_flags(HIP_COMPILER_FLAGS hip::device)
@@ -292,7 +296,9 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}" 
     "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
+    "-DMIGRAPHX_USE_HIPRTC=0"
 )
+endif()
 
 # Check miopen find mode api
 include(CheckLibraryExists)

@@ -85,7 +85,6 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     auto args_hpp = generate_args_hpp(options.inputs);
     srcs.push_back(src_file{fs::path{"args.hpp"},
                             std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
-    options.params += " -I.";
     auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

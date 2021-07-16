@@ -1141,6 +1141,12 @@ TEST_CASE(conv_half)
     EXPECT(p == qp);
 }
 
+template <class T>
+auto get_hash(const T& x)
+{
+    return std::hash<T>{}(x);
+}
+
 TEST_CASE(target_copy)
 {
     auto run_prog = [](migraphx::program p,
@@ -1232,7 +1238,8 @@ TEST_CASE(int8_quantization_dot)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+        auto r = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+        mm->add_return({r});
 
         return p;
     };
@@ -1241,9 +1248,11 @@ TEST_CASE(int8_quantization_dot)
         auto p = create_program();
         migraphx::parameter_map m;
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
+        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        m["a"] = migraphx::generate_argument(sa);
-        m["c"] = migraphx::generate_argument(sc);
+        m["a"] = migraphx::generate_argument(sa, get_hash(std::string("a")));
+        m["b"] = migraphx::generate_argument(sb, get_hash(std::string("b")));
+        m["c"] = migraphx::generate_argument(sc, get_hash(std::string("c")));
         std::vector<float> quant_result;
         migraphx::target ref_t = migraphx::ref::target{};
         run_prog(p, ref_t, m, quant_result, true);
@@ -1251,7 +1260,7 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
-        EXPECT(migraphx::verify_range(quant_result, no_quant_result));
+        EXPECT(migraphx::verify_range(quant_result, no_quant_result, 200000));
     }
 }
 

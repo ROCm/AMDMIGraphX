@@ -264,7 +264,7 @@ static void ins_quantize_int8(module& modl,
     if(ins->name() == "dot")
     {
         auto dot_op     = any_cast<op::dot>(ins->get_operator());
-        float scale_val = (ins_quant_params[0].first * ins_quant_params[1].first) / dot_op.alpha;
+        float scale_val = dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
         float beta      = (inputs.size() == 3) ? dot_op.beta : 0.0f;
         // We need additional checking about the quant_alpha value. If
         // abs(quant_alpha) > 50 (some tmp value set here), we can convert
@@ -284,7 +284,7 @@ static void ins_quantize_int8(module& modl,
         shape s_scale{shape::float_type, s.lens()};
         std::vector<float> vec(s.elements(), scale_val);
         auto scale      = modl.add_literal(literal(s_scale, vec));
-        auto l_beta     = modl.add_literal(-1.0f * beta * scale_val);
+        auto l_beta     = modl.add_literal(-1.0f * beta / scale_val);
         auto zero_point = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
         if(inputs.size() == 3)
@@ -294,8 +294,6 @@ static void ins_quantize_int8(module& modl,
                 input_c = modl.insert_instruction(
                     ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
             }
-            std::cout << "l_beta_shape = " << l_beta->get_shape()
-                      << ", c_shape = " << input_c->get_shape() << std::endl;
             zero_point = modl.insert_instruction(ins, make_op("mul"), zero_point, input_c);
             if(zero_point->get_shape().type() != s.type())
             {

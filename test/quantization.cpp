@@ -1238,7 +1238,7 @@ TEST_CASE(int8_quantization_dot)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto r = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+        auto r  = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
         mm->add_return({r});
 
         return p;

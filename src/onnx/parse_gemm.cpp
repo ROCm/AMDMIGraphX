@@ -42,10 +42,7 @@ struct parse_gemm : op_parser<parse_gemm>
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 
-        auto l1 = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[0])
-                           : args[0];
-        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
-                           : args[1];
+        auto l1 = args[0];
 
         if(alpha != 1.0f)
         {
@@ -54,6 +51,10 @@ struct parse_gemm : op_parser<parse_gemm>
             l1 = info.add_instruction(make_op("convert", {{"target_type", l1->get_shape().type()}}),
                                       alpha_l1);
         }
+
+        l1      = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), l1) : l1;
+        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
+                           : args[1];
 
         if(args.size() == 3 && beta != 0.0f)
         {

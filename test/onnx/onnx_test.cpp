@@ -1273,14 +1273,15 @@ TEST_CASE(gemm_test)
     auto l0    = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 7}});
     auto l1    = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {11, 5}});
     auto l2    = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type});
-    auto t0    = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l0);
-    auto t1    = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
     auto alpha = 2.f;
     auto beta  = 2.0f;
     auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
     t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
+    t_a     = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), t_a);
+    auto t1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
+
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {7, 11}}}), l2);
@@ -1300,13 +1301,15 @@ TEST_CASE(gemm_ex_test)
     auto l0    = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 6}});
     auto l1    = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 8, 7}});
     auto l2    = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 7}});
-    auto t0    = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l0);
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
     t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
+
+    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
+
     auto b_l = mm->add_literal(beta);
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2->get_shape().lens()}}), b_l);
@@ -1325,14 +1328,16 @@ TEST_CASE(gemm_ex_brcst_test)
     auto l0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 6}});
     auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 7}});
     auto l2  = mm->add_parameter("3", migraphx::shape{migraphx::shape::float_type, {1, 1, 6, 1}});
-    auto t0  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l0);
     std::vector<std::size_t> out_lens{1, 1, 6, 7};
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t0});
+    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
     t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", l1->get_shape().type()}}), t_a);
+
+    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
+
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", out_lens}}), l2);

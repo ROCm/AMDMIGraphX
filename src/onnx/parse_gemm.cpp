@@ -56,9 +56,9 @@ struct parse_gemm : op_parser<parse_gemm>
         auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
                            : args[1];
 
-        if(args.size() == 3 && beta != 0.0f)
+        if(args.size() == 3)
         {
-            if(beta != 1.0f && args[2]->get_shape().elements() > 0)
+            if(beta != 0.0f && args[2]->get_shape().elements() > 0)
             {
                 auto out_lens   = l1->get_shape().lens();
                 out_lens.back() = l2->get_shape().lens().back();

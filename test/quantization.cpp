@@ -22,13 +22,13 @@
 namespace migraphx {
 void quantize_int8_impl(migraphx::program& p,
                         const std::vector<std::pair<float, float>>& quant_params,
-                        const std::vector<std::string>& ins_names) 
+                        const std::vector<std::string>& ins_names)
 {
     std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_quant_ins;
     auto* mm = p.get_main_module();
     migraphx::quantize_int8_impl(*mm, quant_params, ins_names, map_quant_ins);
 }
-}
+} // namespace migraphx
 
 TEST_CASE(param_add)
 {

@@ -430,7 +430,8 @@ void quantize_int8_impl(module& m,
                 }
                 else
                 {
-                    quant_input = insert_quant_ins(m, input, quant_type, map_quant_ins, param.first, param.second);
+                    quant_input = insert_quant_ins(
+                        m, input, quant_type, map_quant_ins, param.first, param.second);
                 }
                 converted_inputs.push_back(quant_input);
             }

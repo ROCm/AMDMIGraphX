@@ -348,9 +348,10 @@ static void ins_quantize_int8(module& modl,
 // -128 ~ 127. To convert the float or double to int8, we need a scale and
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
 // To simplify the changes, we consider shift as 0.0f for now.
-void quantize_int8_impl(program& prog,
+void quantize_int8_impl(module& m,
                         const std::vector<std::pair<float, float>>& quant_params,
-                        const std::vector<std::string>& ins_names)
+                        const std::vector<std::string>& ins_names,
+                        std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins)
 {
     if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
     {
@@ -372,11 +373,9 @@ void quantize_int8_impl(program& prog,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
-    auto* mm                      = prog.get_main_module();
     std::size_t quant_param_index = 0;
-    std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
-    for(auto ins : iterator_for(*mm))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@return")
             break;
@@ -431,8 +430,7 @@ void quantize_int8_impl(program& prog,
                 }
                 else
                 {
-                    quant_input = insert_quant_ins(
-                        *mm, input, quant_type, map_quant_ins, param.first, param.second);
+                    quant_input = insert_quant_ins(m, input, quant_type, map_quant_ins, param.first, param.second);
                 }
                 converted_inputs.push_back(quant_input);
             }
@@ -442,13 +440,19 @@ void quantize_int8_impl(program& prog,
             }
         }
 
+        auto mod_inputs = ins->module_inputs();
+        for(auto*& smod : mod_inputs)
+        {
+            quantize_int8_impl(*smod, quant_params, ins_names, map_quant_ins);
+        }
+
         // no change for the input, go to the next instruction
         if(inputs == converted_inputs)
         {
             continue;
         }
 
-        ins_quantize_int8(*mm, ins, converted_inputs, ins_quant_params);
+        ins_quantize_int8(m, ins, converted_inputs, ins_quant_params);
     }
 
     if(quant_param_index != quant_params.size())
@@ -489,7 +493,9 @@ void quantize_int8(program& prog,
         cap_prog.eval(m);
     }
 
-    quantize_int8_impl(prog, *int8_quant_params, ins_names);
+    std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
+    auto* mm = prog.get_main_module();
+    quantize_int8_impl(*mm, *int8_quant_params, ins_names, map_quant_ins);
 }
 
 // For the input of each input argument, we need to insert a

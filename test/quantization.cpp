@@ -19,35 +19,15 @@
 #include "test.hpp"
 #include <migraphx/half.hpp>
 
-migraphx::instruction_ref
-create_clip_op(migraphx::program& p, float max, float min, migraphx::instruction_ref input)
+namespace migraphx {
+void quantize_int8_impl(migraphx::program& p,
+                        const std::vector<std::pair<float, float>>& quant_params,
+                        const std::vector<std::string>& ins_names) 
 {
-    auto* mm        = p.get_main_module();
-    auto input_lens = input->get_shape().lens();
-    auto max_val    = mm->add_literal(max);
-    auto min_val    = mm->add_literal(min);
-    max_val         = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
-    min_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
-    return mm->add_instruction(migraphx::make_op("clip"), input, min_val, max_val);
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_quant_ins;
+    auto* mm = p.get_main_module();
+    migraphx::quantize_int8_impl(*mm, quant_params, ins_names, map_quant_ins);
 }
-
-migraphx::instruction_ref create_clip_op(migraphx::instruction_ref insert_loc,
-                                         migraphx::program& p,
-                                         float max,
-                                         float min,
-                                         migraphx::instruction_ref input)
-{
-    auto* mm        = p.get_main_module();
-    auto input_lens = input->get_shape().lens();
-    auto max_val    = mm->add_literal(max);
-    auto min_val    = mm->add_literal(min);
-    max_val         = mm->insert_instruction(
-        insert_loc, migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
-    min_val = mm->insert_instruction(
-        insert_loc, migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
-    return mm->insert_instruction(insert_loc, migraphx::make_op("clip"), input, min_val, max_val);
 }
 
 TEST_CASE(param_add)

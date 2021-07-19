@@ -40,10 +40,9 @@ void quantize_int8(program& prog,
                    const target& t,
                    const std::vector<parameter_map>& calibration,
                    const std::vector<std::string>& ins_names = {"dot", "convolution"});
-void quantize_int8_impl(module& m,
+void quantize_int8_impl(program& p,
                         const std::vector<std::pair<float, float>>& quant_params,
-                        const std::vector<std::string>& ins_names,
-                        std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins);
+                        const std::vector<std::string>& ins_names);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

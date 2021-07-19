@@ -1,3 +1,4 @@
+#include "migraphx/instruction_ref.hpp"
 #include "migraphx/literal.hpp"
 #include <migraphx/quantization.hpp>
 #include <migraphx/program.hpp>
@@ -351,30 +352,10 @@ static void ins_quantize_int8(module& modl,
 void quantize_int8_impl(module& m,
                         const std::vector<std::pair<float, float>>& quant_params,
                         const std::vector<std::string>& ins_names,
-                        std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins)
+                        std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins,
+                        std::unordered_map<instruction_ref, std::size_t>& map_ins_index,
+                        std::size_t& quant_param_index)
 {
-    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
-    {
-        for(std::size_t i = 0; i < quant_params.size(); ++i)
-        {
-            auto param = quant_params.at(i);
-            std::cout << "ins_index = " << i << ", scale = " << param.first
-                      << ", shift = " << param.second << std::endl;
-        }
-        std::cout << std::endl;
-    }
-
-    // For now, we only support the int8 quantization of gemm and convolution
-    std::set<std::string> op_names = {"convolution", "dot"};
-    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
-    if(!std::includes(
-           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
-    {
-        MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
-    }
-
-    std::size_t quant_param_index = 0;
-    std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@return")
@@ -444,7 +425,7 @@ void quantize_int8_impl(module& m,
         auto mod_inputs = ins->module_inputs();
         for(auto*& smod : mod_inputs)
         {
-            quantize_int8_impl(*smod, quant_params, ins_names, map_quant_ins);
+            quantize_int8_impl(*smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
         }
 
         // no change for the input, go to the next instruction
@@ -460,6 +441,37 @@ void quantize_int8_impl(module& m,
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: number of scales does not match");
     }
+}
+
+void quantize_int8_impl(program& p,
+                        const std::vector<std::pair<float, float>>& quant_params,
+                        const std::vector<std::string>& ins_names)
+{
+    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
+    {
+        for(std::size_t i = 0; i < quant_params.size(); ++i)
+        {
+            auto param = quant_params.at(i);
+            std::cout << "ins_index = " << i << ", scale = " << param.first
+                      << ", shift = " << param.second << std::endl;
+        }
+        std::cout << std::endl;
+    }
+
+    // For now, we only support the int8 quantization of gemm and convolution
+    std::set<std::string> op_names = {"convolution", "dot"};
+    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
+    if(!std::includes(
+           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
+    {
+        MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
+    }
+
+    auto* mm = p.get_main_module();
+    std::size_t quant_param_index = 0;
+    std::unordered_map<instruction_ref, std::size_t> map_ins_index;
+    std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
+    quantize_int8_impl(*mm, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
 }
 
 void quantize_int8(program& prog,
@@ -494,19 +506,16 @@ void quantize_int8(program& prog,
         cap_prog.eval(m);
     }
 
-    std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
-    auto* mm = prog.get_main_module();
-    quantize_int8_impl(*mm, *int8_quant_params, ins_names, map_quant_ins);
+    quantize_int8_impl(prog, *int8_quant_params, ins_names);
 }
 
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
-std::size_t capture_arguments(program& prog,
-                              const std::vector<std::string>& ins_names,
-                              const std::function<void(std::size_t, std::vector<argument>)>& func)
+void capture_arguments(module& m,
+                       const std::vector<std::string>& ins_names,
+                       const std::function<void(std::size_t, std::vector<argument>)>& func,
+                       std::size_t& num_quant_params)
 {
-    auto* mm                = prog.get_main_module();
-    size_t num_quant_params = 0;
     // the int8 quantization only support dot and convolution
     std::set<std::string> op_names = {"dot", "convolution"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
@@ -517,7 +526,7 @@ std::size_t capture_arguments(program& prog,
     }
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for(auto ins : iterator_for(*mm))
+    for(auto ins : iterator_for(m))
     {
         if(not contains(ins_names, ins->name()))
         {
@@ -535,14 +544,30 @@ std::size_t capture_arguments(program& prog,
             }
             else
             {
-                new_ins = mm->insert_instruction(
+                new_ins = m.insert_instruction(
                     std::next(input), op::capture{num_quant_params++, func}, input);
                 ins_map[input] = new_ins;
             }
             new_args.push_back(new_ins);
         }
+
+        auto mod_inputs = ins->module_inputs();
+        for(auto*& smod : mod_inputs)
+        {
+            capture_arguments(*smod, ins_names, func, num_quant_params);
+        }
+
         instruction::replace(ins, ins->get_operator(), ins->get_shape(), new_args);
     }
+}
+
+std::size_t capture_arguments(program& prog,
+                              const std::vector<std::string>& ins_names,
+                              const std::function<void(std::size_t, std::vector<argument>)>& func)
+{
+    auto* mm = prog.get_main_module();
+    std::size_t num_quant_params = 0;
+    capture_arguments(*mm, ins_names, func, num_quant_params);
 
     return num_quant_params;
 }

@@ -425,7 +425,8 @@ void quantize_int8_impl(module& m,
         auto mod_inputs = ins->module_inputs();
         for(auto*& smod : mod_inputs)
         {
-            quantize_int8_impl(*smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+            quantize_int8_impl(
+                *smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
         }
 
         // no change for the input, go to the next instruction
@@ -467,11 +468,12 @@ void quantize_int8_impl(program& p,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
-    auto* mm = p.get_main_module();
+    auto* mm                      = p.get_main_module();
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
-    quantize_int8_impl(*mm, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+    quantize_int8_impl(
+        *mm, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
 }
 
 void quantize_int8(program& prog,
@@ -565,7 +567,7 @@ std::size_t capture_arguments(program& prog,
                               const std::vector<std::string>& ins_names,
                               const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
-    auto* mm = prog.get_main_module();
+    auto* mm                     = prog.get_main_module();
     std::size_t num_quant_params = 0;
     capture_arguments(*mm, ins_names, func, num_quant_params);
 

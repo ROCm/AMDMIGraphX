@@ -115,12 +115,12 @@ hip_loop::compute(const shape&,
     std::vector<argument> scan_outputs(out_args.begin() + dep_num, out_args.end());
 
     // set unused scan outputs to 0s
-    if (iter < iter_num)
+    if(iter < iter_num)
     {
         auto elem_num = iter_num - iter;
-        for (auto& out : std::vector<argument>(out_args.begin() + dep_num, out_args.end()))
+        for(auto& out : std::vector<argument>(out_args.begin() + dep_num, out_args.end()))
         {
-            auto s = out.get_shape();
+            auto s    = out.get_shape();
             auto size = s.bytes() / iter_num;
             (void)hipMemset(out.data() + iter * size, 0, size * elem_num);
         }

@@ -114,14 +114,17 @@ hip_loop::compute(const shape&,
     out_args.erase(out_args.begin());
     std::vector<argument> scan_outputs(out_args.begin() + dep_num, out_args.end());
 
-    // adjust scan output shapes
-    std::transform(
-        out_args.begin() + dep_num, out_args.end(), out_args.begin() + dep_num, [&](auto arg_o) {
-            auto s    = arg_o.get_shape();
-            auto lens = s.lens();
-            lens[0]   = static_cast<std::size_t>(iter);
-            return arg_o.reshape({s.type(), lens});
-        });
+    // set unused scan outputs to 0s
+    if (iter < iter_num)
+    {
+        auto elem_num = iter_num - iter;
+        for (auto& out : std::vector<argument>(out_args.begin() + dep_num, out_args.end()))
+        {
+            auto s = out.get_shape();
+            auto size = s.bytes() / iter_num;
+            (void)hipMemset(out.data() + iter * size, 0, size * elem_num);
+        }
+    }
 
     return argument(out_args);
 }

@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 instruction_ref insert_quant_ins(module& modl,
-                                 const instruction_ref& loc,
+                                 const instruction_ref& insert_loc,
                                  instruction_ref& ins,
                                  shape::type_t type,
                                  std::unordered_map<instruction_ref, instruction_ref>& map_ins,
@@ -56,7 +56,6 @@ instruction_ref insert_quant_ins(module& modl,
     assert(ins_s.type() == shape::float_type or ins_s.type() == shape::double_type or
            ins_s.type() == shape::int32_type or ins_s.type() == shape::half_type);
     instruction_ref quant_ins{};
-    auto insert_loc = modl.has_instruction(ins) ? std::next(ins) : loc;
     if(type == shape::int8_type)
     {
         auto zero_point = modl.add_literal(static_cast<int8_t>(shift));

@@ -70,6 +70,18 @@ int main() {}
 
 )__migraphx__";
 
+
+// NOLINTNEXTLINE
+const std::string check_define = R"__migraphx__(
+
+#ifndef __DEFINE__
+#error __DEFINE__ was not defined
+#endif
+
+int main() {}
+
+)__migraphx__";
+
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};
@@ -90,6 +102,19 @@ TEST_CASE(simple_compile_hip)
     EXPECT(output != input);
     auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+auto check_target(const std::string& arch)
+{
+    auto define = "__" + arch + "__";
+    auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
+    return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, "", arch);
+}
+
+TEST_CASE(compile_target)
+{
+    EXPECT(not check_target("gfx900").empty());
+    EXPECT(not check_target("gfx906").empty());
 }
 
 TEST_CASE(code_object_hip)

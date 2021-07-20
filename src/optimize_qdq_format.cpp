@@ -25,7 +25,12 @@ struct match_find_add_bias
 {
     auto matcher() const
     {
-        return match::name("dequantizelinear")(match::arg(0)(match::name("quantizelinear")(match::arg(0)(match::name("add")(match::arg(0)(match::name("convolution").bind("convolution"))).bind("add"))).bind("quantizelinear")));
+        return match::name("dequantizelinear")(match::arg(0)(
+            match::name("quantizelinear")(
+                match::arg(0)(match::name("add")(
+                                  match::arg(0)(match::name("convolution").bind("convolution")))
+                                  .bind("add")))
+                .bind("quantizelinear")));
     }
 
     void apply(module& m, match::matcher_result r) const
@@ -49,9 +54,9 @@ struct match_find_add_bias
         auto dq_args   = dq->inputs();
         q_args.front() = dq_args.front();
         m.replace_instruction(dq, dq->get_operator(), q_args);
-        q_args.front() = new_q;
-        auto new_dq    = m.insert_instruction(add, migraphx::make_op("dequantizelinear"), q_args);
-        auto add_args  = add->inputs();
+        q_args.front()   = new_q;
+        auto new_dq      = m.insert_instruction(add, migraphx::make_op("dequantizelinear"), q_args);
+        auto add_args    = add->inputs();
         add_args.front() = new_dq;
         m.replace_instruction(add, migraphx::make_op("add"), add_args);
 
@@ -63,7 +68,10 @@ struct match_find_quantizable_ops
 {
     auto matcher() const
     {
-        return match::name("dequantizelinear")(match::arg(0)(match::name("quantizelinear")(match::arg(0)(match::name(get_quantizable_op_names()).bind("qop"))).bind("quantizelinear")));
+        return match::name("dequantizelinear")(
+            match::arg(0)(match::name("quantizelinear")(
+                              match::arg(0)(match::name(get_quantizable_op_names()).bind("qop")))
+                              .bind("quantizelinear")));
     }
 
     void apply(module& m, match::matcher_result r) const
@@ -96,19 +104,26 @@ struct match_find_quantizable_ops
             if(ins->name() == "convolution")
             {
                 auto conv_op = any_cast<op::convolution>(ins->get_operator());
-                m.replace_instruction(
-                    ins,
-                    op::quant_convolution{conv_op.padding, conv_op.stride, conv_op.dilation, conv_op.padding_mode, conv_op.group}, args);
+                m.replace_instruction(ins,
+                                      op::quant_convolution{conv_op.padding,
+                                                            conv_op.stride,
+                                                            conv_op.dilation,
+                                                            conv_op.padding_mode,
+                                                            conv_op.group},
+                                      args);
             }
-            else if (ins->name() == "dot")
+            else if(ins->name() == "dot")
             {
                 auto dot_op = any_cast<op::dot>(ins->get_operator());
-                m.replace_instruction(
-                    ins, op::quant_dot{static_cast<int32_t>(dot_op.alpha), static_cast<int32_t>(dot_op.beta)}, args);
+                m.replace_instruction(ins,
+                                      op::quant_dot{static_cast<int32_t>(dot_op.alpha),
+                                                    static_cast<int32_t>(dot_op.beta)},
+                                      args);
             }
-            else 
+            else
             {
-                MIGRAPHX_THROW(ins->name() + " does not currently have a quantized implementation.");
+                MIGRAPHX_THROW(ins->name() +
+                               " does not currently have a quantized implementation.");
             }
             auto dq_args    = dq->inputs();
             dq_args.front() = ins;
@@ -118,7 +133,7 @@ struct match_find_quantizable_ops
     }
 };
 
-void remove_qdq_pairs(module& m) 
+void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
     {

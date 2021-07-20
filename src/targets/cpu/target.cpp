@@ -48,10 +48,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
     return {normalize_ops{},
-<<<<<<< HEAD
             optimize_qdq_format{},
-=======
->>>>>>> origin/develop
             rewrite_quantization{},
             dead_code_elimination{},
             eliminate_data_type{unsupported_types, shape::type_t::float_type},

@@ -70,7 +70,6 @@ int main() {}
 
 )__migraphx__";
 
-
 // NOLINTNEXTLINE
 const std::string check_define = R"__migraphx__(
 
@@ -106,7 +105,7 @@ TEST_CASE(simple_compile_hip)
 
 auto check_target(const std::string& arch)
 {
-    auto define = "__" + arch + "__";
+    auto define  = "__" + arch + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
     return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, "", arch);
 }

@@ -35,6 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 instruction_ref insert_quant_ins(module& modl,
+                                 const instruction_ref& loc,
                                  instruction_ref& ins,
                                  shape::type_t type,
                                  std::unordered_map<instruction_ref, instruction_ref>& map_ins,
@@ -55,7 +56,7 @@ instruction_ref insert_quant_ins(module& modl,
     assert(ins_s.type() == shape::float_type or ins_s.type() == shape::double_type or
            ins_s.type() == shape::int32_type or ins_s.type() == shape::half_type);
     instruction_ref quant_ins{};
-    auto insert_loc = std::next(ins);
+    auto insert_loc = modl.has_instruction(ins) ? std::next(ins) : loc;
     if(type == shape::int8_type)
     {
         auto zero_point = modl.add_literal(static_cast<int8_t>(shift));
@@ -189,7 +190,7 @@ void quantize_fp16(module& m,
                 }
                 else
                 {
-                    input_fp16 = insert_quant_ins(m, input, shape::half_type, map_fp16);
+                    input_fp16 = insert_quant_ins(m, ins, input, shape::half_type, map_fp16);
                     converted_inputs.push_back(input_fp16);
                 }
             }
@@ -361,6 +362,14 @@ void quantize_int8_impl(module& m,
         if(ins->name() == "@return")
             break;
 
+        // if contains subgraph, needs to handle subgraph
+        auto mod_inputs = ins->module_inputs();
+        for(auto*& smod : mod_inputs)
+        {
+            quantize_int8_impl(
+                *smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+        }
+
         if(not contains(ins_names, ins->name()))
         {
             continue;
@@ -412,7 +421,7 @@ void quantize_int8_impl(module& m,
                 else
                 {
                     quant_input = insert_quant_ins(
-                        m, input, quant_type, map_quant_ins, param.first, param.second);
+                        m, ins, input, quant_type, map_quant_ins, param.first, param.second);
                 }
                 converted_inputs.push_back(quant_input);
             }
@@ -422,13 +431,6 @@ void quantize_int8_impl(module& m,
             }
         }
 
-        auto mod_inputs = ins->module_inputs();
-        for(auto*& smod : mod_inputs)
-        {
-            quantize_int8_impl(
-                *smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
-        }
-
         // no change for the input, go to the next instruction
         if(inputs == converted_inputs)
         {
@@ -436,11 +438,6 @@ void quantize_int8_impl(module& m,
         }
 
         ins_quantize_int8(m, ins, converted_inputs, ins_quant_params);
-    }
-
-    if(quant_param_index != quant_params.size())
-    {
-        MIGRAPHX_THROW("QUANTIZE_INT8: number of scales does not match");
     }
 }
 
@@ -474,6 +471,11 @@ void quantize_int8_impl(program& p,
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     quantize_int8_impl(
         *mm, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+
+    if(quant_param_index != quant_params.size())
+    {
+        MIGRAPHX_THROW("QUANTIZE_INT8: number of scales does not match");
+    }
 }
 
 void quantize_int8(program& prog,

@@ -51,7 +51,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     remap.cpp
-    remove_qdq_pairs.cpp
+    optimize_qdq_format.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp

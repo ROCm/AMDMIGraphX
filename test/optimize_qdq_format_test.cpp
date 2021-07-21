@@ -28,7 +28,7 @@ struct match_find_qdq
         return migraphx::match::name("dequantizelinear")(
             migraphx::match::arg(0)(migraphx::match::name("quantizelinear")));
     }
-    void apply(migraphx::module&, migraphx::match::matcher_result) { match_found = true; }
+    void apply(migraphx::module&, const migraphx::match::matcher_result&) { match_found = true; }
 };
 
 TEST_CASE(optimize_qdq)
@@ -183,7 +183,8 @@ TEST_CASE(optimize_qdq)
     migraphx::optimize_qdq_format opt;
     opt.apply(*p2.get_main_module());
 
-    match_find_qdq m1, m2;
+    match_find_qdq m1;
+    match_find_qdq m2;
     migraphx::match::find_matches(*p1.get_main_module(), m1);
     migraphx::match::find_matches(*p2.get_main_module(), m2);
 

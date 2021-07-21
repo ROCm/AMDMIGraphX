@@ -59,8 +59,6 @@ struct match_find_add_bias
         auto add_args    = add->inputs();
         add_args.front() = new_dq;
         m.replace_instruction(add, migraphx::make_op("add"), add_args);
-
-        return;
     }
 };
 
@@ -129,7 +127,6 @@ struct match_find_quantizable_ops
             dq_args.front() = ins;
             m.replace_instruction(dq, dq->get_operator(), dq_args);
         }
-        return;
     }
 };
 
@@ -166,8 +163,6 @@ void optimize_qdq_format::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-
-    return;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

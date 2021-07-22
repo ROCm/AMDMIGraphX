@@ -32,7 +32,8 @@ void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::str
         throw make_exception(ctx, hiprtc_error(err, msg));
 }
 
-#define MIGRAPHX_HIPRTC(...) hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, MIGRAPHX_MAKE_SOURCE_CTX())
+#define MIGRAPHX_HIPRTC(...) \
+    hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, MIGRAPHX_MAKE_SOURCE_CTX())
 
 #define MIGRAPHX_HIPRTC_THROW(error, msg) MIGRAPHX_THROW(hiprtc_error(error, msg))
 
@@ -113,7 +114,7 @@ struct hiprtc_program
                        [](const std::string& s) { return s.c_str(); });
         auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
         std::cerr << log() << std::endl;
-        if (result != HIPRTC_SUCCESS)
+        if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
     }
 

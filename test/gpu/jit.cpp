@@ -146,7 +146,7 @@ TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
         migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", incorrect_program)}, "", migraphx::gpu::get_device_name());
+            {make_src_file("main.cpp", incorrect_program)}, "", migraphx::gpu::get_device_name());
     }));
 }
 
@@ -154,14 +154,14 @@ TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::string& params) {
         return migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
     };
 
     EXPECT(not compile("").empty());
     EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
     EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
-    EXPECT(test::throws([&]{ compile("-Werror=unused-parameter"); }));
-    EXPECT(test::throws([&]{ compile("-Wunused-parameter -Werror"); }));
+    EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+    EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
 }
 
 TEST_CASE(code_object_hip)

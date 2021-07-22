@@ -26,13 +26,13 @@ std::string hiprtc_error(hiprtcResult err, const std::string& msg)
     return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
 }
 
-void hiprtc_check_error(hiprtcResult err, const std::sttring& msg, const std::string& ctx)
+void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::string& ctx)
 {
     if(err != HIPRTC_SUCCESS)
         throw make_exception(ctx, hiprtc_error(err, msg));
 }
 
-#define MIGRAPHX_HIPRTC(...) hiprtc_check_error(__VA_ARGS__, #__VA_ARGS, MIGRAPHX_MAKE_SOURCE_CTX())
+#define MIGRAPHX_HIPRTC(...) hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, MIGRAPHX_MAKE_SOURCE_CTX())
 
 #define MIGRAPHX_HIPRTC_THROW(error, msg) MIGRAPHX_THROW(hiprtc_error(error, msg))
 
@@ -112,9 +112,9 @@ struct hiprtc_program
                        std::back_inserter(c_options),
                        [](const std::string& s) { return s.c_str(); });
         auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
-        std::cerr << "Compilation failed: " << hiprtcErrorString(result) << std::endl;
         std::cerr << log() << std::endl;
-        return (result == HIPRTC_SUCCESS);
+        if (result != HIPRTC_SUCCESS)
+            MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
     }
 
     std::string log()

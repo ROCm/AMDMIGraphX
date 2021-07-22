@@ -28,7 +28,7 @@ std::string hiprtc_error(hiprtcResult err, const std::string& msg)
 
 void hiprtc_check_error(hiprtcResult err, const std::sttring& msg, const std::string& ctx)
 {
-    if (err != HIPRTC_SUCCESS)
+    if(err != HIPRTC_SUCCESS)
         throw make_exception(ctx, hiprtc_error(err, msg));
 }
 

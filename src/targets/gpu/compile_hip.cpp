@@ -21,6 +21,21 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_HIPRTC)
 
+std::string hiprtc_error(hiprtcResult err, const std::string& msg)
+{
+    return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
+}
+
+void hiprtc_check_error(hiprtcResult err, const std::sttring& msg, const std::string& ctx)
+{
+    if (err != HIPRTC_SUCCESS)
+        throw make_exception(ctx, hiprtc_error(err, msg));
+}
+
+#define MIGRAPHX_HIPRTC(...) hiprtc_check_error(__VA_ARGS__, #__VA_ARGS, MIGRAPHX_MAKE_SOURCE_CTX())
+
+#define MIGRAPHX_HIPRTC_THROW(error, msg) MIGRAPHX_THROW(hiprtc_error(error, msg))
+
 // Workaround hiprtc's broken API
 void hiprtc_program_destroy(hiprtcProgram prog) { hiprtcDestroyProgram(&prog); }
 using hiprtc_program_ptr = MIGRAPHX_MANAGE_PTR(hiprtcProgram, hiprtc_program_destroy);
@@ -32,7 +47,7 @@ hiprtc_program_ptr hiprtc_program_create(Ts... xs)
     auto result        = hiprtcCreateProgram(&prog, xs...);
     hiprtc_program_ptr p{prog};
     if(result != HIPRTC_SUCCESS)
-        MIGRAPHX_THROW("Create program failed.");
+        MIGRAPHX_HIPRTC_THROW(result, "Create program failed.");
     return p;
 }
 
@@ -97,26 +112,26 @@ struct hiprtc_program
                        std::back_inserter(c_options),
                        [](const std::string& s) { return s.c_str(); });
         auto result = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
+        std::cerr << "Compilation failed: " << hiprtcErrorString(result) << std::endl;
         std::cerr << log() << std::endl;
-        if(result != HIPRTC_SUCCESS)
-            MIGRAPHX_THROW("Failed to compile");
+        return (result == HIPRTC_SUCCESS);
     }
 
     std::string log()
     {
         std::size_t n = 0;
-        hiprtcGetProgramLogSize(prog.get(), &n);
+        MIGRAPHX_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
         std::vector<char> buffer(n);
-        hiprtcGetProgramLog(prog.get(), buffer.data());
+        MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
         return {buffer.begin(), buffer.end()};
     }
 
     std::vector<char> get_code_obj()
     {
         std::size_t n = 0;
-        hiprtcGetCodeSize(prog.get(), &n);
+        MIGRAPHX_HIPRTC(hiprtcGetCodeSize(prog.get(), &n));
         std::vector<char> buffer(n);
-        hiprtcGetCode(prog.get(), buffer.data());
+        MIGRAPHX_HIPRTC(hiprtcGetCode(prog.get(), buffer.data()));
         return buffer;
     }
 };

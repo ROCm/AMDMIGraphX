@@ -111,6 +111,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    layout
     leaky_relu
     less
     load

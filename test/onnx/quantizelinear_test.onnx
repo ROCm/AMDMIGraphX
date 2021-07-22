@@ -1,8 +1,7 @@
-quantizelinear_test:{
-
+quantizelinear_test:g
+
 0
-1
-2out"QuantizeLinearquantizelinear_testZ
+1out"QuantizeLinearquantizelinear_testZ
 0
 
 
@@ -10,12 +9,8 @@
 1
 
 
-Z
-2
-
-
 b
 out
 
 
-B
+B

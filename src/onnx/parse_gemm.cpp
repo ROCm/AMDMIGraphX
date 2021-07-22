@@ -42,13 +42,23 @@ struct parse_gemm : op_parser<parse_gemm>
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 
-        auto l1 = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[0])
-                           : args[0];
+        auto l1 = args[0];
+
+        if(alpha != 1.0f)
+        {
+            auto alpha_literal = info.add_literal(alpha);
+            auto alpha_l1      = info.add_broadcastable_binary_op("mul", alpha_literal, l1);
+            l1 = info.add_instruction(make_op("convert", {{"target_type", l1->get_shape().type()}}),
+                                      alpha_l1);
+        }
+
+        l1      = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), l1) : l1;
         auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
                            : args[1];
+
         if(args.size() == 3)
         {
-            if(beta != 0.f && args[2]->get_shape().elements() > 0)
+            if(beta != 0.0f && args[2]->get_shape().elements() > 0)
             {
                 auto out_lens   = l1->get_shape().lens();
                 out_lens.back() = l2->get_shape().lens().back();
@@ -59,12 +69,17 @@ struct parse_gemm : op_parser<parse_gemm>
                     l3 = info.add_instruction(
                         make_op("multibroadcast", {{"output_lens", out_lens}}), args[2]);
                 }
+                auto beta_literal   = info.add_literal(beta);
+                auto beta_broadcast = info.add_instruction(
+                    make_op("multibroadcast", {{"output_lens", out_lens}}), beta_literal);
+                l3 = info.add_instruction(make_op("mul"), l3, beta_broadcast);
+
                 return info.add_instruction(
-                    make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
+                    make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), l1, l2, l3);
             }
         }
 
-        return info.add_instruction(make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
+        return info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), l1, l2);
     }
 };
 

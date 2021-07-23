@@ -30,8 +30,6 @@ struct capture
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
-    // argument compute(const shape&, std::vector<argument> args) const { return args.front(); }
-
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         if(f)

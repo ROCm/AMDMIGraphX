@@ -20,6 +20,7 @@
 #include <migraphx/remap.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
@@ -58,6 +59,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         normalize_ops{},
         decompose{},
+        dead_code_elimination{},
+        rewrite_quantization{},
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},

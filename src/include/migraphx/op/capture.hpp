@@ -43,6 +43,8 @@ struct capture
 
         return args.front();
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

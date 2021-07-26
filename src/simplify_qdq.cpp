@@ -66,43 +66,44 @@ struct match_find_quantizable_ops
 {
     auto matcher() const
     {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::name("quantizelinear")(
-                              match::arg(0)(match::name(get_quantizable_op_names()).bind("qop")))));
+        return match::name("dequantizelinear")(match::arg(0)(match::name("quantizelinear")(
+            match::arg(0)(match::name(get_quantizable_op_names()).bind("qop")))));
     }
 
     void apply(module& m, match::matcher_result r) const
     {
-        auto dq       = r.result;
-        auto ins      = r.instructions["qop"];
-        auto args     = ins->inputs();
+        auto dq   = r.result;
+        auto ins  = r.instructions["qop"];
+        auto args = ins->inputs();
 
-        if(std::all_of(args.begin(), args.end(), [&](auto& arg){
-            auto name = arg->name();
-            arg = arg->inputs().front();
-            auto input_type = arg->get_shape().type();
-            return name == "dequantizelinear" and input_type == migraphx::shape::int8_type;
-        }))
+        if(std::all_of(args.begin(), args.end(), [&](auto& arg) {
+               auto name       = arg->name();
+               arg             = arg->inputs().front();
+               auto input_type = arg->get_shape().type();
+               return name == "dequantizelinear" and input_type == migraphx::shape::int8_type;
+           }))
         {
             if(ins->name() == "convolution")
             {
                 auto conv_op = any_cast<op::convolution>(ins->get_operator());
                 m.replace_instruction(ins,
-                                      migraphx::make_op("quant_convolution", 
-                                                            {{"padding", conv_op.padding},
-                                                            {"stride", conv_op.stride},
-                                                            {"dilation", conv_op.dilation},
-                                                            {"padding_mode", conv_op.padding_mode},
-                                                            {"group", conv_op.group}}),
+                                      migraphx::make_op("quant_convolution",
+                                                        {{"padding", conv_op.padding},
+                                                         {"stride", conv_op.stride},
+                                                         {"dilation", conv_op.dilation},
+                                                         {"padding_mode", conv_op.padding_mode},
+                                                         {"group", conv_op.group}}),
                                       args);
             }
             else if(ins->name() == "dot")
             {
                 auto dot_op = any_cast<op::dot>(ins->get_operator());
-                m.replace_instruction(ins,
-                                      migraphx::make_op("quant_dot", {{"alpha", static_cast<int32_t>(dot_op.alpha)},
-                                                    {"beta", static_cast<int32_t>(dot_op.beta)}}),
-                                      args);
+                m.replace_instruction(
+                    ins,
+                    migraphx::make_op("quant_dot",
+                                      {{"alpha", static_cast<int32_t>(dot_op.alpha)},
+                                       {"beta", static_cast<int32_t>(dot_op.beta)}}),
+                    args);
             }
             else
             {

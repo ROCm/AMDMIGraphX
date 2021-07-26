@@ -29,13 +29,13 @@ static migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
 static migraphx::shape s8{migraphx::shape::float_type, {1}};
 
 static std::vector<std::vector<float>> floats{{0.00122128},
-                                        {0.168607},
-                                        {0.00260497},
-                                        {0.0235534},
-                                        {0.0235534},
-                                        {0.023622},
-                                        {0.0162265},
-                                        {0.0138147}};
+                                              {0.168607},
+                                              {0.00260497},
+                                              {0.0235534},
+                                              {0.0235534},
+                                              {0.023622},
+                                              {0.0162265},
+                                              {0.0138147}};
 static std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
 
 TEST_CASE(conv)
@@ -65,15 +65,15 @@ TEST_CASE(conv)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l15);
         auto mb12 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l5);
-        auto d5 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, mb11, mb12);
-        auto c1 = m1.add_instruction(migraphx::make_op("convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"dilation", {1, 1}},
-                                                         {"group", 1},
-                                                         {"padding_mode", 0}}),
-                                      d5,
-                                      d1);
+        auto d5   = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, mb11, mb12);
+        auto c1   = m1.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
         auto mb13 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l14);
         auto mb14 = m1.add_instruction(
@@ -83,7 +83,7 @@ TEST_CASE(conv)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l14);
         auto mb16 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
-        auto d6   = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
+        auto d6 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
         m1.add_return({d6});
     }
 
@@ -101,37 +101,31 @@ TEST_CASE(conv)
         auto mb10 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l5);
         auto q1   = m2.add_instruction(migraphx::make_op("quantizelinear"), pa, mb9, mb10);
-        auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"dilation", {1, 1}},
-                                                         {"group", 1},
-                                                         {"padding_mode", 0}}),
-                                      q1,
-                                      p3);
+        auto c1   = m2.add_instruction(migraphx::make_op("quant_convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     q1,
+                                     p3);
         auto mb15 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l14);
         auto mb16 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
-        auto d6   = m2.add_instruction(migraphx::make_op("dequantizelinear"), c1, mb15, mb16);
+        auto d6 = m2.add_instruction(migraphx::make_op("dequantizelinear"), c1, mb15, mb16);
         m2.add_return({d6});
     }
 
     migraphx::simplify_qdq sqdq;
     sqdq.apply(m1);
-    
+
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot)
-{
+TEST_CASE(dot) {}
 
-}
-
-TEST_CASE(bias_add)
-{
-
-}
+TEST_CASE(bias_add) {}
 
 TEST_CASE(conv_bias_add)
 {
@@ -153,12 +147,12 @@ TEST_CASE(conv_bias_add)
             migraphx::make_op("multibroadcast", {{"output_lens", {1280, 320, 1, 1}}}), l16);
         auto mb2 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1280, 320, 1, 1}}}), l7);
-        auto d1  = m1.add_instruction(migraphx::make_op("dequantizelinear"), p3, mb1, mb2);
-        auto mb3 = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
+        auto d1 = m1.add_instruction(migraphx::make_op("dequantizelinear"), p3, mb1, mb2);
+        auto mb3 =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
         auto mb4 =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l6);
-        auto d2 = m1.add_instruction(migraphx::make_op("dequantizelinear"), p4, mb3, mb4);
+        auto d2  = m1.add_instruction(migraphx::make_op("dequantizelinear"), p4, mb3, mb4);
         auto mb9 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l15);
         auto mb10 = m1.add_instruction(
@@ -170,13 +164,13 @@ TEST_CASE(conv_bias_add)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l5);
         auto d5 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, mb11, mb12);
         auto c1 = m1.add_instruction(migraphx::make_op("convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"dilation", {1, 1}},
-                                                         {"group", 1},
-                                                         {"padding_mode", 0}}),
-                                      d5,
-                                      d1);
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
         auto b1 = m1.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
         auto a1   = m1.add_instruction(migraphx::make_op("add"), c1, b1);
@@ -189,7 +183,7 @@ TEST_CASE(conv_bias_add)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l14);
         auto mb16 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
-        auto d6   = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
+        auto d6 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
         m1.add_return({d6});
     }
 
@@ -205,32 +199,32 @@ TEST_CASE(conv_bias_add)
         auto l14 = m2.add_literal(s8, floats[5]);
         auto l15 = m2.add_literal(s8, floats[6]);
 
-        auto mb3 = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
+        auto mb3 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
         auto mb4 =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l6);
-        auto d2 = m2.add_instruction(migraphx::make_op("dequantizelinear"), p4, mb3, mb4);
+        auto d2  = m2.add_instruction(migraphx::make_op("dequantizelinear"), p4, mb3, mb4);
         auto mb9 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l15);
         auto mb10 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l5);
-        auto q1   = m2.add_instruction(migraphx::make_op("quantizelinear"), pa, mb9, mb10);
+        auto q1 = m2.add_instruction(migraphx::make_op("quantizelinear"), pa, mb9, mb10);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"dilation", {1, 1}},
-                                                         {"group", 1},
-                                                         {"padding_mode", 0}}),
-                                      q1,
-                                      p3);
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     q1,
+                                     p3);
         auto b1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
         auto mb15 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l14);
         auto mb16 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
-        auto d6   = m2.add_instruction(migraphx::make_op("dequantizelinear"), c1, mb15, mb16);
-        auto a1   = m2.add_instruction(migraphx::make_op("add"), d6, b1);
+        auto d6 = m2.add_instruction(migraphx::make_op("dequantizelinear"), c1, mb15, mb16);
+        auto a1 = m2.add_instruction(migraphx::make_op("add"), d6, b1);
         m2.add_return({a1});
     }
 
@@ -240,26 +234,20 @@ TEST_CASE(conv_bias_add)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot_add)
-{
+TEST_CASE(dot_add) {}
 
-}
-
-TEST_CASE(conv_dot)
-{
-
-}
+TEST_CASE(conv_dot) {}
 
 TEST_CASE(simplify_qdq)
 {
 
     auto create_module = [&]() {
         migraphx::module mm;
-        auto p1  = mm.add_parameter("p1", s2);
-        auto p2  = mm.add_parameter("p2", s3);
-        auto p3  = mm.add_parameter("p3", s4);
-        auto p4  = mm.add_parameter("p4", s6);
-        auto pa  = mm.add_parameter("pa", s7);
+        auto p1 = mm.add_parameter("p1", s2);
+        auto p2 = mm.add_parameter("p2", s3);
+        auto p3 = mm.add_parameter("p3", s4);
+        auto p4 = mm.add_parameter("p4", s6);
+        auto pa = mm.add_parameter("pa", s7);
 
         auto l1  = mm.add_literal(s1, ints[0]);
         auto l2  = mm.add_literal(s1, ints[1]);
@@ -282,9 +270,9 @@ TEST_CASE(simplify_qdq)
             migraphx::make_op("multibroadcast", {{"output_lens", {1280, 320, 1, 1}}}), l16);
         auto mb2 = mm.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1280, 320, 1, 1}}}), l7);
-        auto d1  = mm.add_instruction(migraphx::make_op("dequantizelinear"), p3, mb1, mb2);
-        auto mb3 = mm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
+        auto d1 = mm.add_instruction(migraphx::make_op("dequantizelinear"), p3, mb1, mb2);
+        auto mb3 =
+            mm.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l11);
         auto mb4 =
             mm.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1280}}}), l6);
         auto d2 = mm.add_instruction(migraphx::make_op("dequantizelinear"), p4, mb3, mb4);
@@ -309,13 +297,13 @@ TEST_CASE(simplify_qdq)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 320, 7, 7}}}), l5);
         auto d5 = mm.add_instruction(migraphx::make_op("dequantizelinear"), q1, mb11, mb12);
         auto c1 = mm.add_instruction(migraphx::make_op("convolution",
-                                                        {{"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"dilation", {1, 1}},
-                                                         {"group", 1},
-                                                         {"padding_mode", 0}}),
-                                      d5,
-                                      d1);
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
         auto b1 = mm.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
         auto a1   = mm.add_instruction(migraphx::make_op("add"), c1, b1);
@@ -330,12 +318,12 @@ TEST_CASE(simplify_qdq)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
         auto d6   = mm.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
         auto ap   = mm.add_instruction(migraphx::make_op("pooling",
-                                                        {{"mode", "average"},
-                                                         {"padding", {0, 0, 0, 0}},
-                                                         {"stride", {1, 1}},
-                                                         {"lengths", {7, 7}},
-                                                         {"ceil_mode", 0}}),
-                                      d6);
+                                                       {{"mode", "average"},
+                                                        {"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"lengths", {7, 7}},
+                                                        {"ceil_mode", 0}}),
+                                     d6);
         auto mb17 = mm.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 1, 1}}}), l13);
         auto mb18 = mm.add_instruction(
@@ -384,7 +372,7 @@ TEST_CASE(simplify_qdq)
     sqdq.apply(mod2);
 
     auto match_qdq = migraphx::match::name("dequantizelinear")(
-                 migraphx::match::arg(0)(migraphx::match::name("quantizelinear")));
+        migraphx::match::arg(0)(migraphx::match::name("quantizelinear")));
     auto ins1 = migraphx::match::find_match(mod1, match_qdq);
     auto ins2 = migraphx::match::find_match(mod2, match_qdq);
 

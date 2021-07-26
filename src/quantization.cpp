@@ -488,7 +488,6 @@ void quantize_int8(program& prog,
 
     // use the calibration data to compute the quantization scale
     cap_prog.compile(t);
-    std::cout << "cali_size = " << calibration.size() << std::endl;
 
     // use all calibration data to run the program to calculate the
     // quantization scale and shift
@@ -500,7 +499,6 @@ void quantize_int8(program& prog,
             if(arg.count(x.first) > 0)
             {
                 assert(x.second == arg.at(x.first).get_shape());
-                std::cout << "arg_shape = " << arg.at(x.first).get_shape() << std::endl;
                 m[x.first] = t.copy_to(arg.at(x.first));
             }
             else

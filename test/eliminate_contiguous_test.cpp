@@ -131,4 +131,32 @@ TEST_CASE(non_standard_return_input)
     EXPECT(std::distance(m.begin(), m.end()) == count);
 }
 
+TEST_CASE(non_standard_flatten_op)
+{
+    migraphx::module m;
+
+    auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 6, 6, 6}});
+    auto t = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), l);
+    auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
+    m.add_instruction(migraphx::make_op("flatten"), c);
+    auto count = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == count);
+}
+
+TEST_CASE(standard_flatten_op)
+{
+    migraphx::module m;
+
+    auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 6, 6, 6}});
+    auto t = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), l);
+    auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
+    m.add_instruction(migraphx::make_op("flatten"), c);
+    auto count = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

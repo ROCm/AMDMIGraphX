@@ -1277,8 +1277,8 @@ TEST_CASE(gemm_test)
     auto beta  = 2.0f;
     auto a_l   = mm->add_literal(alpha);
     auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
-    t_a     = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), t_a);
-    auto t1 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
+    t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), t_a);
+    auto t1    = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
 
     auto b_l = mm->add_literal(beta);
     auto l2_b =
@@ -1303,7 +1303,7 @@ TEST_CASE(gemm_ex_test)
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
     auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
-    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
+    t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
 
     auto b_l = mm->add_literal(beta);
     auto b_b = mm->add_instruction(
@@ -1328,7 +1328,7 @@ TEST_CASE(gemm_ex_brcst_test)
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
     auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
-    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
+    t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
 
     auto b_l = mm->add_literal(beta);
     auto l2_b =

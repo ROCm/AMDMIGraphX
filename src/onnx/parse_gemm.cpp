@@ -42,14 +42,14 @@ struct parse_gemm : op_parser<parse_gemm>
         // swap the last two elements
         std::swap(*perm.rbegin(), *(perm.rbegin() + 1));
 
-        auto l1 = args[0];
+        auto l1       = args[0];
         auto dot_type = l1->get_shape().type();
 
         if(alpha != 1.0f)
         {
             auto alpha_literal = info.add_literal(alpha);
-            l1      = info.add_broadcastable_binary_op("mul", alpha_literal, l1);
-            if (l1->get_shape().type() != dot_type)
+            l1                 = info.add_broadcastable_binary_op("mul", alpha_literal, l1);
+            if(l1->get_shape().type() != dot_type)
             {
                 l1 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}), l1);
             }
@@ -72,11 +72,12 @@ struct parse_gemm : op_parser<parse_gemm>
                     l3 = info.add_instruction(
                         make_op("multibroadcast", {{"output_lens", out_lens}}), args[2]);
                 }
-                auto beta_literal   = info.add_literal(beta);
+                auto beta_literal = info.add_literal(beta);
                 auto beta_l3      = info.add_broadcastable_binary_op("mul", l3, beta_literal);
-                if (beta_l3->get_shape().type() != dot_type)
+                if(beta_l3->get_shape().type() != dot_type)
                 {
-                    beta_l3 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}), beta_l3);
+                    beta_l3 = info.add_instruction(make_op("convert", {{"target_type", dot_type}}),
+                                                   beta_l3);
                 }
 
                 return info.add_instruction(

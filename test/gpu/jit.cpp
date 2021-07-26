@@ -6,6 +6,7 @@
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 
@@ -74,19 +75,10 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
     return {name, std::make_pair(content.data(), content.data() + content.size())};
 }
 
-std::string get_device_name()
-{
-    hipDeviceProp_t props{};
-    int device;
-    EXPECT(hipGetDevice(&device) == hipSuccess);
-    EXPECT(hipGetDeviceProperties(&props, device) == hipSuccess);
-    return "gfx" + std::to_string(props.gcnArch);
-}
-
 TEST_CASE(simple_compile_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", write_2s)}, "", get_device_name());
+        {make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};
@@ -103,7 +95,7 @@ TEST_CASE(simple_compile_hip)
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", add_2s_binary)}, "", get_device_name());
+        {make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::shape input{migraphx::shape::int8_type, {5}};

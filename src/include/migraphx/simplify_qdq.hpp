@@ -1,5 +1,5 @@
-#ifndef MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_QDQ_FORMAT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_OPTIMIZE_QDQ_FORMAT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_QDQ_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_QDQ_HPP
 
 #include <string>
 #include <migraphx/config.hpp>
@@ -13,9 +13,9 @@ struct module;
  * Inserts quantized operators in place of dq->quantizable_op->q
  * then removes remaining fake quantization (q->dq pairs)
  */
-struct optimize_qdq_format
+struct simplify_qdq
 {
-    std::string name() const { return "optimize_qdq_format"; }
+    std::string name() const { return "simplify_qdq"; }
     void apply(module& m) const;
 };
 

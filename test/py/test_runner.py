@@ -48,16 +48,11 @@ def get_model_name(dir_name):
 
 
 def read_pb_file(filename):
-    try:
-        pfile = open(filename, 'rb')
-    except IOError:
-        print("File {} open error".format(filename))
-        sys.exit(1)
-
-    data_str = pfile.read()
-    tensor = onnx.TensorProto()
-    tensor.ParseFromString(data_str)
-    np_array = numpy_helper.to_array(tensor)
+    with open(filename, 'rb') as pfile:
+        data_str = pfile.read()
+        tensor = onnx.TensorProto()
+        tensor.ParseFromString(data_str)
+        np_array = numpy_helper.to_array(tensor)
 
     return np_array
 
@@ -123,11 +118,10 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
 
 
 def tune_input_shape(model, input_data):
-    input_data_keys = input_data.keys()
     param_shapes = model.get_parameter_shapes()
     input_shapes = {}
     for name, s in param_shapes.items():
-        assert name in input_data_keys
+        assert name in input_data
         data_shape = list(input_data[name].shape)
         if not np.array_equal(data_shape, s.lens()):
             input_shapes[name] = data_shape

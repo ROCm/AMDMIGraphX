@@ -47,7 +47,7 @@ from skimage.exposure import adjust_gamma
 
 
 # Creates an image of original brain with segmentation overlay
-def show_lable_on_image(test_img, test_lbl):
+def show_label_on_image(test_img, test_lbl):
 
     modes = {'flair': 0, 't1': 1, 't1c': 2, 't2': 3}
 
@@ -85,7 +85,7 @@ def show_lable_on_image(test_img, test_lbl):
 
 
 #-------------------------------------------------------------------------------------
-def show_lable_on_image4(test_img, label_im):
+def show_label_on_image4(test_img, label_im):
 
     alpha = 0.8
 

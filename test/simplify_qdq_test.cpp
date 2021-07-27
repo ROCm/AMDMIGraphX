@@ -98,7 +98,7 @@ TEST_CASE(dot_add)
         auto add = m1.add_instruction(migraphx::make_op("add"), d3, sc3);
         auto q4  = m1.add_instruction(migraphx::make_op("quantizelinear"), add, sc3, z3);
         auto d4  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q4, sc3, z3);
-        auto id = m1.add_instruction(migraphx::make_op("identity"), d4);
+        auto id  = m1.add_instruction(migraphx::make_op("identity"), d4);
         m1.add_return({id});
     }
 
@@ -119,7 +119,7 @@ TEST_CASE(dot_add)
             m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
         auto d3  = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
         auto add = m2.add_instruction(migraphx::make_op("add"), d3, sc3);
-        auto id = m2.add_instruction(migraphx::make_op("identity"), add);
+        auto id  = m2.add_instruction(migraphx::make_op("identity"), add);
         m2.add_return({id});
     }
 

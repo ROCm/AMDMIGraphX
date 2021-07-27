@@ -1233,98 +1233,6 @@ def equal_bool_test():
 
 
 @onnx_test
-def greater_test():
-    ax1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-    x1 = helper.make_tensor("x1",
-                            data_type=TensorProto.FLOAT,
-                            dims=(2, 3),
-                            vals=ax1.astype(np.float32))
-
-    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
-
-    node = onnx.helper.make_node(
-        'Greater',
-        inputs=['x1', 'x2'],
-        outputs=['y'],
-    )
-
-    return ([node], [x2], [y], [x1])
-
-
-@onnx_test
-def greater_bool_test():
-
-    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
-    x2 = helper.make_tensor_value_info('x2', TensorProto.BOOL, [2, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
-
-    node1 = onnx.helper.make_node('Cast', inputs=['x1'], outputs=['bx1'], to=9)
-
-    node2 = onnx.helper.make_node(
-        'Greater',
-        inputs=['bx1', 'x2'],
-        outputs=['y'],
-    )
-
-    return ([node1, node2], [x1, x2], [y])
-
-
-@onnx_test
-def less_test():
-    ax1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-    x1 = helper.make_tensor("x1",
-                            data_type=TensorProto.FLOAT,
-                            dims=(2, 3),
-                            vals=ax1.astype(np.float32))
-
-    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
-
-    node = onnx.helper.make_node(
-        'Less',
-        inputs=['x1', 'x2'],
-        outputs=['y'],
-    )
-
-    return ([node], [x2], [y], [x1])
-
-
-@onnx_test
-def less_bool_test():
-
-    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
-    x2 = helper.make_tensor_value_info('x2', TensorProto.BOOL, [2, 3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
-
-    node1 = onnx.helper.make_node('Cast', inputs=['x1'], outputs=['bx1'], to=9)
-
-    node2 = onnx.helper.make_node(
-        'Less',
-        inputs=['bx1', 'x2'],
-        outputs=['y'],
-    )
-
-    return ([node1, node2], [x1, x2], [y])
-
-
-@onnx_test
-def lessorequal_test():
-
-    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3])
-    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
-
-    node = onnx.helper.make_node(
-        'LessOrEqual',
-        inputs=['x1', 'x2'],
-        outputs=['y'],
-    )
-
-    return ([node], [x1, x2], [y])
-
-
-@onnx_test
 def erf_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10, 15])
@@ -1389,6 +1297,29 @@ def flatten_test():
     node2 = onnx.helper.make_node('Flatten', inputs=['0'], outputs=['3'])
 
     return ([node, node2], [x], [y, y2])
+
+
+@onnx_test
+def flatten_nonstd_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 5, 4])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [6, 20])
+    y2 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2, 60])
+
+    trans = helper.make_node(
+        'Transpose',
+        inputs=['0'],
+        outputs=['tx'],
+        perm=[0, 1, 3, 2],
+    )
+
+    node = onnx.helper.make_node('Flatten',
+                                 inputs=['tx'],
+                                 axis=2,
+                                 outputs=['2'])
+
+    node2 = onnx.helper.make_node('Flatten', inputs=['tx'], outputs=['3'])
+
+    return ([trans, node, node2], [x], [y, y2])
 
 
 @onnx_test
@@ -1532,6 +1463,44 @@ def globalmaxpool_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def greater_test():
+    ax1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    x1 = helper.make_tensor("x1",
+                            data_type=TensorProto.FLOAT,
+                            dims=(2, 3),
+                            vals=ax1.astype(np.float32))
+
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'Greater',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x2], [y], [x1])
+
+
+@onnx_test
+def greater_bool_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.BOOL, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node1 = onnx.helper.make_node('Cast', inputs=['x1'], outputs=['bx1'], to=9)
+
+    node2 = onnx.helper.make_node(
+        'Greater',
+        inputs=['bx1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node1, node2], [x1, x2], [y])
 
 
 @onnx_test
@@ -2229,6 +2198,60 @@ def leaky_relu_test():
                                  alpha=0.01)
 
     return ([node], [x], [y])
+
+
+@onnx_test
+def less_test():
+    ax1 = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    x1 = helper.make_tensor("x1",
+                            data_type=TensorProto.FLOAT,
+                            dims=(2, 3),
+                            vals=ax1.astype(np.float32))
+
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'Less',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x2], [y], [x1])
+
+
+@onnx_test
+def less_bool_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [2, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.BOOL, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node1 = onnx.helper.make_node('Cast', inputs=['x1'], outputs=['bx1'], to=9)
+
+    node2 = onnx.helper.make_node(
+        'Less',
+        inputs=['bx1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node1, node2], [x1, x2], [y])
+
+
+@onnx_test
+def lessorequal_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'LessOrEqual',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x1, x2], [y])
 
 
 @onnx_test
@@ -3399,6 +3422,25 @@ def resize_upsample_pc_test():
         nearest_mode='round_prefer_ceil')
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test
+def scatter_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    i = helper.make_tensor_value_info('indices', TensorProto.INT32,
+                                      [2, 3, 4, 5])
+    u = helper.make_tensor_value_info('update', TensorProto.FLOAT,
+                                      [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
+
+    node = onnx.helper.make_node(
+        'Scatter',
+        inputs=['data', 'indices', 'update'],
+        outputs=['y'],
+        axis=-2,
+    )
+
+    return ([node], [x, i, u], [y])
 
 
 @onnx_test

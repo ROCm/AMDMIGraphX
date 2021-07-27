@@ -3831,6 +3831,84 @@ TEST_CASE(rsqrt_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(scatter_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> vd(sd.elements(), 0.0f);
+
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+
+        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
+
+        auto ld = mm->add_literal(migraphx::literal{sd, vd});
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto lu = mm->add_literal(migraphx::literal{su, vu});
+        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ld, li, lu);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> vd(sd.elements(), 0.0f);
+
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> vi = {1, 0, -1, 0, 2, -2};
+
+        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
+
+        auto ld = mm->add_literal(migraphx::literal{sd, vd});
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto lu = mm->add_literal(migraphx::literal{su, vu});
+        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -2}}), ld, li, lu);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> vd(sd.elements(), 0.0f);
+
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+
+        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
+
+        auto ld = mm->add_literal(migraphx::literal{sd, vd});
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto lu = mm->add_literal(migraphx::literal{su, vu});
+        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 1}}), ld, li, lu);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
 TEST_CASE(sigmoid_test)
 {
     migraphx::program p;

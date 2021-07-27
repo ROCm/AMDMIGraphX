@@ -98,7 +98,8 @@ TEST_CASE(dot_add)
         auto add = m1.add_instruction(migraphx::make_op("add"), d3, sc3);
         auto q4  = m1.add_instruction(migraphx::make_op("quantizelinear"), add, sc3, z3);
         auto d4  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q4, sc3, z3);
-        m1.add_return({d4});
+        auto id = m1.add_instruction(migraphx::make_op("identity"), d4);
+        m1.add_return({id});
     }
 
     migraphx::module m2;
@@ -118,7 +119,8 @@ TEST_CASE(dot_add)
             m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
         auto d3  = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
         auto add = m2.add_instruction(migraphx::make_op("add"), d3, sc3);
-        m2.add_return({add});
+        auto id = m2.add_instruction(migraphx::make_op("identity"), add);
+        m2.add_return({id});
     }
 
     migraphx::simplify_qdq sqdq;
@@ -301,7 +303,8 @@ TEST_CASE(conv_bias_add)
         auto mb16 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
         auto d6 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, mb15, mb16);
-        m1.add_return({d6});
+        auto id = m1.add_instruction(migraphx::make_op("identity"), d6);
+        m1.add_return({id});
     }
 
     migraphx::module m2;
@@ -342,7 +345,8 @@ TEST_CASE(conv_bias_add)
             migraphx::make_op("multibroadcast", {{"output_lens", {1, 1280, 7, 7}}}), l4);
         auto d6 = m2.add_instruction(migraphx::make_op("dequantizelinear"), c1, mb15, mb16);
         auto a1 = m2.add_instruction(migraphx::make_op("add"), d6, b1);
-        m2.add_return({a1});
+        auto id = m2.add_instruction(migraphx::make_op("identity"), a1);
+        m2.add_return({id});
     }
 
     migraphx::simplify_qdq sqdq;

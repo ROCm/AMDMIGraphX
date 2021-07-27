@@ -11,27 +11,139 @@
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
-static migraphx::shape s1{migraphx::shape::int8_type, {1}};
-static migraphx::shape s2{migraphx::shape::int8_type, {1280, 1000}};
-static migraphx::shape s3{migraphx::shape::int8_type, {1000}};
-static migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
-static migraphx::shape s5{migraphx::shape::int32_type, {1}};
-static migraphx::shape s6{migraphx::shape::int32_type, {1280}};
-static migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
-static migraphx::shape s8{migraphx::shape::float_type, {1}};
+TEST_CASE(dot)
+{
+    migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
+    migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
+    migraphx::shape sh3{migraphx::shape::int8_type, {1000, 1024}};
+    migraphx::shape sh4{migraphx::shape::float_type, {1280, 1024}};
+    migraphx::shape sh5{migraphx::shape::int8_type, {1280, 1024}};
+    migraphx::shape sh6{migraphx::shape::int8_type, {1280, 1000}};
 
-static std::vector<std::vector<float>> floats{{0.00122128},
-                                              {0.168607},
-                                              {0.00260497},
-                                              {0.0235534},
-                                              {0.0235534},
-                                              {0.023622},
-                                              {0.0162265},
-                                              {0.0138147}};
-static std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
+    migraphx::module m1;
+    {
+        auto t1  = m1.add_parameter("t1", sh1);
+        auto t2  = m1.add_parameter("t2", sh2);
+        auto sc1 = m1.add_parameter("sc1", sh1);
+        auto sc2 = m1.add_parameter("sc2", sh2);
+        auto sc3 = m1.add_parameter("sc3", sh4);
+        auto z1  = m1.add_parameter("z1", sh6);
+        auto z2  = m1.add_parameter("z2", sh3);
+        auto z3  = m1.add_parameter("z3", sh5);
+
+        auto q1 = m1.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
+        auto d1 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, sc1, z1);
+        auto q2 = m1.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
+        auto d2 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, sc2, z2);
+        auto dot =
+            m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
+        auto q3 = m1.add_instruction(migraphx::make_op("quantizelinear"), dot, sc3, z3);
+        auto d3 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q3, sc3, z3);
+        m1.add_return({d3});
+    }
+
+    migraphx::module m2;
+    {
+        auto t1  = m2.add_parameter("t1", sh1);
+        auto t2  = m2.add_parameter("t2", sh2);
+        auto sc1 = m2.add_parameter("sc1", sh1);
+        auto sc2 = m2.add_parameter("sc2", sh2);
+        auto sc3 = m2.add_parameter("sc3", sh4);
+        auto z1  = m2.add_parameter("z1", sh6);
+        auto z2  = m2.add_parameter("z2", sh3);
+        auto z3  = m2.add_parameter("z3", sh5);
+
+        auto q1 = m2.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
+        auto q2 = m2.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
+        auto dot =
+            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
+        auto d3 = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
+        m2.add_return({d3});
+    }
+
+    migraphx::simplify_qdq sqdq;
+    sqdq.apply(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dot_add)
+{
+    migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
+    migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
+    migraphx::shape sh3{migraphx::shape::int8_type, {1000, 1024}};
+    migraphx::shape sh4{migraphx::shape::float_type, {1280, 1024}};
+    migraphx::shape sh5{migraphx::shape::int8_type, {1280, 1024}};
+    migraphx::shape sh6{migraphx::shape::int8_type, {1280, 1000}};
+
+    migraphx::module m1;
+    {
+        auto t1  = m1.add_parameter("t1", sh1);
+        auto t2  = m1.add_parameter("t2", sh2);
+        auto sc1 = m1.add_parameter("sc1", sh1);
+        auto sc2 = m1.add_parameter("sc2", sh2);
+        auto sc3 = m1.add_parameter("sc3", sh4);
+        auto z1  = m1.add_parameter("z1", sh6);
+        auto z2  = m1.add_parameter("z2", sh3);
+        auto z3  = m1.add_parameter("z3", sh5);
+
+        auto q1 = m1.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
+        auto d1 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, sc1, z1);
+        auto q2 = m1.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
+        auto d2 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, sc2, z2);
+        auto dot =
+            m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
+        auto q3  = m1.add_instruction(migraphx::make_op("quantizelinear"), dot, sc3, z3);
+        auto d3  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q3, sc3, z3);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d3, sc3);
+        auto q4  = m1.add_instruction(migraphx::make_op("quantizelinear"), add, sc3, z3);
+        auto d4  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q4, sc3, z3);
+        m1.add_return({d4});
+    }
+
+    migraphx::module m2;
+    {
+        auto t1  = m2.add_parameter("t1", sh1);
+        auto t2  = m2.add_parameter("t2", sh2);
+        auto sc1 = m2.add_parameter("sc1", sh1);
+        auto sc2 = m2.add_parameter("sc2", sh2);
+        auto sc3 = m2.add_parameter("sc3", sh4);
+        auto z1  = m2.add_parameter("z1", sh6);
+        auto z2  = m2.add_parameter("z2", sh3);
+        auto z3  = m2.add_parameter("z3", sh5);
+
+        auto q1 = m2.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
+        auto q2 = m2.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
+        auto dot =
+            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
+        auto d3  = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
+        auto add = m2.add_instruction(migraphx::make_op("add"), d3, sc3);
+        m2.add_return({add});
+    }
+
+    migraphx::simplify_qdq sqdq;
+    sqdq.apply(m1);
+
+    EXPECT(m1 == m2);
+}
 
 TEST_CASE(conv)
 {
+    migraphx::shape s1{migraphx::shape::int8_type, {1}};
+    migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
+    migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
+    migraphx::shape s8{migraphx::shape::float_type, {1}};
+
+    std::vector<std::vector<float>> floats{{0.00122128},
+                                    {0.168607},
+                                    {0.00260497},
+                                    {0.0235534},
+                                    {0.0235534},
+                                    {0.023622},
+                                    {0.0162265},
+                                    {0.0138147}};
+    std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
+
     migraphx::module m1;
     {
         auto pa  = m1.add_parameter("pa", s7);
@@ -117,6 +229,23 @@ TEST_CASE(conv)
 
 TEST_CASE(conv_bias_add)
 {
+    migraphx::shape s1{migraphx::shape::int8_type, {1}};
+    migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
+    migraphx::shape s5{migraphx::shape::int32_type, {1}};
+    migraphx::shape s6{migraphx::shape::int32_type, {1280}};
+    migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
+    migraphx::shape s8{migraphx::shape::float_type, {1}};
+
+    std::vector<std::vector<float>> floats{{0.00122128},
+                                    {0.168607},
+                                    {0.00260497},
+                                    {0.0235534},
+                                    {0.0235534},
+                                    {0.023622},
+                                    {0.0162265},
+                                    {0.0138147}};
+    std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
+
     migraphx::module m1;
     {
         auto pa  = m1.add_parameter("pa", s7);
@@ -222,122 +351,26 @@ TEST_CASE(conv_bias_add)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot)
-{
-    migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
-    migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
-    migraphx::shape sh3{migraphx::shape::int8_type, {1000, 1024}};
-    migraphx::shape sh4{migraphx::shape::float_type, {1280, 1024}};
-    migraphx::shape sh5{migraphx::shape::int8_type, {1280, 1024}};
-
-    migraphx::module m1;
-    {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
-        auto sc1 = m1.add_parameter("sc1", sh1);
-        auto sc2 = m1.add_parameter("sc2", sh2);
-        auto sc3 = m1.add_parameter("sc3", sh4);
-        auto z1  = m1.add_parameter("z1", s2);
-        auto z2  = m1.add_parameter("z2", sh3);
-        auto z3  = m1.add_parameter("z3", sh5);
-
-        auto q1 = m1.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
-        auto d1 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, sc1, z1);
-        auto q2 = m1.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
-        auto d2 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, sc2, z2);
-        auto dot =
-            m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
-        auto q3 = m1.add_instruction(migraphx::make_op("quantizelinear"), dot, sc3, z3);
-        auto d3 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q3, sc3, z3);
-        m1.add_return({d3});
-    }
-
-    migraphx::module m2;
-    {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
-        auto sc1 = m2.add_parameter("sc1", sh1);
-        auto sc2 = m2.add_parameter("sc2", sh2);
-        auto sc3 = m2.add_parameter("sc3", sh4);
-        auto z1  = m2.add_parameter("z1", s2);
-        auto z2  = m2.add_parameter("z2", sh3);
-        auto z3  = m2.add_parameter("z3", sh5);
-
-        auto q1 = m2.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
-        auto q2 = m2.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
-        auto dot =
-            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
-        auto d3 = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
-        m2.add_return({d3});
-    }
-
-    migraphx::simplify_qdq sqdq;
-    sqdq.apply(m1);
-
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(dot_add)
-{
-    migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};
-    migraphx::shape sh2{migraphx::shape::float_type, {1000, 1024}};
-    migraphx::shape sh3{migraphx::shape::int8_type, {1000, 1024}};
-    migraphx::shape sh4{migraphx::shape::float_type, {1280, 1024}};
-    migraphx::shape sh5{migraphx::shape::int8_type, {1280, 1024}};
-
-    migraphx::module m1;
-    {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
-        auto sc1 = m1.add_parameter("sc1", sh1);
-        auto sc2 = m1.add_parameter("sc2", sh2);
-        auto sc3 = m1.add_parameter("sc3", sh4);
-        auto z1  = m1.add_parameter("z1", s2);
-        auto z2  = m1.add_parameter("z2", sh3);
-        auto z3  = m1.add_parameter("z3", sh5);
-
-        auto q1 = m1.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
-        auto d1 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q1, sc1, z1);
-        auto q2 = m1.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
-        auto d2 = m1.add_instruction(migraphx::make_op("dequantizelinear"), q2, sc2, z2);
-        auto dot =
-            m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
-        auto q3  = m1.add_instruction(migraphx::make_op("quantizelinear"), dot, sc3, z3);
-        auto d3  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q3, sc3, z3);
-        auto add = m1.add_instruction(migraphx::make_op("add"), d3, sc3);
-        auto q4  = m1.add_instruction(migraphx::make_op("quantizelinear"), add, sc3, z3);
-        auto d4  = m1.add_instruction(migraphx::make_op("dequantizelinear"), q4, sc3, z3);
-        m1.add_return({d4});
-    }
-
-    migraphx::module m2;
-    {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
-        auto sc1 = m2.add_parameter("sc1", sh1);
-        auto sc2 = m2.add_parameter("sc2", sh2);
-        auto sc3 = m2.add_parameter("sc3", sh4);
-        auto z1  = m2.add_parameter("z1", s2);
-        auto z2  = m2.add_parameter("z2", sh3);
-        auto z3  = m2.add_parameter("z3", sh5);
-
-        auto q1 = m2.add_instruction(migraphx::make_op("quantizelinear"), t1, sc1, z1);
-        auto q2 = m2.add_instruction(migraphx::make_op("quantizelinear"), t2, sc2, z2);
-        auto dot =
-            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
-        auto d3  = m2.add_instruction(migraphx::make_op("dequantizelinear"), dot, sc3, z3);
-        auto add = m2.add_instruction(migraphx::make_op("add"), d3, sc3);
-        m2.add_return({add});
-    }
-
-    migraphx::simplify_qdq sqdq;
-    sqdq.apply(m1);
-
-    EXPECT(m1 == m2);
-}
-
 TEST_CASE(mobilenet_snippet)
 {
+    migraphx::shape s1{migraphx::shape::int8_type, {1}};
+    migraphx::shape s2{migraphx::shape::int8_type, {1280, 1000}};
+    migraphx::shape s3{migraphx::shape::int8_type, {1000}};
+    migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
+    migraphx::shape s5{migraphx::shape::int32_type, {1}};
+    migraphx::shape s6{migraphx::shape::int32_type, {1280}};
+    migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
+    migraphx::shape s8{migraphx::shape::float_type, {1}};
+
+    std::vector<std::vector<float>> floats{{0.00122128},
+                                    {0.168607},
+                                    {0.00260497},
+                                    {0.0235534},
+                                    {0.0235534},
+                                    {0.023622},
+                                    {0.0162265},
+                                    {0.0138147}};
+    std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
 
     auto create_module = [&]() {
         migraphx::module mm;

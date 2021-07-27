@@ -13,7 +13,6 @@ This directory contains examples of common use cases for MIGraphX.
 - [Python Resnet50](./python_api_inference)
 - [Python BERT-SQuAD](./python_bert_squad_example)
 - [Python Super Resolution](./python_super_resolution)
-- [Python NFNet Inference](./python_nfnet_inference)
 - [Python NFNet](./python_nfnet_inference)
 - [Python U-Net](./python_unet)
 - [Python 3D-UNet](./python_3dunet)

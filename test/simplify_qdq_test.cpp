@@ -135,13 +135,13 @@ TEST_CASE(conv)
     migraphx::shape s8{migraphx::shape::float_type, {1}};
 
     std::vector<std::vector<float>> floats{{0.00122128},
-                                    {0.168607},
-                                    {0.00260497},
-                                    {0.0235534},
-                                    {0.0235534},
-                                    {0.023622},
-                                    {0.0162265},
-                                    {0.0138147}};
+                                           {0.168607},
+                                           {0.00260497},
+                                           {0.0235534},
+                                           {0.0235534},
+                                           {0.023622},
+                                           {0.0162265},
+                                           {0.0138147}};
     std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
 
     migraphx::module m1;
@@ -237,13 +237,13 @@ TEST_CASE(conv_bias_add)
     migraphx::shape s8{migraphx::shape::float_type, {1}};
 
     std::vector<std::vector<float>> floats{{0.00122128},
-                                    {0.168607},
-                                    {0.00260497},
-                                    {0.0235534},
-                                    {0.0235534},
-                                    {0.023622},
-                                    {0.0162265},
-                                    {0.0138147}};
+                                           {0.168607},
+                                           {0.00260497},
+                                           {0.0235534},
+                                           {0.0235534},
+                                           {0.023622},
+                                           {0.0162265},
+                                           {0.0138147}};
     std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
 
     migraphx::module m1;
@@ -363,13 +363,13 @@ TEST_CASE(mobilenet_snippet)
     migraphx::shape s8{migraphx::shape::float_type, {1}};
 
     std::vector<std::vector<float>> floats{{0.00122128},
-                                    {0.168607},
-                                    {0.00260497},
-                                    {0.0235534},
-                                    {0.0235534},
-                                    {0.023622},
-                                    {0.0162265},
-                                    {0.0138147}};
+                                           {0.168607},
+                                           {0.00260497},
+                                           {0.0235534},
+                                           {0.0235534},
+                                           {0.023622},
+                                           {0.0162265},
+                                           {0.0138147}};
     std::vector<std::vector<int>> ints{{-35}, {-127}, {-18}, {0}};
 
     auto create_module = [&]() {

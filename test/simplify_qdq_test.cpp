@@ -157,8 +157,8 @@ TEST_CASE(conv)
 
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", s7); // conv input (x)
-        auto w   = m1.add_parameter("w", s4); // conv weights (w)
+        auto input   = m1.add_parameter("input", s7);
+        auto weights   = m1.add_parameter("weights", s4);
         auto l4  = m1.add_literal(s1, zero);
         auto l5  = m1.add_literal(s1, zero);
         auto l7  = m1.add_literal(s1, zero);
@@ -166,8 +166,8 @@ TEST_CASE(conv)
         auto l15 = m1.add_literal(s8, scale);
         auto l16 = m1.add_literal(s8, scale);
 
-        auto d1 = add_quantize_op(m1, "dequantizelinear", w, l16, l7);
-        auto q1 = add_quantize_op(m1, "quantizelinear", x, l15, l5);
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, l16, l7);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, l15, l5);
         auto d5 = add_quantize_op(m1, "dequantizelinear", q1, l15, l5);
         auto c1 = m1.add_instruction(migraphx::make_op("convolution",
                                                        {{"padding", {0, 0, 0, 0}},
@@ -184,14 +184,14 @@ TEST_CASE(conv)
 
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", s7); // conv input (x)
-        auto w   = m2.add_parameter("w", s4); // conv weights (w)
+        auto input   = m2.add_parameter("input", s7);
+        auto weights   = m2.add_parameter("weights", s4);
         auto l4  = m2.add_literal(s1, zero);
         auto l5  = m2.add_literal(s1, zero);
         auto l14 = m2.add_literal(s8, scale);
         auto l15 = m2.add_literal(s8, scale);
 
-        auto q1 = add_quantize_op(m2, "quantizelinear", x, l15, l5);
+        auto q1 = add_quantize_op(m2, "quantizelinear", input, l15, l5);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
                                                        {{"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
@@ -199,7 +199,7 @@ TEST_CASE(conv)
                                                         {"group", 1},
                                                         {"padding_mode", 0}}),
                                      q1,
-                                     w);
+                                     weights);
         auto d6 = add_quantize_op(m2, "dequantizelinear", c1, l14, l4);
         m2.add_return({d6});
     }
@@ -222,8 +222,8 @@ TEST_CASE(conv_bias_add)
 
     migraphx::module m1;
     {
-        auto x    = m1.add_parameter("x", s7); // conv input (x)
-        auto w    = m1.add_parameter("w", s4); // conv weights (w)
+        auto input    = m1.add_parameter("input", s7);
+        auto weights    = m1.add_parameter("weights", s4);
         auto bias = m1.add_parameter("bias", s6);
         auto l4   = m1.add_literal(s1, zero);
         auto l5   = m1.add_literal(s1, zero);
@@ -234,9 +234,9 @@ TEST_CASE(conv_bias_add)
         auto l15  = m1.add_literal(s8, scale);
         auto l16  = m1.add_literal(s8, scale);
 
-        auto d1 = add_quantize_op(m1, "dequantizelinear", w, l16, l7);
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, l16, l7);
         auto d2 = add_quantize_op(m1, "dequantizelinear", bias, l11, l6);
-        auto q1 = add_quantize_op(m1, "quantizelinear", x, l15, l5);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, l15, l5);
         auto d5 = add_quantize_op(m1, "dequantizelinear", q1, l15, l5);
         auto c1 = m1.add_instruction(migraphx::make_op("convolution",
                                                        {{"padding", {0, 0, 0, 0}},
@@ -257,8 +257,8 @@ TEST_CASE(conv_bias_add)
 
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x", s7); // conv input (x)
-        auto w    = m2.add_parameter("w", s4); // conv weights (w)
+        auto input    = m2.add_parameter("input", s7);
+        auto weights    = m2.add_parameter("weights", s4);
         auto bias = m2.add_parameter("bias", s6);
         auto l4   = m2.add_literal(s1, zero);
         auto l5   = m2.add_literal(s1, zero);
@@ -268,7 +268,7 @@ TEST_CASE(conv_bias_add)
         auto l15  = m2.add_literal(s8, scale);
 
         auto d2 = add_quantize_op(m2, "dequantizelinear", bias, l11, l6);
-        auto q1 = add_quantize_op(m2, "quantizelinear", x, l15, l5);
+        auto q1 = add_quantize_op(m2, "quantizelinear", input, l15, l5);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
                                                        {{"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
@@ -276,7 +276,7 @@ TEST_CASE(conv_bias_add)
                                                         {"group", 1},
                                                         {"padding_mode", 0}}),
                                      q1,
-                                     w);
+                                     weights);
         auto b1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
         auto d6 = add_quantize_op(m2, "dequantizelinear", c1, l14, l4);
@@ -307,9 +307,9 @@ TEST_CASE(mobilenet_snippet)
         migraphx::module mm;
         auto db   = mm.add_parameter("db", s2);   // dot input b
         auto ab   = mm.add_parameter("ab", s3);   // add input b
-        auto w    = mm.add_parameter("w", s4);    // conv weights (w)
-        auto bias = mm.add_parameter("bias", s6); // bias
-        auto x    = mm.add_parameter("x", s7);    // conv input (x)
+        auto weights    = mm.add_parameter("weights", s4);
+        auto bias = mm.add_parameter("bias", s6);
+        auto input    = mm.add_parameter("input", s7);
 
         auto l1  = mm.add_literal(s1, zero);
         auto l2  = mm.add_literal(s1, zero);
@@ -328,11 +328,11 @@ TEST_CASE(mobilenet_snippet)
         auto l15 = mm.add_literal(s8, scale);
         auto l16 = mm.add_literal(s8, scale);
 
-        auto d1  = add_quantize_op(mm, "dequantizelinear", w, l16, l7);
+        auto d1  = add_quantize_op(mm, "dequantizelinear", weights, l16, l7);
         auto d2  = add_quantize_op(mm, "dequantizelinear", bias, l11, l6);
         auto d3  = add_quantize_op(mm, "dequantizelinear", ab, l9, l7);
         auto d4  = add_quantize_op(mm, "dequantizelinear", db, l11, l8);
-        auto q1  = add_quantize_op(mm, "quantizelinear", x, l15, l5);
+        auto q1  = add_quantize_op(mm, "quantizelinear", input, l15, l5);
         auto d5  = add_quantize_op(mm, "dequantizelinear", q1, l15, l5);
         auto c1  = mm.add_instruction(migraphx::make_op("convolution",
                                                        {{"padding", {0, 0, 0, 0}},

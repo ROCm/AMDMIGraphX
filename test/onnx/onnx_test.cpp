@@ -3266,6 +3266,23 @@ TEST_CASE(round_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(scatter_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto l1 =
+        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3, 4, 5}});
+    auto l2 =
+        mm->add_parameter("update", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
+    int axis = -2;
+    auto r   = mm->add_instruction(migraphx::make_op("scatter", {{"axis", axis}}), l0, l1, l2);
+    mm->add_return({r});
+    auto prog = migraphx::parse_onnx("scatter_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(selu_test)
 {
     migraphx::program p;

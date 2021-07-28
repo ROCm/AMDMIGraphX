@@ -265,12 +265,12 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
 
 /// Find first instance of a matching instruction in a module
 template <class M>
-migraphx::match::matcher_result find_match(migraphx::module& modl, M&& m)
+match::matcher_result find_match(module& modl, M&& m)
 {
-    migraphx::match::matcher_result result;
-    for(auto ins : migraphx::iterator_for(modl))
+    match::matcher_result result;
+    for(auto ins : iterator_for(modl))
     {
-        result = migraphx::match::match_instruction(modl, ins, m);
+        result = match::match_instruction(modl, ins, m);
         if(result.result != modl.end())
             return result;
     }

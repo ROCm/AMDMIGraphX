@@ -49,6 +49,7 @@ inline std::string make_source_context(const std::string& file, int line, const 
     return file + ":" + std::to_string(line) + ": " + fname;
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_MAKE_SOURCE_CTX() migraphx::make_source_context(__FILE__, __LINE__, __func__)
 
 /**

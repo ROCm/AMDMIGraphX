@@ -221,6 +221,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
+    assert(has_instruction(ins));
     assert(ins != rep);
 
     if(ins == std::prev(this->end()))

@@ -257,6 +257,18 @@ argument compute_op(const T& x,
 }
 
 template <class T, class F>
+auto compute_op(rank<4>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(auto_any_cast(ctx), output, inputs, module_args, f))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs, module_args, f);
+}
+
+template <class T, class F>
 auto compute_op(rank<3>,
                 const T& x,
                 context&,
@@ -313,7 +325,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
+    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, f);
 }
 
 template <class T>

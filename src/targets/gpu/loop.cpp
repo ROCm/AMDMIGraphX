@@ -36,7 +36,8 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
 }
 
 argument
-hip_loop::compute(const shape&,
+hip_loop::compute(context& ctx, 
+                  const shape&,
                   const std::vector<argument>& args,
                   const std::vector<module_ref>& mods,
                   const std::function<std::vector<argument>(
@@ -103,7 +104,7 @@ hip_loop::compute(const shape&,
         }
 
         auto mod_args = run(mod, params);
-        gpu_sync();
+        ctx.finish();
 
         // copy back cond to be used next iteration
         (void)hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);

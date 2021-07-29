@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/fallthrough.hpp>
@@ -264,10 +265,7 @@ void onnx_parser::parse_graph(module* mod,
         }
     }
 
-    for(const auto& n_ins : mod_instructions)
-    {
-        instructions[n_ins.first] = n_ins.second;
-    }
+    std::copy(mod_instructions.begin(), mod_instructions.end(), std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {

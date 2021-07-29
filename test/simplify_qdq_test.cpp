@@ -41,11 +41,10 @@ TEST_CASE(dot)
     std::vector<float> scale{0.5};
     std::vector<int> zero{0};
 
-
     migraphx::module m1;
     {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
+        auto t1 = m1.add_parameter("t1", sh1);
+        auto t2 = m1.add_parameter("t2", sh2);
         auto sc = m1.add_literal(ss, scale);
         auto z  = m1.add_literal(zs, zero);
 
@@ -64,10 +63,10 @@ TEST_CASE(dot)
     {
         auto t1  = m2.add_parameter("t1", sh1);
         auto t2  = m2.add_parameter("t2", sh2);
-        auto sc = m2.add_literal(ss, scale);
-        auto z  = m2.add_literal(zs, zero);
+        auto sc  = m2.add_literal(ss, scale);
+        auto z   = m2.add_literal(zs, zero);
         auto sc1 = m2.add_literal(static_cast<float>(4));
-        auto z1 = m2.add_literal(0);
+        auto z1  = m2.add_literal(0);
 
         auto q1 = add_quantize_op(m2, "quantizelinear", t1, sc, z);
         auto q2 = add_quantize_op(m2, "quantizelinear", t2, sc, z);
@@ -91,11 +90,10 @@ TEST_CASE(dot_non_zero_point)
     std::vector<float> scale{0.5};
     std::vector<int> zero{1};
 
-
     migraphx::module m1;
     {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
+        auto t1 = m1.add_parameter("t1", sh1);
+        auto t2 = m1.add_parameter("t2", sh2);
         auto sc = m1.add_literal(ss, scale);
         auto z  = m1.add_literal(zs, zero);
 
@@ -112,8 +110,8 @@ TEST_CASE(dot_non_zero_point)
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
+        auto t1 = m2.add_parameter("t1", sh1);
+        auto t2 = m2.add_parameter("t2", sh2);
 
         auto dot =
             m2.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), t1, t2);
@@ -134,11 +132,10 @@ TEST_CASE(dot_uint8)
     std::vector<float> scale{0.5};
     std::vector<int> zero{1};
 
-
     migraphx::module m1;
     {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
+        auto t1 = m1.add_parameter("t1", sh1);
+        auto t2 = m1.add_parameter("t2", sh2);
         auto sc = m1.add_literal(ss, scale);
         auto z  = m1.add_literal(zs, zero);
 
@@ -153,8 +150,8 @@ TEST_CASE(dot_uint8)
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
+        auto t1 = m2.add_parameter("t1", sh1);
+        auto t2 = m2.add_parameter("t2", sh2);
 
         auto dot =
             m2.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), t1, t2);
@@ -176,11 +173,10 @@ TEST_CASE(dot_add)
     std::vector<float> scale{0.5};
     std::vector<int> zero{0};
 
-
     migraphx::module m1;
     {
-        auto t1  = m1.add_parameter("t1", sh1);
-        auto t2  = m1.add_parameter("t2", sh2);
+        auto t1 = m1.add_parameter("t1", sh1);
+        auto t2 = m1.add_parameter("t2", sh2);
         auto ab = m1.add_parameter("ab", sh3);
         auto sc = m1.add_literal(ss, scale);
         auto z  = m1.add_literal(zs, zero);
@@ -191,8 +187,8 @@ TEST_CASE(dot_add)
         auto d2 = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
         auto dot =
             m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
-        auto q3 = add_quantize_op(m1, "quantizelinear", dot, sc, z);
-        auto d3 = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
+        auto q3  = add_quantize_op(m1, "quantizelinear", dot, sc, z);
+        auto d3  = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
         auto add = m1.add_instruction(migraphx::make_op("add"), d3, ab);
         m1.add_return({add});
     }
@@ -201,17 +197,17 @@ TEST_CASE(dot_add)
     {
         auto t1  = m2.add_parameter("t1", sh1);
         auto t2  = m2.add_parameter("t2", sh2);
-        auto ab = m2.add_parameter("ab", sh3);
-        auto sc = m2.add_literal(ss, scale);
-        auto z  = m2.add_literal(zs, zero);
+        auto ab  = m2.add_parameter("ab", sh3);
+        auto sc  = m2.add_literal(ss, scale);
+        auto z   = m2.add_literal(zs, zero);
         auto sc1 = m2.add_literal(static_cast<float>(4));
-        auto z1 = m2.add_literal(0);
+        auto z1  = m2.add_literal(0);
 
         auto q1 = add_quantize_op(m2, "quantizelinear", t1, sc, z);
         auto q2 = add_quantize_op(m2, "quantizelinear", t2, sc, z);
         auto dot =
             m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
-        auto d3 = add_quantize_op(m2, "dequantizelinear", dot, sc1, z1);
+        auto d3  = add_quantize_op(m2, "dequantizelinear", dot, sc1, z1);
         auto add = m2.add_instruction(migraphx::make_op("add"), d3, ab);
         m2.add_return({add});
     }
@@ -235,7 +231,7 @@ TEST_CASE(conv)
         auto input   = m1.add_parameter("input", s7);
         auto weights = m1.add_parameter("weights", s4);
         auto l1      = m1.add_literal(s1, zero);
-        auto l2     = m1.add_literal(s8, scale);
+        auto l2      = m1.add_literal(s8, scale);
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, l2, l1);
         auto q1 = add_quantize_op(m1, "quantizelinear", input, l2, l1);
@@ -256,9 +252,9 @@ TEST_CASE(conv)
         auto input   = m2.add_parameter("input", s7);
         auto weights = m2.add_parameter("weights", s4);
         auto l1      = m2.add_literal(s1, zero);
-        auto l2     = m2.add_literal(s8, scale);
-        auto sc1 = m2.add_literal(static_cast<float>(0.25));
-        auto z1 = m2.add_literal(0);
+        auto l2      = m2.add_literal(s8, scale);
+        auto sc1     = m2.add_literal(static_cast<float>(0.25));
+        auto z1      = m2.add_literal(0);
 
         auto q1 = add_quantize_op(m2, "quantizelinear", input, l2, l1);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
@@ -294,7 +290,7 @@ TEST_CASE(conv_bias_add)
         auto weights = m1.add_parameter("weights", s4);
         auto bias    = m1.add_parameter("bias", s6);
         auto l1      = m1.add_literal(s1, zero);
-        auto l2     = m1.add_literal(s8, scale);
+        auto l2      = m1.add_literal(s8, scale);
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, l2, l1);
         auto d2 = add_quantize_op(m1, "dequantizelinear", bias, l2, l1);
@@ -320,9 +316,9 @@ TEST_CASE(conv_bias_add)
         auto weights = m2.add_parameter("weights", s4);
         auto bias    = m2.add_parameter("bias", s6);
         auto l1      = m2.add_literal(s1, zero);
-        auto l2     = m2.add_literal(s8, scale);
-        auto sc1 = m2.add_literal(static_cast<float>(0.25));
-        auto z1 = m2.add_literal(0);
+        auto l2      = m2.add_literal(s8, scale);
+        auto sc1     = m2.add_literal(static_cast<float>(0.25));
+        auto z1      = m2.add_literal(0);
 
         auto d2 = add_quantize_op(m2, "dequantizelinear", bias, l2, l1);
         auto q1 = add_quantize_op(m2, "quantizelinear", input, l2, l1);
@@ -366,7 +362,7 @@ TEST_CASE(conv_pooling_dot)
         auto bias    = m1.add_parameter("bias", s6);
         auto input   = m1.add_parameter("input", s7);
 
-        auto l1  = m1.add_literal(s1, zero);
+        auto l1 = m1.add_literal(s1, zero);
         auto l2 = m1.add_literal(s8, scale);
 
         auto d1  = add_quantize_op(m1, "dequantizelinear", weights, l2, l1);
@@ -415,11 +411,11 @@ TEST_CASE(conv_pooling_dot)
         auto input   = m2.add_parameter("input", s7);
 
         auto l1  = m2.add_literal(s1, zero);
-        auto l2 = m2.add_literal(s8, scale);
+        auto l2  = m2.add_literal(s8, scale);
         auto sc1 = m2.add_literal(static_cast<float>(0.25));
-        auto z1 = m2.add_literal(0);
+        auto z1  = m2.add_literal(0);
         auto sc2 = m2.add_literal(static_cast<float>(4));
-        auto z2 = m2.add_literal(0);
+        auto z2  = m2.add_literal(0);
 
         auto d2  = add_quantize_op(m2, "dequantizelinear", bias, l2, l1);
         auto d3  = add_quantize_op(m2, "dequantizelinear", ab, l2, l1);
@@ -479,7 +475,7 @@ TEST_CASE(mobilenet_snippet)
         auto bias    = mm.add_parameter("bias", s6);
         auto input   = mm.add_parameter("input", s7);
 
-        auto l1  = mm.add_literal(s1, zero);
+        auto l1 = mm.add_literal(s1, zero);
         auto l2 = mm.add_literal(s8, scale);
 
         auto d1  = add_quantize_op(mm, "dequantizelinear", weights, l2, l1);

@@ -54,9 +54,7 @@ TEST_CASE(dot)
         auto d2 = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
         auto dot =
             m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
-        auto q3 = add_quantize_op(m1, "quantizelinear", dot, sc, z);
-        auto d3 = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
-        m1.add_return({d3});
+        m1.add_return({dot});
     }
 
     migraphx::module m2;
@@ -103,9 +101,7 @@ TEST_CASE(dot_non_zero_point)
         auto d2 = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
         auto dot =
             m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d1, d2);
-        auto q3 = add_quantize_op(m1, "quantizelinear", dot, sc, z);
-        auto d3 = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
-        m1.add_return({d3});
+        m1.add_return({dot});
     }
 
     migraphx::module m2;

@@ -10,7 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_data_type::apply(module& m) const
 {
-    static const std::vector<std::string> skip_op_names = {"convert", "get_tuple_elem", "if", "loop"};
+    static const std::vector<std::string> skip_op_names = {
+        "convert", "get_tuple_elem", "if", "loop"};
     for(auto ins : iterator_for(m))
     {
         if(ins->name()[0] == '@')

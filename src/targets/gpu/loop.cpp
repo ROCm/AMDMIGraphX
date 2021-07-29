@@ -36,7 +36,7 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
 }
 
 argument
-hip_loop::compute(context& ctx, 
+hip_loop::compute(context& ctx,
                   const shape&,
                   const std::vector<argument>& args,
                   const std::vector<module_ref>& mods,

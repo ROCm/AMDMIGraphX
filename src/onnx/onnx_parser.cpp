@@ -265,7 +265,9 @@ void onnx_parser::parse_graph(module* mod,
         }
     }
 
-    std::copy(mod_instructions.begin(), mod_instructions.end(), std::inserter(instructions, instructions.end()));
+    std::copy(mod_instructions.begin(),
+              mod_instructions.end(),
+              std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {

@@ -1438,6 +1438,23 @@ def gemm_ex_brcst_test():
 
 
 @onnx_test
+def gemm_half_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 1, 8, 6])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1, 1, 8, 7])
+    m3 = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [1, 1, 6, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 7])
+
+    node = onnx.helper.make_node('Gemm',
+                                 inputs=['1', '2', '3'],
+                                 outputs=['y'],
+                                 alpha=0.5,
+                                 beta=0.8,
+                                 transA=1)
+
+    return ([node], [m1, m2, m3], [y])
+
+
+@onnx_test
 def globalavgpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])

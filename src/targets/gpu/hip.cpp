@@ -1,4 +1,5 @@
 
+#include <iterator>
 #include <migraphx/gpu/hip.hpp>
 
 #include <migraphx/manage_ptr.hpp>
@@ -101,8 +102,21 @@ hip_ptr write_to_gpu(const T& x)
 
 argument allocate_gpu(const shape& s, bool host)
 {
-    auto p = share(allocate_gpu(s.bytes() + 1, host));
-    return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};
+    if (s.type() == shape::tuple_type)
+    {
+        const auto& sub_ss = s.sub_shapes();
+        std::vector<argument> sub_args;
+        std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
+            auto p = share(allocate_gpu(ss.bytes() + 1, host));
+            return argument{ss, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};        
+        });
+        return argument(sub_args);
+    }
+    else
+    {
+        auto p = share(allocate_gpu(s.bytes() + 1, host));
+        return {s, [p]() mutable { return reinterpret_cast<char*>(p.get()); }};        
+    }
 }
 
 argument register_on_gpu(const argument& arg)

@@ -11,6 +11,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -21,99 +22,139 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-struct match_find_add_bias
+std::unordered_set<std::string> get_all_op_names()
 {
-    auto matcher() const
-    {
-        return match::name("dequantizelinear")(match::arg(0)(
-            match::name("quantizelinear")(
-                match::arg(0)(match::name("add")(
-                                  match::arg(0)(match::name("convolution").bind("convolution")))
-                                  .bind("add")))
-                .bind("quantizelinear")));
-    }
+    static auto ops = get_operators();
+    static std::unordered_set<std::string> s(ops.begin(), ops.end());
+    return s;
+}
 
-    void apply(module& m, match::matcher_result r) const
-    {
-        auto dq   = r.result;
-        auto q    = r.instructions["quantizelinear"];
-        auto add  = r.instructions["add"];
-        auto conv = r.instructions["convolution"];
+bool inputs_are_zeros(const instruction_ref& ins)
+{
+    literal zp_lit;
+    if (ins->name() == "multibroadcast" or ins->name() == "broadcast")
+        zp_lit = ins->inputs().at(0)->get_literal();
+    else 
+        zp_lit = ins->get_literal();
+    std::vector<int64_t> zero_points;
+    zp_lit.visit([&](const auto zp){
+        std::transform(zp.begin(), zp.end(), std::back_inserter(zero_points), [](auto&& z){ return z; });
+    });
+    return std::all_of(zero_points.begin(), zero_points.end(), [](const auto& z) { return z == 0; });
+}
 
-        auto q_args = q->inputs();
-        for(auto&& arg : q_args)
-        {
-            if(arg->name() == "multibroadcast" or arg->name() == "broadcast")
-            {
-                arg = m.insert_instruction(add, arg->get_operator(), arg->inputs());
-            }
-        }
-        m.replace_instruction(q, q->get_operator(), q_args);
-        q_args.front() = conv;
-        auto new_q     = m.insert_instruction(add, migraphx::make_op("quantizelinear"), q_args);
-        auto dq_args   = dq->inputs();
-        q_args.front() = dq_args.front();
-        m.replace_instruction(dq, dq->get_operator(), q_args);
-        q_args.front()   = new_q;
-        auto new_dq      = m.insert_instruction(add, migraphx::make_op("dequantizelinear"), q_args);
-        auto add_args    = add->inputs();
-        add_args.front() = new_dq;
-        m.replace_instruction(add, migraphx::make_op("add"), add_args);
-    }
-};
+double get_scale(const instruction_ref& ins)
+{
+    literal scale_lit;
+    if (ins->name() == "multibroadcast" or ins->name() == "broadcast")
+        scale_lit = ins->inputs().at(0)->get_literal();
+    else 
+        scale_lit = ins->get_literal();
+    std::vector<float> scales;
+    scale_lit.visit([&](auto sl){ 
+        std::transform(sl.begin(), sl.end(), std::back_inserter(scales), [](auto&& s){ return s; });
+    });
+    if (not std::all_of(scales.begin(), scales.end(), [&](const auto& s) { return s == scales.front(); }))
+        MIGRAPHX_THROW("Multiple scales not currently supported");
+    return scales.front();
+}
+
+instruction_ref insert_quantize_op(module& m,
+                                          instruction_ref ins,
+                                          const std::string& name,
+                                          instruction_ref x,
+                                          instruction_ref scale,
+                                          instruction_ref shift)
+{
+    auto lens = x->get_shape().lens();
+    auto scale_mb =
+        m.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), scale);
+    auto shift_mb =
+        m.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), shift);
+    return m.insert_instruction(ins, make_op(name), x, scale_mb, shift_mb);
+}
 
 struct match_find_quantizable_ops
 {
     auto matcher() const
     {
-        return match::name("dequantizelinear")(match::arg(0)(match::name("quantizelinear")(
-            match::arg(0)(match::name(get_quantizable_op_names()).bind("qop")))));
+        return match::name(get_all_op_names())(match::arg(0)(
+            match::name(get_quantizable_op_names())(
+                match::arg(0)(match::name("dequantizelinear")(match::arg(0)(match::name(get_all_op_names()).bind("q0")).bind("dq0"))
+                ),
+                match::arg(1)(match::name("dequantizelinear")(match::arg(0)(match::name(get_all_op_names()).bind("q1")).bind("dq1"))
+                )
+            ).bind("qop")));
     }
 
     void apply(module& m, match::matcher_result r) const
     {
-        auto dq   = r.result;
-        auto ins  = r.instructions["qop"];
-        auto args = ins->inputs();
+        auto op = r.result;
+        auto qop = r.instructions["qop"];
+        auto dq0 = r.instructions["dq0"];
+        auto q0 = r.instructions["q0"];
+        auto dq1 = r.instructions["dq1"];
+        auto q1 = r.instructions["q1"];
 
-        if(std::all_of(args.begin(), args.end(), [&](auto& arg) {
-               auto name       = arg->name();
-               arg             = arg->inputs().front();
-               auto input_type = arg->get_shape().type();
-               return name == "dequantizelinear" and input_type == migraphx::shape::int8_type;
-           }))
+        // Only INT8 type currently supported
+        if (q0->get_shape().type() != migraphx::shape::int8_type or q1->get_shape().type() != migraphx::shape::int8_type)
+            return;
+                  
+        // Only zero_point==0 currently supported
+        auto dq0_args = dq0->inputs();
+        auto dq1_args = dq1->inputs();
+        bool all_zeros = true;
+        all_zeros &= inputs_are_zeros(dq0_args.at(2));
+        all_zeros &= inputs_are_zeros(dq1_args.at(2));
+        if (not all_zeros) 
+            return;
+        
+        auto scale = get_scale(dq0_args.at(1)) * get_scale(dq1_args.at(1));
+        auto qop_args = qop->inputs();
+        qop_args.at(0) = q0;
+        qop_args.at(1) = q1;
+        instruction_ref dq;
+        instruction_ref dq_scale;
+        instruction_ref zero_point;
+        if (qop->name() == "convolution")
         {
-            if(ins->name() == "convolution")
-            {
-                auto conv_op = any_cast<op::convolution>(ins->get_operator());
-                m.replace_instruction(ins,
-                                      migraphx::make_op("quant_convolution",
-                                                        {{"padding", conv_op.padding},
-                                                         {"stride", conv_op.stride},
-                                                         {"dilation", conv_op.dilation},
-                                                         {"padding_mode", conv_op.padding_mode},
-                                                         {"group", conv_op.group}}),
-                                      args);
-            }
-            else if(ins->name() == "dot")
-            {
-                auto dot_op = any_cast<op::dot>(ins->get_operator());
-                m.replace_instruction(
-                    ins,
-                    migraphx::make_op("quant_dot",
-                                      {{"alpha", static_cast<int32_t>(dot_op.alpha)},
-                                       {"beta", static_cast<int32_t>(dot_op.beta)}}),
-                    args);
-            }
-            else
-            {
-                MIGRAPHX_THROW(ins->name() +
-                               " does not currently have a quantized implementation.");
-            }
-            auto dq_args    = dq->inputs();
-            dq_args.front() = ins;
-            m.replace_instruction(dq, dq->get_operator(), dq_args);
+            auto conv_op = any_cast<op::convolution>(qop->get_operator());
+            qop = m.insert_instruction(qop,
+                                    migraphx::make_op("quant_convolution",
+                                                    {{"padding", conv_op.padding},
+                                                        {"stride", conv_op.stride},
+                                                        {"dilation", conv_op.dilation},
+                                                        {"padding_mode", conv_op.padding_mode},
+                                                        {"group", conv_op.group}}),
+                                    qop_args);
+            dq_scale = m.add_literal(static_cast<float>(scale));
+            zero_point = m.add_literal(0);
         }
+        else if (qop->name() == "dot")
+        {
+            auto dot_op = any_cast<op::dot>(qop->get_operator());
+            auto scale_val = dot_op.alpha / scale;
+            auto alpha = 1;
+            auto beta = (qop->inputs().size() == 3) ? dot_op.beta : 0.0f;
+            qop = m.insert_instruction(
+                    qop,
+                    migraphx::make_op("quant_dot",
+                                      {{"alpha", alpha},
+                                       {"beta", beta}}),
+                    qop_args);
+            dq_scale   = m.add_literal(static_cast<float>(scale_val));
+            zero_point = m.add_literal(static_cast<int>((-1.0f * beta) / scale_val));
+        }
+        else 
+        {
+            MIGRAPHX_THROW(qop->name() +
+                               " does not currently have a quantized implementation.");
+        }
+
+        dq = insert_quantize_op(m, op, "dequantizelinear", qop, dq_scale, zero_point);
+        auto op_args = op->inputs();
+        op_args.front() = dq;
+        m.replace_instruction(op, op->get_operator(), op_args);
     }
 };
 
@@ -144,12 +185,11 @@ void remove_qdq_pairs(module& m)
 
 void simplify_qdq::apply(module& m) const
 {
-    match::find_matches(m, match_find_add_bias{});
-    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_find_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    return;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

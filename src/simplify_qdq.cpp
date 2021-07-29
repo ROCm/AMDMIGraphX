@@ -58,8 +58,9 @@ double get_scale(const instruction_ref& ins)
             sl.begin(), sl.end(), std::back_inserter(scales), [](auto&& s) { return s; });
     });
     double epsilon = 1e-6;
-    if(not std::all_of(
-           scales.begin(), scales.end(), [&](const auto& s) { return std::abs(s - scales.front()) < epsilon; }))
+    if(not std::all_of(scales.begin(), scales.end(), [&](const auto& s) {
+           return std::abs(s - scales.front()) < epsilon;
+       }))
         MIGRAPHX_THROW("Multiple scales not currently supported");
     return scales.front();
 }
@@ -155,12 +156,12 @@ struct match_find_quantizable_ops
         dq              = insert_quantize_op(m, op, "dequantizelinear", qop, dq_scale, zero_point);
         auto op_args    = op->inputs();
         op_args.front() = dq;
-        if (op->name() == "@return")
+        if(op->name() == "@return")
         {
             auto ret = m.add_return({dq});
             m.replace_instruction(op, ret);
         }
-        else 
+        else
         {
             m.replace_instruction(op, op->get_operator(), op_args);
         }

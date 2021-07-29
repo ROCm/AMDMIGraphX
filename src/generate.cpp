@@ -6,7 +6,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 argument fill_argument(shape s, unsigned long value)
 {
     argument result;
-    if (s.type() == shape::tuple_type)
+    if(s.type() == shape::tuple_type)
     {
         std::vector<argument> sub_args;
         const auto& sub_ss = s.sub_shapes();
@@ -15,7 +15,7 @@ argument fill_argument(shape s, unsigned long value)
             ss.visit_type([&](auto as) {
                 using type = typename decltype(as)::type;
                 auto v     = fill_tensor_data<type>(ss, value);
-                temp_arg = {ss, v};
+                temp_arg   = {ss, v};
             });
 
             return temp_arg;
@@ -23,12 +23,12 @@ argument fill_argument(shape s, unsigned long value)
 
         result = argument(sub_args);
     }
-    else 
+    else
     {
         s.visit_type([&](auto as) {
             using type = typename decltype(as)::type;
             auto v     = fill_tensor_data<type>(s, value);
-            result = {s, v};
+            result     = {s, v};
         });
     }
     return result;
@@ -44,16 +44,16 @@ argument generate_argument(shape s, unsigned long seed)
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
             argument temp_arg;
             ss.visit_type([&](auto as) {
-                if (s.type() == shape::bool_type)
+                if(s.type() == shape::bool_type)
                 {
-                    auto v = generate_tensor_data<bool>(ss, seed);
+                    auto v   = generate_tensor_data<bool>(ss, seed);
                     temp_arg = {ss, v};
                 }
                 else
                 {
                     using type = typename decltype(as)::type;
                     auto v     = generate_tensor_data<type>(ss, seed);
-                    temp_arg = {ss, v};                    
+                    temp_arg   = {ss, v};
                 }
             });
 
@@ -62,7 +62,7 @@ argument generate_argument(shape s, unsigned long seed)
 
         result = argument(sub_args);
     }
-    else 
+    else
     {
         s.visit_type([&](auto as) {
             // we use char type to store bool type internally, so bool_type
@@ -80,7 +80,7 @@ argument generate_argument(shape s, unsigned long seed)
             }
         });
     }
-    
+
     return result;
 }
 

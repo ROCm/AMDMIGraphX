@@ -9,7 +9,6 @@ import migraphx
 RawResult = collections.namedtuple("RawResult",
                                    ["unique_id", "start_logits", "end_logits"])
 
-
 #######################################
 input_file = 'inputs_amd.json'
 with open(input_file) as json_file:

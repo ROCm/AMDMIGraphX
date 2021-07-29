@@ -15,7 +15,6 @@
 
 #include <migraphx/serialize.hpp>
 
-#include "migraphx/module.hpp"
 #include "test.hpp"
 #include <migraphx/half.hpp>
 #include <iomanip>

@@ -57,8 +57,9 @@ double get_scale(const instruction_ref& ins)
         std::transform(
             sl.begin(), sl.end(), std::back_inserter(scales), [](auto&& s) { return s; });
     });
+    double epsilon = 1e-6;
     if(not std::all_of(
-           scales.begin(), scales.end(), [&](const auto& s) { return s == scales.front(); }))
+           scales.begin(), scales.end(), [&](const auto& s) { return std::abs(s - scales.front()) < epsilon; }))
         MIGRAPHX_THROW("Multiple scales not currently supported");
     return scales.front();
 }
@@ -154,7 +155,15 @@ struct match_find_quantizable_ops
         dq              = insert_quantize_op(m, op, "dequantizelinear", qop, dq_scale, zero_point);
         auto op_args    = op->inputs();
         op_args.front() = dq;
-        m.replace_instruction(op, op->get_operator(), op_args);
+        if (op->name() == "@return")
+        {
+            auto ret = m.add_return({dq});
+            m.replace_instruction(op, ret);
+        }
+        else 
+        {
+            m.replace_instruction(op, op->get_operator(), op_args);
+        }
     }
 };
 
@@ -189,7 +198,6 @@ void simplify_qdq::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    return;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

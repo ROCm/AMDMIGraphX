@@ -6,32 +6,81 @@ inline namespace MIGRAPHX_INLINE_NS {
 argument fill_argument(shape s, unsigned long value)
 {
     argument result;
-    s.visit_type([&](auto as) {
-        using type = typename decltype(as)::type;
-        auto v     = fill_tensor_data<type>(s, value);
-        result     = {s, v};
-    });
+    if(s.type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_args;
+        const auto& sub_ss = s.sub_shapes();
+        std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
+            argument temp_arg;
+            ss.visit_type([&](auto as) {
+                using type = typename decltype(as)::type;
+                auto v     = fill_tensor_data<type>(ss, value);
+                temp_arg   = {ss, v};
+            });
+
+            return temp_arg;
+        });
+
+        result = argument(sub_args);
+    }
+    else
+    {
+        s.visit_type([&](auto as) {
+            using type = typename decltype(as)::type;
+            auto v     = fill_tensor_data<type>(s, value);
+            result     = {s, v};
+        });
+    }
     return result;
 }
 
 argument generate_argument(shape s, unsigned long seed)
 {
     argument result;
-    s.visit_type([&](auto as) {
-        // we use char type to store bool type internally, so bool_type
-        // needs special processing to generate data
-        if(s.type() == shape::bool_type)
-        {
-            auto v = generate_tensor_data<bool>(s, seed);
-            result = {s, v};
-        }
-        else
-        {
-            using type = typename decltype(as)::type;
-            auto v     = generate_tensor_data<type>(s, seed);
-            result     = {s, v};
-        }
-    });
+    if(s.type() == shape::tuple_type)
+    {
+        const auto& sub_ss = s.sub_shapes();
+        std::vector<argument> sub_args;
+        std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
+            argument temp_arg;
+            ss.visit_type([&](auto as) {
+                if(s.type() == shape::bool_type)
+                {
+                    auto v   = generate_tensor_data<bool>(ss, seed);
+                    temp_arg = {ss, v};
+                }
+                else
+                {
+                    using type = typename decltype(as)::type;
+                    auto v     = generate_tensor_data<type>(ss, seed);
+                    temp_arg   = {ss, v};
+                }
+            });
+
+            return temp_arg;
+        });
+
+        result = argument(sub_args);
+    }
+    else
+    {
+        s.visit_type([&](auto as) {
+            // we use char type to store bool type internally, so bool_type
+            // needs special processing to generate data
+            if(s.type() == shape::bool_type)
+            {
+                auto v = generate_tensor_data<bool>(s, seed);
+                result = {s, v};
+            }
+            else
+            {
+                using type = typename decltype(as)::type;
+                auto v     = generate_tensor_data<type>(s, seed);
+                result     = {s, v};
+            }
+        });
+    }
+
     return result;
 }
 

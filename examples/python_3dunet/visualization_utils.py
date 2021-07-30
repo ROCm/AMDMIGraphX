@@ -66,7 +66,7 @@ def show_label_on_image(test_img, test_lbl):
 
     # change colors of segmented classes
     for i in range(len(ones)):
-        image[ones[i][0]][ones[i][1]] = blue_multiplier 
+        image[ones[i][0]][ones[i][1]] = blue_multiplier
     for i in range(len(twos)):
         image[twos[i][0]][twos[i][1]] = yellow_multiplier
     for i in range(len(threes)):

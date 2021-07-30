@@ -52,55 +52,55 @@ struct topk
         return shape({s_val, s_ind});
     }
 
-    template <class T, class Op>
-    void heapify(const T& data,
-                 const shape& iss,
-                 const std::vector<std::size_t>& sidx,
-                 std::vector<int>& indices,
-                 int n,
-                 int i,
-                 Op op) const
-    {
-        int index = i;
-        auto idx  = sidx;
-        auto idxl = sidx;
-        auto idxr = sidx;
-        while(index < n)
-        {
-            auto pre_index = index;
-            int l          = 2 * index + 1;
-            int r          = 2 * index + 2;
-            idx[axis]      = indices[index];
-            if(l < n)
-            {
-                idxl[axis] = indices[l];
-            }
-            if(r < n)
-            {
-                idxr[axis] = indices[r];
-            }
+    // template <class T, class Op>
+    // void heapify(const T& data,
+    //              const shape& iss,
+    //              const std::vector<std::size_t>& sidx,
+    //              std::vector<int>& indices,
+    //              int n,
+    //              int i,
+    //              Op op) const
+    // {
+    //     int index = i;
+    //     auto idx  = sidx;
+    //     auto idxl = sidx;
+    //     auto idxr = sidx;
+    //     while(index < n)
+    //     {
+    //         auto pre_index = index;
+    //         int l          = 2 * index + 1;
+    //         int r          = 2 * index + 2;
+    //         idx[axis]      = indices[index];
+    //         if(l < n)
+    //         {
+    //             idxl[axis] = indices[l];
+    //         }
+    //         if(r < n)
+    //         {
+    //             idxr[axis] = indices[r];
+    //         }
 
-            if(l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))
-            {
-                index = l;
-            }
+    //         if(l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))
+    //         {
+    //             index = l;
+    //         }
 
-            if(r < n && op(data[iss.index(idxr)], data[iss.index(idx)]))
-            {
-                index = r;
-                if(op(data[iss.index(idxl)], data[iss.index(idxr)]))
-                {
-                    index = l;
-                }
-            }
+    //         if(r < n && op(data[iss.index(idxr)], data[iss.index(idx)]))
+    //         {
+    //             index = r;
+    //             if(op(data[iss.index(idxl)], data[iss.index(idxr)]))
+    //             {
+    //                 index = l;
+    //             }
+    //         }
 
-            if(index == pre_index)
-            {
-                break;
-            }
-            std::swap(indices[index], indices[pre_index]);
-        }
-    }
+    //         if(index == pre_index)
+    //         {
+    //             break;
+    //         }
+    //         std::swap(indices[index], indices[pre_index]);
+    //     }
+    // }
 
     template <class T, class Op>
     void build_heap(const T& data,
@@ -110,10 +110,13 @@ struct topk
                     int n,
                     Op op) const
     {
-        for(int i = n / 2 - 1; i >= 0; i--)
-        {
-            heapify(data, iss, sidx, indices, n, i, op);
-        }
+        std::make_heap(indices.begin(), indices.begin() + n, [&](auto i1, auto i2) {
+            auto idx1 = sidx;
+            auto idx2 = sidx;
+            idx1[axis] = i1;
+            idx2[axis] = i2;
+            return op(data[iss.index(idx1)], data[iss.index(idx2)]);
+        });
     }
 
     template <class T, class Op>
@@ -125,16 +128,26 @@ struct topk
                   const int& val,
                   Op op) const
     {
-        auto idx   = sidx;
-        sidx[axis] = indices[0];
-        idx[axis]  = val;
-        if(op(data[iss.index(idx)], data[iss.index(sidx)]))
+        auto comp = [&](auto i1, auto i2) {
+            auto idx1 = sidx;
+            auto idx2 = sidx;
+            idx1[axis] = i1;
+            idx2[axis] = i2;
+            return op(data[iss.index(idx1)], data[iss.index(idx2)]);
+        };
+
+        std::pop_heap(indices.begin(), indices.end(), comp);
+
+        auto idx1   = sidx;
+        auto idx2   = sidx;
+        idx1[axis] = indices.back();
+        idx2[axis]  = val;
+        if(op(data[iss.index(idx2)], data[iss.index(idx1)]))
         {
-            return;
+            indices.back() = val;
         }
 
-        indices[0] = val;
-        heapify(data, iss, sidx, indices, n, 0, op);
+        std::push_heap(indices.begin(), indices.end(), comp);
     }
 
     template <class T, class Op>
@@ -145,13 +158,16 @@ struct topk
                    int n,
                    Op op) const
     {
-        build_heap(data, iss, sidx, indices, n, op);
+        auto comp = [&](auto i1, auto i2) {
+            auto idx1 = sidx;
+            auto idx2 = sidx;
+            idx1[axis] = i1;
+            idx2[axis] = i2;
+            return op(data[iss.index(idx1)], data[iss.index(idx2)]);
+        };
 
-        for(int i = n - 1; i > 0; i--)
-        {
-            std::swap(indices[0], indices[i]);
-            heapify(data, iss, sidx, indices, i, 0, op);
-        }
+        std::make_heap(indices.begin(), indices.end(), comp);
+        std::sort_heap(indices.begin(), indices.end(), comp);
     }
 
     template <class T, class Op>
@@ -163,7 +179,16 @@ struct topk
                     int kk,
                     Op op) const
     {
-        build_heap(data, iss, sidx, indices, kk, op);
+        auto comp = [&](auto i1, auto i2) {
+            auto idx1 = sidx;
+            auto idx2 = sidx;
+            idx1[axis] = i1;
+            idx2[axis] = i2;
+            return op(data[iss.index(idx1)], data[iss.index(idx2)]);
+        };
+
+        std::make_heap(indices.begin(), indices.end(), comp);
+
         for(int i = kk; i < n; ++i)
         {
             heap_add(data, iss, sidx, indices, kk, i, op);
@@ -190,14 +215,15 @@ struct topk
                 auto idx = comp_s.multi(i);
                 std::vector<int> indices(k);
                 std::iota(indices.begin(), indices.end(), 0);
+                
                 largest
-                    ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{})
-                    : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{});
+                    ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{})
+                    : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{});
 
                 if(sorted)
                 {
-                    largest ? this->heap_sort(input, in_s, idx, indices, k, std::less<>{})
-                            : this->heap_sort(input, in_s, idx, indices, k, std::greater<>{});
+                    largest ? this->heap_sort(input, in_s, idx, indices, k, std::greater<>{})
+                            : this->heap_sort(input, in_s, idx, indices, k, std::less<>{});
                 }
 
                 auto out_idx = idx;

@@ -13,7 +13,7 @@ namespace gpu {
 namespace device {
 
 template <class T>
-__device__ void swap(T& v1, T& v2)
+__device__ inline void swap(T& v1, T& v2)
 {
     T v = v1;
     v1  = v2;
@@ -100,7 +100,7 @@ __device__ inline void build_heap(T* arr,
 
 template <class T, index_int N, class Op>
 __device__ inline void heap_add(T* arr,
-                                int64_t* const ind,
+                                int64_t* ind,
                                 const int64_t i,
                                 const hip_shape<N>& oss,
                                 const hip_shape<N>& iss,

@@ -1,4 +1,4 @@
-import string, sys, re, os, runpy
+import string, sys, re, runpy
 from functools import wraps
 
 type_map = {}

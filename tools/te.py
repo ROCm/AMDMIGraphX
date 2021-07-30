@@ -1,4 +1,4 @@
-import string, sys, re, os
+import string, sys, re
 
 trivial = ['std::size_t', 'instruction_ref']
 

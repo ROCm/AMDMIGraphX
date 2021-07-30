@@ -42,8 +42,8 @@ __device__ inline void heap_heapify(T* arr,
         int l          = 2 * index + 1;
         int r          = 2 * index + 2;
 
-        idx[axis]  = index;
-        idx[axis]  = ind[oss.index(idx)];
+        idx[axis] = index;
+        idx[axis] = ind[oss.index(idx)];
 
         if(l < n)
         {

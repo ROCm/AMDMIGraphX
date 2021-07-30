@@ -77,7 +77,7 @@ struct topk
             }
             if(r < n)
             {
-                idxr[axis]     = indices[r];
+                idxr[axis] = indices[r];
             }
 
             if(l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))

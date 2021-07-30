@@ -42,8 +42,7 @@ struct parse_topk : op_parser<parse_topk>
         }
 
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}),
-            args.at(0));
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
         auto out_s = topk_ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
 

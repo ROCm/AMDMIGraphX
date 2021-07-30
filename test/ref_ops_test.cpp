@@ -4269,9 +4269,7 @@ TEST_CASE(topk_test)
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto data = mm->add_parameter("data", s);
         auto r    = mm->add_instruction(
-            migraphx::make_op("topk",
-                              {{"axis", axis}, {"k", k}, {"largest", largest}}),
-            data);
+            migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), data);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({r0, r1});

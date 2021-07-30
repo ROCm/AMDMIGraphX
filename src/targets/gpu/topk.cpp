@@ -20,7 +20,6 @@ argument hip_topk::compute(context& ctx, const shape&, const std::vector<argumen
                         args[0],
                         op.k,
                         op.axis,
-                        op.sorted,
                         op.largest);
 }
 

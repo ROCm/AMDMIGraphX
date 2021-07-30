@@ -16,7 +16,6 @@ argument topk(hipStream_t stream,
               argument arg,
               int64_t k,
               int64_t axis,
-              bool sorted,
               bool largest);
 
 } // namespace device

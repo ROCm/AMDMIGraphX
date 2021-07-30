@@ -13,7 +13,7 @@ struct test_topk_0 : verify_program<test_topk_0>
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto data = mm->add_parameter("data", s);
         auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", 1}, {"k", 4}, {"largest", 1}, {"sorted", 1}}),
+            migraphx::make_op("topk", {{"axis", 1}, {"k", 4}, {"largest", 1}}),
             data);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);

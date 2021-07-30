@@ -35,12 +35,6 @@ struct parse_topk : op_parser<parse_topk>
             largest = static_cast<bool>(info.attributes.at("largest").i());
         }
 
-        bool sorted = true;
-        if(contains(info.attributes, "sorted"))
-        {
-            sorted = static_cast<bool>(info.attributes.at("sorted").i());
-        }
-
         int64_t axis = -1;
         if(contains(info.attributes, "axis"))
         {
@@ -48,7 +42,7 @@ struct parse_topk : op_parser<parse_topk>
         }
 
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}, {"sorted", sorted}}),
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}),
             args.at(0));
         auto out_s = topk_ret->get_shape();
         assert(out_s.type() == shape::tuple_type);

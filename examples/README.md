@@ -15,3 +15,4 @@ This directory contains examples of common use cases for MIGraphX.
 - [Python Super Resolution](./python_super_resolution)
 - [Python NFNet](./python_nfnet_inference)
 - [Python U-Net](./python_unet)
+- [Python 3D-UNet](./python_3dunet)

@@ -150,6 +150,22 @@ struct topk
         std::push_heap(indices.begin(), indices.end(), comp);
     }
 
+
+
+    template <class T>
+    void heap_add(std::vector<int>& indices,
+                  const int& val,
+                  T comp) const
+    {
+        std::pop_heap(indices.begin(), indices.end(), comp);
+        if(comp(val, indices.back()))
+        {
+            indices.back() = val;
+        }
+        std::push_heap(indices.begin(), indices.end(), comp);
+    }
+
+
     template <class T, class Op>
     void heap_sort(const T& data,
                    const shape& iss,
@@ -169,6 +185,29 @@ struct topk
         std::make_heap(indices.begin(), indices.end(), comp);
         std::sort_heap(indices.begin(), indices.end(), comp);
     }
+
+
+    template <class T>
+    void heap_sort(std::vector<int>& indices,
+                   T comp) const
+    {
+        std::make_heap(indices.begin(), indices.end(), comp);
+        std::sort_heap(indices.begin(), indices.end(), comp);
+    }
+
+    template <class T>
+    void topk_value(std::vector<int>& indices,
+                    std::size_t n,
+                    T comp) const
+    {
+        std::make_heap(indices.begin(), indices.end(), comp);
+
+        for(int i = indices.size(); i < n; ++i)
+        {
+            heap_add(indices, i, comp);
+        }
+    }
+
 
     template <class T, class Op>
     void topk_value(const T& data,
@@ -195,6 +234,7 @@ struct topk
         }
     }
 
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto vec_ss = output_shape.sub_shapes();
@@ -208,6 +248,10 @@ struct topk
         // compute shape
         comp_lens[axis] = 1;
         shape comp_s{in_s.type(), comp_lens};
+        auto op = [](auto largest1)
+        {
+            return largest1 ? std::greater<>{} : std::less<>{};
+        };
 
         visit_all(res_val, args.front())([&](auto out_val, auto input) {
             auto* out_ind = res_ind.cast<int64_t>();
@@ -216,14 +260,26 @@ struct topk
                 std::vector<int> indices(k);
                 std::iota(indices.begin(), indices.end(), 0);
 
-                largest ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{})
-                        : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{});
+                auto comp = [&](auto i1, auto i2) {
+                        auto idx1  = idx;
+                        auto idx2  = idx;
+                        idx1[axis] = i1;
+                        idx2[axis] = i2;
+                        return this->largest ? std::greater<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)]) : std::less<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)]);
+                    };
 
-                if(sorted)
-                {
-                    largest ? this->heap_sort(input, in_s, idx, indices, k, std::greater<>{})
-                            : this->heap_sort(input, in_s, idx, indices, k, std::less<>{});
-                }
+                topk_value(indices, axis_dim, comp);
+                heap_sort(indices, comp);
+
+
+                // largest ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{})
+                //         : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{});
+
+                // if(sorted)
+                // {
+                //     largest ? this->heap_sort(input, in_s, idx, indices, k, std::greater<>{})
+                //             : this->heap_sort(input, in_s, idx, indices, k, std::less<>{});
+                // }
 
                 auto out_idx = idx;
                 auto in_idx  = idx;

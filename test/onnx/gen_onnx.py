@@ -1593,7 +1593,7 @@ def if_literal_test():
                                                   onnx.TensorProto.FLOAT, [5])
     else_out = onnx.helper.make_tensor_value_info('else_out',
                                                   onnx.TensorProto.FLOAT, [5])
-    
+
     x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
     y = np.array([5, 4, 3, 2, 1]).astype(np.float32)
     z = np.array([]).astype(np.float32)

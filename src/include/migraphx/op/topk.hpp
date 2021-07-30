@@ -71,8 +71,15 @@ struct topk
             int l          = 2 * index + 1;
             int r          = 2 * index + 2;
             idx[axis]      = indices[index];
-            idxl[axis]     = indices[l];
-            idxr[axis]     = indices[r];
+            if(l < n)
+            {
+                idxl[axis] = indices[l];
+            }
+            if(r < n)
+            {
+                idxr[axis]     = indices[r];
+            }
+
             if(l < n && op(data[iss.index(idxl)], data[iss.index(idx)]))
             {
                 index = l;

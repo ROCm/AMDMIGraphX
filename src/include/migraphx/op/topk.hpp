@@ -111,8 +111,8 @@ struct topk
                     Op op) const
     {
         std::make_heap(indices.begin(), indices.begin() + n, [&](auto i1, auto i2) {
-            auto idx1 = sidx;
-            auto idx2 = sidx;
+            auto idx1  = sidx;
+            auto idx2  = sidx;
             idx1[axis] = i1;
             idx2[axis] = i2;
             return op(data[iss.index(idx1)], data[iss.index(idx2)]);
@@ -129,8 +129,8 @@ struct topk
                   Op op) const
     {
         auto comp = [&](auto i1, auto i2) {
-            auto idx1 = sidx;
-            auto idx2 = sidx;
+            auto idx1  = sidx;
+            auto idx2  = sidx;
             idx1[axis] = i1;
             idx2[axis] = i2;
             return op(data[iss.index(idx1)], data[iss.index(idx2)]);
@@ -138,10 +138,10 @@ struct topk
 
         std::pop_heap(indices.begin(), indices.end(), comp);
 
-        auto idx1   = sidx;
-        auto idx2   = sidx;
+        auto idx1  = sidx;
+        auto idx2  = sidx;
         idx1[axis] = indices.back();
-        idx2[axis]  = val;
+        idx2[axis] = val;
         if(op(data[iss.index(idx2)], data[iss.index(idx1)]))
         {
             indices.back() = val;
@@ -159,8 +159,8 @@ struct topk
                    Op op) const
     {
         auto comp = [&](auto i1, auto i2) {
-            auto idx1 = sidx;
-            auto idx2 = sidx;
+            auto idx1  = sidx;
+            auto idx2  = sidx;
             idx1[axis] = i1;
             idx2[axis] = i2;
             return op(data[iss.index(idx1)], data[iss.index(idx2)]);
@@ -180,8 +180,8 @@ struct topk
                     Op op) const
     {
         auto comp = [&](auto i1, auto i2) {
-            auto idx1 = sidx;
-            auto idx2 = sidx;
+            auto idx1  = sidx;
+            auto idx2  = sidx;
             idx1[axis] = i1;
             idx2[axis] = i2;
             return op(data[iss.index(idx1)], data[iss.index(idx2)]);
@@ -215,10 +215,9 @@ struct topk
                 auto idx = comp_s.multi(i);
                 std::vector<int> indices(k);
                 std::iota(indices.begin(), indices.end(), 0);
-                
-                largest
-                    ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{})
-                    : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{});
+
+                largest ? this->topk_value(input, in_s, idx, indices, axis_dim, k, std::greater<>{})
+                        : this->topk_value(input, in_s, idx, indices, axis_dim, k, std::less<>{});
 
                 if(sorted)
                 {

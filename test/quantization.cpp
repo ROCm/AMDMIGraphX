@@ -562,7 +562,7 @@ TEST_CASE(dot_double_2args)
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
         std::vector<float> vec(sc.elements(), 200.0f);
         auto dc   = mm->add_literal(migraphx::literal(sc, vec));
-        auto beta = mm->add_literal(-0.0f);
+        auto beta = mm->add_literal(0.0f);
         auto zp   = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto fr = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, zp);
@@ -760,7 +760,7 @@ TEST_CASE(dot_int32_one_arg)
         migraphx::shape s_scale{migraphx::shape::float_type, s.lens()};
         auto dc = mm->add_literal(migraphx::literal(s_scale, vec));
 
-        auto beta    = mm->add_literal(-0.0f);
+        auto beta    = mm->add_literal(0.0f);
         auto mb_beta = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", s.lens()}}), beta);
         auto fdot = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
@@ -915,7 +915,7 @@ TEST_CASE(dot_float_convert)
         std::vector<float> vec(sc.elements(), 20.0f);
         migraphx::shape s_scale{migraphx::shape::float_type, sc.lens()};
         auto dc      = mm->add_literal(migraphx::literal(s_scale, vec));
-        auto beta    = mm->add_literal(-0.0f);
+        auto beta    = mm->add_literal(0.0f);
         auto mb_beta = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", sc.lens()}}), beta);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, dc, mb_beta);
@@ -1341,7 +1341,7 @@ TEST_CASE(int8_subgraph)
             then_mod->add_instruction(migraphx::make_op("quant_dot", {{"beta", 0}}), qa, qb);
         std::vector<float> vec(sout.elements(), 100.0f);
         auto so  = then_mod->add_literal(migraphx::literal(sout, vec));
-        auto zpo = then_mod->add_literal(-0.0f);
+        auto zpo = then_mod->add_literal(0.0f);
         zpo      = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", sout.lens()}}), zpo);
         auto r = then_mod->add_instruction(migraphx::make_op("dequantizelinear"), qdot, so, zpo);

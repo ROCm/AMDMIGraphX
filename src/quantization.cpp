@@ -285,8 +285,11 @@ static void ins_quantize_int8(module& modl,
         std::vector<float> vec(s.elements(), scale_val);
         auto scale      = modl.add_literal(literal(s_scale, vec));
         auto l_beta     = modl.add_literal(-1.0f * beta / scale_val);
-        auto zero_point = modl.insert_instruction(
+        auto m_beta     = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
+        auto zero_point = modl.add_literal(0.0f);
+        zero_point = modl.insert_instruction(
+            ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), zero_point);
         if(inputs.size() == 3)
         {
             if(input_c->get_shape().type() != shape::float_type)
@@ -294,7 +297,7 @@ static void ins_quantize_int8(module& modl,
                 input_c = modl.insert_instruction(
                     ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
             }
-            zero_point = modl.insert_instruction(ins, make_op("mul"), zero_point, input_c);
+            zero_point = modl.insert_instruction(ins, make_op("mul"), m_beta, input_c);
             if(zero_point->get_shape().type() != s.type())
             {
                 zero_point = modl.insert_instruction(

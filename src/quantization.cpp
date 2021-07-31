@@ -34,6 +34,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
+static const std::vector<shape::type_t>& get_quantizable_type()
+{
+    static std::vector<shape::type_t> quantable_types = {shape::float_type, shape::double_type, shape::half_type, shape::int32_type};
+    return quantable_types;
+}
+
 instruction_ref insert_quant_ins(module& modl,
                                  const instruction_ref& insert_loc,
                                  instruction_ref& ins,
@@ -53,8 +59,7 @@ instruction_ref insert_quant_ins(module& modl,
     }
 
     auto ins_s = ins->get_shape();
-    assert(ins_s.type() == shape::float_type or ins_s.type() == shape::double_type or
-           ins_s.type() == shape::int32_type or ins_s.type() == shape::half_type);
+    assert(contains(get_quantizable_types(), ins_s.type()));
     instruction_ref quant_ins{};
     if(type == shape::int8_type)
     {
@@ -92,7 +97,6 @@ void quantize_fp16(module& m,
             {
                 auto inputs = ins->inputs();
                 for(auto in : inputs)
-                {
                     if(in->get_shape().type() == shape::half_type)
                     {
                         continue;
@@ -116,7 +120,6 @@ void quantize_fp16(module& m,
                             instruction::replace_argument(ins, in, *it);
                         }
                     }
-                }
             }
 
             break;
@@ -154,48 +157,47 @@ void quantize_fp16(module& m,
         for(auto input : inputs)
         {
             auto s = input->get_shape();
-            if(s.type() == shape::float_type || s.type() == shape::double_type)
+            if(s.type() != shape::float_type and s.type() != shape::double_type)
             {
-                // if the input is a parameter of a subgraph
-                instruction_ref input_fp16{};
-                if(input->name() == "@param")
+                converted_inputs.push_back(input);
+                continue;
+            }
+
+            // if the input is a parameter of a subgraph
+            instruction_ref input_fp16{};
+            if(input->name() == "@param")
+            {
+                if(m.has_instruction(input) and include_param)
                 {
-                    if(m.has_instruction(input) and include_param)
-                    {
-                        auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
-                        shape s16{shape::half_type, s.lens(), s.strides()};
-                        input_fp16 = m.add_parameter(param_name, s16);
-                    }
-                    // parameter is in the parent module
-                    else
-                    {
-                        auto in_outs = input->outputs();
-                        auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                            return (o->name() == "convert" and
-                                    o->get_shape().type() == shape::half_type);
-                        });
-                        assert(it != in_outs.end());
-                        input_fp16 = *it;
-                    }
-                    converted_inputs.push_back(input_fp16);
+                    auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
+                    shape s16{shape::half_type, s.lens(), s.strides()};
+                    input_fp16 = m.add_parameter(param_name, s16);
                 }
-                // if the input is a convert operator, uses its input
-                // as its current input
-                else if(input->name() == "convert" and
-                        input->inputs().front()->get_shape().type() == shape::half_type)
-                {
-                    input_fp16 = input->inputs().front();
-                    converted_inputs.push_back(input_fp16);
-                }
+                // parameter is in the parent module
                 else
                 {
-                    input_fp16 = insert_quant_ins(m, ins, input, shape::half_type, map_fp16);
-                    converted_inputs.push_back(input_fp16);
+                    auto in_outs = input->outputs();
+                    auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                        return (o->name() == "convert" and
+                                o->get_shape().type() == shape::half_type);
+                    });
+                    assert(it != in_outs.end());
+                    input_fp16 = *it;
                 }
+                converted_inputs.push_back(input_fp16);
+            }
+            // if the input is a convert operator, uses its input
+            // as its current input
+            else if(input->name() == "convert" and
+                    input->inputs().front()->get_shape().type() == shape::half_type)
+            {
+                input_fp16 = input->inputs().front();
+                converted_inputs.push_back(input_fp16);
             }
             else
             {
-                converted_inputs.push_back(input);
+                input_fp16 = insert_quant_ins(m, ins, input, shape::half_type, map_fp16);
+                converted_inputs.push_back(input_fp16);
             }
         }
 
@@ -215,27 +217,19 @@ void quantize_fp16(module& m,
                 auto outputs = ins->outputs();
                 for(auto out : outputs)
                 {
-                    bool output_empty = out->outputs().empty();
                     auto out1         = m.insert_instruction(
                         std::next(out),
                         make_op("convert", {{"target_type", out->get_shape().type()}}),
                         out);
-                    if(!output_empty)
-                    {
-                        m.replace_instruction(out, out1);
-                    }
+                    m.replace_instruction(out, out1);
                 }
             }
             else
             {
                 // check the dead code case to avoid assert
-                bool output_empty   = ins->outputs().empty();
                 auto ins_orig_shape = m.insert_instruction(
                     std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
-                if(!output_empty)
-                {
-                    m.replace_instruction(ins, ins_orig_shape);
-                }
+                m.replace_instruction(ins, ins_orig_shape);
             }
         }
         m.replace_instruction(ins, op, converted_inputs, mod_inputs);
@@ -283,12 +277,12 @@ static void ins_quantize_int8(module& modl,
         // wrap scale
         shape s_scale{shape::float_type, s.lens()};
         std::vector<float> vec(s.elements(), scale_val);
-        auto scale  = modl.add_literal(literal(s_scale, vec));
-        auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
-        auto m_beta = modl.insert_instruction(
+        auto scale      = modl.add_literal(literal(s_scale, vec));
+        auto l_beta     = modl.add_literal(-1.0f * beta / scale_val);
+        auto m_beta     = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
         auto zero_point = modl.add_literal(0.0f);
-        zero_point      = modl.insert_instruction(
+        zero_point = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), zero_point);
         if(inputs.size() == 3)
         {
@@ -359,6 +353,7 @@ void quantize_int8_impl(module& m,
                         std::unordered_map<instruction_ref, std::size_t>& map_ins_index,
                         std::size_t& quant_param_index)
 {
+    const auto& quantizable_types = get_quantizable_type();
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@return")
@@ -401,13 +396,7 @@ void quantize_int8_impl(module& m,
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
             auto s                   = input->get_shape();
-            if(inputs.size() == 3 and input == inputs.back())
-            {
-                converted_inputs.push_back(input);
-            }
-            else if((s.type() == shape::float_type or s.type() == shape::double_type or
-                     s.type() == shape::half_type or s.type() == shape::int32_type) and
-                    s.type() != quant_type)
+            if(contains(quantizable_types, s.type()) and s.type() != quant_type and (not(inputs.size() == 3 and input == inputs.back())))
             {
                 // if the input is a convert operator, uses its input
                 // as its current input

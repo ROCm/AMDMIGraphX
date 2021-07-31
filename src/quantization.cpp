@@ -36,7 +36,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
 static const std::vector<shape::type_t>& get_quantizable_type()
 {
-    static std::vector<shape::type_t> quantable_types = {shape::float_type, shape::double_type, shape::half_type, shape::int32_type};
+    static std::vector<shape::type_t> quantable_types = {
+        shape::float_type, shape::double_type, shape::half_type, shape::int32_type};
     return quantable_types;
 }
 
@@ -217,7 +218,7 @@ void quantize_fp16(module& m,
                 auto outputs = ins->outputs();
                 for(auto out : outputs)
                 {
-                    auto out1         = m.insert_instruction(
+                    auto out1 = m.insert_instruction(
                         std::next(out),
                         make_op("convert", {{"target_type", out->get_shape().type()}}),
                         out);
@@ -277,12 +278,12 @@ static void ins_quantize_int8(module& modl,
         // wrap scale
         shape s_scale{shape::float_type, s.lens()};
         std::vector<float> vec(s.elements(), scale_val);
-        auto scale      = modl.add_literal(literal(s_scale, vec));
-        auto l_beta     = modl.add_literal(-1.0f * beta / scale_val);
-        auto m_beta     = modl.insert_instruction(
+        auto scale  = modl.add_literal(literal(s_scale, vec));
+        auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
+        auto m_beta = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
         auto zero_point = modl.add_literal(0.0f);
-        zero_point = modl.insert_instruction(
+        zero_point      = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), zero_point);
         if(inputs.size() == 3)
         {
@@ -396,7 +397,8 @@ void quantize_int8_impl(module& m,
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
             auto s                   = input->get_shape();
-            if(contains(quantizable_types, s.type()) and s.type() != quant_type and (not(inputs.size() == 3 and input == inputs.back())))
+            if(contains(quantizable_types, s.type()) and s.type() != quant_type and
+               (not(inputs.size() == 3 and input == inputs.back())))
             {
                 // if the input is a convert operator, uses its input
                 // as its current input

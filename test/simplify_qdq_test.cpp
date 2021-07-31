@@ -326,9 +326,9 @@ TEST_CASE(conv_bias_add)
                                                         {"padding_mode", 0}}),
                                      q1,
                                      weights);
+        auto d6 = add_quantize_op(m2, "dequantizelinear", c1, sc1, z1);
         auto b1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
-        auto d6 = add_quantize_op(m2, "dequantizelinear", c1, sc1, z1);
         auto a1 = m2.add_instruction(migraphx::make_op("add"), d6, b1);
         m2.add_return({a1});
     }
@@ -424,9 +424,9 @@ TEST_CASE(conv_pooling_dot)
                                                         {"padding_mode", 0}}),
                                      q1,
                                      weights);
+        auto d5 = add_quantize_op(m2, "dequantizelinear", c1, sc1, z1);
         auto bc1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
-        auto d5 = add_quantize_op(m2, "dequantizelinear", c1, sc1, z1);
         auto a1 = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
         auto ap = m2.add_instruction(migraphx::make_op("pooling",
                                                        {{"mode", "average"},

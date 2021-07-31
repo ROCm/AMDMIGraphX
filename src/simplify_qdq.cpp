@@ -22,49 +22,6 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-std::unordered_set<std::string> get_all_op_names()
-{
-    static auto ops = get_operators();
-    static std::unordered_set<std::string> s(ops.begin(), ops.end());
-    return s;
-}
-
-bool inputs_are_zeros(const instruction_ref& ins)
-{
-    literal zp_lit;
-    if(ins->name() == "multibroadcast" or ins->name() == "broadcast")
-        zp_lit = ins->inputs().at(0)->get_literal();
-    else
-        zp_lit = ins->get_literal();
-    std::vector<int64_t> zero_points;
-    zp_lit.visit([&](const auto zp) {
-        std::transform(
-            zp.begin(), zp.end(), std::back_inserter(zero_points), [](auto&& z) { return z; });
-    });
-    return std::all_of(
-        zero_points.begin(), zero_points.end(), [](const auto& z) { return z == 0; });
-}
-
-double get_scale(const instruction_ref& ins)
-{
-    literal scale_lit;
-    if(ins->name() == "multibroadcast" or ins->name() == "broadcast")
-        scale_lit = ins->inputs().at(0)->get_literal();
-    else
-        scale_lit = ins->get_literal();
-    std::vector<float> scales;
-    scale_lit.visit([&](auto sl) {
-        std::transform(
-            sl.begin(), sl.end(), std::back_inserter(scales), [](auto&& s) { return s; });
-    });
-    double epsilon = 1e-6;
-    if(not std::all_of(scales.begin(), scales.end(), [&](const auto& s) {
-           return std::abs(s - scales.front()) < epsilon;
-       }))
-        MIGRAPHX_THROW("Multiple scales not currently supported");
-    return scales.front();
-}
-
 instruction_ref insert_quantize_op(module& m,
                                    instruction_ref ins,
                                    const std::string& name,
@@ -80,60 +37,66 @@ instruction_ref insert_quantize_op(module& m,
     return m.insert_instruction(ins, make_op(name), x, scale_mb, shift_mb);
 }
 
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins) 
+{
+    if (ins->name() != "@literal")
+        return false;
+    bool all_same = false;
+    ins->get_literal().visit([&](auto s) {
+        all_same = std::all_of(s.begin()+1, s.end(), [&](const auto& scale) {
+            return float_equal(scale, s.front());
+        });
+    });
+    return all_same;
+}
+
 struct match_find_quantizable_ops
 {
+
+    static auto dequantizelinear_op(const std::string& name, const std::string& scale) 
+    {
+        return match::name("dequantizelinear")(
+            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any().bind(name))),
+            match::arg(1)(match::skip_broadcasts(has_same_value().bind(scale))),
+            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0))))
+        );
+    }
+
     auto matcher() const
     {
-        return match::name(get_all_op_names())(match::arg(0)(
-            match::name(get_quantizable_op_names())(
-                match::arg(0)(match::name("dequantizelinear")(
-                    match::arg(0)(match::name(get_all_op_names()).bind("q0")).bind("dq0"))),
-                match::arg(1)(match::name("dequantizelinear")(
-                    match::arg(0)(match::name(get_all_op_names()).bind("q1")).bind("dq1"))))
-                .bind("qop")));
+        return match::name(get_quantizable_op_names())(
+            match::arg(0)(dequantizelinear_op("x1", "scale1")),
+            match::arg(1)(dequantizelinear_op("x2", "scale2"))
+        );
     }
 
     void apply(module& m, match::matcher_result r) const
     {
-        auto op  = r.result;
-        auto qop = r.instructions["qop"];
-        auto dq0 = r.instructions["dq0"];
-        auto q0  = r.instructions["q0"];
-        auto dq1 = r.instructions["dq1"];
-        auto q1  = r.instructions["q1"];
+        auto qop  = r.result;
+        auto q1  = r.instructions["x1"];
+        auto q2  = r.instructions["x2"];
+        auto scale1 = r.instructions["scale1"];
+        auto scale2 = r.instructions["scale2"];
 
         // Only INT8 type currently supported
-        if(q0->get_shape().type() != migraphx::shape::int8_type or
-           q1->get_shape().type() != migraphx::shape::int8_type)
+        if(q1->get_shape().type() != migraphx::shape::int8_type or
+           q2->get_shape().type() != migraphx::shape::int8_type)
             return;
 
-        // Only zero_point==0 currently supported
-        auto dq0_args  = dq0->inputs();
-        auto dq1_args  = dq1->inputs();
-        bool all_zeros = true;
-        all_zeros &= inputs_are_zeros(dq0_args.at(2));
-        all_zeros &= inputs_are_zeros(dq1_args.at(2));
-        if(not all_zeros)
-            return;
-
-        auto scale     = get_scale(dq0_args.at(1)) * get_scale(dq1_args.at(1));
+        double scale;
+        visit_all(scale1->get_literal(), scale2->get_literal())([&](const auto s1, const auto s2) {
+            scale = s1.front() * s2.front();
+        });
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = q0;
-        qop_args.at(1) = q1;
+        qop_args.at(0) = q1;
+        qop_args.at(1) = q2;
         instruction_ref dq;
         instruction_ref dq_scale;
         instruction_ref zero_point;
         if(qop->name() == "convolution")
         {
-            auto conv_op = any_cast<op::convolution>(qop->get_operator());
-            qop          = m.insert_instruction(qop,
-                                       migraphx::make_op("quant_convolution",
-                                                         {{"padding", conv_op.padding},
-                                                          {"stride", conv_op.stride},
-                                                          {"dilation", conv_op.dilation},
-                                                          {"padding_mode", conv_op.padding_mode},
-                                                          {"group", conv_op.group}}),
-                                       qop_args);
+            auto conv_val = qop->get_operator().to_value();
+            dq = m.insert_instruction(qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
             dq_scale     = m.add_literal(static_cast<float>(scale));
             zero_point   = m.add_literal(0);
         }
@@ -143,28 +106,13 @@ struct match_find_quantizable_ops
             auto scale_val = dot_op.alpha / scale;
             auto alpha     = 1;
             auto beta      = (qop->inputs().size() == 3) ? dot_op.beta : 0.0f;
-            qop            = m.insert_instruction(
+            dq = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", alpha}, {"beta", beta}}), qop_args);
             dq_scale   = m.add_literal(static_cast<float>(scale_val));
             zero_point = m.add_literal(static_cast<int>((-1.0f * beta) / scale_val));
         }
-        else
-        {
-            MIGRAPHX_THROW(qop->name() + " does not currently have a quantized implementation.");
-        }
-
-        dq              = insert_quantize_op(m, op, "dequantizelinear", qop, dq_scale, zero_point);
-        auto op_args    = op->inputs();
-        op_args.front() = dq;
-        if(op->name() == "@return")
-        {
-            auto ret = m.add_return({dq});
-            m.replace_instruction(op, ret);
-        }
-        else
-        {
-            m.replace_instruction(op, op->get_operator(), op_args);
-        }
+        dq = insert_quantize_op(m, qop, "dequantizelinear", dq, dq_scale, zero_point);
+        m.replace_instruction(qop, dq);
     }
 };
 

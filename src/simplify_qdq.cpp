@@ -37,13 +37,13 @@ instruction_ref insert_quantize_op(module& m,
     return m.insert_instruction(ins, make_op(name), x, scale_mb, shift_mb);
 }
 
-MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins) 
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
 {
-    if (ins->name() != "@literal")
+    if(ins->name() != "@literal")
         return false;
     bool all_same = false;
     ins->get_literal().visit([&](auto s) {
-        all_same = std::all_of(s.begin()+1, s.end(), [&](const auto& scale) {
+        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
             return float_equal(scale, s.front());
         });
     });
@@ -53,28 +53,26 @@ MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
 struct match_find_quantizable_ops
 {
 
-    static auto dequantizelinear_op(const std::string& name, const std::string& scale) 
+    static auto dequantizelinear_op(const std::string& name, const std::string& scale)
     {
         return match::name("dequantizelinear")(
             match::arg(0)(match::skip(match::name("quantizelinear"))(match::any().bind(name))),
             match::arg(1)(match::skip_broadcasts(has_same_value().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0))))
-        );
+            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
     }
 
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
             match::arg(0)(dequantizelinear_op("x1", "scale1")),
-            match::arg(1)(dequantizelinear_op("x2", "scale2"))
-        );
+            match::arg(1)(dequantizelinear_op("x2", "scale2")));
     }
 
     void apply(module& m, match::matcher_result r) const
     {
-        auto qop  = r.result;
-        auto q1  = r.instructions["x1"];
-        auto q2  = r.instructions["x2"];
+        auto qop    = r.result;
+        auto q1     = r.instructions["x1"];
+        auto q2     = r.instructions["x2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
 
@@ -84,9 +82,8 @@ struct match_find_quantizable_ops
             return;
 
         double scale;
-        visit_all(scale1->get_literal(), scale2->get_literal())([&](const auto s1, const auto s2) {
-            scale = s1.front() * s2.front();
-        });
+        visit_all(scale1->get_literal(), scale2->get_literal())(
+            [&](const auto s1, const auto s2) { scale = s1.front() * s2.front(); });
         auto qop_args  = qop->inputs();
         qop_args.at(0) = q1;
         qop_args.at(1) = q2;
@@ -96,9 +93,10 @@ struct match_find_quantizable_ops
         if(qop->name() == "convolution")
         {
             auto conv_val = qop->get_operator().to_value();
-            dq = m.insert_instruction(qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
-            dq_scale     = m.add_literal(static_cast<float>(scale));
-            zero_point   = m.add_literal(0);
+            dq            = m.insert_instruction(
+                qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
+            dq_scale   = m.add_literal(static_cast<float>(scale));
+            zero_point = m.add_literal(0);
         }
         else if(qop->name() == "dot")
         {
@@ -106,7 +104,7 @@ struct match_find_quantizable_ops
             auto scale_val = dot_op.alpha / scale;
             auto alpha     = 1;
             auto beta      = (qop->inputs().size() == 3) ? dot_op.beta : 0.0f;
-            dq = m.insert_instruction(
+            dq             = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", alpha}, {"beta", beta}}), qop_args);
             dq_scale   = m.add_literal(static_cast<float>(scale_val));
             zero_point = m.add_literal(static_cast<int>((-1.0f * beta) / scale_val));

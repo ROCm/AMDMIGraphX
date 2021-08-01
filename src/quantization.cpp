@@ -85,7 +85,9 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
-static void convert_outputs_fp16(module& m, instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+static void convert_outputs_fp16(module& m,
+                                 instruction_ref ins,
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     auto inputs = ins->inputs();
     for(auto in : inputs)
@@ -98,7 +100,7 @@ static void convert_outputs_fp16(module& m, instruction_ref ins, std::unordered_
                 in->get_shape().type() == shape::double_type)
         {
             if(in->name() == "convert" and
-                in->inputs().front()->get_shape().type() == shape::half_type)
+               in->inputs().front()->get_shape().type() == shape::half_type)
             {
                 instruction::replace_argument(ins, in, in->inputs().front());
             }
@@ -106,8 +108,7 @@ static void convert_outputs_fp16(module& m, instruction_ref ins, std::unordered_
             {
                 auto in_outs = in->outputs();
                 auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                    return (o->name() == "convert" and
-                            o->get_shape().type() == shape::half_type);
+                    return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
                 });
                 if(it != in_outs.end())
                 {
@@ -183,8 +184,7 @@ void quantize_fp16(module& m,
             {
                 auto in_outs = input->outputs();
                 auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                    return (o->name() == "convert" and
-                            o->get_shape().type() == shape::half_type);
+                    return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
                 });
                 assert(it != in_outs.end());
                 input_fp16 = *it;

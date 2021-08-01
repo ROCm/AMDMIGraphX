@@ -106,8 +106,8 @@ struct topk
                                : std::less<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)]);
                 };
 
-                topk_value(indices, axis_dim, comp);
-                heap_sort(indices, comp);
+                this->topk_value(indices, axis_dim, comp);
+                this->heap_sort(indices, comp);
 
                 auto out_idx = idx;
                 auto in_idx  = idx;

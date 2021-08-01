@@ -60,7 +60,7 @@ instruction_ref insert_quant_ins(module& modl,
     }
 
     auto ins_s = ins->get_shape();
-    assert(contains(get_quantizable_types(), ins_s.type()));
+    assert(contains(get_quantizable_type(), ins_s.type()));
     instruction_ref quant_ins{};
     if(type == shape::int8_type)
     {

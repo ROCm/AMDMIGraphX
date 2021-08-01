@@ -85,44 +85,57 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
+static void convert_outputs_fp16(module& m, instruction_ref ins, std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    auto inputs = ins->inputs();
+    for(auto in : inputs)
+    {
+        if(in->get_shape().type() == shape::half_type)
+        {
+            continue;
+        }
+        else if(in->get_shape().type() == shape::float_type or
+                in->get_shape().type() == shape::double_type)
+        {
+            if(in->name() == "convert" and
+                in->inputs().front()->get_shape().type() == shape::half_type)
+            {
+                instruction::replace_argument(ins, in, in->inputs().front());
+            }
+            else
+            {
+                auto in_outs = in->outputs();
+                auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                    return (o->name() == "convert" and
+                            o->get_shape().type() == shape::half_type);
+                });
+                if(it != in_outs.end())
+                {
+                    instruction::replace_argument(ins, in, *it);
+                }
+                else
+                {
+                    auto fp16_in = insert_quant_ins(m, ins, in, shape::half_type, map_ins);
+                    instruction::replace_argument(ins, in, fp16_in);
+                }
+            }
+        }
+    }
+}
+
 void quantize_fp16(module& m,
                    const std::vector<std::string>& ins_names,
                    std::unordered_map<instruction_ref, instruction_ref>& map_fp16,
-                   bool include_param = false)
+                   bool quantize_inout = false)
 {
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@return")
         {
-            if(include_param)
+            if(quantize_inout)
             {
-                auto inputs = ins->inputs();
-                for(auto in : inputs)
-                    if(in->get_shape().type() == shape::half_type)
-                    {
-                        continue;
-                    }
-                    else if(in->get_shape().type() == shape::float_type or
-                            in->get_shape().type() == shape::double_type)
-                    {
-                        if(in->name() == "convert" and
-                           in->inputs().front()->get_shape().type() == shape::half_type)
-                        {
-                            instruction::replace_argument(ins, in, in->inputs().front());
-                        }
-                        else
-                        {
-                            auto in_outs = in->outputs();
-                            auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                                return (o->name() == "convert" and
-                                        o->get_shape().type() == shape::half_type);
-                            });
-                            assert(it != in_outs.end());
-                            instruction::replace_argument(ins, in, *it);
-                        }
-                    }
+                convert_outputs_fp16(m, ins, map_fp16);
             }
-
             break;
         }
 
@@ -168,23 +181,13 @@ void quantize_fp16(module& m,
             instruction_ref input_fp16{};
             if(input->name() == "@param")
             {
-                if(m.has_instruction(input) and include_param)
-                {
-                    auto param_name = any_cast<builtin::param>(input->get_operator()).parameter;
-                    shape s16{shape::half_type, s.lens(), s.strides()};
-                    input_fp16 = m.add_parameter(param_name, s16);
-                }
-                // parameter is in the parent module
-                else
-                {
-                    auto in_outs = input->outputs();
-                    auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                        return (o->name() == "convert" and
-                                o->get_shape().type() == shape::half_type);
-                    });
-                    assert(it != in_outs.end());
-                    input_fp16 = *it;
-                }
+                auto in_outs = input->outputs();
+                auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
+                    return (o->name() == "convert" and
+                            o->get_shape().type() == shape::half_type);
+                });
+                assert(it != in_outs.end());
+                input_fp16 = *it;
                 converted_inputs.push_back(input_fp16);
             }
             // if the input is a convert operator, uses its input

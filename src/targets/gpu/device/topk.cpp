@@ -33,6 +33,7 @@ __device__ inline void heap_heapify(T* arr,
                                     Op op)
 {
     auto idx  = css.multi(i);
+    auto idxi = idx;
     auto idxl = idx;
     auto idxr = idx;
     auto idxp = idx;
@@ -42,18 +43,18 @@ __device__ inline void heap_heapify(T* arr,
         int l          = 2 * index + 1;
         int r          = 2 * index + 2;
 
-        idx[axis] = index;
-        idx[axis] = ind[oss.index(idx)];
+        idxi[axis] = index;
+        idx[axis] = ind[oss.index(idxi)];
 
         if(l < n)
         {
-            idxl[axis] = l;
-            idxl[axis] = ind[oss.index(idxl)];
+            idxi[axis] = l;
+            idxl[axis] = ind[oss.index(idxi)];
         }
         if(r < n)
         {
-            idxr[axis] = r;
-            idxr[axis] = ind[oss.index(idxr)];
+            idxi[axis] = r;
+            idxr[axis] = ind[oss.index(idxi)];
         }
 
         if(l < n && op(arr[iss.index(idxl)], arr[iss.index(idx)]))
@@ -75,9 +76,9 @@ __device__ inline void heap_heapify(T* arr,
             break;
         }
 
-        idx[axis]  = index;
+        idxi[axis]  = index;
         idxp[axis] = pre_index;
-        swap(ind[oss.index(idx)], ind[oss.index(idxp)]);
+        swap(ind[oss.index(idxi)], ind[oss.index(idxp)]);
     }
 }
 

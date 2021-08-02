@@ -530,8 +530,7 @@ void capture_arguments(module& m,
             }
             else
             {
-                new_ins = m.insert_instruction(
-                    ins, op::capture{num_quant_params++, func}, input);
+                new_ins = m.insert_instruction(ins, op::capture{num_quant_params++, func}, input);
                 ins_map[input] = new_ins;
             }
             new_args.push_back(new_ins);

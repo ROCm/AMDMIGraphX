@@ -517,15 +517,15 @@ TEST_CASE(op_capture_subgraph)
         auto w = mm->add_parameter("w", sw);
 
         auto* then_mod = p.create_module("If_6_if");
-        auto ca = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 0}}), a);
-        auto cb = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 1}}), b);
-        auto out1      = then_mod->add_instruction(migraphx::make_op("dot"), ca, cb);
+        auto ca   = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 0}}), a);
+        auto cb   = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 1}}), b);
+        auto out1 = then_mod->add_instruction(migraphx::make_op("dot"), ca, cb);
         then_mod->add_return({out1});
 
         auto* else_mod = p.create_module("If_6_else");
-        auto cx = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 2}}), x);
-        auto cw = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 3}}), w);
-        auto out2      = else_mod->add_instruction(migraphx::make_op("convolution"), cx, cw);
+        auto cx   = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 2}}), x);
+        auto cw   = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 3}}), w);
+        auto out2 = else_mod->add_instruction(migraphx::make_op("convolution"), cx, cw);
         else_mod->add_return({out2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -1103,7 +1103,7 @@ TEST_CASE(conv_float_throw)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    test::throws([&] { migraphx::quantize_int8_impl(p, quant_params, {"add"}); } );
+    test::throws([&] { migraphx::quantize_int8_impl(p, quant_params, {"add"}); });
 }
 
 TEST_CASE(conv_int32)

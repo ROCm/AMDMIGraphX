@@ -180,7 +180,9 @@ def main():
     print("\nTest \"{}\" has {} cases:".format(test_name, case_num))
     print("\t Passed: {}".format(correct_num))
     print("\t Failed: {}".format(case_num - correct_num))
-
+    if case_num > correct_num:
+        error_num = case_num - correct_num
+        raise ValueError(str(error_num) + " cases failed!")
 
 if __name__ == "__main__":
     main()

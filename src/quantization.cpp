@@ -85,9 +85,7 @@ instruction_ref insert_quant_ins(module& modl,
     return quant_ins;
 }
 
-static void convert_outputs_fp16(module& m,
-                                 instruction_ref ins,
-                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+static void convert_outputs_fp16(instruction_ref ins)
 {
     auto inputs = ins->inputs();
     for(auto in : inputs)
@@ -99,27 +97,8 @@ static void convert_outputs_fp16(module& m,
         else if(in->get_shape().type() == shape::float_type or
                 in->get_shape().type() == shape::double_type)
         {
-            if(in->name() == "convert" and
-               in->inputs().front()->get_shape().type() == shape::half_type)
-            {
-                instruction::replace_argument(ins, in, in->inputs().front());
-            }
-            else
-            {
-                auto in_outs = in->outputs();
-                auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-                    return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
-                });
-                if(it != in_outs.end())
-                {
-                    instruction::replace_argument(ins, in, *it);
-                }
-                else
-                {
-                    auto fp16_in = insert_quant_ins(m, ins, in, shape::half_type, map_ins);
-                    instruction::replace_argument(ins, in, fp16_in);
-                }
-            }
+            assert(in->name() == "convert" and in->inputs().front()->get_shape().type() == shape::half_type);
+            instruction::replace_argument(ins, in, in->inputs().front());
         }
     }
 }
@@ -135,7 +114,7 @@ void quantize_fp16(module& m,
         {
             if(quantize_inout)
             {
-                convert_outputs_fp16(m, ins, map_fp16);
+                convert_outputs_fp16(ins);
             }
             break;
         }

@@ -184,5 +184,6 @@ def main():
         error_num = case_num - correct_num
         raise ValueError(str(error_num) + " cases failed!")
 
+
 if __name__ == "__main__":
     main()

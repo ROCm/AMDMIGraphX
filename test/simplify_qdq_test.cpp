@@ -7,6 +7,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/generate.hpp>
 
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
@@ -24,11 +25,55 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
                                           migraphx::instruction_ref shift)
 {
     auto lens = x->get_shape().lens();
-    auto scale_mb =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
+    migraphx::instruction_ref scale_mb;
+    if (scale->get_shape().lens().front() == 1)
+        scale_mb =  m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
+    else
+        scale_mb = m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}), scale);
     auto shift_mb =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), shift);
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
+}
+
+TEST_CASE(remove_qdq)
+{
+    migraphx::shape sh1{migraphx::shape::float_type, {100, 100}};
+    migraphx::shape sh2{migraphx::shape::float_type, {100, 100}};
+    migraphx::shape ss{migraphx::shape::float_type, {1}};
+    migraphx::shape zs{migraphx::shape::int8_type, {1}};
+
+    std::vector<float> scale{0.5};
+    std::vector<int> zero{0};
+
+    migraphx::module m1;
+    {
+        auto t1 = m1.add_parameter("t1", sh1);
+        auto t2 = m1.add_parameter("t2", sh2);
+        auto sc = m1.add_literal(ss, scale);
+        auto z  = m1.add_literal(zs, zero);
+
+        auto q1 = add_quantize_op(m1, "quantizelinear", t1, sc, z);
+        auto d1 = add_quantize_op(m1, "dequantizelinear", q1, sc, z);
+        auto q2 = add_quantize_op(m1, "quantizelinear", t2, sc, z);
+        auto d2 = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
+        auto add =
+            m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q3 = add_quantize_op(m1, "quantizelinear", add, sc, z);
+        auto d3 = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
+        m1.add_return({d3});
+    }
+
+    migraphx::module m2;
+    {
+        auto t1  = m2.add_parameter("t1", sh1);
+        auto t2  = m2.add_parameter("t2", sh2);
+
+        auto add = m2.add_instruction(migraphx::make_op("add"), t1, t2);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(dot)
@@ -263,6 +308,59 @@ TEST_CASE(conv)
                                      weights);
         auto d6 = add_quantize_op(m2, "dequantizelinear", c1, sc1, z1);
         m2.add_return({d6});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(conv_multi_scale)
+{
+    migraphx::shape s1{migraphx::shape::int8_type, {1}};
+    migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
+    migraphx::shape s7{migraphx::shape::float_type, {1, 320, 7, 7}};
+    migraphx::shape s8{migraphx::shape::float_type, {320}};
+
+    std::vector<int> zero{0};
+
+    migraphx::module m1;
+    {
+        auto input   = m1.add_parameter("input", s7);
+        auto weights = m1.add_parameter("weights", s4);
+        auto l1      = m1.add_literal(s1, zero);
+        auto l2      = m1.add_literal(migraphx::generate_literal(s8, 0));
+
+        auto d1 = add_quantize_op(m1, "dequantizelinear", weights, l2, l1);
+        auto q1 = add_quantize_op(m1, "quantizelinear", input, l2, l1);
+        auto d5 = add_quantize_op(m1, "dequantizelinear", q1, l2, l1);
+        auto c1 = m1.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     d5,
+                                     d1);
+        m1.add_return({c1});
+    }
+
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s7);
+        auto weights = m2.add_parameter("weights", s4);
+        auto l1      = m2.add_literal(s1, zero);
+        auto l2      = m2.add_literal(migraphx::generate_literal(s8, 0));
+
+        auto d1 = add_quantize_op(m2, "dequantizelinear", weights, l2, l1);
+        auto c1 = m2.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {0, 0, 0, 0}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1},
+                                                        {"padding_mode", 0}}),
+                                     input,
+                                     d1);
+        m2.add_return({c1});
     }
 
     run_pass(m1);

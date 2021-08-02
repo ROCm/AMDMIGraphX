@@ -22,21 +22,6 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-instruction_ref insert_quantize_op(module& m,
-                                   instruction_ref ins,
-                                   const std::string& name,
-                                   instruction_ref x,
-                                   instruction_ref scale,
-                                   instruction_ref shift)
-{
-    auto lens = x->get_shape().lens();
-    auto scale_mb =
-        m.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), scale);
-    auto shift_mb =
-        m.insert_instruction(ins, make_op("multibroadcast", {{"output_lens", lens}}), shift);
-    return m.insert_instruction(ins, make_op(name), x, scale_mb, shift_mb);
-}
-
 MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
 {
     if(ins->name() != "@literal")
@@ -84,6 +69,7 @@ struct match_find_quantizable_ops
         double scale;
         visit_all(scale1->get_literal(), scale2->get_literal())(
             [&](const auto s1, const auto s2) { scale = s1.front() * s2.front(); });
+
         auto qop_args  = qop->inputs();
         qop_args.at(0) = q1;
         qop_args.at(1) = q2;
@@ -109,7 +95,11 @@ struct match_find_quantizable_ops
             dq_scale   = m.add_literal(static_cast<float>(scale_val));
             zero_point = m.add_literal(static_cast<int>((-1.0f * beta) / scale_val));
         }
-        dq = insert_quantize_op(m, qop, "dequantizelinear", dq, dq_scale, zero_point);
+
+        auto lens = dq->get_shape().lens();
+        auto scale_mb = m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), dq_scale);
+        auto shift_mb = m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
+        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, scale_mb, shift_mb);
         m.replace_instruction(qop, dq);
     }
 };

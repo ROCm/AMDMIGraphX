@@ -26,7 +26,7 @@ struct parse_topk : op_parser<parse_topk>
         }
         else if(contains(info.attributes, "k"))
         {
-            k = info.attributes.at("axis").i();
+            k = info.attributes.at("k").i();
         }
 
         bool largest = true;

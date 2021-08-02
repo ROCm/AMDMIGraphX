@@ -4162,6 +4162,20 @@ def tile_test_3x2():
 
 
 @onnx_test
+def topk_attrk_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 2, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 2, 3, 2])
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data'],
+                                 outputs=['val', 'indices'],
+                                 k=2)
+    return ([node], [x], [val, ind])
+
+
+@onnx_test
 def topk_neg_axis_test():
     k = np.array([3])
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])

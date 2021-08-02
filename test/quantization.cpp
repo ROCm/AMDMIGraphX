@@ -305,8 +305,9 @@ TEST_CASE(fp16_subgraph)
         auto add0 = then_mod->add_instruction(migraphx::make_op("add"), x, m1);
         auto m2   = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
-        auto mul0 = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
-        auto mfp16 = then_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), mul0);
+        auto mul0  = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
+        auto mfp16 = then_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), mul0);
         then_mod->add_return({add0, mul0, mfp16});
 
         auto* else_mod = p.create_module("If_6_else");
@@ -315,14 +316,15 @@ TEST_CASE(fp16_subgraph)
         auto mul1 = else_mod->add_instruction(migraphx::make_op("mul"), x, me1);
         auto me2  = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
-        auto add1 = else_mod->add_instruction(migraphx::make_op("add"), y, me2);
-        auto afp16 = else_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), add1);
+        auto add1  = else_mod->add_instruction(migraphx::make_op("add"), y, me2);
+        auto afp16 = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), add1);
         else_mod->add_return({mul1, add1, afp16});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
         auto r0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
         auto r1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), ret);
-        auto r16  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), ret);
+        auto r16 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), ret);
         mm->add_return({r0, r1, r16});
 
         return p;
@@ -366,9 +368,11 @@ TEST_CASE(fp16_subgraph)
         auto ad   = then_mod->add_instruction(migraphx::make_op("add"), hx, mhl1);
         auto mhl2 = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), hl2);
-        auto mu = then_mod->add_instruction(migraphx::make_op("mul"), hy, mhl2);
-        auto mu_fp32 = then_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu);
-        auto mu_fp16 = then_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), mu_fp32);
+        auto mu      = then_mod->add_instruction(migraphx::make_op("mul"), hy, mhl2);
+        auto mu_fp32 = then_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu);
+        auto mu_fp16 = then_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), mu_fp32);
         then_mod->add_return({ad, mu, mu_fp16});
 
         auto* else_mod = p.create_module("If_6_else");
@@ -377,9 +381,11 @@ TEST_CASE(fp16_subgraph)
         auto mu1  = else_mod->add_instruction(migraphx::make_op("mul"), hx, mhl3);
         auto mhl4 = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), hl3);
-        auto ad1 = else_mod->add_instruction(migraphx::make_op("add"), hy, mhl4);
-        auto ad_fp32 = else_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad1);
-        auto ad_fp16 = else_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ad_fp32);
+        auto ad1     = else_mod->add_instruction(migraphx::make_op("add"), hy, mhl4);
+        auto ad_fp32 = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad1);
+        auto ad_fp16 = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ad_fp32);
         else_mod->add_return({mu1, ad1, ad_fp16});
 
         auto iff = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
@@ -390,7 +396,8 @@ TEST_CASE(fp16_subgraph)
         auto r1  = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hr1);
         auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), iff);
-        r2 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r2);
+        r2      = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), r2);
         mm->add_return({r0, r1, r2});
 
         return p;
@@ -399,7 +406,7 @@ TEST_CASE(fp16_subgraph)
     auto p1 = create_program();
     migraphx::quantize_fp16(p1);
     migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
-    
+
     auto p2 = create_fp16_program();
 
     EXPECT(p1 == p2);

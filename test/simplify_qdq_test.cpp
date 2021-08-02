@@ -26,10 +26,12 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
 {
     auto lens = x->get_shape().lens();
     migraphx::instruction_ref scale_mb;
-    if (scale->get_shape().lens().front() == 1)
-        scale_mb =  m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
+    if(scale->get_shape().lens().front() == 1)
+        scale_mb =
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
     else
-        scale_mb = m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}), scale);
+        scale_mb =
+            m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}), scale);
     auto shift_mb =
         m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), shift);
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
@@ -52,21 +54,20 @@ TEST_CASE(remove_qdq)
         auto sc = m1.add_literal(ss, scale);
         auto z  = m1.add_literal(zs, zero);
 
-        auto q1 = add_quantize_op(m1, "quantizelinear", t1, sc, z);
-        auto d1 = add_quantize_op(m1, "dequantizelinear", q1, sc, z);
-        auto q2 = add_quantize_op(m1, "quantizelinear", t2, sc, z);
-        auto d2 = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
-        auto add =
-            m1.add_instruction(migraphx::make_op("add"), d1, d2);
-        auto q3 = add_quantize_op(m1, "quantizelinear", add, sc, z);
-        auto d3 = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
+        auto q1  = add_quantize_op(m1, "quantizelinear", t1, sc, z);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", q1, sc, z);
+        auto q2  = add_quantize_op(m1, "quantizelinear", t2, sc, z);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", q2, sc, z);
+        auto add = m1.add_instruction(migraphx::make_op("add"), d1, d2);
+        auto q3  = add_quantize_op(m1, "quantizelinear", add, sc, z);
+        auto d3  = add_quantize_op(m1, "dequantizelinear", q3, sc, z);
         m1.add_return({d3});
     }
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
+        auto t1 = m2.add_parameter("t1", sh1);
+        auto t2 = m2.add_parameter("t2", sh2);
 
         auto add = m2.add_instruction(migraphx::make_op("add"), t1, t2);
         m2.add_return({add});

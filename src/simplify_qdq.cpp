@@ -97,8 +97,10 @@ struct match_find_quantizable_ops
         }
 
         auto lens = dq->get_shape().lens();
-        auto scale_mb = m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), dq_scale);
-        auto shift_mb = m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
+        auto scale_mb =
+            m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), dq_scale);
+        auto shift_mb = m.insert_instruction(
+            qop, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
         dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, scale_mb, shift_mb);
         m.replace_instruction(qop, dq);
     }

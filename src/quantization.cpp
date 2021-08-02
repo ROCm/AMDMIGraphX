@@ -508,6 +508,12 @@ void capture_arguments(module& m,
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))
     {
+        auto mod_inputs = ins->module_inputs();
+        for(auto*& smod : mod_inputs)
+        {
+            capture_arguments(*smod, ins_names, func, num_quant_params);
+        }
+
         if(not contains(ins_names, ins->name()))
         {
             continue;
@@ -525,16 +531,10 @@ void capture_arguments(module& m,
             else
             {
                 new_ins = m.insert_instruction(
-                    std::next(input), op::capture{num_quant_params++, func}, input);
+                    ins, op::capture{num_quant_params++, func}, input);
                 ins_map[input] = new_ins;
             }
             new_args.push_back(new_ins);
-        }
-
-        auto mod_inputs = ins->module_inputs();
-        for(auto*& smod : mod_inputs)
-        {
-            capture_arguments(*smod, ins_names, func, num_quant_params);
         }
 
         instruction::replace(ins, ins->get_operator(), ins->get_shape(), new_args);

@@ -12,7 +12,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/serialize.hpp>
 
 #include "migraphx/shape.hpp"
@@ -447,9 +446,9 @@ TEST_CASE(op_capture)
         auto pb  = mm->add_parameter("b", s2);
         auto pc  = mm->add_parameter("c", s2);
         auto pa  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-        auto opb = mm->insert_instruction(std::next(pb), migraphx::op::capture{1, test_func}, pb);
-        auto opc = mm->insert_instruction(std::next(pc), migraphx::op::capture{2, test_func}, pc);
         auto opa = mm->add_instruction(migraphx::op::capture{0, test_func}, pa);
+        auto opb = mm->add_instruction(migraphx::op::capture{1, test_func}, pb);
+        auto opc = mm->add_instruction(migraphx::op::capture{2, test_func}, pc);
         auto ps  = mm->add_instruction(migraphx::make_op("dot"), opa, opb, opc);
         auto ops = mm->add_instruction(migraphx::op::capture{3, test_func}, ps);
         mm->add_instruction(migraphx::make_op("dot"), opa, ops);
@@ -459,6 +458,84 @@ TEST_CASE(op_capture)
 
     {
         auto p             = create_program_float();
+        auto op_capture_p  = create_program_op();
+        migraphx::target t = migraphx::ref::target{};
+        migraphx::capture_arguments(p, t, {"dot", "convolution"});
+        EXPECT(p == op_capture_p);
+    }
+}
+
+TEST_CASE(op_capture_subgraph)
+{
+    auto test_func = [&](std::size_t ins_index, const std::vector<migraphx::argument>& args) {
+        (void)ins_index;
+        (void)args;
+    };
+
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sx{migraphx::shape::float_type, {2, 2, 4, 8}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2, 8, 6}};
+        migraphx::shape sc{migraphx::shape::bool_type};
+        auto cond = mm->add_parameter("cond", sc);
+        auto a    = mm->add_parameter("a", sx);
+        auto b    = mm->add_parameter("b", sy);
+
+        migraphx::shape sd{migraphx::shape::float_type, {2, 2, 4, 6}};
+        migraphx::shape sw{migraphx::shape::float_type, {2, 2, 1, 1}};
+        auto x = mm->add_parameter("x", sd);
+        auto w = mm->add_parameter("w", sw);
+
+        auto* then_mod = p.create_module("If_6_if");
+        auto out1      = then_mod->add_instruction(migraphx::make_op("dot"), a, b);
+        then_mod->add_return({out1});
+
+        auto* else_mod = p.create_module("If_6_else");
+        auto out2      = else_mod->add_instruction(migraphx::make_op("convolution"), x, w);
+        else_mod->add_return({out2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    auto create_program_op = [&] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sx{migraphx::shape::float_type, {2, 2, 4, 8}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2, 8, 6}};
+        migraphx::shape sc{migraphx::shape::bool_type};
+        auto cond = mm->add_parameter("cond", sc);
+        auto a    = mm->add_parameter("a", sx);
+        auto b    = mm->add_parameter("b", sy);
+
+        migraphx::shape sd{migraphx::shape::float_type, {2, 2, 4, 6}};
+        migraphx::shape sw{migraphx::shape::float_type, {2, 2, 1, 1}};
+        auto x = mm->add_parameter("x", sd);
+        auto w = mm->add_parameter("w", sw);
+
+        auto* then_mod = p.create_module("If_6_if");
+        auto ca = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 0}}), a);
+        auto cb = then_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 1}}), b);
+        auto out1      = then_mod->add_instruction(migraphx::make_op("dot"), ca, cb);
+        then_mod->add_return({out1});
+
+        auto* else_mod = p.create_module("If_6_else");
+        auto cx = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 2}}), x);
+        auto cw = else_mod->add_instruction(migraphx::make_op("capture", {{"ins_index", 3}}), w);
+        auto out2      = else_mod->add_instruction(migraphx::make_op("convolution"), cx, cw);
+        else_mod->add_return({out2});
+
+        auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
+        mm->add_return({ret});
+
+        return p;
+    };
+
+    {
+        auto p             = create_program();
         auto op_capture_p  = create_program_op();
         migraphx::target t = migraphx::ref::target{};
         migraphx::capture_arguments(p, t, {"dot", "convolution"});
@@ -1009,6 +1086,26 @@ TEST_CASE(conv_float)
     EXPECT(p == qp);
 }
 
+TEST_CASE(conv_float_throw)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto r = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        mm->add_return({r});
+
+        return p;
+    };
+
+    auto p = create_program();
+    const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
+    test::throws([&] { migraphx::quantize_int8_impl(p, quant_params, {"add"}); } );
+}
+
 TEST_CASE(conv_int32)
 {
     auto create_program = [] {
@@ -1312,12 +1409,10 @@ TEST_CASE(int8_subgraph)
 
         auto* then_mod = p.create_module("If_6_if");
         auto out1      = then_mod->add_instruction(migraphx::make_op("dot"), a, b);
-        std::cout << "then_shape = " << out1->get_shape() << std::endl;
         then_mod->add_return({out1});
 
         auto* else_mod = p.create_module("If_6_else");
         auto out2      = else_mod->add_instruction(migraphx::make_op("convolution"), x, w);
-        std::cout << "else_shape = " << out2->get_shape() << std::endl;
         else_mod->add_return({out2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});

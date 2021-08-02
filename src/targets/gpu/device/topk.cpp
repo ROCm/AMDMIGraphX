@@ -44,7 +44,7 @@ __device__ inline void heap_heapify(T* arr,
         int r          = 2 * index + 2;
 
         idxi[axis] = index;
-        idx[axis] = ind[oss.index(idxi)];
+        idx[axis]  = ind[oss.index(idxi)];
 
         if(l < n)
         {
@@ -76,7 +76,7 @@ __device__ inline void heap_heapify(T* arr,
             break;
         }
 
-        idxi[axis]  = index;
+        idxi[axis] = index;
         idxp[axis] = pre_index;
         swap(ind[oss.index(idxi)], ind[oss.index(idxp)]);
     }

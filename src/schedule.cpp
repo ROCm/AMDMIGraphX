@@ -30,16 +30,6 @@ auto get_inputs()
     return [](auto i) { return i->inputs(); };
 }
 
-auto get_inputs(module& m)
-{
-    return [&](auto i) {
-        auto inputs = i->inputs();
-        // discard inputs not in the module
-        erase_if(inputs, [&](auto ins) { return not m.has_instruction(ins); });
-        return inputs;
-    };
-}
-
 auto get_outputs()
 {
     return [](auto i) { return i->outputs(); };
@@ -523,7 +513,7 @@ void schedule::apply(module& p) const
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
             std::cout << " input={";
-            si.get_streams_from(ins, get_inputs(p))([&](auto s) {
+            si.get_streams_from(ins, get_inputs())([&](auto s) {
                 std::cout << s << ",";
                 return true;
             });

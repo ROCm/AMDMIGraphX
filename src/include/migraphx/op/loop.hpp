@@ -86,9 +86,9 @@ struct loop
     {
         // wrap up the arguments vector, so ref and gpu impl are the same
         auto cpy_args = args;
-        bool in_cond = args.at(1).at<bool>();
-        bool cond = in_cond;
-        int64_t iter = 0;
+        bool in_cond  = args.at(1).at<bool>();
+        bool cond     = in_cond;
+        int64_t iter  = 0;
         // insert iter and cond used in the loop
         cpy_args.insert(cpy_args.begin() + 1, {{shape::int64_type}, &iter});
         cpy_args.insert(cpy_args.begin() + 3, {{shape::bool_type}, &cond});
@@ -102,8 +102,8 @@ struct loop
         cpy_args.erase(cpy_args.begin() + 2);
         cpy_args.erase(cpy_args.begin());
 
-        auto input_num           = cpy_args.size() - 2;
-        auto dep_num             = input_num - 2;
+        auto input_num = cpy_args.size() - 2;
+        auto dep_num   = input_num - 2;
 
         module_ref mod           = mods.at(0);
         auto param_name_shapes   = mod->get_parameter_shapes();

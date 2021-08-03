@@ -8,7 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 argument::argument(const shape& s) : m_shape(s)
 {
-    if (s.type() == shape::tuple_type)
+    if(s.type() == shape::tuple_type)
     {
         const auto& ss = s.sub_shapes();
         std::vector<argument> args;
@@ -20,7 +20,7 @@ argument::argument(const shape& s) : m_shape(s)
     else
     {
         auto buffer = make_shared_array<char>(s.bytes());
-        m_data      = {[=]() mutable { return buffer.get(); }};        
+        m_data      = {[=]() mutable { return buffer.get(); }};
     }
 }
 

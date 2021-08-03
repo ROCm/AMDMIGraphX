@@ -43,17 +43,17 @@ hip_loop::compute(context& ctx,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    auto cpy_args           = args;
+    auto cpy_args = args;
 
     // process argu lists
     auto iter_num = cpy_args.at(0).at<int64_t>();
-    auto cond = cpy_args.at(2).at<bool>();
+    auto cond     = cpy_args.at(2).at<bool>();
 
     cpy_args.erase(cpy_args.begin() + 2);
     cpy_args.erase(cpy_args.begin());
 
-    auto input_num           = cpy_args.size() - 2;
-    auto dep_num             = input_num - 2;
+    auto input_num = cpy_args.size() - 2;
+    auto dep_num   = input_num - 2;
 
     module_ref mod           = mods.at(0);
     auto param_name_shapes   = mod->get_parameter_shapes();

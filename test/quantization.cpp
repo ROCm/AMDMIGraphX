@@ -533,7 +533,7 @@ TEST_CASE(op_capture_subgraph)
         auto p             = create_program();
         auto op_capture_p  = create_program_op();
         migraphx::target t = migraphx::ref::target{};
-        migraphx::capture_arguments(p, t, {"dot", "convolution"}, );
+        migraphx::capture_arguments(p, t, {"dot", "convolution"});
         EXPECT(p == op_capture_p);
     }
 }

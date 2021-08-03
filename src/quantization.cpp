@@ -1,3 +1,4 @@
+#include "migraphx/float_equal.hpp"
 #include "migraphx/instruction_ref.hpp"
 #include "migraphx/literal.hpp"
 #include <migraphx/quantization.hpp>
@@ -262,14 +263,14 @@ static void ins_quantize_int8(module& modl,
         shape s_scale{shape::float_type, s.lens()};
         std::vector<float> vec(s.elements(), scale_val);
         auto scale  = modl.add_literal(literal(s_scale, vec));
-        auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
-        auto m_beta = modl.insert_instruction(
-            ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
         auto zero_point = modl.add_literal(0.0f);
         zero_point      = modl.insert_instruction(
             ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), zero_point);
-        if(inputs.size() == 3)
+        if(inputs.size() == 3 and (not float_equal(beta, 0.0f)))
         {
+            auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
+            auto m_beta = modl.insert_instruction(
+            ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
             if(input_c->get_shape().type() != shape::float_type)
             {
                 input_c = modl.insert_instruction(

@@ -44,13 +44,12 @@ hip_loop::compute(context& ctx,
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
     auto cpy_args = args;
-    std::vector<argument> cpu_args;
-    cpu_args.push_back(cpy_args.at(1));
-    cpu_args.push_back(cpy_args.at(3));
+    const auto arg_iter_num = cpy_args.at(1);
+    const auto arg_cond = cpy_args.at(3);
     cpy_args.erase(cpy_args.begin() + 3);
     cpy_args.erase(cpy_args.begin() + 1);
 
-    auto iter_num = cpu_args.at(0).at<int64_t>();
+    auto iter_num = arg_iter_num.at<int64_t>();
     if(iter_num > op.max_iter_num)
     {
         MIGRAPHX_THROW("LOOP compute(): iter_num " + std::to_string(iter_num) +
@@ -59,7 +58,7 @@ hip_loop::compute(context& ctx,
                        " in onnx_options before parsing onnx file!");
     }
 
-    auto cond                = cpu_args.at(1).at<bool>();
+    auto cond                = arg_cond.at<bool>();
     module_ref mod           = mods.at(0);
     auto input_num           = cpy_args.size() - 2;
     auto dep_num             = input_num - 2;

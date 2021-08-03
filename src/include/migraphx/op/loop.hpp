@@ -84,35 +84,38 @@ struct loop
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        auto iter_num = args.at(0).at<int64_t>();
-        if(iter_num > max_iter_num)
-        {
-            MIGRAPHX_THROW("LOOP compute(): iter_num " + std::to_string(iter_num) +
-                           " larger than max_iter_num " + std::to_string(max_iter_num) +
-                           ", please set the max_iter_num to at least " + std::to_string(iter_num) +
-                           " in onnx_options before parsing onnx file!");
-        }
+        // wrap up the arguments vector, so ref and gpu impl are the same
+        auto cpy_args = args;
+        bool in_cond = args.at(1).at<bool>();
+        bool cond = in_cond;
+        int64_t iter = 0;
+        // insert iter and cond used in the loop
+        cpy_args.insert(cpy_args.begin() + 1, {{shape::int64_type}, &iter});
+        cpy_args.insert(cpy_args.begin() + 3, {{shape::bool_type}, &cond});
+        // add cond and mod outputs to the argument list
+        cpy_args.push_back(argument(shape{shape::bool_type}));
+        cpy_args.push_back(argument(out_shape));
 
-        auto cond                = args.at(1).at<bool>();
-        std::size_t dep_num      = args.size() - 2;
+        // process argu lists
+        auto iter_num = cpy_args.at(0).at<int64_t>();
+
+        cpy_args.erase(cpy_args.begin() + 2);
+        cpy_args.erase(cpy_args.begin());
+
+        auto input_num           = cpy_args.size() - 2;
+        auto dep_num             = input_num - 2;
+
         module_ref mod           = mods.at(0);
-        auto mod_name            = mod->name();
+        auto param_name_shapes   = mod->get_parameter_shapes();
         std::string param_prefix = "#" + mod->name() + "_in_";
 
-        std::vector<shape> vec_out_shapes = out_shape.sub_shapes();
-        std::vector<argument> scan_outputs;
-        std::transform(vec_out_shapes.begin() + dep_num,
-                       vec_out_shapes.end(),
-                       std::back_inserter(scan_outputs),
-                       [&](auto& s) { return argument{s}; });
+        std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
+        std::vector<argument> out_args = {cpy_args.at(input_num)};
+        auto ins_outputs               = cpy_args.back().get_sub_objects();
+        out_args.insert(out_args.end(), ins_outputs.begin(), ins_outputs.end());
 
-        std::vector<argument> in_args(args.begin() + 2, args.end());
-        shape s_iter{shape::int64_type};
-        shape s_cond{shape::bool_type};
-        uint64_t iter = 0;
-        in_args.insert(in_args.begin(), {s_cond, &cond});
-        in_args.insert(in_args.begin(), {s_iter, &iter});
-        const auto& param_name_shapes = mod->get_parameter_shapes();
+        std::vector<argument> scan_outputs(ins_outputs.begin() + dep_num, ins_outputs.end());
+
         for(iter = 0; (iter < iter_num) and cond; ++iter)
         {
             std::unordered_map<std::string, argument> params;

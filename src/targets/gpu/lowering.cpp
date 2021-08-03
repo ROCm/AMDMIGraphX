@@ -474,25 +474,25 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
-            auto sync_iter =
+            auto synced_max_iter =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
-            inputs.at(0)  = sync_iter;
+            inputs.at(0)  = synced_max_iter;
             inputs.at(1)  = cpu_cond;
-            auto gpu_iter = mod->insert_instruction(
+            auto arg_iter = mod->insert_instruction(
                 ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(0)->get_shape())}}));
-            auto gpu_cond = mod->insert_instruction(
+            auto arg_cond = mod->insert_instruction(
                 ins, make_op("hip::allocate", {{"shape", to_value(inputs.at(1)->get_shape())}}));
-            inputs.insert(inputs.begin() + 1, gpu_cond);
-            inputs.insert(inputs.begin(), gpu_iter);
+            inputs.insert(inputs.begin() + 1, arg_iter);
+            inputs.insert(inputs.begin() + 3, arg_cond);
             auto mod_args = ins->module_inputs();
-            auto ins_s    = ins->get_shape();
-            auto output   = insert_allocation(ins, ins_s);
+            auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
             auto cond_out       = mod->insert_instruction(
                 ins,
                 make_op("hip::allocate",
                         {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+            // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);
             inputs.push_back(output);
 
@@ -503,6 +503,7 @@ struct miopen_apply
 };
 
 void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

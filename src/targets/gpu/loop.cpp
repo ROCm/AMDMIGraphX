@@ -44,26 +44,21 @@ hip_loop::compute(context& ctx,
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
     auto cpy_args           = args;
-    const auto arg_iter_num = cpy_args.at(1);
-    const auto arg_cond     = cpy_args.at(3);
-    cpy_args.erase(cpy_args.begin() + 3);
-    cpy_args.erase(cpy_args.begin() + 1);
 
-    auto iter_num = arg_iter_num.at<int64_t>();
-    if(iter_num > op.max_iter_num)
-    {
-        MIGRAPHX_THROW("LOOP compute(): iter_num " + std::to_string(iter_num) +
-                       " larger than max_iter_num " + std::to_string(op.max_iter_num) +
-                       ", please set the max_iter_num to at least " + std::to_string(iter_num) +
-                       " in onnx_options before parsing onnx file!");
-    }
+    // process argu lists
+    auto iter_num = cpy_args.at(0).at<int64_t>();
+    auto cond = cpy_args.at(2).at<bool>();
 
-    auto cond                = arg_cond.at<bool>();
-    module_ref mod           = mods.at(0);
+    cpy_args.erase(cpy_args.begin() + 2);
+    cpy_args.erase(cpy_args.begin());
+
     auto input_num           = cpy_args.size() - 2;
     auto dep_num             = input_num - 2;
+
+    module_ref mod           = mods.at(0);
     auto param_name_shapes   = mod->get_parameter_shapes();
     std::string param_prefix = "#" + mod->name() + "_in_";
+
     std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
     std::vector<argument> out_args = {cpy_args.at(input_num)};
     auto mod_outputs               = cpy_args.back().get_sub_objects();

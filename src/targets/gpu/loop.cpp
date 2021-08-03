@@ -43,9 +43,9 @@ hip_loop::compute(context& ctx,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    auto cpy_args = args;
+    auto cpy_args           = args;
     const auto arg_iter_num = cpy_args.at(1);
-    const auto arg_cond = cpy_args.at(3);
+    const auto arg_cond     = cpy_args.at(3);
     cpy_args.erase(cpy_args.begin() + 3);
     cpy_args.erase(cpy_args.begin() + 1);
 

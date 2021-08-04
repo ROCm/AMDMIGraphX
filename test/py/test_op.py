@@ -1,4 +1,4 @@
-import migraphx, array, sys
+import migraphx
 
 
 def test_add_op():

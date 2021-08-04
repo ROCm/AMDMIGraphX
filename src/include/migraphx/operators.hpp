@@ -81,6 +81,7 @@
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
+#include <migraphx/op/scatter.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>

@@ -84,9 +84,6 @@ struct onnx_parser
 
 shape::type_t get_type(int dtype);
 
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1);
-
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

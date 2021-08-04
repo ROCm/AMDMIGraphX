@@ -73,6 +73,7 @@ add_library(migraphx_device
     device/rnn_variable_seq_lens.cpp
     device/round.cpp
     device/rsqrt.cpp
+    device/scatter.cpp
     device/sigmoid.cpp
     device/sign.cpp
     device/sin.cpp
@@ -145,8 +146,9 @@ add_library(migraphx_gpu
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
-    softmax.cpp
+    scatter.cpp
     schedule_model.cpp
+    softmax.cpp
     sync_device.cpp
     target.cpp
     write_literals.cpp
@@ -204,6 +206,7 @@ register_migraphx_gpu_ops(hip_
     reverse
     round
     rsqrt
+    scatter
     sigmoid
     sign
     sinh

@@ -81,20 +81,19 @@ struct match_find_quantizable_ops
             auto conv_val = qop->get_operator().to_value();
             dq            = m.insert_instruction(
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
-            dq_scale   = m.add_literal(static_cast<float>(scale));
-            zero_point = m.add_literal(0);
         }
         else if(qop->name() == "dot")
         {
             auto dot_op    = any_cast<op::dot>(qop->get_operator());
-            auto scale_val = dot_op.alpha / scale;
-            auto alpha     = 1;
-            auto beta      = (qop->inputs().size() == 3) ? dot_op.beta : 0.0f;
+            if (!(float_equal(dot_op.alpha, 1.0f) and float_equal(dot_op.beta, 0.0f)))
+                return;
+            if (qop_args.size() == 3)
+                qop_args.pop_back();
             dq             = m.insert_instruction(
-                qop, migraphx::make_op("quant_dot", {{"alpha", alpha}, {"beta", beta}}), qop_args);
-            dq_scale   = m.add_literal(static_cast<float>(scale_val));
-            zero_point = m.add_literal(static_cast<int>((-1.0f * beta) / scale_val));
+                qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }
+        dq_scale   = m.add_literal(static_cast<float>(scale));
+        zero_point = m.add_literal(0);
 
         auto lens = dq->get_shape().lens();
         auto scale_mb =
@@ -105,6 +104,28 @@ struct match_find_quantizable_ops
         m.replace_instruction(qop, dq);
     }
 };
+
+bool compare_literals(instruction_ref ins1, instruction_ref ins2)
+{
+    if (ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
+        ins1 = ins1->inputs().front();
+    if (!ins1->can_eval())
+        return false;
+    auto literal1 = ins1->get_literal();
+
+    if (ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
+        ins2 = ins2->inputs().front();
+    if (!ins2->can_eval())
+        return false;
+    auto literal2 = ins2->get_literal();
+
+    bool are_equal = false;
+    visit_all(literal1, literal2)([&](const auto l1, const auto l2){
+        are_equal = std::equal(l1.begin(), l1.end(), l2.begin(), float_equal);
+    });
+
+    return are_equal;
+}
 
 void remove_qdq_pairs(module& m)
 {
@@ -119,8 +140,13 @@ void remove_qdq_pairs(module& m)
                 auto q = arg->inputs().front();
                 if(q->name() == "quantizelinear")
                 {
-                    arg        = q->inputs().front();
-                    replace_op = true;
+                    bool same_scales = compare_literals(arg->inputs().at(1), q->inputs().at(1));
+                    bool same_zeros = compare_literals(arg->inputs().at(2), q->inputs().at(2));
+                    if (same_scales and same_zeros)
+                    {
+                        arg        = q->inputs().front();
+                        replace_op = true;
+                    }
                 }
             }
         }

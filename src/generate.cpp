@@ -44,7 +44,7 @@ argument generate_argument(shape s, unsigned long seed)
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
             argument temp_arg;
             ss.visit_type([&](auto as) {
-                if(s.type() == shape::bool_type)
+                if(ss.type() == shape::bool_type)
                 {
                     auto v   = generate_tensor_data<bool>(ss, seed);
                     temp_arg = {ss, v};

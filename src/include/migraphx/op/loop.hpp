@@ -11,6 +11,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/run_loop.hpp>
+#include <migraphx/ranges.hpp>
 #include <cmath>
 #include <string>
 #include <utility>
@@ -80,13 +81,14 @@ struct loop
                                  const std::vector<argument>& scan_outputs,
                                  const int iter) const
         {
-            for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
+            assert(mod_scan_outs.size() == scan_outputs.size());
+            for(auto i : range(mod_scan_outs.size()))
             {
-                auto& mod_out  = mod_scan_outs.at(i);
-                auto& scan_out = scan_outputs.at(i);
+                const auto& mod_out  = mod_scan_outs.at(i);
+                const auto& scan_out = scan_outputs.at(i);
 
-                auto in_data         = mod_out.data();
-                auto out_data        = scan_out.data();
+                auto* in_data         = mod_out.data();
+                auto* out_data        = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
                 memcpy(out_data + iter * out_size, in_data, out_size);
             }
@@ -98,7 +100,7 @@ struct loop
                 return;
 
             auto elem_num = max_iter_num - iter;
-            for(auto& out : scan_outputs)
+            for(const auto& out : scan_outputs)
             {
                 auto s    = out.get_shape();
                 auto size = s.bytes() / max_iter_num;

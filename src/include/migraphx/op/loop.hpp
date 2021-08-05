@@ -107,27 +107,6 @@ struct loop
         }
     };
 
-    // std::pair<int, bool> get_name_index(const std::string& name,
-    //                                     const std::string& param_prefix) const
-    // {
-    //     auto loc = name.find(param_prefix);
-    //     if(loc != std::string::npos)
-    //     {
-    //         int index = std::stoi(name.substr(loc + param_prefix.size()));
-    //         return {index, true};
-    //     }
-
-    //     std::string out_prefix = "#output_";
-    //     loc                    = name.find(out_prefix);
-    //     if(loc != std::string::npos)
-    //     {
-    //         int index = std::stoi(name.substr(loc + out_prefix.size()));
-    //         return {index, false};
-    //     }
-
-    //     return {-1, false};
-    // }
-
     argument compute(context& ctx,
                      const shape& out_shape,
                      const std::vector<argument>& args,
@@ -147,69 +126,8 @@ struct loop
         cpy_args.push_back(argument(shape{shape::bool_type}));
         cpy_args.push_back(argument(out_shape));
 
-        // process argu lists
+        // run loop
         return run_loop(ref_loop{max_iter_num}, ctx, cpy_args, mods, run);
-
-        // auto iter_num = cpy_args.at(0).at<int64_t>();
-
-        // cpy_args.erase(cpy_args.begin() + 2);
-        // cpy_args.erase(cpy_args.begin());
-
-        // auto input_num = cpy_args.size() - 2;
-        // auto dep_num   = input_num - 2;
-
-        // module_ref mod           = mods.at(0);
-        // auto param_name_shapes   = mod->get_parameter_shapes();
-        // std::string param_prefix = "#" + mod->name() + "_in_";
-
-        // std::vector<argument> in_args(cpy_args.begin(), cpy_args.begin() + input_num);
-        // std::vector<argument> out_args = {cpy_args.at(input_num)};
-        // auto ins_outputs               = cpy_args.back().get_sub_objects();
-        // out_args.insert(out_args.end(), ins_outputs.begin(), ins_outputs.end());
-
-        // std::vector<argument> scan_outputs(ins_outputs.begin() + dep_num, ins_outputs.end());
-
-        // for(iter = 0; (iter < iter_num) and cond; ++iter)
-        // {
-        //     std::unordered_map<std::string, argument> params;
-        //     for(auto pn : param_name_shapes)
-        //     {
-        //         auto name     = pn.first;
-        //         auto io_index = get_name_index(name, param_prefix);
-        //         assert((io_index.first != -1) and (io_index.second));
-
-        //         // name is for input
-        //         if(io_index.second)
-        //         {
-        //             params[name] = in_args.at(io_index.first);
-        //         }
-        //     }
-
-        //     auto mod_args = run(mod, params);
-        //     // copy loop carried dependency from mod outputs to inputs
-        //     std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
-        //     cond = mod_args.at(0).at<bool>();
-
-        //     // concat scan outputs
-        //     std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-        //     for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
-        //     {
-        //         auto& mod_out  = mod_scan_outs.at(i);
-        //         auto& scan_out = scan_outputs.at(i);
-
-        //         auto in_data         = mod_out.data();
-        //         auto out_data        = scan_out.data();
-        //         std::size_t out_size = mod_out.get_shape().bytes();
-        //         memcpy(out_data + iter * out_size, in_data, out_size);
-        //     }
-        // }
-
-        // // copy loop carried dependency to final output
-        // std::vector<argument> outputs(in_args.begin() + 2, in_args.end());
-        // // append scan outputs
-        // outputs.insert(outputs.end(), scan_outputs.begin(), scan_outputs.end());
-
-        // return argument{outputs};
     }
 };
 

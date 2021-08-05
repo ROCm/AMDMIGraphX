@@ -35,6 +35,41 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
     return {-1, false};
 }
 
+class run_loop {
+    int64_t max_iter_num = 0;
+
+    template<class T>
+    void copy_arg(context& ctx, const argument& arg, T& var, bool from_to_var)
+    {
+        argument arg_var{arg.get_shape(), &var};
+        if(from_to_var)
+        {
+            copy_to_gpu(ctx, arg_var, arg);
+        }
+        else
+        {
+            copy_from_gpu(ctx, arg, arg_var);
+        }
+    }
+
+    void concat_scan_outputs(const std::vector<argument>&, const std::vector<argument>&, const int)
+    { }
+
+    void set_zero(const std::vector<argument>& scan_outputs, const int iter)
+    {
+        if(iter >= max_iter_num)
+            return;
+
+        auto elem_num = max_iter_num - iter;
+        for(auto& out : scan_outputs)
+        {
+            auto s    = out.get_shape();
+            auto size = s.bytes() / max_iter_num;
+            (void)hipMemset(out.data() + iter * size, 0, size * elem_num);
+        }
+    }
+};
+
 argument
 hip_loop::compute(context& ctx,
                   const shape&,
@@ -102,7 +137,7 @@ hip_loop::compute(context& ctx,
 
         // copy back cond to be used next iteration
         (void)hipMemcpy(&cond, mod_args.at(0).data(), sizeof(bool), hipMemcpyDeviceToHost);
-        std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        std::copy(mod_args.begin() + 1, mod_args.begin() + dep_num + 1, in_args.begin() + 2);
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, out_args.begin());
     }
 

@@ -57,6 +57,52 @@ struct loop
         return shape(ins_out_shapes);
     }
 
+    class run_loop {
+        int64_t max_iter_num = 0;
+
+        template<class T>
+        void copy_arg(context&, const argument& arg, T& var, bool from_to_var)
+        {
+            argument arg_var{arg.get_shape(), &var};
+            if(from_to_var)
+            {
+                memcpy(&var, arg.data(), arg.get_shape().bytes());
+            }
+            else
+            {
+                memcpy(arg.data(), &var, arg.get_shape().bytes());
+            }
+        }
+
+        void concat_scan_outputs(const std::vector<argument>& mod_scan_outs, const std::vector<argument>& scan_outputs, const int iter)
+        {
+            for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
+            {
+                auto& mod_out  = mod_scan_outs.at(i);
+                auto& scan_out = scan_outputs.at(i);
+
+                auto in_data         = mod_out.data();
+                auto out_data        = scan_out.data();
+                std::size_t out_size = mod_out.get_shape().bytes();
+                memcpy(out_data + iter * out_size, in_data, out_size);
+            }
+        }
+
+        void set_zero(const std::vector<argument>& scan_outputs, const int iter)
+        {
+            if(iter >= max_iter_num)
+                return;
+
+            auto elem_num = max_iter_num - iter;
+            for(auto& out : scan_outputs)
+            {
+                auto s    = out.get_shape();
+                auto size = s.bytes() / max_iter_num;
+                memset(out.data() + iter * size, 0, size * elem_num);
+            }
+        }
+    };
+
     std::pair<int, bool> get_name_index(const std::string& name,
                                         const std::string& param_prefix) const
     {

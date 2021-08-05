@@ -630,7 +630,7 @@ TEST_CASE(conv_correctness)
 
     migraphx::program p1;
     {
-        auto m1      = p1.get_main_module();
+        auto* m1      = p1.get_main_module();
         auto input   = m1->add_parameter("input", si);
         auto weights = m1->add_parameter("weights", sw);
         auto scale_i = m1->add_literal(0.5f);
@@ -654,7 +654,7 @@ TEST_CASE(conv_correctness)
 
     migraphx::program p2;
     {
-        auto m2      = p2.get_main_module();
+        auto* m2      = p2.get_main_module();
         auto input   = m2->add_parameter("input", si);
         auto weights = m2->add_parameter("weights", sw);
         auto scale   = m2->add_literal(0.1f);
@@ -696,7 +696,7 @@ TEST_CASE(dot_correctness)
 
     migraphx::program p1;
     {
-        auto m1      = p1.get_main_module();
+        auto* m1      = p1.get_main_module();
         auto a       = m1->add_parameter("a", sh1);
         auto b       = m1->add_parameter("b", sh2);
         auto c       = m1->add_parameter("c", sh3);
@@ -717,7 +717,7 @@ TEST_CASE(dot_correctness)
 
     migraphx::program p2;
     {
-        auto m2 = p2.get_main_module();
+        auto* m2 = p2.get_main_module();
         auto a  = m2->add_parameter("a", sh1);
         auto b  = m2->add_parameter("b", sh2);
         auto c  = m2->add_parameter("c", sh3);

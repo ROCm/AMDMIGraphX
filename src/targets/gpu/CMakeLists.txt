@@ -119,6 +119,7 @@ add_library(migraphx_gpu
     code_object_op.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_pointwise.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -314,6 +315,8 @@ endif()
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+
+add_subdirectory(driver)
 
 rocm_install_targets(
   TARGETS migraphx_gpu migraphx_device

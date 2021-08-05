@@ -87,8 +87,8 @@ struct loop
                 const auto& mod_out  = mod_scan_outs.at(i);
                 const auto& scan_out = scan_outputs.at(i);
 
-                auto* in_data         = mod_out.data();
-                auto* out_data        = scan_out.data();
+                auto* in_data        = mod_out.data();
+                auto* out_data       = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
                 memcpy(out_data + iter * out_size, in_data, out_size);
             }

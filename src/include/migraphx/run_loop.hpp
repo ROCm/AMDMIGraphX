@@ -12,7 +12,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static inline std::pair<int, bool> get_name_index(const std::string& name, const std::string& param_prefix)
+static inline std::pair<int, bool> get_name_index(const std::string& name,
+                                                  const std::string& param_prefix)
 {
     auto loc = name.find(param_prefix);
     if(loc != std::string::npos)
@@ -85,7 +86,7 @@ argument run_loop(const LoopModel& model,
                 if(io_index.first > dep_num)
                 {
                     const auto& arg = out_args.at(io_index.first);
-                    params[name]    = argument::load(pn.second, arg.data() + iter * pn.second.bytes());
+                    params[name] = argument::load(pn.second, arg.data() + iter * pn.second.bytes());
                 }
                 else
                 {

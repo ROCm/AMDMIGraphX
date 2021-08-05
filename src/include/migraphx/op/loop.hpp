@@ -128,7 +128,7 @@ struct loop
     //     return {-1, false};
     // }
 
-    argument compute(context& ctx, 
+    argument compute(context& ctx,
                      const shape& out_shape,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& mods,

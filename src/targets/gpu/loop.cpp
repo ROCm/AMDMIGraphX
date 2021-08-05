@@ -16,7 +16,8 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
     return op.compute_shape(inputs, mods);
 }
 
-// static std::pair<int, bool> get_name_index(const std::string& name, const std::string& param_prefix)
+// static std::pair<int, bool> get_name_index(const std::string& name, const std::string&
+// param_prefix)
 // {
 //     auto loc = name.find(param_prefix);
 //     if(loc != std::string::npos)
@@ -54,7 +55,8 @@ struct gpu_loop
         }
     }
 
-    void concat_scan_outputs(const std::vector<argument>&, const std::vector<argument>&, const int) const
+    void
+    concat_scan_outputs(const std::vector<argument>&, const std::vector<argument>&, const int) const
     {
     }
 

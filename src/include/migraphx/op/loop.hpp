@@ -57,10 +57,11 @@ struct loop
         return shape(ins_out_shapes);
     }
 
-    class run_loop {
+    class run_loop
+    {
         int64_t max_iter_num = 0;
 
-        template<class T>
+        template <class T>
         void copy_arg(context&, const argument& arg, T& var, bool from_to_var)
         {
             argument arg_var{arg.get_shape(), &var};
@@ -74,7 +75,9 @@ struct loop
             }
         }
 
-        void concat_scan_outputs(const std::vector<argument>& mod_scan_outs, const std::vector<argument>& scan_outputs, const int iter)
+        void concat_scan_outputs(const std::vector<argument>& mod_scan_outs,
+                                 const std::vector<argument>& scan_outputs,
+                                 const int iter)
         {
             for(std::size_t i = 0; i < mod_scan_outs.size(); ++i)
             {

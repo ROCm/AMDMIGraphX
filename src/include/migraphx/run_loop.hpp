@@ -13,7 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 static std::pair<int, bool> get_name_index(const std::string& name,
-                                        const std::string& param_prefix) const
+                                           const std::string& param_prefix) const
 {
     auto loc = name.find(param_prefix);
     if(loc != std::string::npos)
@@ -33,9 +33,9 @@ static std::pair<int, bool> get_name_index(const std::string& name,
     return {-1, false};
 }
 
-
-template<class LoopModel> 
-std::vector<argument> run_loop(const LoopModel& model,
+template <class LoopModel>
+std::vector<argument>
+run_loop(const LoopModel& model,
          context& ctx,
          std::vector<argument> args,
          const std::vector<module_ref>& mods,
@@ -113,7 +113,7 @@ std::vector<argument> run_loop(const LoopModel& model,
 
     model.set_zero(scan_outputs, iter_num, iter);
 
-    return 
+    return
 }
 
 } // namespace MIGRAPHX_INLINE_NS

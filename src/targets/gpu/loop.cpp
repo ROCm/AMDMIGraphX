@@ -35,10 +35,11 @@ static std::pair<int, bool> get_name_index(const std::string& name, const std::s
     return {-1, false};
 }
 
-class run_loop {
+class run_loop
+{
     int64_t max_iter_num = 0;
 
-    template<class T>
+    template <class T>
     void copy_arg(context& ctx, const argument& arg, T& var, bool from_to_var)
     {
         argument arg_var{arg.get_shape(), &var};
@@ -53,7 +54,8 @@ class run_loop {
     }
 
     void concat_scan_outputs(const std::vector<argument>&, const std::vector<argument>&, const int)
-    { }
+    {
+    }
 
     void set_zero(const std::vector<argument>& scan_outputs, const int iter)
     {

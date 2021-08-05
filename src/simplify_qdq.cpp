@@ -84,12 +84,12 @@ struct match_find_quantizable_ops
         }
         else if(qop->name() == "dot")
         {
-            auto dot_op    = any_cast<op::dot>(qop->get_operator());
-            if (!(float_equal(dot_op.alpha, 1.0f) and float_equal(dot_op.beta, 0.0f)))
+            auto dot_op = any_cast<op::dot>(qop->get_operator());
+            if(!(float_equal(dot_op.alpha, 1.0f) and float_equal(dot_op.beta, 0.0f)))
                 return;
-            if (qop_args.size() == 3)
+            if(qop_args.size() == 3)
                 qop_args.pop_back();
-            dq             = m.insert_instruction(
+            dq = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }
         dq_scale   = m.add_literal(static_cast<float>(scale));
@@ -107,20 +107,20 @@ struct match_find_quantizable_ops
 
 bool compare_literals(instruction_ref ins1, instruction_ref ins2)
 {
-    if (ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
+    if(ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
         ins1 = ins1->inputs().front();
-    if (!ins1->can_eval())
+    if(!ins1->can_eval())
         return false;
     auto literal1 = ins1->get_literal();
 
-    if (ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
+    if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
-    if (!ins2->can_eval())
+    if(!ins2->can_eval())
         return false;
     auto literal2 = ins2->get_literal();
 
     bool are_equal = false;
-    visit_all(literal1, literal2)([&](const auto l1, const auto l2){
+    visit_all(literal1, literal2)([&](const auto l1, const auto l2) {
         are_equal = std::equal(l1.begin(), l1.end(), l2.begin(), float_equal);
     });
 
@@ -141,8 +141,8 @@ void remove_qdq_pairs(module& m)
                 if(q->name() == "quantizelinear")
                 {
                     bool same_scales = compare_literals(arg->inputs().at(1), q->inputs().at(1));
-                    bool same_zeros = compare_literals(arg->inputs().at(2), q->inputs().at(2));
-                    if (same_scales and same_zeros)
+                    bool same_zeros  = compare_literals(arg->inputs().at(2), q->inputs().at(2));
+                    if(same_scales and same_zeros)
                     {
                         arg        = q->inputs().front();
                         replace_op = true;

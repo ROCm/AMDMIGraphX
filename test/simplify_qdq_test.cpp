@@ -46,8 +46,8 @@ TEST_CASE(remove_qdq)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::int8_t{0});
 
@@ -79,11 +79,11 @@ TEST_CASE(qdq_different_scales)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
+        auto t1     = m1.add_parameter("t1", sh1);
+        auto t2     = m1.add_parameter("t2", sh2);
         auto scale1 = m1.add_literal(0.5f);
         auto scale2 = m1.add_literal(0.4f);
-        auto zero  = m1.add_literal(std::int8_t{0});
+        auto zero   = m1.add_literal(std::int8_t{0});
 
         auto q1  = add_quantize_op(m1, "quantizelinear", t1, scale1, zero);
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale2, zero);
@@ -95,11 +95,11 @@ TEST_CASE(qdq_different_scales)
 
     migraphx::module m2;
     {
-        auto t1 = m2.add_parameter("t1", sh1);
-        auto t2 = m2.add_parameter("t2", sh2);
+        auto t1     = m2.add_parameter("t1", sh1);
+        auto t2     = m2.add_parameter("t2", sh2);
         auto scale1 = m2.add_literal(0.5f);
         auto scale2 = m2.add_literal(0.4f);
-        auto zero  = m2.add_literal(std::int8_t{0});
+        auto zero   = m2.add_literal(std::int8_t{0});
 
         auto q1  = add_quantize_op(m2, "quantizelinear", t1, scale1, zero);
         auto d1  = add_quantize_op(m2, "dequantizelinear", q1, scale2, zero);
@@ -120,8 +120,8 @@ TEST_CASE(dot)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::int8_t{0});
 
@@ -136,10 +136,10 @@ TEST_CASE(dot)
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
-        auto scale = m2.add_literal(0.5f);
-        auto zero  = m2.add_literal(std::int8_t{0});
+        auto t1     = m2.add_parameter("t1", sh1);
+        auto t2     = m2.add_parameter("t2", sh2);
+        auto scale  = m2.add_literal(0.5f);
+        auto zero   = m2.add_literal(std::int8_t{0});
         auto scale1 = m2.add_literal(0.25f);
         auto zero1  = m2.add_literal(0);
 
@@ -162,8 +162,8 @@ TEST_CASE(dot_non_zero_point)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::int8_t{1});
 
@@ -197,8 +197,8 @@ TEST_CASE(dot_uint8)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::uint8_t{0});
 
@@ -233,9 +233,9 @@ TEST_CASE(dot_add)
 
     migraphx::module m1;
     {
-        auto t1 = m1.add_parameter("t1", sh1);
-        auto t2 = m1.add_parameter("t2", sh2);
-        auto ab = m1.add_parameter("ab", sh3);
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
+        auto ab    = m1.add_parameter("ab", sh3);
         auto scale = m1.add_literal(0.5f);
         auto zero  = m1.add_literal(std::int8_t{0});
 
@@ -253,11 +253,11 @@ TEST_CASE(dot_add)
 
     migraphx::module m2;
     {
-        auto t1  = m2.add_parameter("t1", sh1);
-        auto t2  = m2.add_parameter("t2", sh2);
-        auto ab  = m2.add_parameter("ab", sh3);
-        auto scale = m2.add_literal(0.5f);
-        auto zero  = m2.add_literal(std::int8_t{0});
+        auto t1     = m2.add_parameter("t1", sh1);
+        auto t2     = m2.add_parameter("t2", sh2);
+        auto ab     = m2.add_parameter("ab", sh3);
+        auto scale  = m2.add_literal(0.5f);
+        auto zero   = m2.add_literal(std::int8_t{0});
         auto scale1 = m2.add_literal(0.25f);
         auto zero1  = m2.add_literal(0);
 
@@ -283,8 +283,8 @@ TEST_CASE(conv)
     {
         auto input   = m1.add_parameter("input", s7);
         auto weights = m1.add_parameter("weights", s4);
-        auto scale = m1.add_literal(0.5f);
-        auto zero  = m1.add_literal(std::int8_t{0});
+        auto scale   = m1.add_literal(0.5f);
+        auto zero    = m1.add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zero);
@@ -304,10 +304,10 @@ TEST_CASE(conv)
     {
         auto input   = m2.add_parameter("input", s7);
         auto weights = m2.add_parameter("weights", s4);
-        auto scale = m2.add_literal(0.5f);
-        auto zero  = m2.add_literal(std::int8_t{0});
-        auto scale1     = m2.add_literal(0.25f);
-        auto zero1      = m2.add_literal(0);
+        auto scale   = m2.add_literal(0.5f);
+        auto zero    = m2.add_literal(std::int8_t{0});
+        auto scale1  = m2.add_literal(0.25f);
+        auto zero1   = m2.add_literal(0);
 
         auto q1 = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1 = m2.add_instruction(migraphx::make_op("quant_convolution",
@@ -336,8 +336,8 @@ TEST_CASE(conv_multi_scale)
     {
         auto input   = m1.add_parameter("input", s7);
         auto weights = m1.add_parameter("weights", s4);
-        auto scale = m1.add_literal(migraphx::generate_literal(s8, 0));
-        auto zero  = m1.add_literal(std::int8_t{0});
+        auto scale   = m1.add_literal(migraphx::generate_literal(s8, 0));
+        auto zero    = m1.add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto q1 = add_quantize_op(m1, "quantizelinear", input, scale, zero);
@@ -357,8 +357,8 @@ TEST_CASE(conv_multi_scale)
     {
         auto input   = m2.add_parameter("input", s7);
         auto weights = m2.add_parameter("weights", s4);
-        auto scale = m2.add_literal(migraphx::generate_literal(s8, 0));
-        auto zero  = m2.add_literal(std::int8_t{0});
+        auto scale   = m2.add_literal(migraphx::generate_literal(s8, 0));
+        auto zero    = m2.add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(m2, "dequantizelinear", weights, scale, zero);
         auto c1 = m2.add_instruction(migraphx::make_op("convolution",
@@ -387,8 +387,8 @@ TEST_CASE(conv_bias_add)
         auto input   = m1.add_parameter("input", s7);
         auto weights = m1.add_parameter("weights", s4);
         auto bias    = m1.add_parameter("bias", s6);
-        auto scale = m1.add_literal(0.5f);
-        auto zero  = m1.add_literal(std::int8_t{0});
+        auto scale   = m1.add_literal(0.5f);
+        auto zero    = m1.add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto d2 = add_quantize_op(m1, "dequantizelinear", bias, scale, zero);
@@ -413,10 +413,10 @@ TEST_CASE(conv_bias_add)
         auto input   = m2.add_parameter("input", s7);
         auto weights = m2.add_parameter("weights", s4);
         auto bias    = m2.add_parameter("bias", s6);
-        auto scale = m2.add_literal(0.5f);
-        auto zero  = m2.add_literal(std::int8_t{0});
-        auto scale1     = m2.add_literal(0.25f);
-        auto zero1      = m2.add_literal(0);
+        auto scale   = m2.add_literal(0.5f);
+        auto zero    = m2.add_literal(std::int8_t{0});
+        auto scale1  = m2.add_literal(0.25f);
+        auto zero1   = m2.add_literal(0);
 
         auto d2 = add_quantize_op(m2, "dequantizelinear", bias, scale, zero);
         auto q1 = add_quantize_op(m2, "quantizelinear", input, scale, zero);
@@ -454,8 +454,8 @@ TEST_CASE(conv_pooling_dot)
         auto weights = m1.add_parameter("weights", s4);
         auto bias    = m1.add_parameter("bias", s6);
         auto input   = m1.add_parameter("input", s7);
-        auto scale = m1.add_literal(0.5f);
-        auto zero  = m1.add_literal(std::int8_t{0});
+        auto scale   = m1.add_literal(0.5f);
+        auto zero    = m1.add_literal(std::int8_t{0});
 
         auto d1  = add_quantize_op(m1, "dequantizelinear", weights, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", bias, scale, zero);
@@ -501,12 +501,12 @@ TEST_CASE(conv_pooling_dot)
         auto weights = m2.add_parameter("weights", s4);
         auto bias    = m2.add_parameter("bias", s6);
         auto input   = m2.add_parameter("input", s7);
-        auto scale = m2.add_literal(0.5f);
-        auto zero  = m2.add_literal(std::int8_t{0});
-        auto scale1 = m2.add_literal(0.25f);
-        auto zero1  = m2.add_literal(0);
-        auto scale2 = m2.add_literal(0.25f);
-        auto zero2  = m2.add_literal(0);
+        auto scale   = m2.add_literal(0.5f);
+        auto zero    = m2.add_literal(std::int8_t{0});
+        auto scale1  = m2.add_literal(0.25f);
+        auto zero1   = m2.add_literal(0);
+        auto scale2  = m2.add_literal(0.25f);
+        auto zero2   = m2.add_literal(0);
 
         auto d2  = add_quantize_op(m2, "dequantizelinear", bias, scale, zero);
         auto d3  = add_quantize_op(m2, "dequantizelinear", ab, scale, zero);
@@ -560,8 +560,8 @@ TEST_CASE(mobilenet_snippet)
         auto weights = mm.add_parameter("weights", s4);
         auto bias    = mm.add_parameter("bias", s6);
         auto input   = mm.add_parameter("input", s7);
-        auto scale = mm.add_literal(0.5f);
-        auto zero  = mm.add_literal(std::int8_t{0});
+        auto scale   = mm.add_literal(0.5f);
+        auto zero    = mm.add_literal(std::int8_t{0});
 
         auto d1  = add_quantize_op(mm, "dequantizelinear", weights, scale, zero);
         auto d2  = add_quantize_op(mm, "dequantizelinear", bias, scale, zero);
@@ -630,45 +630,45 @@ TEST_CASE(conv_correctness)
 
     migraphx::program p1;
     {
-        auto m1 = p1.get_main_module();
+        auto m1      = p1.get_main_module();
         auto input   = m1->add_parameter("input", si);
         auto weights = m1->add_parameter("weights", sw);
         auto scale_i = m1->add_literal(0.5f);
         auto scale_w = m1->add_literal(0.1f);
-        auto zero  = m1->add_literal(std::int8_t{0});
+        auto zero    = m1->add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(*m1, "dequantizelinear", weights, scale_w, zero);
         auto q1 = add_quantize_op(*m1, "quantizelinear", input, scale_i, zero);
         auto d5 = add_quantize_op(*m1, "dequantizelinear", q1, scale_i, zero);
         auto c1 = m1->add_instruction(migraphx::make_op("convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"dilation", {1, 1}},
-                                                        {"group", 1},
-                                                        {"padding_mode", 0}}),
-                                     d5,
-                                     d1);
+                                                        {{"padding", {0, 0, 0, 0}},
+                                                         {"stride", {1, 1}},
+                                                         {"dilation", {1, 1}},
+                                                         {"group", 1},
+                                                         {"padding_mode", 0}}),
+                                      d5,
+                                      d1);
         m1->add_return({c1});
         run_pass(*m1);
     }
 
     migraphx::program p2;
     {
-        auto m2 = p2.get_main_module();
+        auto m2      = p2.get_main_module();
         auto input   = m2->add_parameter("input", si);
         auto weights = m2->add_parameter("weights", sw);
-        auto scale = m2->add_literal(0.1f);
-        auto zero  = m2->add_literal(std::int8_t{0});
+        auto scale   = m2->add_literal(0.1f);
+        auto zero    = m2->add_literal(std::int8_t{0});
 
         auto d1 = add_quantize_op(*m2, "dequantizelinear", weights, scale, zero);
         auto c1 = m2->add_instruction(migraphx::make_op("convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"dilation", {1, 1}},
-                                                        {"group", 1},
-                                                        {"padding_mode", 0}}),
-                                     input,
-                                     d1);
+                                                        {{"padding", {0, 0, 0, 0}},
+                                                         {"stride", {1, 1}},
+                                                         {"dilation", {1, 1}},
+                                                         {"group", 1},
+                                                         {"padding_mode", 0}}),
+                                      input,
+                                      d1);
         m2->add_return({c1});
     }
 
@@ -681,10 +681,10 @@ TEST_CASE(conv_correctness)
 
     auto result1 = p1.eval({{"input", input}, {"weights", weights}}).back();
     std::vector<float> rv1(16);
-    result1.visit([&](auto output){ rv1.assign(output.begin(), output.end()); });
+    result1.visit([&](auto output) { rv1.assign(output.begin(), output.end()); });
     auto result2 = p2.eval({{"input", input}, {"weights", weights}}).back();
     std::vector<float> rv2(16);
-    result2.visit([&](auto output){ rv2.assign(output.begin(), output.end()); });
+    result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(rv1, rv2));
 }
 
@@ -696,13 +696,13 @@ TEST_CASE(dot_correctness)
 
     migraphx::program p1;
     {
-        auto m1 = p1.get_main_module();
-        auto a = m1->add_parameter("a", sh1);
-        auto b = m1->add_parameter("b", sh2);
-        auto c = m1->add_parameter("c", sh3);
+        auto m1      = p1.get_main_module();
+        auto a       = m1->add_parameter("a", sh1);
+        auto b       = m1->add_parameter("b", sh2);
+        auto c       = m1->add_parameter("c", sh3);
         auto scale_a = m1->add_literal(0.4f);
         auto scale_b = m1->add_literal(0.5f);
-        auto zero  = m1->add_literal(std::int8_t{0});
+        auto zero    = m1->add_literal(std::int8_t{0});
 
         auto q1 = add_quantize_op(*m1, "quantizelinear", a, scale_a, zero);
         auto d1 = add_quantize_op(*m1, "dequantizelinear", q1, scale_a, zero);
@@ -720,7 +720,7 @@ TEST_CASE(dot_correctness)
         auto m2 = p2.get_main_module();
         auto a  = m2->add_parameter("a", sh1);
         auto b  = m2->add_parameter("b", sh2);
-        auto c = m2->add_parameter("c", sh3);
+        auto c  = m2->add_parameter("c", sh3);
 
         auto dot =
             m2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), a, b, c);
@@ -738,10 +738,10 @@ TEST_CASE(dot_correctness)
 
     auto result1 = p1.eval({{"a", a}, {"b", b}, {"c", c}}).back();
     std::vector<float> rv1(sh3.elements());
-    result1.visit([&](auto output){ rv1.assign(output.begin(), output.end()); });
+    result1.visit([&](auto output) { rv1.assign(output.begin(), output.end()); });
     auto result2 = p2.eval({{"a", a}, {"b", b}, {"c", c}}).back();
     std::vector<float> rv2(sh3.elements());
-    result2.visit([&](auto output){ rv2.assign(output.begin(), output.end()); });
+    result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(rv1, rv2));
 }
 

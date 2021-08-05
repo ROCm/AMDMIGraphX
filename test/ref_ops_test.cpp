@@ -2490,7 +2490,6 @@ TEST_CASE(loop_test)
         std::vector<std::vector<int64_t>> res;
         for(auto& arg : rets)
         {
-            std::cout << "arg = " << arg << std::endl;
             std::vector<int64_t> vec;
             arg.visit([&](auto v) { vec.assign(v.begin(), v.end()); });
             res.push_back(vec);

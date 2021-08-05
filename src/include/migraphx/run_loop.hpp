@@ -13,7 +13,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 static std::pair<int, bool> get_name_index(const std::string& name,
-                                           const std::string& param_prefix) const
+                                           const std::string& param_prefix)
 {
     auto loc = name.find(param_prefix);
     if(loc != std::string::npos)
@@ -33,14 +33,13 @@ static std::pair<int, bool> get_name_index(const std::string& name,
     return {-1, false};
 }
 
-template <class LoopModel>
-std::vector<argument>
-run_loop(const LoopModel& model,
-         context& ctx,
-         std::vector<argument> args,
-         const std::vector<module_ref>& mods,
-         const std::function<std::vector<argument>(
-             module_ref&, const std::unordered_map<std::string, argument>&)>& run)
+template <class LoopModel, class T>
+argument run_loop(const LoopModel& model,
+                  T& ctx,
+                  std::vector<argument> args,
+                  const std::vector<module_ref>& mods,
+                  const std::function<std::vector<argument>(
+                        module_ref&, const std::unordered_map<std::string, argument>&)>& run)
 {
     std::vector<std::vector<argument>> results;
     // process argu lists
@@ -63,15 +62,12 @@ run_loop(const LoopModel& model,
     out_args.insert(out_args.end(), mod_outputs.begin(), mod_outputs.end());
 
     std::vector<argument> scan_outputs(out_args.begin() + dep_num + 1, out_args.end());
-
     int64_t iter = 0;
     for(iter = 0; (iter < iter_num) and cond; ++iter)
     {
         // copy iter num and cond to device memory
-        model.copy_arg(in_args.at(0), iter, true);
-        model.copy_arg(in_args.at(1), cond, true);
-        // (void)hipMemcpy(in_args.at(0).data(), &iter, sizeof(int64_t), hipMemcpyHostToDevice);
-        // (void)hipMemcpy(in_args.at(1).data(), &cond, sizeof(bool), hipMemcpyHostToDevice);
+        model.copy_arg(ctx, in_args.at(0), iter, true);
+        model.copy_arg(ctx, in_args.at(1), cond, true);
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
@@ -103,17 +99,17 @@ run_loop(const LoopModel& model,
         ctx.finish();
 
         // copy back cond to be used next iteration
-        model.copy_arg(mod_args.at(0), cond, false);
+        model.copy_arg(ctx, mod_args.at(0), cond, false);
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
 
-        // concat scan outputs
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-        model.concat_scan_outputs(mod_scan_outs, scan_outputs);
+        model.concat_scan_outputs(mod_scan_outs, scan_outputs, iter);
     }
 
-    model.set_zero(scan_outputs, iter_num, iter);
+    model.set_zero(scan_outputs, iter);
+    out_args.erase(out_args.begin());
 
-    return
+    return argument(out_args);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

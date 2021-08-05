@@ -21,10 +21,10 @@ struct gpu_loop
     int64_t max_iter_num = 0;
 
     template <class T>
-    void copy_arg(context& ctx, const argument& arg, T& var, bool from_to_var) const
+    void copy_arg(context& ctx, const argument& arg, T& var, bool from_var) const
     {
         argument arg_var{arg.get_shape(), &var};
-        if(from_to_var)
+        if(from_var)
         {
             copy_to_gpu(ctx, arg_var, arg);
         }

@@ -13,7 +13,7 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
     inputs.pop_back();
     inputs.erase(inputs.begin() + 3);
     inputs.erase(inputs.begin() + 1);
-    return op.compute_shape(inputs, mods);
+    return op.compute_shape(inputs, std::move(mods));
 }
 
 struct gpu_loop
@@ -45,7 +45,7 @@ struct gpu_loop
             return;
 
         auto elem_num = max_iter_num - iter;
-        for(auto& out : scan_outputs)
+        for(const auto& out : scan_outputs)
         {
             auto s    = out.get_shape();
             auto size = s.bytes() / max_iter_num;

@@ -4,7 +4,6 @@ if sys.version_info < (3, 0):
 
 import argparse
 import os
-import platform
 import unittest
 import onnx
 import onnx.backend.test

@@ -29,7 +29,6 @@ python onnx_squad.py --model $SQUAD_MODEL/squad.onnx \
 import argparse
 import collections
 import json
-import logging
 import math
 import os
 import sys
@@ -145,8 +144,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
                 tok_to_orig_index.append(i)
                 all_doc_tokens.append(sub_token)
 
-        tok_start_position = None
-        tok_end_position = None
         # The -3 accounts for [CLS], [SEP] and [SEP]
         max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
 
@@ -567,7 +564,7 @@ def main():
         sess_options = onnxrt.SessionOptions()
         sess_options.session_log_verbosity_level = args.log
 
-    tokenizer = BertWordPieceTokenizer(vocab_file)
+    tokenizer = BertWordPieceTokenizer(args.vocab_file)
 
     eval_examples = read_squad_examples(input_file=args.predict_file)
     input_ids, input_mask, segment_ids, extra_data = \

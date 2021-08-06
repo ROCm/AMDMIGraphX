@@ -53,7 +53,6 @@ struct parse_loop : op_parser<parse_loop>
         // parse the sub_graph
         parser.parse_graph(sub_mod, sub_graph, info.instructions, true);
 
-        auto pnames = sub_mod->get_parameter_names();
         auto ret    = info.add_instruction(
             make_op("loop", {{"max_iter_num", max_iter_num}}), args, {sub_mod});
         auto out_s = ret->get_shape();

@@ -66,14 +66,14 @@ struct loop
         template <class T>
         void copy_arg(context&, const argument& arg, T& var, bool from_var) const
         {
-            argument arg_var{arg.get_shape(), &var};
+            char* ptr = reinterpret_cast<char*>(&var);
             if(from_var)
             {
-                memcpy(arg.data(), &var, arg.get_shape().bytes());
+                std::copy(ptr, ptr + arg.get_shape().bytes(), arg.data());
             }
             else
             {
-                memcpy(&var, arg.data(), arg.get_shape().bytes());
+                std::copy(arg.data(), arg.data() + arg.get_shape().bytes(), ptr);
             }
         }
 
@@ -90,7 +90,7 @@ struct loop
                 auto* in_data        = mod_out.data();
                 auto* out_data       = scan_out.data();
                 std::size_t out_size = mod_out.get_shape().bytes();
-                memcpy(out_data + iter * out_size, in_data, out_size);
+                std::copy(in_data, in_data + out_size, out_data + iter * out_size);
             }
         }
 
@@ -99,12 +99,11 @@ struct loop
             if(iter >= max_iter_num)
                 return;
 
-            auto elem_num = max_iter_num - iter;
             for(const auto& out : scan_outputs)
             {
                 auto s    = out.get_shape();
                 auto size = s.bytes() / max_iter_num;
-                memset(out.data() + iter * size, 0, size * elem_num);
+                std::fill(out.data() + iter * size, out.data() + max_iter_num * size, 0);
             }
         }
     };

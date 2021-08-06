@@ -38,14 +38,12 @@ def show_n_images(imgs, titles=None, enlarge=20, cmap='jet'):
 
 
 #--------------------------------------------------------------
-from skimage import io, color, img_as_float
+from skimage import color, img_as_float
 from skimage.exposure import adjust_gamma
 
 
 # Creates an image of original brain with segmentation overlay
 def show_label_on_image(test_img, test_lbl):
-
-    modes = {'flair': 0, 't1': 1, 't1c': 2, 't2': 3}
 
     label_im = test_lbl
 
@@ -61,7 +59,6 @@ def show_label_on_image(test_img, test_lbl):
     image = adjust_gamma(np.abs(color.gray2rgb(gray_img)), 0.45)
     #sliced_image = image.copy()
 
-    red_multiplier = [1, 0.2, 0.2]
     green_multiplier = [0.35, 0.75, 0.25]
     blue_multiplier = [0, 0.5, 1.]  #[0,0.25,0.9]
     yellow_multiplier = [1, 1, 0.25]
@@ -69,7 +66,7 @@ def show_label_on_image(test_img, test_lbl):
 
     # change colors of segmented classes
     for i in range(len(ones)):
-        image[ones[i][0]][ones[i][1]] = blue_multiplier  #red_multiplier
+        image[ones[i][0]][ones[i][1]] = blue_multiplier
     for i in range(len(twos)):
         image[twos[i][0]][twos[i][1]] = yellow_multiplier
     for i in range(len(threes)):
@@ -90,7 +87,6 @@ def show_label_on_image4(test_img, label_im):
 
     # Construct a colour image to superimpose
     color_mask = np.zeros((rows, cols, 3))
-    red_multiplier = [1, 0.2, 0.2]
     green_multiplier = [0.35, 0.75, 0.25]
     blue_multiplier = [0, 0.25, 0.9]
     yellow_multiplier = [1, 1, 0.25]

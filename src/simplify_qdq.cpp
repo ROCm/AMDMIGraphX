@@ -138,15 +138,10 @@ void remove_qdq_pairs(module& m)
             if(arg->name() == "dequantizelinear")
             {
                 auto q = arg->inputs().front();
-                if(q->name() == "quantizelinear")
+                if((q->name() == "quantizelinear") and compare_literals(arg->inputs().at(1), q->inputs().at(1)) and compare_literals(arg->inputs().at(2), q->inputs().at(2)))
                 {
-                    bool same_scales = compare_literals(arg->inputs().at(1), q->inputs().at(1));
-                    bool same_zeros  = compare_literals(arg->inputs().at(2), q->inputs().at(2));
-                    if(same_scales and same_zeros)
-                    {
-                        arg        = q->inputs().front();
-                        replace_op = true;
-                    }
+                    arg        = q->inputs().front();
+                    replace_op = true;
                 }
             }
         }

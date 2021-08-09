@@ -130,6 +130,7 @@ struct hiprtc_program
             return {};
         std::vector<char> buffer(n);
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
+        assert(buffer.back() == 0);
         return {buffer.begin(), buffer.end() - 1};
     }
 

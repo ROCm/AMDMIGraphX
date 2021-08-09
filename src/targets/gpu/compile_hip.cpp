@@ -1,6 +1,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
 
@@ -16,6 +17,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
 
 #if MIGRAPHX_USE_HIPRTC
 
@@ -142,12 +146,14 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     hiprtc_program prog(srcs);
     auto options = split_string(params, ' ');
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
         options.push_back("-std=c++17");
     options.push_back("-fno-gpu-rdc");
-    options.push_back("-O3");
+    options.push_back(" -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
     options.push_back("-Wno-cuda-compat");
     options.push_back("--cuda-gpu-arch=" + arch);
     prog.compile(options);
@@ -188,8 +194,11 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     {
         params += " --cuda-gpu-arch=" + arch;
         params += " --cuda-device-only";
-        params += " -O3 ";
+        params += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
     }
+
+    if(enabled(MIGRAPHX_GPU_DEBUG{}))
+        params += " -DMIGRAPHX_DEBUG";
 
     params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
     params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);

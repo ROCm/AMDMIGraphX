@@ -110,6 +110,7 @@ struct find_nop_reshapes
         reshapes.insert("broadcast");
         reshapes.insert("concat");
         reshapes.insert("convert");
+        reshapes.insert("layout");
         reshapes.insert("multibroadcast");
         reshapes.insert("pad");
         reshapes.insert("slice");

@@ -160,7 +160,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {prog.get_code_obj()};
 }
 
-#else
+#else // MIGRAPHX_USE_HIPRTC
 
 bool is_hcc_compiler()
 {
@@ -227,7 +227,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     return {compiler.compile(srcs)};
 }
 
-#endif
+#endif // MIGRAPHX_USE_HIPRTC
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

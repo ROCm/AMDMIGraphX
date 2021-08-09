@@ -126,11 +126,11 @@ struct hiprtc_program
     {
         std::size_t n = 0;
         MIGRAPHX_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
-        if (n < 2)
+        if(n < 2)
             return {};
         std::vector<char> buffer(n);
         MIGRAPHX_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
-        return {buffer.begin(), buffer.end()-1};
+        return {buffer.begin(), buffer.end() - 1};
     }
 
     std::vector<char> get_code_obj()

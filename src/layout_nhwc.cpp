@@ -14,16 +14,16 @@ void transform_convolutions(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        if (ins->name() != "convolution")
+        if(ins->name() != "convolution")
             continue;
-        if (ins->get_shape().lens().size() != 4)
+        if(ins->get_shape().lens().size() != 4)
             continue;
         auto args = ins->inputs();
         std::transform(args.begin(), args.end(), args.begin(), [&](auto& i) {
             return m.insert_instruction(ins, make_op("layout", {{"permutation", {0, 2, 3, 1}}}), i);
         });
         auto conv = m.insert_instruction(ins, ins->get_operator(), args);
-        auto c = m.insert_instruction(ins, make_op("contiguous"), conv);
+        auto c    = m.insert_instruction(ins, make_op("contiguous"), conv);
         m.replace_instruction(ins, c);
     }
 }

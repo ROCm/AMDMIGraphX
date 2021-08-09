@@ -352,7 +352,8 @@ bool broadcastable(bool& divisible_by_4,
         auto b_len          = result.get_shape().lens()[b_idx];
         auto b_stride       = result.get_shape().strides()[b_idx];
         assert(bshape.lens()[b_idx] == b_len);
-        if(b_len <= max_size and std::none_of(std::next(b_it), strides.end(), not_zero))
+        if(b_len <= max_size and std::none_of(std::next(b_it), strides.end(), not_zero) and
+           is_divisor_encodable(b_stride * b_len))
         {
 
             divisible_by_4 = (b_len % 4 == 0) and (b_stride % 4 == 0) and

@@ -37,7 +37,8 @@ struct gpu_loop
 
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
 
-    void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, const int iter) const
+    void
+    set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, const int iter) const
     {
         if(iter >= max_iter_num)
             return;
@@ -48,7 +49,7 @@ struct gpu_loop
             auto s    = out.get_shape();
             auto size = s.bytes() / max_iter_num;
             auto lens = s.lens();
-            lens[0] = elem_num;
+            lens[0]   = elem_num;
             shape ss{s.type(), lens};
             device::fill(ctx.get_stream().get(), out.load(ss, out.data() + iter * size), 0);
         }

@@ -63,7 +63,7 @@ argument run_loop(const LoopModel& model,
 
     std::vector<argument> scan_outputs(out_args.begin() + dep_num + 1, out_args.end());
     int64_t iter = 0;
-    for(iter = 0; (iter < iter_num) and cond; ++iter)
+    for(iter = 0; iter < iter_num and cond; ++iter)
     {
         // copy iter num and cond to device memory
         model.copy(ctx, iter, in_args.at(0));
@@ -86,6 +86,7 @@ argument run_loop(const LoopModel& model,
                 if(io_index.first > dep_num)
                 {
                     const auto& arg = out_args.at(io_index.first);
+                    assert((iter + 1) * pn.second.bytes() <= arg.get_shape().bytes());
                     params[name] = argument::load(pn.second, arg.data() + iter * pn.second.bytes());
                 }
                 else

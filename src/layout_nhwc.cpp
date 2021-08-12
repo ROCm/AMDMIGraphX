@@ -12,17 +12,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template<class Predicate>
+template <class Predicate>
 std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 {
     std::vector<instruction_ref> result;
     fix([&](auto self, auto ins) {
-        if (pred(ins))
+        if(pred(ins))
         {
             result.push_back(ins);
             return;
         }
-        for(auto input:ins->inputs())
+        for(auto input : ins->inputs())
             self(input);
     })(std::prev(m.end()));
     return result;
@@ -30,17 +30,16 @@ std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 
 void preserve_output_layout(module& m)
 {
-    std::vector<instruction_ref> outputs = find_lasts(m, [](auto ins) {
-        return ins->get_shape().lens().size() == 4;
-    });
-    for(auto output:outputs)
+    std::vector<instruction_ref> outputs =
+        find_lasts(m, [](auto ins) { return ins->get_shape().lens().size() == 4; });
+    for(auto output : outputs)
     {
         auto permutation = find_permutation(output->get_shape());
-        auto layout = m.insert_instruction(std::next(output), make_op("layout", {{"permutation", permutation}}), output);
+        auto layout      = m.insert_instruction(
+            std::next(output), make_op("layout", {{"permutation", permutation}}), output);
         m.replace_instruction(output, layout);
     }
 }
-
 
 void transform_convolutions(module& m)
 {

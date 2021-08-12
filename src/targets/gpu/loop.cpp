@@ -2,6 +2,7 @@
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device/fill.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +37,7 @@ struct gpu_loop
 
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
 
-    void set_zero(const std::vector<argument>& concatenated_outputs, const int iter) const
+    void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, const int iter) const
     {
         if(iter >= max_iter_num)
             return;
@@ -46,7 +47,10 @@ struct gpu_loop
         {
             auto s    = out.get_shape();
             auto size = s.bytes() / max_iter_num;
-            (void)hipMemset(out.data() + iter * size, 0, size * elem_num);
+            auto lens = s.lens();
+            lens[0] = elem_num;
+            shape ss{s.type(), lens};
+            device::fill(ctx.get_stream().get(), out.load(ss, out.data() + iter * size), 0);
         }
     }
 };

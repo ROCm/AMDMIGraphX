@@ -93,7 +93,7 @@ struct loop
             }
         }
 
-        void set_zero(const std::vector<argument>& concatenated_outputs, const int iter) const
+        void set_zero(context&, const std::vector<argument>& concatenated_outputs, const int iter) const
         {
             if(iter >= max_iter_num)
                 return;

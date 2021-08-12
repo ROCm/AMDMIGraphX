@@ -109,7 +109,7 @@ argument run_loop(const LoopModel& model,
 
     out_args.erase(out_args.begin());
     std::copy(in_args.begin() + 2, in_args.end(), out_args.begin());
-    model.set_zero(scan_outputs, iter);
+    model.set_zero(ctx, scan_outputs, iter);
 
     return argument(out_args);
 }

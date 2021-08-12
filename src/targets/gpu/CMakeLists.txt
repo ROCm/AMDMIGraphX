@@ -41,6 +41,7 @@ add_library(migraphx_device
     device/equal.cpp
     device/erf.cpp
     device/exp.cpp
+    device/fill.cpp
     device/floor.cpp
     device/gather.cpp
     device/gelu.cpp

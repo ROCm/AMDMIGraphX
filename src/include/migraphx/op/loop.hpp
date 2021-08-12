@@ -82,8 +82,8 @@ struct loop
             assert(iter_state.size() == concatenated_outputs.size());
             for(auto i : range(iter_state.size()))
             {
-                const auto& iter_stat  = iter_state.at(i);
-                const auto& scan_out = concatenated_outputs.at(i);
+                const auto& iter_stat = iter_state.at(i);
+                const auto& scan_out  = concatenated_outputs.at(i);
 
                 auto* in_data        = iter_stat.data();
                 auto* out_data       = scan_out.data();

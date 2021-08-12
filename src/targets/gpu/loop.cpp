@@ -34,10 +34,7 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
-    void
-    append(const std::vector<argument>&, const std::vector<argument>&, const int) const
-    {
-    }
+    void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
 
     void set_zero(const std::vector<argument>& concatenated_outputs, const int iter) const
     {

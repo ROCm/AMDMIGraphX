@@ -21,31 +21,31 @@ struct gpu_loop
     int64_t max_iter_num = 0;
 
     template <class T>
-    void copy_arg(context& ctx, const argument& arg, T& var, bool from_var) const
+    void copy(context& ctx, const argument& src, T& dst) const
     {
-        argument arg_var{arg.get_shape(), &var};
-        if(from_var)
-        {
-            copy_to_gpu(ctx, arg_var, arg);
-        }
-        else
-        {
-            copy_from_gpu(ctx, arg, arg_var);
-        }
+        argument arg_dst{src.get_shape(), &dst};
+        copy_from_gpu(ctx, src, arg_dst);
+    }
+
+    template <class T>
+    void copy(context& ctx, const T& src, const argument& dst) const
+    {
+        argument arg_src{dst.get_shape(), const_cast<T*>(&src)};
+        copy_to_gpu(ctx, arg_src, dst);
     }
 
     void
-    concat_scan_outputs(const std::vector<argument>&, const std::vector<argument>&, const int) const
+    append(const std::vector<argument>&, const std::vector<argument>&, const int) const
     {
     }
 
-    void set_zero(const std::vector<argument>& scan_outputs, const int iter) const
+    void set_zero(const std::vector<argument>& concatenated_outputs, const int iter) const
     {
         if(iter >= max_iter_num)
             return;
 
         auto elem_num = max_iter_num - iter;
-        for(const auto& out : scan_outputs)
+        for(const auto& out : concatenated_outputs)
         {
             auto s    = out.get_shape();
             auto size = s.bytes() / max_iter_num;

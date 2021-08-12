@@ -64,42 +64,41 @@ struct loop
         int64_t max_iter_num = 0;
 
         template <class T>
-        void copy_arg(context&, const argument& arg, T& var, bool from_var) const
+        void copy(context&, const argument& src, T& dst) const
         {
-            char* ptr = reinterpret_cast<char*>(&var);
-            if(from_var)
-            {
-                std::copy(ptr, ptr + arg.get_shape().bytes(), arg.data());
-            }
-            else
-            {
-                std::copy(arg.data(), arg.data() + arg.get_shape().bytes(), ptr);
-            }
+            dst = *src.cast<T>();
         }
 
-        void concat_scan_outputs(const std::vector<argument>& mod_scan_outs,
-                                 const std::vector<argument>& scan_outputs,
-                                 const int iter) const
+        template <class T>
+        void copy(context&, const T& src, const argument& dst) const
         {
-            assert(mod_scan_outs.size() == scan_outputs.size());
-            for(auto i : range(mod_scan_outs.size()))
-            {
-                const auto& mod_out  = mod_scan_outs.at(i);
-                const auto& scan_out = scan_outputs.at(i);
+            *dst.cast<T>() = src;
+        }
 
-                auto* in_data        = mod_out.data();
+        void append(const std::vector<argument>& iter_state,
+                    const std::vector<argument>& concatenated_outputs,
+                    const int iter) const
+        {
+            assert(iter_state.size() == concatenated_outputs.size());
+            for(auto i : range(iter_state.size()))
+            {
+                const auto& iter_stat  = iter_state.at(i);
+                const auto& scan_out = concatenated_outputs.at(i);
+
+                auto* in_data        = iter_stat.data();
                 auto* out_data       = scan_out.data();
-                std::size_t out_size = mod_out.get_shape().bytes();
+                std::size_t out_size = iter_stat.get_shape().bytes();
+                assert((iter + 1) * out_size <= scan_out.get_shape().bytes());
                 std::copy(in_data, in_data + out_size, out_data + iter * out_size);
             }
         }
 
-        void set_zero(const std::vector<argument>& scan_outputs, const int iter) const
+        void set_zero(const std::vector<argument>& concatenated_outputs, const int iter) const
         {
             if(iter >= max_iter_num)
                 return;
 
-            for(const auto& out : scan_outputs)
+            for(const auto& out : concatenated_outputs)
             {
                 auto s    = out.get_shape();
                 auto size = s.bytes() / max_iter_num;

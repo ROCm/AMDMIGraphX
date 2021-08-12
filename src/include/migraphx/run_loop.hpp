@@ -66,8 +66,8 @@ argument run_loop(const LoopModel& model,
     for(iter = 0; (iter < iter_num) and cond; ++iter)
     {
         // copy iter num and cond to device memory
-        model.copy_arg(ctx, in_args.at(0), iter, true);
-        model.copy_arg(ctx, in_args.at(1), cond, true);
+        model.copy(ctx, iter, in_args.at(0));
+        model.copy(ctx, cond, in_args.at(1));
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
@@ -99,11 +99,11 @@ argument run_loop(const LoopModel& model,
         ctx.finish();
 
         // copy back cond to be used next iteration
-        model.copy_arg(ctx, mod_args.at(0), cond, false);
+        model.copy(ctx, mod_args.at(0), cond);
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-        model.concat_scan_outputs(mod_scan_outs, scan_outputs, iter);
+        model.append(mod_scan_outs, scan_outputs, iter);
     }
 
     out_args.erase(out_args.begin());

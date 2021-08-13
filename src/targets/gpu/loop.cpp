@@ -29,9 +29,9 @@ struct gpu_loop
     }
 
     template <class T>
-    void copy(context& ctx, const T& src, const argument& dst) const
+    void copy(context& ctx, T src, const argument& dst) const
     {
-        argument arg_src{dst.get_shape(), const_cast<T*>(&src)};
+        argument arg_src{dst.get_shape(), &src};
         copy_to_gpu(ctx, arg_src, dst);
     }
 
@@ -51,8 +51,10 @@ struct gpu_loop
             auto lens = s.lens();
             lens[0]   = elem_num;
             shape ss{s.type(), lens};
-            device::fill(ctx.get_stream().get(), out.load(ss, out.data() + iter * size), 0);
+            assert(ss.bytes() + iter * size <= out.get_shape().bytes());
+            device::fill(ctx.get_stream().get(), argument::load(ss, out.data() + iter * size), 0);
         }
+        ctx.finish();
     }
 };
 

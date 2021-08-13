@@ -70,7 +70,7 @@ struct loop
         }
 
         template <class T>
-        void copy(context&, const T& src, const argument& dst) const
+        void copy(context&, T src, const argument& dst) const
         {
             *dst.cast<T>() = src;
         }

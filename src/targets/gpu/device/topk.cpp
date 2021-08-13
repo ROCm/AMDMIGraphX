@@ -17,16 +17,13 @@ template <class T>
 __device__ inline void swap(T& v1, T& v2)
 {
     T v = v1;
-    v1 = v2;
-    v2 = v;
+    v1  = v2;
+    v2  = v;
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_heapify(int64_t* const ind,
-                                    int n,
-                                    int index,
-                                    IndIndex ind_idx,
-                                    Compare comp)
+__device__ inline void
+heap_heapify(int64_t* const ind, int n, int index, IndIndex ind_idx, Compare comp)
 {
     while(index < n)
     {
@@ -58,10 +55,7 @@ __device__ inline void heap_heapify(int64_t* const ind,
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void build_heap(int64_t* ind,
-                                  int n,
-                                  IndIndex ind_idx,
-                                  Compare comp)
+__device__ inline void build_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp)
 {
     for(int j = n / 2 - 1; j >= 0; j--)
     {
@@ -70,11 +64,7 @@ __device__ inline void build_heap(int64_t* ind,
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_update(int64_t* ind,
-                                int n,
-                                int val,
-                                IndIndex ind_idx,
-                                Compare comp)
+__device__ inline void heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp)
 {
     if(comp(val, ind[ind_idx(0)]))
     {
@@ -86,10 +76,7 @@ __device__ inline void heap_update(int64_t* ind,
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_sort(int64_t* ind,
-                                 int n,
-                                 IndIndex ind_idx,
-                                 Compare comp)
+__device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp)
 {
     build_heap(ind, n, ind_idx, comp);
     for(int j = n - 1; j > 0; --j)
@@ -100,11 +87,7 @@ __device__ inline void heap_sort(int64_t* ind,
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void topk_value(int64_t* const ind,
-                                  int n,
-                                  int k,
-                                  IndIndex ind_idx,
-                                  Compare comp)
+__device__ inline void topk_value(int64_t* const ind, int n, int k, IndIndex ind_idx, Compare comp)
 {
     build_heap(ind, k, ind_idx, comp);
     for(int j = k; j < n; ++j)
@@ -112,7 +95,6 @@ __device__ inline void topk_value(int64_t* const ind,
         heap_update(ind, k, j, ind_idx, comp);
     }
 }
-
 
 argument topk(hipStream_t stream,
               argument val_res,
@@ -140,20 +122,20 @@ argument topk(hipStream_t stream,
                 auto idx = css.multi(i);
 
                 auto in_idx = [&](int ii) {
-                    auto iidx = idx;
+                    auto iidx  = idx;
                     iidx[axis] = ii;
                     return iss.index(iidx);
                 };
 
                 auto out_idx = [&](int ii) {
-                    auto iidx = idx;
+                    auto iidx  = idx;
                     iidx[axis] = ii;
                     return oss.index(iidx);
                 };
 
-                auto compare = [=](auto ii, auto jj)
-                {
-                    return largest ? std::less<>{}(data[in_idx(ii)], data[in_idx(jj)]) : std::greater<>{}(data[in_idx(ii)], data[in_idx(jj)]);
+                auto compare = [=](auto ii, auto jj) {
+                    return largest ? std::less<>{}(data[in_idx(ii)], data[in_idx(jj)])
+                                   : std::greater<>{}(data[in_idx(ii)], data[in_idx(jj)]);
                 };
 
                 for(int j = 0; j < k; ++j)

@@ -73,29 +73,56 @@ void eliminate_contiguous::apply(module& p) const
         if(ins->name() == "@return")
             continue;
 
+        if (std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
+            return arg->name() == op_name;
+        }))
+            continue;
         // Make a copy so we can modify it while we iterate
         auto args = ins->inputs();
-        for(auto arg : ins->inputs())
-        {
+        auto new_args = args;
+        std::transform(new_args.begin(), new_args.end(), new_args.begin(), [&](auto arg) {
             if(arg->name() == op_name)
-            {
-                auto new_args = args;
-                auto prev     = arg->inputs().front();
-                replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args))
-                {
-                    instruction::replace_argument(ins, arg, prev);
-                }
-                else if(prev->can_eval())
-                {
-                    auto c = op::contiguous{};
-                    auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+                return arg->inputs().front();
+            else
+                return arg;
+        });
+        assert(args.size() == new_args.size());
 
-                    auto l = p.add_literal(r.get_shape(), r.data());
-                    p.replace_instruction(arg, l);
+        if(try_compute_shape(ins, new_args))
+        {
+            for(auto i:range(args.size()))
+            {
+                if (args[i] == new_args[i])
+                    continue;
+                instruction::replace_argument(ins, args[i], new_args[i]);
+            }
+        }
+        else
+        {
+            for(auto arg : ins->inputs())
+            {
+                if(arg->name() == op_name)
+                {
+                    new_args = args;
+                    auto prev     = arg->inputs().front();
+                    replace(new_args, arg, prev);
+                    if(try_compute_shape(ins, new_args))
+                    {
+                        instruction::replace_argument(ins, arg, prev);
+                    }
+                    else if(prev->can_eval())
+                    {
+                        auto c = op::contiguous{};
+                        auto r = c.compute(c.compute_shape({prev->get_shape()}), {prev->eval()});
+
+                        auto l = p.add_literal(r.get_shape(), r.data());
+                        p.replace_instruction(arg, l);
+                    }
                 }
             }
         }
+
+
     }
 }
 

@@ -17,9 +17,9 @@ struct dnnl_convolution
 {
     std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS}; }
 
-    shape adjust_shape(const shape& x, int i) const
+    shape adjust_shape(const shape& x, int i, const shape& output) const
     {
-        auto s = base_adjust_shape(x);
+        auto s = base_adjust_shape(x, output);
         if(i == 1 and op.group > 1)
         {
             // TODO: Add support for transposed weights

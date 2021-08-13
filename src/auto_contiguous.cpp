@@ -12,6 +12,8 @@ void auto_contiguous::apply(module& p) const
 {
     for(auto ins : iterator_for(p))
     {
+        if (ins->name() == "layout")
+            continue;
         shape s = ins->get_shape();
         if(not s.standard() and s.elements() != 0)
         {

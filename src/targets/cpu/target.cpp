@@ -67,6 +67,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             simplify_algebra{},
             simplify_reshapes{},
             layout_nhwc{},
+            dead_code_elimination{},
             simplify_reshapes{},
             simplify_algebra{},
             auto_contiguous{},

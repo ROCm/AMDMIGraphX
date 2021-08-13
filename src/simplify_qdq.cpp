@@ -93,14 +93,11 @@ struct match_find_quantizable_ops
                 qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }
         dq_scale   = m.add_literal(static_cast<float>(scale));
-        zero_point = m.add_literal(0);
 
         auto lens = dq->get_shape().lens();
         auto scale_mb =
             m.insert_instruction(qop, make_op("multibroadcast", {{"output_lens", lens}}), dq_scale);
-        auto shift_mb = m.insert_instruction(
-            qop, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
-        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, scale_mb, shift_mb);
+        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, scale_mb);
         m.replace_instruction(qop, dq);
     }
 };
@@ -109,29 +106,30 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
 {
     if(ins1->name() == "broadcast" or ins1->name() == "multibroadcast")
         ins1 = ins1->inputs().front();
-    if(!ins1->can_eval())
+    auto x = ins1->eval();
+    if(x.empty())
         return false;
     auto literal1 = ins1->get_literal();
-
     if(ins2->name() == "broadcast" or ins2->name() == "multibroadcast")
         ins2 = ins2->inputs().front();
-    if(!ins2->can_eval())
+    auto y = ins2->eval();
+    if(y.empty())
         return false;
     auto literal2 = ins2->get_literal();
 
-    bool are_equal = false;
-    visit_all(literal1, literal2)([&](const auto l1, const auto l2) {
-        are_equal = std::equal(l1.begin(), l1.end(), l2.begin(), float_equal);
+    bool diff_shapes_equal_vals = false;
+    visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
+        diff_shapes_equal_vals = std::all_of(l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and 
+             std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
     });
 
-    return are_equal;
+    return (x == y) or diff_shapes_equal_vals;
 }
 
 void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        bool replace_op = false;
         auto args       = ins->inputs();
         for(auto&& arg : args)
         {
@@ -142,14 +140,9 @@ void remove_qdq_pairs(module& m)
                    compare_literals(arg->inputs().at(1), q->inputs().at(1)) and
                    compare_literals(arg->inputs().at(2), q->inputs().at(2)))
                 {
-                    arg        = q->inputs().front();
-                    replace_op = true;
+                    instruction::replace_argument(ins, arg, q->inputs().front());
                 }
             }
-        }
-        if(replace_op)
-        {
-            m.replace_instruction(ins, ins->get_operator(), args);
         }
     }
 }

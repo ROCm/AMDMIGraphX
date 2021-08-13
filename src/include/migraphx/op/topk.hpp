@@ -16,7 +16,7 @@ namespace op {
 
 struct topk
 {
-    int64_t k = 1;
+    int64_t k    = 1;
     int64_t axis = 0;
     bool largest = true;
 
@@ -80,15 +80,15 @@ struct topk
                 };
 
                 auto hp = make_heap(indices, comp);
-                for (std::size_t ii = indices.size(); ii < axis_dim; ++ii)
+                for(std::size_t ii = indices.size(); ii < axis_dim; ++ii)
                 {
                     hp.update(ii);
                 }
                 hp.sort();
 
                 auto sorted_indices = hp.get_sorted();
-                auto out_idx = idx;
-                auto in_idx  = idx;
+                auto out_idx        = idx;
+                auto in_idx         = idx;
                 for(auto j : range(sorted_indices.size()))
                 {
                     out_idx[axis]                 = j;

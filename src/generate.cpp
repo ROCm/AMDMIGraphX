@@ -11,14 +11,7 @@ argument fill_argument(shape s, unsigned long value)
         std::vector<argument> sub_args;
         const auto& sub_ss = s.sub_shapes();
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
-            argument temp_arg;
-            ss.visit_type([&](auto as) {
-                using type = typename decltype(as)::type;
-                auto v     = fill_tensor_data<type>(ss, value);
-                temp_arg   = {ss, v};
-            });
-
-            return temp_arg;
+            return fill_argument(ss, value);
         });
 
         result = argument(sub_args);
@@ -42,22 +35,7 @@ argument generate_argument(shape s, unsigned long seed)
         const auto& sub_ss = s.sub_shapes();
         std::vector<argument> sub_args;
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
-            argument temp_arg;
-            ss.visit_type([&](auto as) {
-                if(ss.type() == shape::bool_type)
-                {
-                    auto v   = generate_tensor_data<bool>(ss, seed);
-                    temp_arg = {ss, v};
-                }
-                else
-                {
-                    using type = typename decltype(as)::type;
-                    auto v     = generate_tensor_data<type>(ss, seed);
-                    temp_arg   = {ss, v};
-                }
-            });
-
-            return temp_arg;
+            return generate_argument(ss, seed);
         });
 
         result = argument(sub_args);

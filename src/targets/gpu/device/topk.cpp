@@ -6,6 +6,7 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/visit.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -16,56 +17,32 @@ template <class T>
 __device__ inline void swap(T& v1, T& v2)
 {
     T v = v1;
-    v1  = v2;
-    v2  = v;
+    v1 = v2;
+    v2 = v;
 }
 
-template <class T, index_int N, class Op>
-__device__ inline void heap_heapify(T* arr,
-                                    int64_t* const ind,
-                                    const int64_t i,
-                                    const hip_shape<N>& oss,
-                                    const hip_shape<N>& iss,
-                                    const hip_shape<N>& css,
+template <class IndIndex, class Compare>
+__device__ inline void heap_heapify(int64_t* const ind,
                                     int n,
                                     int index,
-                                    const int64_t axis,
-                                    Op op)
+                                    IndIndex ind_idx,
+                                    Compare comp)
 {
-    auto idx  = css.multi(i);
-    auto idxi = idx;
-    auto idxl = idx;
-    auto idxr = idx;
-    auto idxp = idx;
     while(index < n)
     {
         auto pre_index = index;
         int l          = 2 * index + 1;
         int r          = 2 * index + 2;
 
-        idxi[axis] = index;
-        idx[axis]  = ind[oss.index(idxi)];
-
-        if(l < n)
-        {
-            idxi[axis] = l;
-            idxl[axis] = ind[oss.index(idxi)];
-        }
-        if(r < n)
-        {
-            idxi[axis] = r;
-            idxr[axis] = ind[oss.index(idxi)];
-        }
-
-        if(l < n && op(arr[iss.index(idxl)], arr[iss.index(idx)]))
+        if(l < n && comp(ind[ind_idx(l)], ind[ind_idx(index)]))
         {
             index = l;
         }
 
-        if(r < n && op(arr[iss.index(idxr)], arr[iss.index(idx)]))
+        if(r < n && comp(ind[ind_idx(r)], ind[ind_idx(index)]))
         {
             index = r;
-            if(op(arr[iss.index(idxl)], arr[iss.index(idxr)]))
+            if(comp(ind[ind_idx(l)], ind[ind_idx(r)]))
             {
                 index = l;
             }
@@ -76,96 +53,66 @@ __device__ inline void heap_heapify(T* arr,
             break;
         }
 
-        idxi[axis] = index;
-        idxp[axis] = pre_index;
-        swap(ind[oss.index(idxi)], ind[oss.index(idxp)]);
+        swap(ind[ind_idx(index)], ind[ind_idx(pre_index)]);
     }
 }
 
-template <class T, index_int N, class Op>
-__device__ inline void build_heap(T* arr,
-                                  int64_t* const ind,
-                                  const int64_t i,
-                                  const hip_shape<N>& oss,
-                                  const hip_shape<N>& iss,
-                                  const hip_shape<N>& css,
+template <class IndIndex, class Compare>
+__device__ inline void build_heap(int64_t* ind,
                                   int n,
-                                  const int64_t axis,
-                                  Op op)
+                                  IndIndex ind_idx,
+                                  Compare comp)
 {
     for(int j = n / 2 - 1; j >= 0; j--)
     {
-        heap_heapify(arr, ind, i, oss, iss, css, n, j, axis, op);
+        heap_heapify(ind, n, j, ind_idx, comp);
     }
 }
 
-template <class T, index_int N, class Op>
-__device__ inline void heap_add(T* arr,
-                                int64_t* ind,
-                                const int64_t i,
-                                const hip_shape<N>& oss,
-                                const hip_shape<N>& iss,
-                                const hip_shape<N>& css,
+template <class IndIndex, class Compare>
+__device__ inline void heap_update(int64_t* ind,
                                 int n,
                                 int val,
-                                const int64_t axis,
-                                Op op)
+                                IndIndex ind_idx,
+                                Compare comp)
 {
-    auto idx   = css.multi(i);
-    auto vidx  = idx;
-    idx[axis]  = ind[oss.index(idx)];
-    vidx[axis] = val;
-
-    if(op(arr[iss.index(vidx)], arr[iss.index(idx)]))
+    if(comp(val, ind[ind_idx(0)]))
     {
         return;
     }
 
-    idx                 = css.multi(i);
-    ind[oss.index(idx)] = val;
-    heap_heapify(arr, ind, i, oss, iss, css, n, 0, axis, op);
+    ind[ind_idx(0)] = val;
+    heap_heapify(ind, n, 0, ind_idx, comp);
 }
 
-template <class T, index_int N, class Op>
-__device__ inline void heap_sort(T* arr,
-                                 int64_t* const ind,
-                                 const int64_t i,
-                                 const hip_shape<N>& oss,
-                                 const hip_shape<N>& iss,
-                                 const hip_shape<N>& css,
+template <class IndIndex, class Compare>
+__device__ inline void heap_sort(int64_t* ind,
                                  int n,
-                                 const int64_t axis,
-                                 Op op)
+                                 IndIndex ind_idx,
+                                 Compare comp)
 {
-    build_heap(arr, ind, i, oss, iss, css, n, axis, op);
-    auto idx  = css.multi(i);
-    auto idxj = idx;
+    build_heap(ind, n, ind_idx, comp);
     for(int j = n - 1; j > 0; --j)
     {
-        idxj[axis] = j;
-        swap(ind[oss.index(idx)], ind[oss.index(idxj)]);
-        heap_heapify(arr, ind, i, oss, iss, css, j, 0, axis, op);
+        swap(ind[ind_idx(0)], ind[ind_idx(j)]);
+        heap_heapify(ind, j, 0, ind_idx, comp);
     }
 }
 
-template <class T, index_int N, class Op>
-__device__ inline void topk_value(const T* arr,
-                                  int64_t* const ind,
-                                  const int64_t i,
-                                  const hip_shape<N>& oss,
-                                  const hip_shape<N>& iss,
-                                  const hip_shape<N>& css,
+template <class IndIndex, class Compare>
+__device__ inline void topk_value(int64_t* const ind,
                                   int n,
                                   int k,
-                                  const int64_t axis,
-                                  Op op)
+                                  IndIndex ind_idx,
+                                  Compare comp)
 {
-    build_heap(arr, ind, i, oss, iss, css, k, axis, op);
+    build_heap(ind, k, ind_idx, comp);
     for(int j = k; j < n; ++j)
     {
-        heap_add(arr, ind, i, oss, iss, css, k, j, axis, op);
+        heap_update(ind, k, j, ind_idx, comp);
     }
 }
+
 
 argument topk(hipStream_t stream,
               argument val_res,
@@ -191,27 +138,36 @@ argument topk(hipStream_t stream,
             auto* const ind = ind_res.cast<int64_t>();
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto idx = css.multi(i);
+
+                auto in_idx = [&](int ii) {
+                    auto iidx = idx;
+                    iidx[axis] = ii;
+                    return iss.index(iidx);
+                };
+
+                auto out_idx = [&](int ii) {
+                    auto iidx = idx;
+                    iidx[axis] = ii;
+                    return oss.index(iidx);
+                };
+
+                auto compare = [=](auto ii, auto jj)
+                {
+                    return largest ? std::less<>{}(data[in_idx(ii)], data[in_idx(jj)]) : std::greater<>{}(data[in_idx(ii)], data[in_idx(jj)]);
+                };
+
                 for(int j = 0; j < k; ++j)
                 {
-                    idx[axis]           = j;
-                    ind[oss.index(idx)] = j;
+                    ind[out_idx(j)] = j;
                 }
 
-                largest
-                    ? topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::less<>{})
-                    : topk_value(data, ind, i, oss, iss, css, axis_dim, k, axis, std::greater<>{});
-
-                largest ? heap_sort(data, ind, i, oss, iss, css, k, axis, std::less<>{})
-                        : heap_sort(data, ind, i, oss, iss, css, k, axis, std::greater<>{});
+                topk_value(ind, axis_dim, k, out_idx, compare);
+                heap_sort(ind, k, out_idx, compare);
 
                 // read output
-                idx = css.multi(i);
                 for(int j = 0; j < k; ++j)
                 {
-                    auto in_idx         = idx;
-                    idx[axis]           = j;
-                    in_idx[axis]        = ind[oss.index(idx)];
-                    out[oss.index(idx)] = data[iss.index(in_idx)];
+                    out[out_idx(j)] = data[in_idx(ind[out_idx(j)])];
                 }
             });
         });

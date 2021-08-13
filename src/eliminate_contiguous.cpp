@@ -73,12 +73,12 @@ void eliminate_contiguous::apply(module& p) const
         if(ins->name() == "@return")
             continue;
 
-        if (std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
-            return arg->name() == op_name;
-        }))
+        if(std::none_of(ins->inputs().begin(), ins->inputs().end(), [&](auto arg) {
+               return arg->name() == op_name;
+           }))
             continue;
         // Make a copy so we can modify it while we iterate
-        auto args = ins->inputs();
+        auto args     = ins->inputs();
         auto new_args = args;
         std::transform(new_args.begin(), new_args.end(), new_args.begin(), [&](auto arg) {
             if(arg->name() == op_name)
@@ -90,9 +90,9 @@ void eliminate_contiguous::apply(module& p) const
 
         if(try_compute_shape(ins, new_args))
         {
-            for(auto i:range(args.size()))
+            for(auto i : range(args.size()))
             {
-                if (args[i] == new_args[i])
+                if(args[i] == new_args[i])
                     continue;
                 instruction::replace_argument(ins, args[i], new_args[i]);
             }
@@ -103,8 +103,8 @@ void eliminate_contiguous::apply(module& p) const
             {
                 if(arg->name() == op_name)
                 {
-                    new_args = args;
-                    auto prev     = arg->inputs().front();
+                    new_args  = args;
+                    auto prev = arg->inputs().front();
                     replace(new_args, arg, prev);
                     if(try_compute_shape(ins, new_args))
                     {
@@ -121,8 +121,6 @@ void eliminate_contiguous::apply(module& p) const
                 }
             }
         }
-
-
     }
 }
 

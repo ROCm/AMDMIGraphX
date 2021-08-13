@@ -165,7 +165,10 @@ struct dnnl_op : auto_register_op<Derived>
             i++;
         }
     }
-    shape adjust_shape(const shape& s, int, const shape& output) const { return base_adjust_shape(s, output); }
+    shape adjust_shape(const shape& s, int, const shape& output) const
+    {
+        return base_adjust_shape(s, output);
+    }
     std::vector<int> create_arg_map(std::size_t input_size) const
     {
         const auto& self     = static_cast<const Derived&>(*this);
@@ -184,8 +187,9 @@ struct dnnl_op : auto_register_op<Derived>
     {
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
-        result[DNNL_ARG_DST] = to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size(), output_shape));
-        auto m               = create_arg_map(inputs.size());
+        result[DNNL_ARG_DST] =
+            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size(), output_shape));
+        auto m = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {

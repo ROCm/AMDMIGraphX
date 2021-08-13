@@ -716,8 +716,7 @@ TEST_CASE(dot_correctness)
         auto a   = m2->add_parameter("a", sh1);
         auto b   = m2->add_parameter("b", sh2);
 
-        auto dot =
-            m2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), a, b);
+        auto dot = m2->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), a, b);
         m2->add_return({dot});
     }
 

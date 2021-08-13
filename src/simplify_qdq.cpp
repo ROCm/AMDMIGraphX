@@ -92,7 +92,7 @@ struct match_find_quantizable_ops
             dq = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }
-        dq_scale   = m.add_literal(static_cast<float>(scale));
+        dq_scale = m.add_literal(static_cast<float>(scale));
 
         auto lens = dq->get_shape().lens();
         auto scale_mb =
@@ -119,8 +119,10 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
 
     bool diff_shapes_equal_vals = false;
     visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
-        diff_shapes_equal_vals = std::all_of(l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and 
-             std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
+        diff_shapes_equal_vals =
+            std::all_of(
+                l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and
+            std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
     });
 
     return (x == y) or diff_shapes_equal_vals;
@@ -130,7 +132,7 @@ void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        auto args       = ins->inputs();
+        auto args = ins->inputs();
         for(auto&& arg : args)
         {
             if(arg->name() == "dequantizelinear")

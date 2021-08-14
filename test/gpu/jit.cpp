@@ -70,6 +70,43 @@ int main() {}
 
 )__migraphx__";
 
+// NOLINTNEXTLINE
+const std::string check_define = R"__migraphx__(
+
+#ifndef __DEFINE__
+#error __DEFINE__ was not defined
+#endif
+
+int main() {}
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+const std::string unused_param = R"__migraphx__(
+
+extern "C" {
+__global__ void kernel(void* x, void* y) 
+{}
+}
+
+int main() {}
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+const std::string incorrect_program = R"__migraphx__(
+
+extern "C" {
+__global__ void kernel(void* x) 
+{
+    x += y;
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};
@@ -90,6 +127,41 @@ TEST_CASE(simple_compile_hip)
     EXPECT(output != input);
     auto data = output.get<std::int8_t>();
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
+}
+
+auto check_target(const std::string& arch)
+{
+    auto define  = "__" + arch + "__";
+    auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
+    return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, "", arch);
+}
+
+TEST_CASE(compile_target)
+{
+    EXPECT(not check_target("gfx900").empty());
+    EXPECT(not check_target("gfx906").empty());
+}
+
+TEST_CASE(compile_errors)
+{
+    EXPECT(test::throws([&] {
+        migraphx::gpu::compile_hip_src(
+            {make_src_file("main.cpp", incorrect_program)}, "", migraphx::gpu::get_device_name());
+    }));
+}
+
+TEST_CASE(compile_warnings)
+{
+    auto compile = [](const std::string& params) {
+        return migraphx::gpu::compile_hip_src(
+            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+    };
+
+    EXPECT(not compile("").empty());
+    EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
+    EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
+    EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+    EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
 }
 
 TEST_CASE(code_object_hip)

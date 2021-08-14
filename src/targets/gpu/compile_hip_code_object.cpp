@@ -82,10 +82,12 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                    });
     srcs.push_back(src_file{fs::path{"main.cpp"},
                             std::make_pair(content.data(), content.data() + content.size())});
-    auto args_hpp = generate_args_hpp(options.inputs);
+    auto args_hpp =
+        generate_args_hpp(options.reduced_inputs.empty() ? options.inputs : options.reduced_inputs);
     srcs.push_back(src_file{fs::path{"args.hpp"},
                             std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
-    options.params += " -I.";
+    options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
+    options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
     auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

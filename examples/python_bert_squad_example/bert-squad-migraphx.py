@@ -1,14 +1,13 @@
 import numpy as np
 import json
-import time
 import os.path
-from os import path
-import sys
-
 import tokenizers
-from run_onnx_squad import *
-
+import collections
+from run_onnx_squad import read_squad_examples, write_predictions, convert_examples_to_features
 import migraphx
+
+RawResult = collections.namedtuple("RawResult",
+                                   ["unique_id", "start_logits", "end_logits"])
 
 #######################################
 input_file = 'inputs_amd.json'

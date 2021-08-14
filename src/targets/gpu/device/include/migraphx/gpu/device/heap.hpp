@@ -15,7 +15,8 @@ namespace device {
 template <class T, class Index, class Compare>
 struct hip_heap
 {
-    MIGRAPHX_DEVICE_CONSTEXPR hip_heap(T* val, index_int n, Index v_idx, Compare comp) : data(val), size(n), data_index(v_idx), compare(comp)
+    MIGRAPHX_DEVICE_CONSTEXPR hip_heap(T* val, index_int n, Index v_idx, Compare comp)
+        : data(val), size(n), data_index(v_idx), compare(comp)
     {
         make_heap(data, size, data_index, compare);
     }
@@ -48,8 +49,8 @@ struct hip_heap
         while(index < n)
         {
             auto pre_index = index;
-            index_int l          = 2 * index + 1;
-            index_int r          = 2 * index + 2;
+            index_int l    = 2 * index + 1;
+            index_int r    = 2 * index + 2;
 
             if(l < n && comp(ind[ind_idx(l)], ind[ind_idx(index)]))
             {

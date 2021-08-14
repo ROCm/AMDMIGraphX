@@ -55,8 +55,7 @@ heapify_down(int64_t* ind, int n, int index, IndIndex ind_idx, Compare comp) // 
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void
-heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) // NOLINT
+__device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) // NOLINT
 {
     while(index > 0)
     {
@@ -82,7 +81,8 @@ __device__ inline void make_heap(int64_t* ind, int n, IndIndex ind_idx, Compare 
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void push_heap(int64_t* ind, int loc, int64_t val, IndIndex ind_idx, Compare comp) // NOLINT
+__device__ inline void
+push_heap(int64_t* ind, int loc, int64_t val, IndIndex ind_idx, Compare comp) // NOLINT
 {
     ind[ind_idx(loc)] = val;
     heapify_up(ind, loc, ind_idx, comp);

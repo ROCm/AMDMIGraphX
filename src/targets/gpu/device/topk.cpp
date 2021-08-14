@@ -23,7 +23,7 @@ __device__ inline void swap(T& v1, T& v2)
 
 template <class IndIndex, class Compare>
 __device__ inline void
-heap_heapify(int64_t* const ind, int n, int index, IndIndex ind_idx, Compare comp)
+heap_heapify(int64_t* ind, int n, int index, IndIndex ind_idx, Compare comp) // NOLINT
 {
     while(index < n)
     {
@@ -55,7 +55,7 @@ heap_heapify(int64_t* const ind, int n, int index, IndIndex ind_idx, Compare com
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void build_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp)
+__device__ inline void build_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
 {
     for(int j = n / 2 - 1; j >= 0; j--)
     {
@@ -64,7 +64,7 @@ __device__ inline void build_heap(int64_t* ind, int n, IndIndex ind_idx, Compare
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp)
+__device__ inline void heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
 {
     if(comp(val, ind[ind_idx(0)]))
     {
@@ -76,7 +76,7 @@ __device__ inline void heap_update(int64_t* ind, int n, int val, IndIndex ind_id
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp)
+__device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
 {
     build_heap(ind, n, ind_idx, comp);
     for(int j = n - 1; j > 0; --j)
@@ -87,7 +87,7 @@ __device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare 
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void topk_value(int64_t* const ind, int n, int k, IndIndex ind_idx, Compare comp)
+__device__ inline void topk_value(int64_t* ind, int n, int k, IndIndex ind_idx, Compare comp) // NOLINT
 {
     build_heap(ind, k, ind_idx, comp);
     for(int j = k; j < n; ++j)

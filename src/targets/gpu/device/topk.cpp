@@ -64,7 +64,8 @@ __device__ inline void build_heap(int64_t* ind, int n, IndIndex ind_idx, Compare
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
+__device__ inline void
+heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
 {
     if(comp(val, ind[ind_idx(0)]))
     {
@@ -87,7 +88,8 @@ __device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare 
 }
 
 template <class IndIndex, class Compare>
-__device__ inline void topk_value(int64_t* ind, int n, int k, IndIndex ind_idx, Compare comp) // NOLINT
+__device__ inline void
+topk_value(int64_t* ind, int n, int k, IndIndex ind_idx, Compare comp) // NOLINT
 {
     build_heap(ind, k, ind_idx, comp);
     for(int j = k; j < n; ++j)

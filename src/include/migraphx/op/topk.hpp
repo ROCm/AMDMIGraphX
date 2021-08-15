@@ -84,7 +84,7 @@ struct topk
                 {
                     hp.update(ii);
                 }
-                hp.sort();
+                // hp.sort();
 
                 auto sorted_indices = hp.get_sorted();
                 auto out_idx        = idx;

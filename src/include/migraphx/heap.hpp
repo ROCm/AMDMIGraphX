@@ -18,7 +18,10 @@ struct heap
 
     heap(const std::vector<T>& val, Compare comp) : data(val), compare(std::move(comp))
     {
-        std::make_heap(data.begin(), data.end(), compare);
+        for(int i = 2; i <= data.size(); ++i)
+        {
+            std::push_heap(data.begin(), data.begin() + i, compare);
+        }
     }
 
     void update(const T val)

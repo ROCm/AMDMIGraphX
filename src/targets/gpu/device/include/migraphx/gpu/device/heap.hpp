@@ -27,8 +27,8 @@ struct hip_heap
         if(compare(val, data[data_index(size - 1)]))
         {
             data[data_index(size - 1)] = val;
-            push_heap(data, size - 1, data_index, compare);
         }
+        push_heap(data, size - 1, data_index, compare);
     }
 
     void sort() { sort_heap(data, size, data_index, compare); }
@@ -82,21 +82,21 @@ struct hip_heap
         {
             auto parent_idx = (index - 1) / 2;
 
-            if(comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
+            if(not comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
             {
-                swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
-                index = parent_idx;
+                break;
             }
 
-            break;
+            swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
+            index = parent_idx;
         }
     }
 
     __device__ inline void make_heap(T* ind, index_int n, Index ind_idx, Compare comp) // NOLINT
     {
-        for(index_int j = n / 2 - 1; j >= 0; j--)
+        for(int j = 1; j < n; ++j)
         {
-            heapify_down(ind, n, j, ind_idx, comp);
+            heapify_up(ind, j, ind_idx, comp);
         }
     }
 

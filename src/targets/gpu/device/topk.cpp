@@ -6,6 +6,7 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/visit.hpp>
+#include <migraphx/gpu/device/heap.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
@@ -61,22 +62,22 @@ __device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Com
     {
         auto parent_idx = (index - 1) / 2;
 
-        if(comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
+        if(not comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
         {
-            swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
-            index = parent_idx;
+            break;
         }
 
-        break;
+        swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
+        index = parent_idx;
     }
 }
 
 template <class IndIndex, class Compare>
 __device__ inline void make_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
 {
-    for(int j = n / 2 - 1; j >= 0; j--)
+    for(int j = 1; j < n; ++j)
     {
-        heapify_down(ind, n, j, ind_idx, comp);
+        heapify_up(ind, j, ind_idx, comp);
     }
 }
 
@@ -99,19 +100,18 @@ template <class IndIndex, class Compare>
 __device__ inline void
 heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
 {
-    if(comp(val, ind[ind_idx(0)]))
+    pop_heap(ind, n - 1, ind_idx, comp);
+    if(comp(val, ind[ind_idx(n - 1)]))
     {
         return;
     }
-
-    ind[ind_idx(0)] = val;
-    heapify_down(ind, n, 0, ind_idx, comp);
+    push_heap(ind, n - 1, val, ind_idx, comp);
 }
 
 template <class IndIndex, class Compare>
 __device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
 {
-    make_heap(ind, n, ind_idx, comp);
+    // make_heap(ind, n, ind_idx, comp);
     for(int j = n - 1; j > 0; --j)
     {
         swap(ind[ind_idx(0)], ind[ind_idx(j)]);
@@ -178,7 +178,7 @@ argument topk(hipStream_t stream,
                 }
 
                 topk_value(ind, axis_dim, k, out_idx, compare);
-                heap_sort(ind, k, out_idx, compare);
+                // heap_sort(ind, k, out_idx, compare);
 
                 // read output
                 for(int j = 0; j < k; ++j)

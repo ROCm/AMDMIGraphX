@@ -2,10 +2,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_HEAP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_HEAP_HPP
 
-#include "migraphx/instruction_ref.hpp"
 #include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/vector.hpp>
-#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

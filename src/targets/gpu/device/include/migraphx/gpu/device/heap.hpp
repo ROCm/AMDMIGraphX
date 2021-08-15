@@ -21,19 +21,20 @@ struct hip_heap
         make_heap(data, size, data_index, compare);
     }
 
-    void update(const T val)
+    MIGRAPHX_DEVICE_CONSTEXPR void update(const T val)
     {
         pop_heap(data, size - 1, data_index, compare);
         if(compare(val, data[data_index(size - 1)]))
         {
-            data[data_index(size - 1)] = val;
+            return;
         }
+        data[data_index(size - 1)] = val;
         push_heap(data, size - 1, data_index, compare);
     }
 
-    void sort() { sort_heap(data, size, data_index, compare); }
+    MIGRAPHX_DEVICE_CONSTEXPR void sort() { sort_heap(data, size, data_index, compare); }
 
-    T* get_sorted() { return data; }
+    MIGRAPHX_DEVICE_CONSTEXPR T* get_sorted() { return data; }
 
     private:
     __device__ inline void swap(T& v1, T& v2)
@@ -128,7 +129,7 @@ struct hip_heap
 };
 
 template <class T, class Index, class Compare>
-hip_heap<T, Index, Compare> make_heap(T* data, index_int n, Index idx, Compare comp)
+__device__ hip_heap<T, Index, Compare> make_heap(T* data, index_int n, Index idx, Compare comp)
 {
     return {data, n, idx, comp};
 }

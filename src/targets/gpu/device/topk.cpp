@@ -14,121 +14,121 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template <class T>
-__device__ inline void swap(T& v1, T& v2)
-{
-    T v = v1;
-    v1  = v2;
-    v2  = v;
-}
+// template <class T>
+// __device__ inline void swap(T& v1, T& v2)
+// {
+//     T v = v1;
+//     v1  = v2;
+//     v2  = v;
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void
-heapify_down(int64_t* ind, int n, int index, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    while(index < n)
-    {
-        auto pre_index = index;
-        int l          = 2 * index + 1;
-        int r          = 2 * index + 2;
+// template <class IndIndex, class Compare>
+// __device__ inline void
+// heapify_down(int64_t* ind, int n, int index, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     while(index < n)
+//     {
+//         auto pre_index = index;
+//         int l          = 2 * index + 1;
+//         int r          = 2 * index + 2;
 
-        if(l < n && comp(ind[ind_idx(l)], ind[ind_idx(index)]))
-        {
-            index = l;
-        }
+//         if(l < n && comp(ind[ind_idx(l)], ind[ind_idx(index)]))
+//         {
+//             index = l;
+//         }
 
-        if(r < n && comp(ind[ind_idx(r)], ind[ind_idx(index)]))
-        {
-            index = r;
-            if(comp(ind[ind_idx(l)], ind[ind_idx(r)]))
-            {
-                index = l;
-            }
-        }
+//         if(r < n && comp(ind[ind_idx(r)], ind[ind_idx(index)]))
+//         {
+//             index = r;
+//             if(comp(ind[ind_idx(l)], ind[ind_idx(r)]))
+//             {
+//                 index = l;
+//             }
+//         }
 
-        if(index == pre_index)
-        {
-            break;
-        }
+//         if(index == pre_index)
+//         {
+//             break;
+//         }
 
-        swap(ind[ind_idx(index)], ind[ind_idx(pre_index)]);
-    }
-}
+//         swap(ind[ind_idx(index)], ind[ind_idx(pre_index)]);
+//     }
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    while(index > 0)
-    {
-        auto parent_idx = (index - 1) / 2;
+// template <class IndIndex, class Compare>
+// __device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     while(index > 0)
+//     {
+//         auto parent_idx = (index - 1) / 2;
 
-        if(not comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
-        {
-            break;
-        }
+//         if(not comp(ind[ind_idx(index)], ind[ind_idx(parent_idx)]))
+//         {
+//             break;
+//         }
 
-        swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
-        index = parent_idx;
-    }
-}
+//         swap(ind[ind_idx(index)], ind[ind_idx(parent_idx)]);
+//         index = parent_idx;
+//     }
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void make_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    for(int j = 1; j < n; ++j)
-    {
-        heapify_up(ind, j, ind_idx, comp);
-    }
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void make_heap(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     for(int j = 1; j < n; ++j)
+//     {
+//         heapify_up(ind, j, ind_idx, comp);
+//     }
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void
-push_heap(int64_t* ind, int loc, int64_t val, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    ind[ind_idx(loc)] = val;
-    heapify_up(ind, loc, ind_idx, comp);
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void
+// push_heap(int64_t* ind, int loc, int64_t val, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     ind[ind_idx(loc)] = val;
+//     heapify_up(ind, loc, ind_idx, comp);
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void pop_heap(int64_t* ind, int loc, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    swap(ind[ind_idx(0)], ind[ind_idx(loc)]);
-    heapify_down(ind, loc, 0, ind_idx, comp);
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void pop_heap(int64_t* ind, int loc, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     swap(ind[ind_idx(0)], ind[ind_idx(loc)]);
+//     heapify_down(ind, loc, 0, ind_idx, comp);
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void
-heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    pop_heap(ind, n - 1, ind_idx, comp);
-    if(comp(val, ind[ind_idx(n - 1)]))
-    {
-        return;
-    }
-    push_heap(ind, n - 1, val, ind_idx, comp);
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void
+// heap_update(int64_t* ind, int n, int val, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     pop_heap(ind, n - 1, ind_idx, comp);
+//     if(comp(val, ind[ind_idx(n - 1)]))
+//     {
+//         return;
+//     }
+//     push_heap(ind, n - 1, val, ind_idx, comp);
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    // make_heap(ind, n, ind_idx, comp);
-    for(int j = n - 1; j > 0; --j)
-    {
-        swap(ind[ind_idx(0)], ind[ind_idx(j)]);
-        heapify_down(ind, j, 0, ind_idx, comp);
-    }
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void heap_sort(int64_t* ind, int n, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     // make_heap(ind, n, ind_idx, comp);
+//     for(int j = n - 1; j > 0; --j)
+//     {
+//         swap(ind[ind_idx(0)], ind[ind_idx(j)]);
+//         heapify_down(ind, j, 0, ind_idx, comp);
+//     }
+// }
 
-template <class IndIndex, class Compare>
-__device__ inline void
-topk_value(int64_t* ind, int n, int k, IndIndex ind_idx, Compare comp) // NOLINT
-{
-    make_heap(ind, k, ind_idx, comp);
-    for(int j = k; j < n; ++j)
-    {
-        heap_update(ind, k, j, ind_idx, comp);
-    }
-}
+// template <class IndIndex, class Compare>
+// __device__ inline void
+// topk_value(int64_t* ind, int n, int k, IndIndex ind_idx, Compare comp) // NOLINT
+// {
+//     make_heap(ind, k, ind_idx, comp);
+//     for(int j = k; j < n; ++j)
+//     {
+//         heap_update(ind, k, j, ind_idx, comp);
+//     }
+// }
 
 argument topk(hipStream_t stream,
               argument val_res,
@@ -177,7 +177,15 @@ argument topk(hipStream_t stream,
                     ind[out_idx(j)] = j;
                 }
 
-                topk_value(ind, axis_dim, k, out_idx, compare);
+                auto hp = make_heap(ind, k, out_idx, compare);
+                for(int j = k; j < axis_dim; ++j)
+                {
+                    hp.update(j);
+                }
+                hp.sort();
+
+
+                // topk_value(ind, axis_dim, k, out_idx, compare);
                 // heap_sort(ind, k, out_idx, compare);
 
                 // read output

@@ -93,7 +93,8 @@ struct hip_heap
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void make_heap(T* ind, index_int n, Index ind_idx, Compare comp)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    make_heap(T* ind, index_int n, Index ind_idx, Compare comp)
     {
         for(int j = 1; j < n; ++j)
         {
@@ -101,18 +102,21 @@ struct hip_heap
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void push_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    push_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
     {
         heapify_up(ind, loc, ind_idx, comp);
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void pop_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    pop_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
     {
         swap(ind[ind_idx(0)], ind[ind_idx(loc)]);
         heapify_down(ind, loc, 0, ind_idx, comp);
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void sort_heap(T* ind, index_int n, Index ind_idx, Compare comp)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    sort_heap(T* ind, index_int n, Index ind_idx, Compare comp)
     {
         for(int j = n - 1; j > 0; --j)
         {

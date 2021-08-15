@@ -37,15 +37,15 @@ struct hip_heap
     MIGRAPHX_DEVICE_CONSTEXPR T* get_sorted() { return data; }
 
     private:
-    __device__ inline void swap(T& v1, T& v2)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void swap(T& v1, T& v2)
     {
         T v = v1;
         v1  = v2;
         v2  = v;
     }
 
-    __device__ inline void
-    heapify_down(T* ind, index_int n, index_int index, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    heapify_down(T* ind, index_int n, index_int index, Index ind_idx, Compare comp)
     {
         while(index < n)
         {
@@ -76,8 +76,8 @@ struct hip_heap
         }
     }
 
-    __device__ inline void
-    heapify_up(T* ind, index_int index, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void
+    heapify_up(T* ind, index_int index, Index ind_idx, Compare comp)
     {
         while(index > 0)
         {
@@ -93,7 +93,7 @@ struct hip_heap
         }
     }
 
-    __device__ inline void make_heap(T* ind, index_int n, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void make_heap(T* ind, index_int n, Index ind_idx, Compare comp)
     {
         for(int j = 1; j < n; ++j)
         {
@@ -101,18 +101,18 @@ struct hip_heap
         }
     }
 
-    __device__ inline void push_heap(T* ind, index_int loc, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void push_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
     {
         heapify_up(ind, loc, ind_idx, comp);
     }
 
-    __device__ inline void pop_heap(T* ind, index_int loc, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void pop_heap(T* ind, index_int loc, Index ind_idx, Compare comp)
     {
         swap(ind[ind_idx(0)], ind[ind_idx(loc)]);
         heapify_down(ind, loc, 0, ind_idx, comp);
     }
 
-    __device__ inline void sort_heap(T* ind, index_int n, Index ind_idx, Compare comp) // NOLINT
+    MIGRAPHX_DEVICE_CONSTEXPR inline void sort_heap(T* ind, index_int n, Index ind_idx, Compare comp)
     {
         for(int j = n - 1; j > 0; --j)
         {

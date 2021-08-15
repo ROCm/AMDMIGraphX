@@ -56,7 +56,8 @@ namespace device {
 // }
 
 // template <class IndIndex, class Compare>
-// __device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) // NOLINT
+// __device__ inline void heapify_up(int64_t* ind, int index, IndIndex ind_idx, Compare comp) //
+// NOLINT
 // {
 //     while(index > 0)
 //     {
@@ -183,7 +184,6 @@ argument topk(hipStream_t stream,
                     hp.update(j);
                 }
                 hp.sort();
-
 
                 // topk_value(ind, axis_dim, k, out_idx, compare);
                 // heap_sort(ind, k, out_idx, compare);

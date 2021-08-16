@@ -565,11 +565,9 @@ void schedule::apply(module& p) const
         {
             for(auto i : si.get_recorded_instructions(ins))
             {
-                if(not si.has_stream(i))
+                if(not si.has_stream(i) or si.get_stream(i) == stream)
                     continue;
-                auto istream = si.get_stream(i);
-                if(stream == istream)
-                    continue;
+                    
                 // Create a new event if it hasn't been recorded
                 if(not contains(ins2wait, i))
                 {

@@ -1295,14 +1295,16 @@ TEST_CASE(gemm_test)
     t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), t_a);
     auto t1    = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l1);
 
+    auto dot = mm->add_instruction(
+        migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), t_a, t1);
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {7, 11}}}), l2);
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2_b->get_shape().lens()}}), b_l);
     auto l2_bb = mm->add_instruction(migraphx::make_op("mul"), l2_b, b_b);
-    mm->add_instruction(
-        migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), t_a, t1, l2_bb);
+    auto add = mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
+
     auto prog = optimize_onnx("gemm_test.onnx");
     EXPECT(p == prog);
 }
@@ -1320,14 +1322,14 @@ TEST_CASE(gemm_ex_test)
     auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
     t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
 
+    auto dot = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), t_a, l1);
     auto b_l = mm->add_literal(beta);
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2->get_shape().lens()}}), b_l);
     auto l2_b = mm->add_instruction(migraphx::make_op("mul"), l2, b_b);
-    mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), t_a, l1, l2_b);
+    auto add = mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_ex_test.onnx");
-
     EXPECT(p == prog);
 }
 
@@ -1345,17 +1347,17 @@ TEST_CASE(gemm_ex_brcst_test)
     auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
     t_a        = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
 
+    auto dot = mm->add_instruction(
+        migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), t_a, l1);
     auto b_l = mm->add_literal(beta);
     auto l2_b =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", out_lens}}), l2);
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2_b->get_shape().lens()}}), b_l);
     auto l2_bb = mm->add_instruction(migraphx::make_op("mul"), l2_b, b_b);
-    mm->add_instruction(
-        migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), t_a, l1, l2_bb);
+    auto add = mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
 
     auto prog = optimize_onnx("gemm_ex_brcst_test.onnx");
-
     EXPECT(p == prog);
 }
 
@@ -1374,6 +1376,7 @@ TEST_CASE(gemm_half_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), t_a);
     t_a = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), t_a);
     std::vector<std::size_t> lens = {1, 1, 6, 7};
+    auto dot = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), t_a, l1);
     l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), l2);
     l2 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l2);
@@ -1383,10 +1386,9 @@ TEST_CASE(gemm_half_test)
     auto l2_b = mm->add_instruction(migraphx::make_op("mul"), l2, b_b);
     l2_b      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2_b);
-    mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), t_a, l1, l2_b);
+    auto add = mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_half_test.onnx");
-
     EXPECT(p == prog);
 }
 
@@ -1806,7 +1808,7 @@ TEST_CASE(initializer_not_an_input)
     std::vector<float> w = {1, 2, 3, 4, 5, 6, 7, 8};
     auto l1 = mm->add_literal(migraphx::literal({migraphx::shape::float_type, {2, 4}}, w));
     auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {5, 2}});
-    mm->add_instruction(migraphx::make_op("dot"), l0, l1);
+    mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), l0, l1);
 
     auto prog = optimize_onnx("initializer_not_an_input.onnx");
 

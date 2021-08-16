@@ -567,7 +567,7 @@ void schedule::apply(module& p) const
             {
                 if(not si.has_stream(i) or si.get_stream(i) == stream)
                     continue;
-                    
+
                 // Create a new event if it hasn't been recorded
                 if(not contains(ins2wait, i))
                 {

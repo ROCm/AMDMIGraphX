@@ -122,7 +122,6 @@ struct hip_heap
         }
     }
 
-    private:
     T* data = nullptr;
     index_int size;
     Index data_index;

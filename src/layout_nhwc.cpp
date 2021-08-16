@@ -28,8 +28,9 @@ std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
     return result;
 }
 
-void preserve_output_layout(module& m)
+std::unordered_set<instruction_ref> preserve_output_layout(module& m)
 {
+    std::unordered_set<instruction_ref> result;
     std::vector<instruction_ref> outputs =
         find_lasts(m, [](auto ins) { return ins->get_shape().lens().size() == 4; });
     for(auto output : outputs)
@@ -37,8 +38,9 @@ void preserve_output_layout(module& m)
         auto permutation = find_permutation(output->get_shape());
         auto layout      = m.insert_instruction(
             std::next(output), make_op("layout", {{"permutation", permutation}}), output);
-        m.replace_instruction(output, layout);
+        result.insert(m.replace_instruction(output, layout));
     }
+    return result;
 }
 
 void transform_convolutions(module& m)
@@ -59,12 +61,29 @@ void transform_convolutions(module& m)
     }
 }
 
+void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "layout")
+            continue;
+        if (ins->get_shape() != ins->inputs().front()->get_shape())
+            continue;
+        if (contains(output_layouts, ins))
+            continue;
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+}
+
 void layout_nhwc::apply(module& m) const
 {
-    preserve_output_layout(m);
+    std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(m);
     transform_convolutions(m);
     dead_code_elimination{}.apply(m);
     eliminate_contiguous{"contiguous"}.apply(m);
+    dead_code_elimination{}.apply(m);
+    remove_layout(m, output_layouts);
+    dead_code_elimination{}.apply(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

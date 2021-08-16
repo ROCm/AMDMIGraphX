@@ -707,20 +707,21 @@ TEST_CASE(optimize_where_true)
         return m;
     };
 
-    auto create_opt_module = [&](std::string name) {
+    auto create_opt_module = [&] (bool cond){
         migraphx::module m;
-        auto in = m.add_parameter(std::move(name), s);
-        m.add_return({in});
+        auto x = m.add_parameter("X", s);
+        auto y = m.add_parameter("Y", s);
+        cond ? m.add_return({x}) : m.add_return({y});
         return m;
     };
 
     auto m = create_where_module(true);
     run_pass(m);
-    EXPECT(m == create_opt_module("X"));
+    EXPECT(m == create_opt_module(true));
 
     auto m1 = create_where_module(false);
     run_pass(m1);
-    EXPECT(m1 == create_opt_module("Y"));
+    EXPECT(m1 == create_opt_module(false));
 }
 
 TEST_CASE(where_different_cond_values)

@@ -57,6 +57,7 @@ TEST_CASE(int8_quantization)
         }
 
         auto result = t.copy_from(p.eval(m).back());
+        std::cout << "result = " << result << std::endl;
         result.visit([&](auto v) { res.assign(v.begin(), v.end()); });
     };
 

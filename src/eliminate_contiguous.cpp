@@ -90,12 +90,7 @@ void eliminate_contiguous::apply(module& p) const
 
         if(try_compute_shape(ins, new_args))
         {
-            for(auto i : range(args.size()))
-            {
-                if(args[i] == new_args[i])
-                    continue;
-                instruction::replace_argument(ins, args[i], new_args[i]);
-            }
+            p.replace_instruction(ins, ins->get_operator(), new_args);
         }
         else
         {

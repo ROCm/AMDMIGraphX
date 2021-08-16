@@ -707,7 +707,7 @@ TEST_CASE(optimize_where_true)
         return m;
     };
 
-    auto create_opt_module = [&] (bool cond){
+    auto create_opt_module = [&](bool cond) {
         migraphx::module m;
         auto x = m.add_parameter("X", s);
         auto y = m.add_parameter("Y", s);

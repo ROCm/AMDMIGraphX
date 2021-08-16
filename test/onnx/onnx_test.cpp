@@ -1303,7 +1303,7 @@ TEST_CASE(gemm_test)
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2_b->get_shape().lens()}}), b_l);
     auto l2_bb = mm->add_instruction(migraphx::make_op("mul"), l2_b, b_b);
-    auto add   = mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
+    mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
 
     auto prog = optimize_onnx("gemm_test.onnx");
     EXPECT(p == prog);
@@ -1328,7 +1328,7 @@ TEST_CASE(gemm_ex_test)
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2->get_shape().lens()}}), b_l);
     auto l2_b = mm->add_instruction(migraphx::make_op("mul"), l2, b_b);
-    auto add  = mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
+    mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_ex_test.onnx");
     EXPECT(p == prog);
@@ -1356,7 +1356,7 @@ TEST_CASE(gemm_ex_brcst_test)
     auto b_b = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", l2_b->get_shape().lens()}}), b_l);
     auto l2_bb = mm->add_instruction(migraphx::make_op("mul"), l2_b, b_b);
-    auto add   = mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
+    mm->add_instruction(migraphx::make_op("add"), dot, l2_bb);
 
     auto prog = optimize_onnx("gemm_ex_brcst_test.onnx");
     EXPECT(p == prog);
@@ -1388,7 +1388,7 @@ TEST_CASE(gemm_half_test)
     auto l2_b = mm->add_instruction(migraphx::make_op("mul"), l2, b_b);
     l2_b      = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2_b);
-    auto add = mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
+    mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_half_test.onnx");
     EXPECT(p == prog);

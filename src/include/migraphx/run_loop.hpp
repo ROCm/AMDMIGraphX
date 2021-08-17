@@ -12,26 +12,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static inline std::pair<int, bool> get_name_index(const std::string& name,
-                                                  const std::string& param_prefix)
-{
-    auto loc = name.find(param_prefix);
-    if(loc != std::string::npos)
-    {
-        int index = std::stoi(name.substr(loc + param_prefix.size()));
-        return {index, true};
-    }
-
-    std::string out_prefix = "#output_";
-    loc                    = name.find(out_prefix);
-    if(loc != std::string::npos)
-    {
-        int index = std::stoi(name.substr(loc + out_prefix.size()));
-        return {index, false};
-    }
-
-    return {-1, false};
-}
 
 template <class LoopModel, class T>
 argument run_loop(const LoopModel& model,
@@ -41,6 +21,19 @@ argument run_loop(const LoopModel& model,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run)
 {
+    auto get_output_index = [](const std::string& name)
+    {
+        std::string out_prefix = "#output_";
+        auto loc                    = name.find(out_prefix);
+        if(loc != std::string::npos)
+        {
+            int index = std::stoi(name.substr(loc + out_prefix.size()));
+            return index;
+        }
+
+        return -1;
+    };
+
     std::vector<std::vector<argument>> results;
     // process argu lists
     auto iter_num = args.at(0).at<int64_t>();
@@ -54,7 +47,8 @@ argument run_loop(const LoopModel& model,
 
     module_ref mod           = mods.at(0);
     auto param_name_shapes   = mod->get_parameter_shapes();
-    std::string param_prefix = "#" + mod->name() + "_in_";
+    auto param_names         = mod->get_parameter_names();
+    // std::string param_prefix = "#" + mod->name() + "_in_";
 
     std::vector<argument> in_args(args.begin(), args.begin() + input_num);
     std::vector<argument> out_args = {args.at(input_num)};
@@ -62,6 +56,7 @@ argument run_loop(const LoopModel& model,
     out_args.insert(out_args.end(), mod_outputs.begin(), mod_outputs.end());
 
     std::vector<argument> scan_outputs(out_args.begin() + dep_num + 1, out_args.end());
+
     int64_t iter = 0;
     for(iter = 0; iter < iter_num and cond; ++iter)
     {
@@ -71,27 +66,27 @@ argument run_loop(const LoopModel& model,
 
         // wrap up the inputs and outputs
         std::unordered_map<std::string, argument> params;
-        for(const auto& pn : param_name_shapes)
+        int input_index = 0;
+        for(const auto& name : param_names)
         {
-            auto name     = pn.first;
-            auto io_index = get_name_index(name, param_prefix);
-            assert(io_index.first != -1);
-            // name is for input
-            if(io_index.second)
+            auto output_index = get_output_index(name);
+            // it is an input parameter
+            if (output_index == -1)
             {
-                params[name] = in_args.at(io_index.first);
+                params[name] = in_args.at(input_index++);
             }
             else
             {
-                if(io_index.first > dep_num)
+                auto out_s = mod->get_parameter_shape(name);
+                if(output_index > dep_num)
                 {
-                    const auto& arg = out_args.at(io_index.first);
-                    assert((iter + 1) * pn.second.bytes() <= arg.get_shape().bytes());
-                    params[name] = argument::load(pn.second, arg.data() + iter * pn.second.bytes());
+                    const auto& arg = out_args.at(output_index);
+                    assert((iter + 1) * out_s.bytes() <= arg.get_shape().bytes());
+                    params[name] = argument::load(out_s, arg.data() + iter * out_s.bytes());
                 }
                 else
                 {
-                    params[name] = out_args.at(io_index.first);
+                    params[name] = out_args.at(output_index);
                 }
             }
         }
@@ -101,10 +96,13 @@ argument run_loop(const LoopModel& model,
 
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
-        std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+
+        // std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        model.copy_carry_dependencies(ctx, mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);
+        ctx.finish();
     }
 
     out_args.erase(out_args.begin());

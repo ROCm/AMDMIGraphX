@@ -75,6 +75,12 @@ struct loop
             *dst.cast<T>() = src;
         }
 
+        template <class InputIt, class OutputIt>
+        void copy_carry_dependencies(context&, InputIt first, InputIt last, OutputIt d_first) const
+        {
+            std::copy(first, last, d_first);
+        }
+
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
                     const int iter) const
@@ -121,10 +127,12 @@ struct loop
         bool cond     = in_cond;
         int64_t iter  = 0;
         // insert iter and cond used in the loop
-        cpy_args.insert(cpy_args.begin() + 1, {{shape::int64_type}, &iter});
-        cpy_args.insert(cpy_args.begin() + 3, {{shape::bool_type}, &cond});
+        auto s_cond = args.at(1).get_shape();
+        auto s_iter = args.at(0).get_shape();
+        cpy_args.insert(cpy_args.begin() + 1, {s_iter, &iter});
+        cpy_args.insert(cpy_args.begin() + 3, {s_cond, &cond});
         // add cond and mod outputs to the argument list
-        cpy_args.push_back(argument(shape{shape::bool_type}));
+        cpy_args.push_back(argument(s_cond));
         cpy_args.push_back(argument(out_shape));
 
         // run loop

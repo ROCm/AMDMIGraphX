@@ -2019,9 +2019,9 @@ TEST_CASE(loop_test)
     auto b = mm->add_parameter("b", su);
 
     auto* body = p.create_module("Loop_4_loop");
-    body->add_parameter("#Loop_4_loop_in_0", si);
-    body->add_parameter("#Loop_4_loop_in_1", sc);
-    auto var = body->add_parameter("#Loop_4_loop_in_2", su);
+    body->add_parameter("iteration_num", si);
+    body->add_parameter("keep_going_inp", sc);
+    auto var = body->add_parameter("b_in", su);
 
     auto ad = body->add_instruction(migraphx::make_op("add"), a, var);
     auto sb = body->add_instruction(migraphx::make_op("sub"), a, var);

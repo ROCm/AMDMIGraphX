@@ -35,6 +35,15 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
+    template <class InputIt, class OutputIt>
+    void copy_carry_dependencies(context& ctx, InputIt first, InputIt last, OutputIt d_first) const
+    {
+        while(first != last)
+        {
+            gpu_copy(ctx, *first++, *d_first++);
+        }
+    }
+
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
 
     void

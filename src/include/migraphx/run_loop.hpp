@@ -12,7 +12,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 template <class LoopModel, class T>
 argument run_loop(const LoopModel& model,
                   T& ctx,
@@ -21,10 +20,9 @@ argument run_loop(const LoopModel& model,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run)
 {
-    auto get_output_index = [](const std::string& name)
-    {
+    auto get_output_index = [](const std::string& name) {
         std::string out_prefix = "#output_";
-        auto loc                    = name.find(out_prefix);
+        auto loc               = name.find(out_prefix);
         if(loc != std::string::npos)
         {
             int index = std::stoi(name.substr(loc + out_prefix.size()));
@@ -45,9 +43,9 @@ argument run_loop(const LoopModel& model,
     auto input_num = args.size() - 2;
     auto dep_num   = input_num - 2;
 
-    module_ref mod           = mods.at(0);
-    auto param_name_shapes   = mod->get_parameter_shapes();
-    auto param_names         = mod->get_parameter_names();
+    module_ref mod         = mods.at(0);
+    auto param_name_shapes = mod->get_parameter_shapes();
+    auto param_names       = mod->get_parameter_names();
     // std::string param_prefix = "#" + mod->name() + "_in_";
 
     std::vector<argument> in_args(args.begin(), args.begin() + input_num);
@@ -71,7 +69,7 @@ argument run_loop(const LoopModel& model,
         {
             auto output_index = get_output_index(name);
             // it is an input parameter
-            if (output_index == -1)
+            if(output_index == -1)
             {
                 params[name] = in_args.at(input_index++);
             }
@@ -98,7 +96,8 @@ argument run_loop(const LoopModel& model,
         model.copy(ctx, mod_args.at(0), cond);
 
         // std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
-        model.copy_carry_dependencies(ctx, mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        model.copy_carry_dependencies(
+            ctx, mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);

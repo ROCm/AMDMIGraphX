@@ -207,7 +207,8 @@ std::vector<argument> generic_eval(const module* mod,
                     auto param = params[param_name];
                     if(param.get_shape() != ins->get_shape())
                         MIGRAPHX_THROW("Incorrect shape {" + to_string(param.get_shape()) +
-                                       "} for parameter: " + param_name + ", ins_shape = " + to_string(ins->get_shape()));
+                                       "} for parameter: " + param_name +
+                                       ", ins_shape = " + to_string(ins->get_shape()));
                     return param;
                 }));
         }

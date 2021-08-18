@@ -81,8 +81,6 @@ void argument::assign_buffer(std::function<char*()> d)
     })(s);
 }
 
-argument argument::load(const shape& s, char* buffer) { return argument{s, buffer}; }
-
 std::vector<shape> to_shapes(const std::vector<argument>& args)
 {
     std::vector<shape> shapes;

@@ -30,8 +30,8 @@ TEST_CASE(conv_relu)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
-        auto w =
-            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
         auto conv = m1.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -43,9 +43,11 @@ TEST_CASE(conv_relu)
 
     migraphx::module m2;
     {
-        auto x = add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
-        auto w =
-            add_layout_nhwc(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}})));
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w    = add_layout_nhwc(m2,
+                                 m2.add_literal(migraphx::generate_literal(
+                                     {migraphx::shape::float_type, {16, 8, 3, 3}})));
         auto conv = m2.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
@@ -62,33 +64,35 @@ TEST_CASE(conv_add)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
-        auto w =
-            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
-        auto y =
-            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}));
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto y    = m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}));
         auto conv = m1.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto b = m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
+        auto b = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x = add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
-        auto w =
-            add_layout_nhwc(m2, m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}})));
-        auto y =
-            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}));
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto w    = add_layout_nhwc(m2,
+                                 m2.add_literal(migraphx::generate_literal(
+                                     {migraphx::shape::float_type, {16, 8, 3, 3}})));
+        auto y    = m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}));
         auto conv = m2.add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
+        auto b = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}), y);
         auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
         m2.add_instruction(layout(), add);
     }

@@ -75,12 +75,6 @@ struct loop
             *dst.cast<T>() = src;
         }
 
-        template <class InputIt, class OutputIt>
-        void copy_carry_dependencies(context&, InputIt first, InputIt last, OutputIt d_first) const
-        {
-            std::copy(first, last, d_first);
-        }
-
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
                     const int iter) const

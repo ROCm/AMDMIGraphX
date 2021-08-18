@@ -54,14 +54,14 @@ argument run_loop(const LoopModel& model,
     std::vector<argument> in_args = {args.at(input_num), dep1.at(0)};
     in_args.insert(in_args.end(), args.begin() + 2, args.begin() + input_num);
 
-    std::vector<argument> out_args = loop_carry_deps.at(0);
+    std::vector<argument> out_args = dep0;
     out_args.insert(out_args.end(), ins_outputs.begin() + dep_num, ins_outputs.end());
-    std::vector<argument> scan_outputs(out_args.begin() + dep_num + 1, out_args.end());
+    std::vector<argument> scan_outputs(ins_outputs.begin() + dep_num, ins_outputs.end());
 
     int64_t iter = 0;
     for(iter = 0; iter < iter_num and cond; ++iter)
     {
-        // std::cout << "1.iter = " << iter << ", cond = " << cond << std::endl;
+        std::cout << "1.iter = " << iter << ", cond = " << cond << std::endl;
         // copy iter num and cond to device memory
         model.copy(ctx, iter, in_args.at(0));
         model.copy(ctx, cond, in_args.at(1));
@@ -71,6 +71,12 @@ argument run_loop(const LoopModel& model,
         int input_index = 0;
         for(const auto& name : param_names)
         {
+            auto ps = mod->get_parameter_shape(name);
+            if(ps == shape{})
+            {
+                continue;
+            }
+
             auto output_index = get_output_index(name);
             // it is an input parameter
             if(output_index == -1)
@@ -79,12 +85,11 @@ argument run_loop(const LoopModel& model,
             }
             else
             {
-                auto out_s = mod->get_parameter_shape(name);
                 if(output_index > dep_num)
                 {
                     const auto& arg = out_args.at(output_index);
-                    assert((iter + 1) * out_s.bytes() <= arg.get_shape().bytes());
-                    params[name] = argument::load(out_s, arg.data() + iter * out_s.bytes());
+                    assert((iter + 1) * ps.bytes() <= arg.get_shape().bytes());
+                    params[name] = argument::load(ps, arg.data() + iter * ps.bytes());
                 }
                 else
                 {
@@ -93,15 +98,18 @@ argument run_loop(const LoopModel& model,
             }
         }
 
-        // model.print_params(params);
+        model.print_params(params);
 
         auto mod_args = run(mod, params);
         ctx.finish();
 
-        // model.print_outputs(mod_args);
+        model.print_outputs(mod_args);
 
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
+        ctx.finish();
+
+        std::cout << "2.iter = " << iter << ", cond = " << cond << std::endl;
 
         // mod outputs are used as next loop input
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
@@ -111,10 +119,9 @@ argument run_loop(const LoopModel& model,
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);
 
-        // std::cout << "2.iter = " << iter << ", cond = " << cond << std::endl;
+        std::cout << "3.iter = " << iter << ", cond = " << cond << std::endl;
     }
 
-    ctx.finish();
 
     out_args.erase(out_args.begin());
     std::copy(in_args.begin() + 2, in_args.end(), out_args.begin());

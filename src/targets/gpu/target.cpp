@@ -24,6 +24,7 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
+#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
@@ -60,6 +61,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         normalize_ops{},
         decompose{},
         dead_code_elimination{},
+        simplify_qdq{},
         rewrite_quantization{},
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},

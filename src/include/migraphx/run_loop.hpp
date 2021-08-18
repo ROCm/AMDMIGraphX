@@ -119,7 +119,7 @@ argument run_loop(const LoopModel& model,
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);
 
-        std::cout << "3.iter = " << iter << ", cond = " << cond << std::endl;
+        std::cout << "3.iter = " << iter << ", cond = " << cond << std::endl << std::endl;
     }
 
     out_args.erase(out_args.begin());

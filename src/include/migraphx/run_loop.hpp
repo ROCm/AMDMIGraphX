@@ -35,29 +35,33 @@ argument run_loop(const LoopModel& model,
     std::vector<std::vector<argument>> results;
     // process argu lists
     auto iter_num = args.at(0).at<int64_t>();
-    auto cond     = args.at(2).at<bool>();
+    auto cond     = args.at(1).at<bool>();
 
-    args.erase(args.begin() + 2);
-    args.erase(args.begin());
-
-    auto input_num = args.size() - 2;
-    auto dep_num   = input_num - 2;
+    auto input_num = (args.size() - 2) / 2;
+    auto dep_num = input_num - 2;
 
     module_ref mod         = mods.at(0);
     auto param_name_shapes = mod->get_parameter_shapes();
     auto param_names       = mod->get_parameter_names();
-    // std::string param_prefix = "#" + mod->name() + "_in_";
 
-    std::vector<argument> in_args(args.begin(), args.begin() + input_num);
-    std::vector<argument> out_args = {args.at(input_num)};
-    auto mod_outputs               = args.back().get_sub_objects();
-    out_args.insert(out_args.end(), mod_outputs.begin(), mod_outputs.end());
+    std::vector<argument> dep0(args.begin() + input_num + 1, args.begin() + 2 * input_num);
+    std::vector<argument> dep1(args.begin() + 2 * input_num, args.begin() + 2 * input_num + 1);
+    auto ins_outputs               = args.back().get_sub_objects();
+    dep1.insert(dep1.end(), ins_outputs.begin(), ins_outputs.begin() + dep_num);
+    std::array<std::vector<argument>, 2> loop_carry_deps = {dep0, dep1};
 
+    // loop iter argument
+    std::vector<argument> in_args = {args.at(input_num), dep1.at(0)};
+    in_args.insert(in_args.end(), args.begin() + 2, args.begin() + input_num);
+
+    std::vector<argument> out_args = loop_carry_deps.at(0);
+    out_args.insert(out_args.end(), ins_outputs.begin() + dep_num, ins_outputs.end());
     std::vector<argument> scan_outputs(out_args.begin() + dep_num + 1, out_args.end());
 
     int64_t iter = 0;
     for(iter = 0; iter < iter_num and cond; ++iter)
     {
+        // std::cout << "1.iter = " << iter << ", cond = " << cond << std::endl;
         // copy iter num and cond to device memory
         model.copy(ctx, iter, in_args.at(0));
         model.copy(ctx, cond, in_args.at(1));
@@ -89,20 +93,29 @@ argument run_loop(const LoopModel& model,
             }
         }
 
+        // model.print_params(params);
+
         auto mod_args = run(mod, params);
         ctx.finish();
+
+        // model.print_outputs(mod_args);
 
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
 
-        // std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
-        model.copy_carry_dependencies(
-            ctx, mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        // mod outputs are used as next loop input
+        std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
+        const auto& dep_out = loop_carry_deps[(iter + 1) & 1];
+        std::copy(dep_out.begin(), dep_out.end(), out_args.begin());
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);
-        ctx.finish();
+
+        // std::cout << "2.iter = " << iter << ", cond = " << cond << std::endl;
+
     }
+
+    ctx.finish();
 
     out_args.erase(out_args.begin());
     std::copy(in_args.begin() + 2, in_args.end(), out_args.begin());

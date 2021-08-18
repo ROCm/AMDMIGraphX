@@ -59,9 +59,11 @@ struct parse_gemm : op_parser<parse_gemm>
         auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
                            : args[1];
 
+        auto ret = info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), l1, l2);
+
         if(args.size() == 3)
         {
-            if(beta != 0.0f && args[2]->get_shape().elements() > 0)
+            if(not float_equal(beta, 0.0f) && args[2]->get_shape().elements() > 0)
             {
                 auto out_lens   = l1->get_shape().lens();
                 out_lens.back() = l2->get_shape().lens().back();
@@ -80,12 +82,11 @@ struct parse_gemm : op_parser<parse_gemm>
                                                    beta_l3);
                 }
 
-                return info.add_instruction(
-                    make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), l1, l2, beta_l3);
+                return info.add_instruction(make_op("add"), ret, beta_l3);
             }
         }
 
-        return info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 1.0f}}), l1, l2);
+        return ret;
     }
 };
 

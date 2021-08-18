@@ -28,20 +28,23 @@ struct argument : raw_data<argument>
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
         : m_shape(std::move(s)),
-          m_data({[f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }})
+          m_data()
 
     {
+        assign_buffer([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); });
     }
     template <class T>
     argument(shape s, T* d)
-        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d); }})
+        : m_shape(std::move(s)), m_data()
     {
+        assign_buffer([d] { return reinterpret_cast<char*>(d); });
     }
 
     template <class T>
     argument(shape s, std::shared_ptr<T> d)
-        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d.get()); }})
+        : m_shape(std::move(s)), m_data()
     {
+        assign_buffer([d] { return reinterpret_cast<char*>(d.get()); });
     }
 
     argument(shape s, std::nullptr_t);
@@ -68,6 +71,7 @@ struct argument : raw_data<argument>
     std::vector<argument> get_sub_objects() const;
 
     private:
+    void assign_buffer(std::function<char*()> d);
     struct data_t
     {
         std::function<char*()> get = nullptr;

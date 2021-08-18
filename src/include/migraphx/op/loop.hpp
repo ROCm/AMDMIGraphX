@@ -113,7 +113,7 @@ struct loop
             }
         }
 
-        template<class T>
+        template <class T>
         void print_params(const T& params) const
         {
             for(auto na : params)
@@ -122,7 +122,7 @@ struct loop
             }
         }
 
-        template<class T>
+        template <class T>
         void print_outputs(const T& outputs) const
         {
             for(auto na : outputs)

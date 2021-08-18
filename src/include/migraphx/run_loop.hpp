@@ -38,7 +38,7 @@ argument run_loop(const LoopModel& model,
     auto cond     = args.at(1).at<bool>();
 
     auto input_num = (args.size() - 2) / 2;
-    auto dep_num = input_num - 2;
+    auto dep_num   = input_num - 2;
 
     module_ref mod         = mods.at(0);
     auto param_name_shapes = mod->get_parameter_shapes();
@@ -46,7 +46,7 @@ argument run_loop(const LoopModel& model,
 
     std::vector<argument> dep0(args.begin() + input_num + 1, args.begin() + 2 * input_num);
     std::vector<argument> dep1(args.begin() + 2 * input_num, args.begin() + 2 * input_num + 1);
-    auto ins_outputs               = args.back().get_sub_objects();
+    auto ins_outputs = args.back().get_sub_objects();
     dep1.insert(dep1.end(), ins_outputs.begin(), ins_outputs.begin() + dep_num);
     std::array<std::vector<argument>, 2> loop_carry_deps = {dep0, dep1};
 
@@ -112,7 +112,6 @@ argument run_loop(const LoopModel& model,
         model.append(mod_scan_outs, scan_outputs, iter);
 
         // std::cout << "2.iter = " << iter << ", cond = " << cond << std::endl;
-
     }
 
     ctx.finish();

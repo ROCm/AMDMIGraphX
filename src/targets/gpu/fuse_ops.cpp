@@ -185,7 +185,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     if(conv.algo == miopenConvolutionFwdAlgoWinograd and wei.lens()[2] != 3 and
        wei.lens()[3] != 3 and contains({{1, 1}}, op.stride))
         return false;
-    return contains({{0, 0}, {1, 1}, {2, 2}}, op.padding) and
+    return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, op.padding) and
            contains({{0, 0}, {1, 1}}, op.stride) and contains({{1, 1}}, op.dilation);
 }
 
@@ -568,7 +568,7 @@ struct miopen_conv_bias
     {
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
-        return op.compute_shape({inputs.at(0), inputs.at(1)});
+        return op.normalize_compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
@@ -615,7 +615,7 @@ struct miopen_conv_bias_relu
     {
         check_shapes{inputs, *this}.has(5);
         // TODO: Check slices
-        return op.compute_shape({inputs.at(0), inputs.at(1)});
+        return op.normalize_compute_shape({inputs.at(0), inputs.at(1)});
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {

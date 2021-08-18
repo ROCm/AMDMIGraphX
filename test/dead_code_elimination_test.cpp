@@ -1,13 +1,15 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 
 #include <test.hpp>
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple_test)
@@ -112,15 +114,16 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto one   = mm->add_literal(1);
-    auto two   = mm->add_literal(2);
-    auto undef = mm->add_instruction(migraphx::make_op("undefined"));
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_instruction(sum_op{}, one, two);
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(std::distance(mm->begin(), mm->end()) == count - 1);
-    EXPECT(not mm->has_instruction(undef));
+    EXPECT(
+        std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "undefined"; }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
@@ -175,6 +178,23 @@ TEST_CASE(duplicate_args3)
     EXPECT(std::distance(mm->begin(), mm->end()) == 2);
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{0});
+}
+
+TEST_CASE(unused_module)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto* m1 = p.create_module("unused");
+    auto* m2 = p.create_module("used");
+    auto l0  = mm->add_literal(0);
+    m1->add_literal(0);
+    m2->add_literal(0);
+    mm->add_instruction(mod_pass_op{}, {l0}, {m2});
+    EXPECT(migraphx::contains(p.get_modules(), m1));
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    run_pass(p);
+    EXPECT(migraphx::contains(p.get_modules(), m2));
+    EXPECT(not migraphx::contains(p.get_modules(), m1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

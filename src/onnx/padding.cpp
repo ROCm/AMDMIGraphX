@@ -126,7 +126,7 @@ void check_asym_padding(const onnx_parser::node_info& info,
     auto left_pad_it  = padding.begin();
     auto right_pad_it = left_pad_it + pad_ndims;
 
-    if(is_asym_padding(padding) or count_include_pad == 1)
+    if(count_include_pad == 1)
     {
         std::vector<int64_t> asym_pads{0, 0, 0, 0}; // don't pad N and C
         // add left pads
@@ -134,10 +134,19 @@ void check_asym_padding(const onnx_parser::node_info& info,
         // add right pads
         asym_pads.insert(asym_pads.begin() + pad_ndims + 4, right_pad_it, padding.end());
         ins = info.add_instruction(make_op("pad", {{"pads", asym_pads}, {"value", pad_val}}), ins);
-    }
-    else
-    {
-        v["padding"] = std::vector<size_t>(left_pad_it, right_pad_it);
+        std::vector<size_t> new_padding(padding.size());
+        // subtract asym padding originally found from parsing the operator
+        std::transform(padding.begin(),
+                       left_pad_it,
+                       asym_pads.begin() + 2,
+                       new_padding.begin(),
+                       std::minus<size_t>());
+        std::transform(right_pad_it,
+                       padding.end(),
+                       asym_pads.begin() + pad_ndims + 4,
+                       new_padding.begin() + pad_ndims,
+                       std::minus<size_t>());
+        v["padding"] = new_padding;
     }
 }
 

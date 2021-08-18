@@ -6,11 +6,15 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/batch_norm_inference.hpp>
+#include <migraphx/op/convolution.hpp>
+#include <migraphx/op/reduce_mean.hpp>
+#include <migraphx/op/pooling.hpp>
+#include <migraphx/op/slice.hpp>
 
 #include <migraphx/serialize.hpp>
 
@@ -301,7 +305,7 @@ migraphx::program create_conv()
 
     migraphx::op::convolution op;
     op.padding_mode = migraphx::op::padding_mode_t::same;
-    op.padding      = {1, 1};
+    op.padding      = {1, 1, 1, 1};
     op.stride       = {1, 1};
     op.dilation     = {1, 1};
     auto l2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {3, 2, 0, 1}}}), l1);

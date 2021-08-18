@@ -15,6 +15,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -178,7 +179,7 @@ shape normalize_compute_shape_op(const T& x,
 }
 
 template <class T>
-auto compute_op(rank<2>,
+auto compute_op(rank<1>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -186,14 +187,6 @@ auto compute_op(rank<2>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
-}
-
-template <class T>
-auto compute_op(
-    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -207,22 +200,14 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, ctx, output_shape, input);
-}
-
-template <class T>
-auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
+    return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
 template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
+    -> decltype(x.compute(output_shape, input))
 {
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -235,22 +220,27 @@ argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argumen
 template <class T>
 argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, output_shape, input);
+    return compute_op(rank<1>{}, x, output_shape, input);
 }
 
 template <class T, class F>
 auto compute_op(rank<1>,
                 const T& x,
+                const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(inputs, module_args, f))
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
 {
-    return x.compute(inputs, module_args, f);
+    return x.compute(output, inputs, module_args, f);
 }
 
 template <class T, class F>
-argument
-    compute_op(rank<0>, const T& x, const std::vector<argument>&, const std::vector<module_ref>&, F)
+argument compute_op(rank<0>,
+                    const T& x,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -258,11 +248,72 @@ argument
 
 template <class T, class F>
 argument compute_op(const T& x,
+                    const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(ctx), output, inputs))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    context&,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    context& ctx,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
 }
 
 template <class T>
@@ -385,9 +436,9 @@ void from_value_op(T& x, const value& v)
 }
 
 template <class T>
-bool is_borrowed_op(const T&)
+lifetime get_lifetime_op(const T&)
 {
-    return false;
+    return lifetime::local;
 }
 
 } // namespace detail
@@ -403,7 +454,8 @@ bool is_borrowed_op(const T&)
              const   = True,
              default = 'detail::need_normalization_op'),
      virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
-     virtual('is_borrowed', returns = 'bool', const = True, default = 'detail::is_borrowed_op'),
+     virtual(
+         'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
      virtual('output_alias',
              returns = 'std::ptrdiff_t',
              input   = 'const std::vector<shape>&',
@@ -447,10 +499,22 @@ bool is_borrowed_op(const T&)
      virtual(
          'compute',
          returns     = 'argument',
+         output      = 'const shape&',
          input       = 'const std::vector<argument>&',
          module_args = 'const std::vector<module_ref>&',
          run =
-             'std::function<std::vector<argument>(module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)>',
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
+         const   = True,
+         default = 'detail::compute_op'),
+     virtual(
+         'compute',
+         returns     = 'argument',
+         ctx         = 'context&',
+         output      = 'const shape&',
+         input       = 'const std::vector<argument>&',
+         module_args = 'const std::vector<module_ref>&',
+         run =
+             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
          const   = True,
          default = 'detail::compute_op'),
      virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),

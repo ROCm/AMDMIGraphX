@@ -13,7 +13,7 @@ namespace gpu {
 struct pack_int8_args
 {
     std::string name() const { return "gpu::pack_int8_args"; }
-    void apply(module& p) const;
+    void apply(module& m) const;
     shape pack_int8_shape(const shape& s) const;
 };
 

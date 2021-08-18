@@ -9,7 +9,9 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
 #include <iostream>
 #include <sstream>
@@ -23,6 +25,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+using milliseconds = std::chrono::duration<double, std::milli>;
 
 struct program_impl
 {
@@ -144,14 +148,14 @@ void program::compile(const target& t, compile_options options)
     options.trace(*this);
     options.trace();
 
-    auto mods = this->get_modules();
-    std::reverse(mods.begin(), mods.end());
     auto&& passes = t.get_passes(this->impl->ctx, options);
+    run_passes(*this, passes, options.trace);
 
-    for(const auto& mod : mods)
+    auto mods = this->get_modules();
+
+    // Validate and finalize
+    for(const auto& mod : reverse(mods))
     {
-        assert(mod->validate() == mod->end());
-        run_passes(*mod, passes, options.trace);
         auto invalid = mod->validate();
         if(invalid != mod->end())
         {
@@ -239,20 +243,10 @@ std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            if(not mod_args.empty())
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        values, mod_args, module_eval);
-                                }));
-            }
-            else
-            {
-                results.emplace(ins, trace(ins, [&] {
-                                    return ins->normalized_operator().compute(
-                                        ctx, ins->get_shape(), values);
-                                }));
-            }
+            results.emplace(ins, trace(ins, [&] {
+                                return ins->normalized_operator().compute(
+                                    ctx, ins->get_shape(), values, mod_args, module_eval);
+                            }));
         }
         assert(results.find(ins) != results.end());
     }
@@ -292,10 +286,14 @@ std::vector<argument> program::eval(parameter_map params) const
             ctx.finish();
             std::cout << "Run instruction: ";
             this->debug_print(ins);
+            timer t{};
             auto result = check_context(f);
+            double t1   = t.record<milliseconds>();
             ctx.finish();
+            double t2 = t.record<milliseconds>();
+            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                std::cout << "Ouput: " << result << std::endl;
+                std::cout << "Output: " << result << std::endl;
             return result;
         });
     }
@@ -306,7 +304,7 @@ std::vector<argument> program::eval(parameter_map params) const
     }
 }
 
-const int program_file_version = 4;
+const int program_file_version = 5;
 
 value program::to_value() const
 {
@@ -477,10 +475,17 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
+std::string perf_group(const operation& op)
+{
+    auto attr = op.attributes();
+    if(attr.contains("group"))
+        return attr.at("group").to<std::string>();
+    return op.name();
+}
+
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
 {
-    using milliseconds = std::chrono::duration<double, std::milli>;
-    auto& ctx          = this->impl->ctx;
+    auto& ctx = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();
@@ -532,7 +537,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
-        op_times[p.first->name()] += avg;
+        op_times[perf_group(p.first->get_operator())] += avg;
         total_instruction_time += avg;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;
@@ -584,7 +589,7 @@ void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
-           return (pp.second.end() == ins);
+           return is_end(pp.second.end(), ins);
        }))
     {
         std::cout << "End instruction" << std::endl;
@@ -656,6 +661,7 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+    assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
@@ -702,6 +708,53 @@ std::vector<module*> program::get_modules()
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
     return result;
+}
+
+template <class Map, class T>
+bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
+{
+    bool is_unused = false;
+    generic_get_unused_modules(m, mods, make_function_output_iterator([&](auto* mod) {
+                                   if(mod->name() == name)
+                                       is_unused = true;
+                               }));
+    return is_unused;
+}
+
+template <class Map>
+bool references_instruction(Map& m, const instruction& ins, const std::string& name)
+{
+    return std::any_of(m.begin(), m.end(), [&](auto&& p) {
+        if(p.first == name)
+            return false;
+        return std::any_of(p.second.begin(), p.second.end(), [&](auto&& i) {
+            return std::any_of(i.inputs().begin(), i.inputs().end(), [&](auto&& j) {
+                return std::addressof(*j) == std::addressof(ins);
+            });
+        });
+    });
+}
+
+void program::remove_module(const std::string& name)
+{
+    // cppcheck-suppress assertWithSideEffect
+    assert(is_unused_module(impl->modules, generic_get_modules(this->get_main_module()), name) &&
+           "Module used in program");
+    assert(std::none_of(
+               impl->modules.at(name).begin(),
+               impl->modules.at(name).end(),
+               [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) &&
+           "Instruction referenced in another module");
+    impl->modules.erase(name);
+}
+
+void program::remove_unused_modules()
+{
+    std::vector<module*> unused;
+    generic_get_unused_modules(
+        impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
+    for(auto* m : unused)
+        this->remove_module(m->name());
 }
 
 program& program::sort()

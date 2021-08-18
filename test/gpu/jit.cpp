@@ -6,6 +6,7 @@
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 
@@ -53,7 +54,7 @@ using namespace migraphx;
 extern "C" {
 __global__ void kernel(void* x, void* y) 
 {
-    make_tensors(x, y)([](auto xt, auto yt) __device__ {
+    make_tensors()(x, y)([](auto xt, auto yt) __device__ {
         auto idx = make_index();
         const auto stride = idx.nglobal();
         for(index_int i = idx.global; i < xt.get_shape().elements(); i += stride)
@@ -69,24 +70,52 @@ int main() {}
 
 )__migraphx__";
 
+// NOLINTNEXTLINE
+const std::string check_define = R"__migraphx__(
+
+#ifndef __DEFINE__
+#error __DEFINE__ was not defined
+#endif
+
+int main() {}
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+const std::string unused_param = R"__migraphx__(
+
+extern "C" {
+__global__ void kernel(void* x, void* y) 
+{}
+}
+
+int main() {}
+
+)__migraphx__";
+
+// NOLINTNEXTLINE
+const std::string incorrect_program = R"__migraphx__(
+
+extern "C" {
+__global__ void kernel(void* x) 
+{
+    x += y;
+}
+}
+
+int main() {}
+
+)__migraphx__";
+
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, std::make_pair(content.data(), content.data() + content.size())};
 }
 
-std::string get_device_name()
-{
-    hipDeviceProp_t props{};
-    int device;
-    EXPECT(hipGetDevice(&device) == hipSuccess);
-    EXPECT(hipGetDeviceProperties(&props, device) == hipSuccess);
-    return "gfx" + std::to_string(props.gcnArch);
-}
-
 TEST_CASE(simple_compile_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", write_2s)}, "", get_device_name());
+        {make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};
@@ -100,10 +129,45 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
+auto check_target(const std::string& arch)
+{
+    auto define  = "__" + arch + "__";
+    auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
+    return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, "", arch);
+}
+
+TEST_CASE(compile_target)
+{
+    EXPECT(not check_target("gfx900").empty());
+    EXPECT(not check_target("gfx906").empty());
+}
+
+TEST_CASE(compile_errors)
+{
+    EXPECT(test::throws([&] {
+        migraphx::gpu::compile_hip_src(
+            {make_src_file("main.cpp", incorrect_program)}, "", migraphx::gpu::get_device_name());
+    }));
+}
+
+TEST_CASE(compile_warnings)
+{
+    auto compile = [](const std::string& params) {
+        return migraphx::gpu::compile_hip_src(
+            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+    };
+
+    EXPECT(not compile("").empty());
+    EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
+    EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
+    EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+    EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+}
+
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", add_2s_binary)}, "", get_device_name());
+        {make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::shape input{migraphx::shape::int8_type, {5}};

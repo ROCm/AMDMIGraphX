@@ -62,7 +62,7 @@ void argument::assign_buffer(std::function<char*()> d)
 
     // cppcheck-suppress variableScope
     std::size_t i = 0;
-    m_data = fix<data_t>([&](auto self, auto ss) {
+    m_data        = fix<data_t>([&](auto self, auto ss) {
         data_t result;
         if(ss.sub_shapes().empty())
         {
@@ -81,10 +81,7 @@ void argument::assign_buffer(std::function<char*()> d)
     })(s);
 }
 
-argument argument::load(const shape& s, char* buffer)
-{
-    return argument{s, buffer};
-}
+argument argument::load(const shape& s, char* buffer) { return argument{s, buffer}; }
 
 std::vector<shape> to_shapes(const std::vector<argument>& args)
 {

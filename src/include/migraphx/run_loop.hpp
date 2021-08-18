@@ -122,7 +122,6 @@ argument run_loop(const LoopModel& model,
         std::cout << "3.iter = " << iter << ", cond = " << cond << std::endl;
     }
 
-
     out_args.erase(out_args.begin());
     std::copy(in_args.begin() + 2, in_args.end(), out_args.begin());
     model.set_zero(ctx, scan_outputs, iter);

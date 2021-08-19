@@ -258,9 +258,6 @@ bool shape::transposed() const
 bool shape::broadcasted() const
 {
     assert(this->lens().size() == this->strides().size());
-    // a scalar is not considered as broadcasted.
-    if(this->lens().size() == 1 and this->lens()[0] == 1 and this->strides()[0] == 0)
-        return false;
 
     return std::accumulate(this->strides().begin(),
                            this->strides().end(),

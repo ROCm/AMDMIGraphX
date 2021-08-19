@@ -25,6 +25,7 @@ struct quantizelinear
     std::string name() const { return "quantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this}.same_dims();
         if(inputs.size() == 3)
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
@@ -36,7 +37,7 @@ struct quantizelinear
     {
         auto x       = args.at(0);
         auto y_scale = args.at(1);
-        std::vector<int8_t> zeros(output_shape.elements(), 0);
+        std::vector<int8_t> zeros(output_shape.bytes(), 0);
         argument y_zero_point{output_shape, zeros.data()};
         if(args.size() == 3)
         {

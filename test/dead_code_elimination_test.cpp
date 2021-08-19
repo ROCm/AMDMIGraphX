@@ -199,8 +199,7 @@ TEST_CASE(unused_module)
 
 TEST_CASE(param_not_eliminated)
 {
-    auto create_program = [] 
-    {
+    auto create_program = [] {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {2, 2}};

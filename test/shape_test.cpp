@@ -111,7 +111,7 @@ TEST_CASE(test_shape_scalar1)
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
-    EXPECT(not s.broadcasted());
+    EXPECT(s.broadcasted());
 }
 
 TEST_CASE(test_shape_scalar2)
@@ -120,7 +120,7 @@ TEST_CASE(test_shape_scalar2)
     EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
-    EXPECT(not s.broadcasted());
+    EXPECT(s.broadcasted());
 }
 
 TEST_CASE(test_shape_scalar_broadcast)

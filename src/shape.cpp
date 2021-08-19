@@ -258,7 +258,6 @@ bool shape::transposed() const
 bool shape::broadcasted() const
 {
     assert(this->lens().size() == this->strides().size());
-
     return std::accumulate(this->strides().begin(),
                            this->strides().end(),
                            std::size_t{1},

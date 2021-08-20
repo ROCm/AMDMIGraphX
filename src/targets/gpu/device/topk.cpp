@@ -78,14 +78,22 @@ std::vector<argument> topk(hipStream_t stream,
     return {val_res, ind_res};
 }
 
-argument topk_largest(
-    hipStream_t stream, const argument& val_res, const argument& ind_res, const argument& arg, int64_t k, int64_t axis)
+argument topk_largest(hipStream_t stream,
+                      const argument& val_res,
+                      const argument& ind_res,
+                      const argument& arg,
+                      int64_t k,
+                      int64_t axis)
 {
     return {topk(stream, val_res, ind_res, arg, k, axis, std::less<>{})};
 }
 
-argument topk_smallest(
-    hipStream_t stream, const argument& val_res, const argument& ind_res, const argument& arg, int64_t k, int64_t axis)
+argument topk_smallest(hipStream_t stream,
+                       const argument& val_res,
+                       const argument& ind_res,
+                       const argument& arg,
+                       int64_t k,
+                       int64_t axis)
 {
     return {topk(stream, val_res, ind_res, arg, k, axis, std::greater<>{})};
 }

@@ -4347,11 +4347,10 @@ TEST_CASE(where_test)
     std::vector<float> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<float> gold(9);
-    for (int i = 0; i < gold.size(); ++i)
+    for(int i = 0; i < gold.size(); ++i)
         gold[i] = b[i] ? x[i] : y[i];
-    
-    EXPECT(migraphx::verify_range(result_vec, gold));
 
+    EXPECT(migraphx::verify_range(result_vec, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

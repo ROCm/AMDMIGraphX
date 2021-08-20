@@ -32,10 +32,9 @@ struct where
     {
         argument result{output_shape};
         visit_all(result, args[1], args[2])([&](auto output, const auto x, const auto y) {
-            args[0].visit([&](const auto cond){
-                par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = cond[i] ? x[i] : y[i];
-                });
+            args[0].visit([&](const auto cond) {
+                par_for(output_shape.elements(),
+                        [&](auto i) { output[i] = cond[i] ? x[i] : y[i]; });
             });
         });
 

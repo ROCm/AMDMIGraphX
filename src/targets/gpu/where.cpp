@@ -6,10 +6,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape hip_where::compute_shape(std::vector<shape> inputs) const
-{
-    return op.compute_shape(inputs);
-}
+shape hip_where::compute_shape(std::vector<shape> inputs) const { return op.compute_shape(inputs); }
 
 argument hip_where::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {

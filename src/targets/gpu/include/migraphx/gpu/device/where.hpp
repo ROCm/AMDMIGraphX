@@ -10,7 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument where(hipStream_t stream, const argument& arg0, const argument& arg1, const argument& arg2);
+argument
+where(hipStream_t stream, const argument& arg0, const argument& arg1, const argument& arg2);
 
 } // namespace device
 } // namespace gpu

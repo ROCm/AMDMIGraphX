@@ -30,7 +30,7 @@ struct parse_expanddims : op_parser<parse_expanddims>
         {
             new_dims.insert(new_dims.begin() + dim, 1);
         }
-        return info.add_instruction(make_op("reshape", {{"dims", new_dims}}), args[0]);
+        return info.add_instruction(make_op("reshape", {{"out_lens", new_dims}}), args[0]);
     }
 };
 

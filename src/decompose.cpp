@@ -39,9 +39,7 @@ struct find_dot_add
         {
             auto alpha = p.add_literal(literal{shape{a_ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast = p.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_lens", a_ins->get_shape().lens()}}),
-                alpha);
+                ins, make_op("multibroadcast", {{"out_lens", a_ins->get_shape().lens()}}), alpha);
             a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
         auto dot_ins = p.insert_instruction(ins, make_op(ins->name(), {{"beta", 0}}), a_ins, b_ins);
@@ -72,9 +70,7 @@ struct find_dot_alpha
         {
             auto alpha = p.add_literal(literal{shape{a_ins->get_shape().type()}, {dot.alpha}});
             auto alpha_broadcast = p.insert_instruction(
-                ins,
-                make_op("multibroadcast", {{"out_lens", a_ins->get_shape().lens()}}),
-                alpha);
+                ins, make_op("multibroadcast", {{"out_lens", a_ins->get_shape().lens()}}), alpha);
             a_ins = p.insert_instruction(ins, make_op("mul"), a_ins, alpha_broadcast);
         }
         p.replace_instruction(ins, make_op(ins->name(), {{"beta", 0}}), a_ins, b_ins);

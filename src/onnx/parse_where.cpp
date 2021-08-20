@@ -44,7 +44,7 @@ struct parse_where : op_parser<parse_where>
         // concatenation of input data
         auto concat_data = info.add_instruction(make_op("concat", {{"axis", 0}}), args[2], args[1]);
         std::vector<int64_t> dims = {static_cast<int64_t>(2 * elem_num)};
-        auto rsp_data = info.add_instruction(make_op("reshape", {{"dims", dims}}), concat_data);
+        auto rsp_data = info.add_instruction(make_op("reshape", {{"out_lens", dims}}), concat_data);
 
         std::vector<int> ind(elem_num);
         std::iota(ind.begin(), ind.end(), 0);

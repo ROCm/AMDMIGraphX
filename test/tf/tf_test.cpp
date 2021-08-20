@@ -359,10 +359,10 @@ TEST_CASE(conv_relu6_test)
     auto l0      = std::prev(mm->end());
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
-    min_val      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
-    max_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
+    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  min_val);
+    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  max_val);
     mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     auto prog = optimize_tf("conv_relu6_test.pb", true);
 
@@ -389,7 +389,7 @@ TEST_CASE(depthwiseconv_test)
     op.group        = 3;
     auto l3 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {3, 2, 0, 1}}}), l1);
     auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);
-    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3}}}), l4);
+    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {3, 1, 3, 3}}}), l4);
     mm->add_instruction(op, l0, l5);
     auto prog = optimize_tf("depthwise_conv_test.pb", true);
 
@@ -404,7 +404,7 @@ TEST_CASE(expanddims_test)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(0);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 2, 3, 4}}}), l0);
     auto prog = optimize_tf("expanddims_test.pb", false);
 
     EXPECT(p == prog);
@@ -419,7 +419,7 @@ TEST_CASE(expanddims_test_neg_dims)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(-1);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4, 1}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 3, 4, 1}}}), l0);
     auto prog = optimize_tf("expanddims_neg_test.pb", false);
 
     EXPECT(p == prog);
@@ -688,10 +688,10 @@ TEST_CASE(relu6_test)
     auto l0      = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, input_lens});
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
-    min_val      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
-    max_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
+    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  min_val);
+    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  max_val);
     mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     auto prog = optimize_tf("relu6_test.pb", false);
 
@@ -707,7 +707,7 @@ TEST_CASE(reshape_test)
     migraphx::shape s0{migraphx::shape::int32_type, {4}};
     // in tf, the second arg is a literal that contains new dimensions
     mm->add_literal(migraphx::literal{s0, {1, 1, 1, 16}});
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 16}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 1, 1, 16}}}), l0);
     auto prog = optimize_tf("reshape_test.pb", false);
 
     EXPECT(p == prog);

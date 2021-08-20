@@ -23,7 +23,7 @@ struct reshape
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dims, "dims"));
+        return pack(f(self.dims, "out_lens"));
     }
 
     std::string name() const { return "reshape"; }

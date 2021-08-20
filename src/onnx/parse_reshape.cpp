@@ -30,7 +30,7 @@ struct parse_reshape : op_parser<parse_reshape>
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
         }
 
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}),
+        return info.add_instruction(make_op("reshape", {{"out_lens", dims}}),
                                     info.make_contiguous(args[0]));
     }
 };

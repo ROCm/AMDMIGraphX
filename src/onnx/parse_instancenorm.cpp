@@ -43,8 +43,8 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = info.add_instruction(make_op("sub"), x, mean_bcast);
         auto epsilon_literal = info.add_literal(epsilon);
-        auto epsilon_bcast   = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
+        auto epsilon_bcast =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
         auto variance_bcast =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), variance);
         auto l2 = info.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);

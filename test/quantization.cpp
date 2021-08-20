@@ -25,10 +25,10 @@ create_clip_op(migraphx::program& p, float max, float min, migraphx::instruction
     auto input_lens = input->get_shape().lens();
     auto max_val    = mm->add_literal(max);
     auto min_val    = mm->add_literal(min);
-    max_val         = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
-    min_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
+    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  max_val);
+    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  min_val);
     return mm->add_instruction(migraphx::make_op("clip"), input, min_val, max_val);
 }
 

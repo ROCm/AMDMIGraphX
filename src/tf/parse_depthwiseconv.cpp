@@ -95,7 +95,7 @@ struct parse_depthwiseconv : op_parser<parse_depthwiseconv>
         new_weights_shape[0] = out_channels;
         new_weights_shape[1] = 1;
         // Make sure weights are contiguous before doing reshape
-        auto new_weights = info.add_instruction(make_op("reshape", {{"dims", new_weights_shape}}),
+        auto new_weights = info.add_instruction(make_op("reshape", {{"out_lens", new_weights_shape}}),
                                                 info.make_contiguous(weights));
 
         return info.add_instruction(op, {l0, new_weights});

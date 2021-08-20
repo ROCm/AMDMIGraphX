@@ -34,7 +34,7 @@ void rewrite_pooling::apply(module& prog) const
         std::int64_t n = s.lens()[0];
         std::int64_t c = s.lens()[1];
         auto reshape   = prog.insert_instruction(
-            ins, make_op("reshape", {{"dims", {n * c, -1}}}), ins->inputs().front());
+            ins, make_op("reshape", {{"out_lens", {n * c, -1}}}), ins->inputs().front());
         instruction_ref pooling{};
 
         // average pooling
@@ -52,7 +52,7 @@ void rewrite_pooling::apply(module& prog) const
         std::vector<int64_t> rsp_lens(lens.size(), 1);
         rsp_lens[0] = n;
         rsp_lens[1] = c;
-        prog.replace_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), pooling);
+        prog.replace_instruction(ins, make_op("reshape", {{"out_lens", rsp_lens}}), pooling);
     }
 }
 

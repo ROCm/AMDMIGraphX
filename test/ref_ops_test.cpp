@@ -86,7 +86,7 @@ TEST_CASE(add_broadcast_test)
         auto l1       = mm->add_literal(migraphx::literal{a_shape, a_data});
         auto l2       = mm->add_literal(migraphx::literal{b_shape, b_data});
         auto l3       = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l1->get_shape().lens()}}), l2);
+            migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l1->get_shape().lens()}}), l2);
         mm->add_instruction(migraphx::make_op("add"), l1, l3);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -106,9 +106,9 @@ TEST_CASE(add_broadcast_test)
         auto l1 = mm->add_literal(migraphx::literal{a_shape, a_data});
         auto l2 = mm->add_literal(migraphx::literal{b_shape, b_data});
         auto l3 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 3}}}), l1);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), l1);
         auto l4 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 3}}}), l2);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3}}}), l2);
         mm->add_instruction(migraphx::make_op("add"), l3, l4);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -675,7 +675,7 @@ TEST_CASE(broadcast_test)
     auto l1       = mm->add_literal(migraphx::literal{a_shape, a_data});
     auto l2       = mm->add_literal(migraphx::literal{b_shape, b_data});
     mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l1->get_shape().lens()}}), l2);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l1->get_shape().lens()}}), l2);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     auto output = result.get<int32_t>();
@@ -712,9 +712,9 @@ TEST_CASE(clip_test)
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
     min_val =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3}}}), min_val);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), min_val);
     max_val =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3}}}), max_val);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), max_val);
     mm->add_instruction(migraphx::make_op("clip"), l, min_val, max_val);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -1330,7 +1330,7 @@ TEST_CASE(equal_brcst_test)
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), l1);
     auto eq = mm->add_instruction(migraphx::make_op("equal"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
@@ -1677,7 +1677,7 @@ TEST_CASE(greater_brcst_test)
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), l1);
     auto gr = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",
@@ -2129,7 +2129,7 @@ TEST_CASE(imagescaler_test)
     auto bias_vals  = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {0.01, 0.02, 0.03}});
     auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), bias_vals);
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), bias_vals);
     mm->add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -2177,7 +2177,7 @@ TEST_CASE(less_brcst_test)
     migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
     auto l1 = mm->add_literal(migraphx::literal{s1, {1.1, -1.5, 0.0}});
     auto bl1 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 3}}}), l1);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), l1);
     auto le = mm->add_instruction(migraphx::make_op("less"), l0, bl1);
     auto r  = mm->add_instruction(
         migraphx::make_op("convert",

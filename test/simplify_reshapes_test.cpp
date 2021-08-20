@@ -438,7 +438,7 @@ TEST_CASE(multibroadcast_simplify)
     std::vector<size_t> s_lens{1, 2, 3, 4};
     auto s = migraphx::shape{migraphx::shape::float_type, s_lens};
     auto x = m.add_parameter("x", s);
-    auto y = m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s_lens}}), x);
+    auto y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_lens}}), x);
     m.add_instruction(migraphx::make_op("mul"), y, y);
     auto n = std::distance(m.begin(), m.end());
     run_pass(m);
@@ -548,7 +548,7 @@ TEST_CASE(optimize_resize)
         auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", dims}}), inx);
         std::vector<int64_t> mb_dims = {1, 2, 2, 2, 2, 3};
         auto mbx                     = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", mb_dims}}), rspx);
+            migraphx::make_op("multibroadcast", {{"out_lens", mb_dims}}), rspx);
         auto std_mb                    = m.add_instruction(migraphx::make_op("contiguous"), mbx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
         auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), std_mb);
@@ -850,7 +850,7 @@ TEST_CASE(reshape_cont)
         auto inx    = m.add_parameter("x", sx);
         auto iny    = m.add_parameter("y", sy);
         auto mb_inx = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
@@ -871,7 +871,7 @@ TEST_CASE(reshape_cont)
         auto inx    = m.add_parameter("x", sx);
         auto iny    = m.add_parameter("y", sy);
         auto mb_inx = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto rsp_iny = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), iny);
         auto sum     = m.add_instruction(migraphx::make_op("add"), mb_inx, rsp_iny);
         auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), sum);
@@ -893,7 +893,7 @@ TEST_CASE(reshape_input_non_std)
         auto inx    = m.add_parameter("x", sx);
         auto iny    = m.add_parameter("y", sy);
         auto mb_inx = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
@@ -920,7 +920,7 @@ TEST_CASE(reshape_cont_nonpw)
         auto inx    = m.add_parameter("x", sx);
         auto iny    = m.add_parameter("y", sy);
         auto mb_inx = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 4, 6}}}), inx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
             m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);

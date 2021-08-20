@@ -58,7 +58,7 @@ TEST_CASE(after_literal_broadcast)
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().broadcasted());
     auto b = m.add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 0}, {"dims", l1->get_shape().lens()}}), l2);
+        migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", l1->get_shape().lens()}}), l2);
     m.add_instruction(pass_op{}, b);
     EXPECT(not m.get_output_shapes().back().standard());
     EXPECT(m.get_output_shapes().back().broadcasted());
@@ -92,7 +92,7 @@ TEST_CASE(after_param_broadcast)
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().broadcasted());
     auto b = m.add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 0}, {"dims", l1->get_shape().lens()}}), l2);
+        migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", l1->get_shape().lens()}}), l2);
     m.add_instruction(pass_op{}, b);
     EXPECT(not m.get_output_shapes().back().standard());
     EXPECT(m.get_output_shapes().back().broadcasted());

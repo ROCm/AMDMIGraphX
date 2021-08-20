@@ -74,7 +74,7 @@ TEST_CASE(broadcast)
         std::vector<std::size_t> lens{1, 1};
         migraphx::shape input{migraphx::shape::float_type, {1}, {0}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1}, {0, 0}},
-                     migraphx::make_op("broadcast", {{"axis", 0}, {"dims", lens}}),
+                     migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", lens}}),
                      input);
     }
 
@@ -94,14 +94,14 @@ TEST_CASE(broadcast)
         std::vector<std::size_t> lens{3, 2, 4, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 3}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 2, 4, 3}, {0, 0, 3, 1}},
-                     migraphx::make_op("broadcast", {{"axis", 2}, {"dims", lens}}),
+                     migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}),
                      input);
     }
 
     {
         std::vector<std::size_t> lens{3, 2, 4, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 4}};
-        throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"dims", lens}}), input);
+        throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}), input);
     }
 }
 
@@ -953,70 +953,70 @@ TEST_CASE(multibroadcast)
         std::vector<std::size_t> lens{4, 2, 5, 3};
         migraphx::shape input{migraphx::shape::float_type, {2, 1, 3}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 3, 0, 1}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
         migraphx::shape input{migraphx::shape::float_type, {2, 1, 1}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 1, 0, 0}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
         migraphx::shape input{migraphx::shape::float_type, {5, 1}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 0, 1, 0}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {1, 0, 0, 0}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 2, 5, 3};
         migraphx::shape input{migraphx::shape::float_type, {3}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 0, 0, 1}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 4, 1, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 1, 3}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {0, 3, 3, 1}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 1, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, lens, {1, 1, 1, 0}},
-                     migraphx::make_op("multibroadcast", {{"output_lens", lens}}),
+                     migraphx::make_op("multibroadcast", {{"out_lens", lens}}),
                      input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
         migraphx::shape input{migraphx::shape::float_type, {4, 1, 1, 1}};
-        throws_shape(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), input);
+        throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
     {
         std::vector<std::size_t> lens{4, 1, 3};
         migraphx::shape input{migraphx::shape::float_type, {}};
-        throws_shape(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), input);
+        throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
     {
         std::vector<std::size_t> lens{2, 3, 4, 5};
         migraphx::shape input{migraphx::shape::float_type, {3, 4}};
-        throws_shape(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), input);
+        throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
     {
         std::vector<std::size_t> lens{2, 3, 4, 5};
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
-        throws_shape(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), input);
+        throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
     }
 }
 

@@ -15,7 +15,7 @@ struct gemm_2args_vbm : verify_program<gemm_2args_vbm>
         auto l1   = mm->add_parameter("1", m1_shape);
         auto ul1  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l1);
         auto bul1 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 1, 5}}}), ul1);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 5}}}), ul1);
 
         auto l2 = mm->add_parameter("2", m2_shape);
 

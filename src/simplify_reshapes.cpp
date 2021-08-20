@@ -418,7 +418,7 @@ struct find_resize
         auto rsp_data = p.insert_instruction(
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
+            ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
         auto std_mb = p.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
         p.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);

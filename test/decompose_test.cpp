@@ -51,7 +51,7 @@ TEST_CASE(dot_add_beta_float)
         auto beta =
             m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {0.5}});
         auto beta_broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), beta);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
         auto add = m2.add_instruction(migraphx::make_op("add"), dot, mul);
         m2.add_instruction(migraphx::make_op("identity"), add);
@@ -80,7 +80,7 @@ TEST_CASE(dot_add_beta_half)
         auto beta =
             m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {0.5}});
         auto beta_broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), beta);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
         auto add = m2.add_instruction(migraphx::make_op("add"), dot, mul);
         m2.add_instruction(migraphx::make_op("identity"), add);
@@ -109,7 +109,7 @@ TEST_CASE(dot_add_beta_double)
         auto beta =
             m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::double_type}, {0.5}});
         auto beta_broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), beta);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
         auto add = m2.add_instruction(migraphx::make_op("add"), dot, mul);
         m2.add_instruction(migraphx::make_op("identity"), add);
@@ -138,7 +138,7 @@ TEST_CASE(dot_add_beta_int)
         auto beta =
             m2.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {0.5}});
         auto beta_broadcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2}}}), beta);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), beta);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
         auto add = m2.add_instruction(migraphx::make_op("add"), dot, mul);
         m2.add_instruction(migraphx::make_op("identity"), add);

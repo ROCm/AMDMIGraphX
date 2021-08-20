@@ -15,7 +15,7 @@ struct test_greater_brcst : verify_program<test_greater_brcst>
         migraphx::shape s1{migraphx::shape::float_type, {3, 1}};
         auto l1  = mm->add_parameter("y", s1);
         auto bl1 = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l1);
+            migraphx::make_op("multibroadcast", {{"out_lens", s0.lens()}}), l1);
         auto r = mm->add_instruction(migraphx::make_op("greater"), l0, bl1);
         mm->add_return({r});
 

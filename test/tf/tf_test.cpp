@@ -87,7 +87,7 @@ TEST_CASE(add_bcast_test)
     auto l0 = mm->add_parameter("0", s0);
     auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 1}});
     auto l2 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", s0.lens()}}), l1);
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s0.lens()}}), l1);
     mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("add_bcast_test.pb", false);
 
@@ -220,7 +220,7 @@ TEST_CASE(biasadd_test)
     auto l0       = mm->add_parameter("0", s0);
     auto l1       = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
     auto l2       = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l0->get_shape().lens()}}), l1);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l0->get_shape().lens()}}), l1);
     mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("biasadd_test.pb", true);
 
@@ -238,7 +238,7 @@ TEST_CASE(biasadd_scalar_test)
     auto l1       = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1.0}});
     auto l2 = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"dims", l0->get_shape().lens()}}), l1);
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l0->get_shape().lens()}}), l1);
     mm->add_instruction(migraphx::make_op("add"), l0, l2);
     auto prog = optimize_tf("biasadd_scalar_test.pb", true);
 
@@ -360,9 +360,9 @@ TEST_CASE(conv_relu6_test)
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
     min_val      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
     max_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
     mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     auto prog = optimize_tf("conv_relu6_test.pb", true);
 
@@ -689,9 +689,9 @@ TEST_CASE(relu6_test)
     auto min_val = mm->add_literal(0.0f);
     auto max_val = mm->add_literal(6.0f);
     min_val      = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
     max_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
     mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     auto prog = optimize_tf("relu6_test.pb", false);
 

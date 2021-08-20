@@ -668,7 +668,7 @@ TEST_CASE(matmul_vm)
         auto al   = mm->add_literal(migraphx::literal{a_shape, a});
         auto ual  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), al);
         auto bual = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 1, 6}}}), ual);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 1, 6}}}), ual);
         migraphx::shape b_shape{migraphx::shape::float_type, {3, 6, 4}};
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
         mm->add_instruction(migraphx::make_op("dot"), bual, bl);
@@ -715,7 +715,7 @@ TEST_CASE(matmul_vm)
         auto al   = mm->add_literal(migraphx::literal{a_shape, a});
         auto ual  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), al);
         auto bual = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 1, 6}}}), ual);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 1, 6}}}), ual);
         migraphx::shape b_shape{migraphx::shape::float_type, {3, 6, 4}};
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
         mm->add_instruction(migraphx::make_op("dot", {{"alpha", 0.21f}}), bual, bl);
@@ -837,7 +837,7 @@ TEST_CASE(matmul_mv)
         auto bl   = mm->add_literal(migraphx::literal{b_shape, b});
         auto ubl  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bl);
         auto bubl = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 5, 1}}}), ubl);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 5, 1}}}), ubl);
         mm->add_instruction(migraphx::make_op("dot"), al, bubl);
         std::vector<float> gold = {-0.792717,
                                    6.33595,
@@ -897,7 +897,7 @@ TEST_CASE(matmul_mm1)
         migraphx::shape b_shape{migraphx::shape::float_type, {5, 3}};
         auto bl  = mm->add_literal(migraphx::literal{b_shape, b});
         auto bbl = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 5, 3}}}), bl);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 5, 3}}}), bl);
         mm->add_instruction(migraphx::make_op("dot"), al, bbl);
         std::vector<float> gold = {-0.386828, 0.187735,  -0.22822, -0.148057, 2.015,    -2.56938,
                                    -0.782212, 1.9459,    0.927426, -2.44907,  2.40531,  2.30232,
@@ -946,7 +946,7 @@ TEST_CASE(matmul_mm1)
         migraphx::shape a_shape{migraphx::shape::float_type, {3, 4}};
         auto al  = mm->add_literal(migraphx::literal{a_shape, a});
         auto bal = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 3, 3, 4}}}), al);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 3, 4}}}), al);
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 3, 4, 3}};
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
         mm->add_instruction(migraphx::make_op("dot"), bal, bl);
@@ -994,7 +994,7 @@ TEST_CASE(matmul_mm2)
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 1, 5, 3}};
         auto bl  = mm->add_literal(migraphx::literal{b_shape, b});
         auto bbl = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 5, 3}}}), bl);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 5, 3}}}), bl);
         std::vector<float> gold = {
             0.70574512,  -2.80915314, -1.57644969, 1.75415381,  -3.13303087, -1.00150259,
             -0.18675123, -0.23349122, -0.12357225, 0.82911538,  1.37473744,  -1.11709934,
@@ -1030,11 +1030,11 @@ TEST_CASE(matmul_mm2)
         migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 5}};
         auto al  = mm->add_literal(migraphx::literal{a_shape, a});
         auto bal = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 3, 5}}}), al);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 3, 5}}}), al);
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 1, 5, 3}};
         auto bl  = mm->add_literal(migraphx::literal{b_shape, b});
         auto bbl = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 5, 3}}}), bl);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 5, 3}}}), bl);
         mm->add_instruction(migraphx::make_op("dot"), bal, bbl);
         std::vector<float> gold = {
             1.64924590e+00,  2.84575831e+00,  1.07340773e+00,  2.19817080e-01,  -1.87873283e+00,
@@ -1132,7 +1132,7 @@ TEST_CASE(matmul_mm2)
         migraphx::shape b_shape{migraphx::shape::float_type, {2, 4, 5}};
         auto bl  = mm->add_literal(migraphx::literal{b_shape, b});
         auto bbl = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 4, 5}}}), bl);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 4, 5}}}), bl);
         mm->add_instruction(migraphx::make_op("dot"), al, bbl);
         std::vector<float> gold = {
             -1.08585245, 0.39575611,  0.33947977,  -0.86339678, 1.50710753,  0.05646156,

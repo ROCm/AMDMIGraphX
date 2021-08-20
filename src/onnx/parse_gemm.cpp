@@ -72,7 +72,7 @@ struct parse_gemm : op_parser<parse_gemm>
                 if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
                     l3 = info.add_instruction(
-                        make_op("multibroadcast", {{"output_lens", out_lens}}), args[2]);
+                        make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
                 }
                 auto beta_literal = info.add_literal(beta);
                 auto beta_l3      = info.add_broadcastable_binary_op("mul", l3, beta_literal);

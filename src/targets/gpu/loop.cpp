@@ -32,6 +32,7 @@ struct gpu_loop
     {
         argument arg_src{dst.get_shape(), &src};
         copy_to_gpu(ctx, arg_src, dst);
+        ctx.finish();
     }
 
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}

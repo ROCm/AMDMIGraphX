@@ -13,6 +13,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/context.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -239,9 +240,11 @@ std::vector<argument> generic_eval(const module* mod,
                 });
 
             const auto& mod_args = ins->module_inputs();
-            auto module_eval     = [&](module_ref smod,
+            // context ssctx = ctx;
+            auto module_eval = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, trace);
+                context& ssctx = ctx;
+                return generic_eval(smod, ssctx, inputs, results, trace);
             };
 
             results.emplace(ins, trace(ins, [&] {

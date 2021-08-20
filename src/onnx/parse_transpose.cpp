@@ -21,7 +21,7 @@ struct parse_transpose : op_parser<parse_transpose>
             auto&& perm_vals = info.attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
-        return info.add_instruction(make_op("transpose", {{"dims", perm}}), args.front());
+        return info.add_instruction(make_op("transpose", {{"perm", perm}}), args.front());
     }
 };
 

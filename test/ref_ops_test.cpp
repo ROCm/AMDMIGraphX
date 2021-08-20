@@ -4196,7 +4196,7 @@ TEST_CASE(step_test)
         std::iota(data.begin(), data.end(), 2);
         migraphx::shape s1{migraphx::shape::float_type, {2, 1, 4, 6}};
         auto l0 = mm->add_literal(migraphx::literal{s1, data});
-        auto tl = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 2, 3, 1}}}), l0);
+        auto tl = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {0, 2, 3, 1}}}), l0);
         auto r  = mm->add_instruction(
             migraphx::make_op("step", {{"axes", {0, 1, 2}}, {"steps", {2, 2, 3}}}), tl);
         mm->add_return({r});
@@ -4270,7 +4270,7 @@ TEST_CASE(transpose_test)
         auto* mm                  = p.get_main_module();
         auto l                    = mm->add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> perm = {0, 3, 1, 2};
-        mm->add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), l);
+        mm->add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), l);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
 
@@ -4284,7 +4284,7 @@ TEST_CASE(transpose_test)
         auto* mm                  = p.get_main_module();
         auto l                    = mm->add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> perm = {0, 3, 1, 2};
-        auto result = mm->add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), l);
+        auto result = mm->add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), l);
         mm->add_instruction(migraphx::make_op("contiguous"), result);
         p.compile(migraphx::ref::target{});
         auto result2 = p.eval({}).back();

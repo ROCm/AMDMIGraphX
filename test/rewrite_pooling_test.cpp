@@ -38,8 +38,8 @@ TEST_CASE(rewrite_pooling_test)
     auto opt_program = [&](const migraphx::operation& reduce_op) {
         migraphx::module m;
         auto input = m.add_parameter("x", s);
-        auto rsp   = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {4, -1}}}), input);
-        auto rdm   = m.add_instruction(reduce_op, rsp);
+        auto rsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {4, -1}}}), input);
+        auto rdm = m.add_instruction(reduce_op, rsp);
         auto ret =
             m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 1, 1, 1}}}), rdm);
         m.add_return({ret});
@@ -154,8 +154,9 @@ TEST_CASE(literal_rewrite_pooling_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto input = mm->add_literal(migraphx::literal(s, data));
-        auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4, -1}}}), input);
-        auto rdm   = mm->add_instruction(op, rsp);
+        auto rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4, -1}}}), input);
+        auto rdm = mm->add_instruction(op, rsp);
         auto ret =
             mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 1, 1, 1}}}), rdm);
         mm->add_return({ret});

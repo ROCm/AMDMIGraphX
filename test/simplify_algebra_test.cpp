@@ -1062,8 +1062,8 @@ TEST_CASE(simplify_split_add_relu_reshape)
         auto concatb = m2.add_instruction(b, concat);
         auto sum     = m2.add_instruction(migraphx::make_op("add"), input, concatb);
         auto relu    = m2.add_instruction(migraphx::make_op("relu"), sum);
-        auto rsp     = m2.add_instruction(migraphx::make_op("reshape", {{"out_lens", {3, 8}}}), relu);
-        auto slc1    = m2.add_instruction(
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"out_lens", {3, 8}}}), relu);
+        auto slc1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), rsp);
         auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), rsp);
@@ -1785,9 +1785,9 @@ TEST_CASE(reorder_reshape_slice)
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"out_lens", lens}}), c1);
         auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"out_lens", lens}}), c2);
 
-        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), r0);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), r1);
-        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm1}}), r2);
+        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), r0);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), r1);
+        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm1}}), r2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
@@ -1810,9 +1810,9 @@ TEST_CASE(reorder_reshape_slice)
         auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {20}}, {"ends", {30}}}), r);
 
-        auto t0 = m2.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc0);
-        auto t1 = m2.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc1);
-        auto t2 = m2.add_instruction(migraphx::make_op("transpose", {{"dims", perm1}}), slc2);
+        auto t0 = m2.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc0);
+        auto t1 = m2.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc1);
+        auto t2 = m2.add_instruction(migraphx::make_op("transpose", {{"perm", perm1}}), slc2);
 
         auto sum = m2.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m2.add_instruction(migraphx::make_op("dot"), sum, t2);
@@ -1857,9 +1857,9 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
         auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"out_lens", lens}}), c1);
         auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"out_lens", lens}}), c2);
 
-        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"out_lens", perm0}}), r0);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"out_lens", perm0}}), r1);
-        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"out_lens", perm1}}), r2);
+        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), r0);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), r1);
+        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm1}}), r2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);
@@ -1878,13 +1878,13 @@ TEST_CASE(reorder_reshape_slice_move_axis1)
         auto rsp  = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", lens}}), input);
         auto slc0 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {32}}}), rsp);
-        auto t0   = m.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc0);
+        auto t0   = m.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc0);
         auto slc1 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {32}}, {"ends", {64}}}), rsp);
-        auto t1   = m.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc1);
+        auto t1   = m.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc1);
         auto slc2 = m.add_instruction(
             migraphx::make_op("slice", {{"axes", {3}}, {"starts", {64}}, {"ends", {96}}}), rsp);
-        auto t2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", perm1}}), slc2);
+        auto t2 = m.add_instruction(migraphx::make_op("transpose", {{"perm", perm1}}), slc2);
 
         auto sum = m.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m.add_instruction(migraphx::make_op("dot"), sum, t2);
@@ -2051,9 +2051,9 @@ TEST_CASE(reorder_slice_trans)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1280}}, {"ends", {1920}}}),
             input);
 
-        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), slc0);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), slc1);
-        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), slc2);
+        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), slc0);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), slc1);
+        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), slc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("mul"), sum, t2);
@@ -2066,7 +2066,7 @@ TEST_CASE(reorder_slice_trans)
         migraphx::module m2;
         auto s     = migraphx::shape{migraphx::shape::float_type, {batch_size, 128, 1920}};
         auto input = m2.add_parameter("input", s);
-        auto r     = m2.add_instruction(migraphx::make_op("transpose", {{"dims", perm}}), input);
+        auto r     = m2.add_instruction(migraphx::make_op("transpose", {{"perm", perm}}), input);
 
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {640}}}), r);
@@ -2110,9 +2110,9 @@ TEST_CASE(reorder_slice_trans_diff_perm)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1280}}, {"ends", {1920}}}),
             input);
 
-        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc0);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm0}}), slc1);
-        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"dims", perm1}}), slc2);
+        auto t0 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc0);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm0}}), slc1);
+        auto t2 = m1.add_instruction(migraphx::make_op("transpose", {{"perm", perm1}}), slc2);
 
         auto sum = m1.add_instruction(migraphx::make_op("add"), t0, t1);
         auto ret = m1.add_instruction(migraphx::make_op("dot"), sum, t2);

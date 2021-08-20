@@ -45,7 +45,7 @@ struct parse_onehot : op_parser<parse_onehot>
         std::vector<int64_t> perm(n_rank - 1);
         std::iota(perm.begin(), perm.end(), 0);
         perm.insert(perm.begin() + tuned_axis, n_rank - 1);
-        auto tr_out = info.add_instruction(make_op("transpose", {{"dims", perm}}), gather_out);
+        auto tr_out = info.add_instruction(make_op("transpose", {{"perm", perm}}), gather_out);
         auto lens   = tr_out->get_shape().lens();
 
         auto off_val = info.add_instruction(

@@ -40,7 +40,7 @@ TEST_CASE(after_literal_transpose)
     auto l = m.add_literal(get_2x2());
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l);
     m.add_instruction(pass_op{}, t);
     EXPECT(not m.get_output_shapes().back().standard());
     EXPECT(m.get_output_shapes().back().transposed());
@@ -74,7 +74,7 @@ TEST_CASE(after_param_transpose)
     auto l = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 2}});
     EXPECT(m.get_output_shapes().back().standard());
     EXPECT(not m.get_output_shapes().back().transposed());
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l);
     m.add_instruction(pass_op{}, t);
     EXPECT(not m.get_output_shapes().back().standard());
     EXPECT(m.get_output_shapes().back().transposed());

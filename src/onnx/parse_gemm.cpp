@@ -55,8 +55,8 @@ struct parse_gemm : op_parser<parse_gemm>
             }
         }
 
-        l1      = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), l1) : l1;
-        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
+        l1      = (transa) ? info.add_instruction(make_op("transpose", {{"perm", perm}}), l1) : l1;
+        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"perm", perm}}), args[1])
                            : args[1];
 
         auto ret = info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), l1, l2);

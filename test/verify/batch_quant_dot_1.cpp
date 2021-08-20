@@ -16,10 +16,10 @@ struct batch_quant_dot_1 : verify_program<batch_quant_dot_1>
 
         auto l1 = mm->add_parameter("a", m1_shape);
         auto tl1 =
-            mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
+            mm->add_instruction(migraphx::make_op("transpose", {{"perm", {0, 1, 3, 2}}}), l1);
         auto l2 = mm->add_parameter("b", m2_shape);
         auto tl2 =
-            mm->add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
+            mm->add_instruction(migraphx::make_op("transpose", {{"perm", {0, 1, 3, 2}}}), l2);
         auto l3 = mm->add_parameter("c", m3_shape);
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2, l3);

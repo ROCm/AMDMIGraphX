@@ -990,7 +990,7 @@ struct find_split_transpose
 
         // insert an transpose instruction
         auto tr =
-            p.insert_instruction(std::next(input), make_op("transpose", {{"dims", perm}}), input);
+            p.insert_instruction(std::next(input), make_op("transpose", {{"perm", perm}}), input);
 
         // compute the axis in the slice
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();

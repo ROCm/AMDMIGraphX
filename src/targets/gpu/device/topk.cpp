@@ -14,13 +14,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument topk(hipStream_t stream,
+template<class Compare>
+std::vector<argument> topk(hipStream_t stream,
               argument val_res,
               argument ind_res,
               argument arg,
               int64_t k,
               int64_t axis,
-              bool largest)
+              Compare compare)
 {
     auto in_s       = arg.get_shape();
     auto in_lens    = in_s.lens();
@@ -51,9 +52,8 @@ argument topk(hipStream_t stream,
                     return oss.index(iidx);
                 };
 
-                auto compare = [=](auto ii, auto jj) {
-                    return largest ? std::less<>{}(data[in_idx(ii)], data[in_idx(jj)])
-                                   : std::greater<>{}(data[in_idx(ii)], data[in_idx(jj)]);
+                auto data_compare = [=](auto ii, auto jj) {
+                    return compare(data[in_idx(ii)], data[in_idx(jj)]);
                 };
 
                 for(int j = 0; j < k; ++j)
@@ -61,7 +61,7 @@ argument topk(hipStream_t stream,
                     ind[out_idx(j)] = j;
                 }
 
-                auto hp = make_heap(ind, k, out_idx, compare);
+                auto hp = make_heap(ind, k, out_idx, data_compare);
                 for(int j = k; j < axis_dim; ++j)
                 {
                     hp.update(j);
@@ -75,7 +75,27 @@ argument topk(hipStream_t stream,
             });
         });
 
-    return argument({val_res, ind_res});
+    return {val_res, ind_res};
+}
+
+argument topk_largest(hipStream_t stream,
+                      argument val_res,
+                      argument ind_res,
+                      argument arg,
+                      int64_t k,
+                      int64_t axis)
+{
+    return {topk(stream, val_res, ind_res, arg, k, axis, std::less<>{})};
+}
+
+argument topk_smallest(hipStream_t stream,
+                       argument val_res,
+                       argument ind_res,
+                       argument arg,
+                       int64_t k,
+                       int64_t axis)
+{
+    return {topk(stream, val_res, ind_res, arg, k, axis, std::greater<>{})};
 }
 
 } // namespace device

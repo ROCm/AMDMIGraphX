@@ -11,10 +11,10 @@ namespace gpu {
 namespace device {
 
 argument topk_smallest(
-    hipStream_t stream, argument val_res, argument ind_res, argument arg, int64_t k, int64_t axis);
+    hipStream_t stream, const argument& val_res, const argument& ind_res, const argument& arg, int64_t k, int64_t axis);
 
 argument topk_largest(
-    hipStream_t stream, argument val_res, argument ind_res, argument arg, int64_t k, int64_t axis);
+    hipStream_t stream, const argument& val_res, const argument& ind_res, const argument& arg, int64_t k, int64_t axis);
 
 } // namespace device
 } // namespace gpu

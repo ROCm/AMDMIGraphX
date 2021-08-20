@@ -101,5 +101,6 @@
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
+#include <migraphx/op/where.hpp>
 
 #endif

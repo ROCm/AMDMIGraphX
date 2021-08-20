@@ -4326,4 +4326,32 @@ TEST_CASE(unsqueeze_test)
     }
 }
 
+TEST_CASE(where_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::bool_type, {3, 3}};
+    migraphx::shape sx{migraphx::shape::float_type, {3, 3}};
+
+    std::vector<bool> b{1, 1, 1, 0, 0, 0, 1, 0, 1};
+    std::vector<float> x(1.0f, 9);
+    std::vector<float> y(2.0f, 9);
+
+    auto lb = mm->add_literal(migraphx::literal{sb, b});
+    auto lx = mm->add_literal(migraphx::literal{sx, x});
+    auto ly = mm->add_literal(migraphx::literal{sx, y});
+    auto w  = mm->add_instruction(migraphx::make_op("where"), lb, lx, ly);
+    mm->add_return({w});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<float> gold(9);
+    for (int i = 0; i < gold.size(); ++i)
+        gold[i] = b[i] ? x[i] : y[i];
+    
+    EXPECT(migraphx::verify_range(result_vec, gold));
+
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

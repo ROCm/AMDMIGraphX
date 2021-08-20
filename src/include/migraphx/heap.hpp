@@ -34,7 +34,7 @@ struct heap
 
     void sort() { std::sort_heap(data.begin(), data.end(), compare); }
 
-    std::vector<T>& get_sorted() { return data; }
+    std::vector<T>& get() { return data; }
 };
 
 template <class T, class Compare>

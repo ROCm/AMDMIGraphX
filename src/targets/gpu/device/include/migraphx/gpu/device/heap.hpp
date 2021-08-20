@@ -31,7 +31,7 @@ struct hip_heap
 
     MIGRAPHX_DEVICE_CONSTEXPR void sort() { sort_heap(size); }
 
-    MIGRAPHX_DEVICE_CONSTEXPR T* get_sorted() { return data; }
+    MIGRAPHX_DEVICE_CONSTEXPR T* get() { return data; }
 
     private:
     MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2)

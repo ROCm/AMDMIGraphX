@@ -86,7 +86,7 @@ struct topk
                 }
                 hp.sort();
 
-                auto sorted_indices = hp.get_sorted();
+                auto sorted_indices = hp.get();
                 auto out_idx        = idx;
                 auto in_idx         = idx;
                 for(auto j : range(sorted_indices.size()))

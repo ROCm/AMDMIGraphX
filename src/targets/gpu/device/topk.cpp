@@ -14,14 +14,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<class Compare>
+template <class Compare>
 std::vector<argument> topk(hipStream_t stream,
-              argument val_res,
-              argument ind_res,
-              argument arg,
-              int64_t k,
-              int64_t axis,
-              Compare compare)
+                           argument val_res,
+                           argument ind_res,
+                           argument arg,
+                           int64_t k,
+                           int64_t axis,
+                           Compare compare)
 {
     auto in_s       = arg.get_shape();
     auto in_lens    = in_s.lens();
@@ -78,22 +78,14 @@ std::vector<argument> topk(hipStream_t stream,
     return {val_res, ind_res};
 }
 
-argument topk_largest(hipStream_t stream,
-                      argument val_res,
-                      argument ind_res,
-                      argument arg,
-                      int64_t k,
-                      int64_t axis)
+argument topk_largest(
+    hipStream_t stream, argument val_res, argument ind_res, argument arg, int64_t k, int64_t axis)
 {
     return {topk(stream, val_res, ind_res, arg, k, axis, std::less<>{})};
 }
 
-argument topk_smallest(hipStream_t stream,
-                       argument val_res,
-                       argument ind_res,
-                       argument arg,
-                       int64_t k,
-                       int64_t axis)
+argument topk_smallest(
+    hipStream_t stream, argument val_res, argument ind_res, argument arg, int64_t k, int64_t axis)
 {
     return {topk(stream, val_res, ind_res, arg, k, axis, std::greater<>{})};
 }

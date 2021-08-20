@@ -41,8 +41,7 @@ struct hip_heap
         v2  = v;
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    heapify_down(index_int n, index_int index)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void heapify_down(index_int n, index_int index)
     {
         while(index < n)
         {
@@ -73,8 +72,7 @@ struct hip_heap
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    heapify_up(index_int index)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void heapify_up(index_int index)
     {
         while(index > 0)
         {
@@ -90,8 +88,7 @@ struct hip_heap
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    make_heap(index_int n)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void make_heap(index_int n)
     {
         for(int j = 1; j < n; ++j)
         {
@@ -99,21 +96,15 @@ struct hip_heap
         }
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    push_heap(index_int loc)
-    {
-        heapify_up(loc);
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR inline void push_heap(index_int loc) { heapify_up(loc); }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    pop_heap(index_int loc)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void pop_heap(index_int loc)
     {
         swap(data[data_index(0)], data[data_index(loc)]);
         heapify_down(loc, 0);
     }
 
-    MIGRAPHX_DEVICE_CONSTEXPR inline void
-    sort_heap(index_int n)
+    MIGRAPHX_DEVICE_CONSTEXPR inline void sort_heap(index_int n)
     {
         for(int j = n - 1; j > 0; --j)
         {

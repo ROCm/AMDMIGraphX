@@ -1,5 +1,6 @@
 #include <migraphx/gpu/driver/parser.hpp>
 #include <migraphx/gpu/driver/action.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

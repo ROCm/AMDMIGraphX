@@ -1583,4 +1583,20 @@ TEST_CASE(step_test)
     }
 }
 
+TEST_CASE(unary_scalar_input)
+{
+    migraphx::shape ss{migraphx::shape::half_type};
+    expect_shape(ss, migraphx::make_op("sin"), ss);
+
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    expect_shape(s, migraphx::make_op("sin"), s);
+}
+
+TEST_CASE(unary_broadcast_input)
+{
+    migraphx::shape ss{migraphx::shape::half_type, {2, 3}, {1, 0}};
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    expect_shape(s, migraphx::make_op("sin"), ss);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

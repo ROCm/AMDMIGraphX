@@ -263,6 +263,20 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     return result;
 }
 
+/// Find first instance of a matching instruction in a module
+template <class M>
+match::matcher_result find_match(module& modl, M&& m)
+{
+    match::matcher_result result;
+    for(auto ins : iterator_for(modl))
+    {
+        result = match::match_instruction(modl, ins, m);
+        if(result.result != modl.end())
+            return result;
+    }
+    return result;
+}
+
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 
 /// Find matches for an instruction in the module
@@ -626,7 +640,8 @@ auto tree(M main_op, Ms... ms)
             if(idx != leafs.size())
                 return nullopt;
             // Use explicit captures to workaround ICE on gcc
-            bool found = sequence_c<sizeof...(Ms)>([&ms..., &ctx, &leafs](auto... is) {
+            // Capture by value to workaround compile error on gcc 9
+            bool found = sequence_c<sizeof...(Ms)>([ms..., &ctx, &leafs](auto... is) {
                 return fold(lazy_and{})(ctx.lazy_match(ms, leafs[is])...)();
             });
             if(not found)

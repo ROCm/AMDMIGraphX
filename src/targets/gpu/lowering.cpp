@@ -163,6 +163,7 @@ struct miopen_apply
         add_extend_op("lrn");
         add_extend_op("pad");
         add_extend_op("pooling");
+        add_extend_op("prefix_scan_sum");
         add_extend_op("reduce_max");
         add_extend_op("reduce_mean");
         add_extend_op("reduce_min");
@@ -172,6 +173,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
+        add_extend_op("scatter");
         add_extend_op("softmax");
 
         add_gemm_op<op::dot>("dot");

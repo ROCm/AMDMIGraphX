@@ -15,46 +15,49 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         int axis = 1;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
 
         auto input_lens = args[0]->get_shape().lens();
-        int n_dim       = static_cast<int>(input_lens.size());
+        auto n_dim      = input_lens.size();
 
-        auto sub_zero_point = args[0];
+        instruction_ref x_scale;
+        if(args[1]->get_shape().elements() != 1)
+        {
+            auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
+            x_scale         = info.add_instruction(
+                make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[1]);
+        }
+        else
+        {
+            x_scale = info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}),
+                                           args[1]);
+        }
 
         if(args.size() == 3)
         {
-            auto zero_point = args[2];
-            if(not(zero_point->get_shape().elements() == 1))
+            auto x_zero_point = args[2];
+            if(x_zero_point->get_shape().elements() != 1)
             {
-                axis       = tune_axis(n_dim, axis, opd.op_name);
-                zero_point = info.add_instruction(
-                    make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), zero_point);
+                auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
+                x_zero_point    = info.add_instruction(
+                    make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
+                    x_zero_point);
+            }
+            else
+            {
+                x_zero_point = info.add_instruction(
+                    make_op("multibroadcast", {{"output_lens", input_lens}}), x_zero_point);
             }
 
-            auto zero_point_int32 = info.add_instruction(
-                make_op("convert", {{"target_type", shape::int32_type}}), zero_point);
-            auto sub_zero_point_int32 = info.add_instruction(
-                make_op("convert", {{"target_type", shape::int32_type}}), sub_zero_point);
-            sub_zero_point =
-                info.add_broadcastable_binary_op("sub", sub_zero_point_int32, zero_point_int32);
+            return info.add_instruction(
+                make_op("dequantizelinear"), args[0], x_scale, x_zero_point);
         }
 
-        auto dequant_input = info.add_instruction(
-            make_op("convert", {{"target_type", shape::float_type}}), sub_zero_point);
-
-        auto scale = args[1];
-        if(not(scale->get_shape().elements() == 1))
-        {
-            axis  = tune_axis(n_dim, axis, opd.op_name);
-            scale = info.add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"dims", input_lens}}), scale);
-        }
-        return info.add_broadcastable_binary_op("mul", dequant_input, scale);
+        return info.add_instruction(make_op("dequantizelinear"), args[0], x_scale);
     }
 };
 

@@ -106,7 +106,7 @@ TEST_CASE(tuple_construct)
     EXPECT(a.get_sub_objects().size() == 2);
     EXPECT(a.get_shape() == s);
 
-    auto b = a;
+    auto b = a; // NOLINT
     EXPECT(a.get_shape() == b.get_shape());
     EXPECT(a.get_sub_objects().size() == 2);
     EXPECT(a.get_sub_objects()[0] == b.get_sub_objects()[0]);

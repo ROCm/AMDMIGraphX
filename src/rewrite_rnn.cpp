@@ -241,11 +241,11 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
     auto sw      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tran_sw = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), sw);
+    auto tran_sw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // squeeze and transpose r
     auto sr      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
-    auto tran_sr = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), sr);
+    auto tran_sr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sr);
 
     // initial hidden state
     auto sih      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
@@ -565,17 +565,17 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     // w matrix squeeze to 2-dim and do a transpose
     std::vector<int64_t> perm{1, 0};
     auto sw = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tw = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), sw);
+    auto tw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // r slide to two part, zr and h
     auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
     auto rzr = prog.insert_instruction(
         ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2 * hs}}}), sr);
-    auto trzr = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), rzr);
+    auto trzr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), rzr);
 
     auto rh = prog.insert_instruction(
         ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), sr);
-    auto trh = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), rh);
+    auto trh = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), rh);
 
     // initial states
     auto sih  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
@@ -1038,11 +1038,11 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     std::vector<int64_t> perm{1, 0};
     // w matrix, squeeze and transpose
     auto sw  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tsw = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), sw);
+    auto tsw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // r matrix, squeeze and transpose
     auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
-    auto tsr = prog.insert_instruction(ins, make_op("transpose", {{"perm", perm}}), sr);
+    auto tsr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sr);
 
     // initial hidden state
     auto sih = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);

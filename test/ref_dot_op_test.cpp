@@ -1192,9 +1192,10 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         mm->add_instruction(migraphx::make_op("quant_dot"), tl1, l2);
 
         std::vector<int> gold = {448, 472, 496, 520, 544, 568, 592, 616, 496, 524, 552,
@@ -1219,9 +1220,10 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         mm->add_instruction(migraphx::make_op("quant_dot"), l1, tl2);
 
         std::vector<int> gold = {14,  38,   62,  86,  110, 134, 158, 182,  38,   126, 214,
@@ -1246,10 +1248,12 @@ TEST_CASE(quant_dot_2args_multi4)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         mm->add_instruction(migraphx::make_op("quant_dot"), tl1, tl2);
 
         std::vector<int> gold = {56,  152, 248, 344, 440, 536, 632, 728, 62,  174, 286,
@@ -1302,9 +1306,10 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         mm->add_instruction(migraphx::make_op("quant_dot"), tl1, l2);
 
         std::vector<int> gold = {
@@ -1328,9 +1333,10 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 2}}), l1, tl2);
 
         std::vector<int> gold = {
@@ -1354,10 +1360,12 @@ TEST_CASE(quant_dot_2args_general)
         std::iota(data1.begin(), data1.end(), 0);
         std::iota(data2.begin(), data2.end(), 0);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2);
 
         std::vector<int> gold = {
@@ -1446,10 +1454,11 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto l3  = mm->add_literal(migraphx::literal{m3_shape, data3});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 3}}), tl1, l2, l3);
 
@@ -1477,10 +1486,11 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
-        auto l3  = mm->add_literal(migraphx::literal{m3_shape, data3});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
+        auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 2}, {"beta", 3}}), l1, tl2, l3);
 
@@ -1508,11 +1518,13 @@ TEST_CASE(quant_dot_3args_general)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l1);
-        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"perm", {1, 0}}}), l2);
-        auto l3  = mm->add_literal(migraphx::literal{m3_shape, data3});
+        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
+        auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2, l3);
 
@@ -1577,12 +1589,12 @@ TEST_CASE(quant_dot_3args_batch)
         std::iota(data2.begin(), data2.end(), 0);
         std::iota(data3.begin(), data3.end(), 2);
 
-        auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
-        auto tl1 =
-            mm->add_instruction(migraphx::make_op("transpose", {{"perm", {0, 1, 3, 2}}}), l1);
-        auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
-        auto tl2 =
-            mm->add_instruction(migraphx::make_op("transpose", {{"perm", {0, 1, 3, 2}}}), l2);
+        auto l1  = mm->add_literal(migraphx::literal{m1_shape, data1});
+        auto tl1 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
+        auto l2  = mm->add_literal(migraphx::literal{m2_shape, data2});
+        auto tl2 = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 2}, {"beta", 3}}), tl1, tl2, l3);

@@ -1558,10 +1558,10 @@ TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};
     migraphx::shape output{migraphx::shape::float_type, {2, 2}, {1, 2}};
-    expect_shape(input, migraphx::make_op("transpose", {{"perm", {0, 1}}}), input);
-    expect_shape(output, migraphx::make_op("transpose", {{"perm", {1, 0}}}), input);
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
     expect_shape(output, migraphx::make_op("transpose"), input);
-    throws_shape(migraphx::make_op("transpose", {{"perm", {1, 2}}}), input);
+    throws_shape(migraphx::make_op("transpose", {{"permutation", {1, 2}}}), input);
 }
 
 TEST_CASE(step_test)

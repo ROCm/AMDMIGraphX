@@ -391,7 +391,7 @@ TEST_CASE(depthwiseconv_test)
     auto l3 =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), l1);
     auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);
-    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {3, 1, 3, 3}}}), l4);
+    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3}}}), l4);
     mm->add_instruction(op, l0, l5);
     auto prog = optimize_tf("depthwise_conv_test.pb", true);
 
@@ -406,7 +406,7 @@ TEST_CASE(expanddims_test)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(0);
-    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 2, 3, 4}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 3, 4}}}), l0);
     auto prog = optimize_tf("expanddims_test.pb", false);
 
     EXPECT(p == prog);
@@ -421,7 +421,7 @@ TEST_CASE(expanddims_test_neg_dims)
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
     mm->add_literal(-1);
-    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 3, 4, 1}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 3, 4, 1}}}), l0);
     auto prog = optimize_tf("expanddims_neg_test.pb", false);
 
     EXPECT(p == prog);
@@ -715,7 +715,7 @@ TEST_CASE(reshape_test)
     migraphx::shape s0{migraphx::shape::int32_type, {4}};
     // in tf, the second arg is a literal that contains new dimensions
     mm->add_literal(migraphx::literal{s0, {1, 1, 1, 16}});
-    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 1, 1, 16}}}), l0);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 1, 16}}}), l0);
     auto prog = optimize_tf("reshape_test.pb", false);
 
     EXPECT(p == prog);

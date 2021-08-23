@@ -938,7 +938,7 @@ struct find_split_reshape
 
         // insert the reshape instruction
         auto rsp_ins = p.insert_instruction(
-            std::next(input), make_op("reshape", {{"out_lens", rsp_out_lens}}), input);
+            std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
 
         // replace the original reshape with slice
         int64_t start = 0;

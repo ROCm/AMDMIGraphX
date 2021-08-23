@@ -42,8 +42,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
         // reshape the input data as one dimension and used as input data
         // to the gather operator
-        arg_data =
-            info.add_instruction(make_op("reshape", {{"out_lens", {data_elem_num}}}), arg_data);
+        arg_data = info.add_instruction(make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);
 
         std::size_t elem_num = ind_s.elements();
         std::vector<int> ind_index(elem_num);

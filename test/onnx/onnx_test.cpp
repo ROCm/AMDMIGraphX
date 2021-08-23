@@ -1239,7 +1239,7 @@ TEST_CASE(gather_elements_axis0_test)
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
     auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {4}});
 
-    auto rsp_data = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+    auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
     auto lbst_stride = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
     auto axis_delta = mm->add_instruction(migraphx::make_op("sub"), indices, l_ind_axis_indices);
@@ -1268,7 +1268,7 @@ TEST_CASE(gather_elements_axis1_test)
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
     auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {1}});
 
-    auto rsp_data = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+    auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
     auto lbst_stride = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
     auto axis_delta = mm->add_instruction(migraphx::make_op("sub"), indices, l_ind_axis_indices);
@@ -2856,7 +2856,7 @@ TEST_CASE(reshape_non_standard_test)
     auto tran_x =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
     auto cont_x = mm->add_instruction(migraphx::make_op("contiguous"), tran_x);
-    mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4, 3, 2}}}), cont_x);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), cont_x);
     auto prog = optimize_onnx("reshape_non_standard_test.onnx");
 
     EXPECT(p == prog);
@@ -2880,7 +2880,7 @@ TEST_CASE(resize_downsample_c_test)
     std::vector<int> ind = {0, 2};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {8}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -2906,7 +2906,7 @@ TEST_CASE(resize_downsample_f_test)
     std::vector<int> ind = {0, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {8}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -2947,7 +2947,7 @@ TEST_CASE(resize_downsample_linear_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {8}}}), x);
+    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), x);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
@@ -3001,7 +3001,7 @@ TEST_CASE(resize_outsize_test)
     std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -3031,7 +3031,7 @@ TEST_CASE(resize_nonstd_input_test)
     mm->add_instruction(migraphx::make_op("undefined"));
     auto tx_cont = mm->add_instruction(migraphx::make_op("contiguous"), tx);
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {8}}}), tx_cont);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx_cont);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -3099,7 +3099,7 @@ TEST_CASE(resize_upsample_linear_ac_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), x);
+    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
@@ -3194,7 +3194,7 @@ TEST_CASE(resize_upsample_linear_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), x);
+    auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), x);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {8}}}), data);
@@ -3248,7 +3248,7 @@ TEST_CASE(resize_upsample_pc_test)
     std::vector<int> ind = {0, 1, 1, 2, 3, 3, 0, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 7, 4, 5, 5, 6, 7, 7};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {8}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -3275,7 +3275,7 @@ TEST_CASE(resize_upsample_pf_test)
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), inx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -3905,7 +3905,7 @@ TEST_CASE(upsample_test)
     std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
 
     auto li  = mm->add_literal(migraphx::literal(si, ind));
-    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), ix);
+    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
     auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
     mm->add_return({r});
 
@@ -3981,7 +3981,7 @@ TEST_CASE(where_test)
 
     auto concat_data = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), lym, lxm);
     auto rsp_data =
-        mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", {32}}}), concat_data);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {32}}}), concat_data);
 
     std::vector<int> offset(16, 16);
     std::vector<int> ind(16);

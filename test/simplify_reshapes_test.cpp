@@ -134,14 +134,13 @@ TEST_CASE(reshape_transpose)
 {
     migraphx::module m;
 
-    auto s = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
-    auto x = m.add_parameter("x", s);
-    auto r1 =
-        m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 4, 28, 56, 56}}}), x);
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 112, 56, 56}};
+    auto x  = m.add_parameter("x", s);
+    auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 28, 56, 56}}}), x);
     auto t =
         m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}), r1);
     auto ct = m.add_instruction(migraphx::make_op("contiguous"), t);
-    auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {1, 112, 56, 56}}}), ct);
+    auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 112, 56, 56}}}), ct);
     m.add_return({r2});
     EXPECT(m.get_output_shapes().back() == s);
     auto n = std::distance(m.begin(), m.end());
@@ -538,7 +537,7 @@ TEST_CASE(optimize_resize)
                                 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), gr);
         m.add_return({r});
@@ -553,15 +552,14 @@ TEST_CASE(optimize_resize)
         migraphx::module m;
         auto inx                  = m.add_parameter("X", sx);
         std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
-        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", dims}}), inx);
+        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", dims}}), inx);
         std::vector<int64_t> mb_dims = {1, 2, 2, 2, 2, 3};
         auto mbx =
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_dims}}), rspx);
         auto std_mb                    = m.add_instruction(migraphx::make_op("contiguous"), mbx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb =
-            m.add_instruction(migraphx::make_op("reshape", {{"out_lens", orig_dims}}), std_mb);
-        auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmb);
+        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), std_mb);
+        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmb);
         m.add_return({r});
 
         return m;
@@ -583,7 +581,7 @@ TEST_CASE(optimize_resize_ind_not_apply)
                                 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), gr);
         m.add_return({r});
@@ -608,7 +606,7 @@ TEST_CASE(optimize_resize_rsp_dim_1)
                                 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), inx);
         auto r    = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         m.add_return({r});
 
@@ -634,7 +632,7 @@ TEST_CASE(optimize_resize_ndims_unequal)
                                 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {4}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
         m.add_return({r});
@@ -661,7 +659,7 @@ TEST_CASE(optimize_resize_ind_non_brcst)
                                 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         auto li              = m.add_literal(migraphx::literal(si, ind));
 
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {6}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
         m.add_return({r});
@@ -685,7 +683,7 @@ TEST_CASE(optimize_resize_ind_non_const)
 
         migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
         auto li   = m.add_parameter("ind", si);
-        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {6}}}), inx);
+        auto lrsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), inx);
         auto gr   = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
         auto r    = m.add_instruction(migraphx::make_op("sub"), iny, gr);
         m.add_return({r});
@@ -710,7 +708,7 @@ TEST_CASE(optimize_where_true)
         std::vector<char> idata(si.elements(), static_cast<char>(cond));
         auto li     = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -744,7 +742,7 @@ TEST_CASE(where_different_cond_values)
         std::vector<char> idata = {1, 1, 0, 1, 0, 1};
         auto li                 = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -767,7 +765,7 @@ TEST_CASE(where_axis_nonzero)
         std::vector<char> idata(6, 1);
         auto li     = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -790,7 +788,7 @@ TEST_CASE(where_three_concat_inputs)
         std::vector<char> idata(6, 1);
         auto li     = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny, inx);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {18}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -814,7 +812,7 @@ TEST_CASE(where_three_inputs_diff_shapes)
         std::vector<char> idata(6, 1);
         auto li     = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {18}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {18}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -838,7 +836,7 @@ TEST_CASE(where_three_lens_diff)
         std::vector<char> idata(6, 1);
         auto li     = m.add_literal(migraphx::literal(si, idata));
         auto data   = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), inx, iny);
-        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {12}}}), data);
+        auto data_1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), data);
         auto r      = m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), data_1, li);
         m.add_return({r});
         return m;
@@ -862,7 +860,7 @@ TEST_CASE(reshape_cont)
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 2, 6}}}), std_inx);
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
         auto r = m.add_instruction(migraphx::make_op("add"), rsp, iny);
         m.add_return({r});
 
@@ -881,10 +879,9 @@ TEST_CASE(reshape_cont)
         auto iny = m.add_parameter("y", sy);
         auto mb_inx =
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
-        auto rsp_iny =
-            m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 4, 6}}}), iny);
-        auto sum = m.add_instruction(migraphx::make_op("add"), mb_inx, rsp_iny);
-        auto r = m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 2, 6}}}), sum);
+        auto rsp_iny = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), iny);
+        auto sum     = m.add_instruction(migraphx::make_op("add"), mb_inx, rsp_iny);
+        auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), sum);
         m.add_return({r});
 
         return m;
@@ -906,7 +903,7 @@ TEST_CASE(reshape_input_non_std)
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 2, 6}}}), std_inx);
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
         auto ty =
             m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
         auto r = m.add_instruction(migraphx::make_op("add"), rsp, ty);
@@ -934,7 +931,7 @@ TEST_CASE(reshape_cont_nonpw)
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
         auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"out_lens", {2, 2, 2, 6}}}), std_inx);
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
         auto r = m.add_instruction(migraphx::make_op("convolution"), rsp, iny);
         m.add_return({r});
 

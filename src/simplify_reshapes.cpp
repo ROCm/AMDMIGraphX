@@ -419,12 +419,12 @@ struct find_resize
 
         auto in_rsp   = ins_rsp->inputs().front();
         auto rsp_data = p.insert_instruction(
-            ins_rsp, migraphx::make_op("reshape", {{"out_lens", in_dims}}), in_rsp);
+            ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
         auto std_mb = p.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        p.replace_instruction(ins, migraphx::make_op("reshape", {{"out_lens", rsp_dims}}), std_mb);
+        p.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
     }
 };
 
@@ -531,11 +531,11 @@ struct find_reshape_cont
             else
             {
                 inputs.push_back(
-                    p.insert_instruction(ins, make_op("reshape", {{"out_lens", dims}}), in));
+                    p.insert_instruction(ins, make_op("reshape", {{"dims", dims}}), in));
             }
         }
         auto out = p.insert_instruction(ins, ins->get_operator(), inputs);
-        p.replace_instruction(ins, make_op("reshape", {{"out_lens", out_dims}}), out);
+        p.replace_instruction(ins, make_op("reshape", {{"dims", out_dims}}), out);
     }
 };
 

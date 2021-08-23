@@ -1183,13 +1183,13 @@ TEST_CASE(reshape_shape)
         std::vector<std::size_t> lens(new_shape.size());
         std::copy(new_shape.begin(), new_shape.end(), lens.begin());
         migraphx::shape output{migraphx::shape::float_type, lens};
-        expect_shape(output, migraphx::make_op("reshape", {{"out_lens", new_shape}}), input);
+        expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
 
     for(auto&& new_shape :
         std::vector<std::vector<int64_t>>{{8, 3, 2, 2}, {1, 3, -1, -1}, {3, 0, 0}, {3, 2, 0}})
     {
-        throws_shape(migraphx::make_op("reshape", {{"out_lens", new_shape}}), input);
+        throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
 
     std::vector<std::pair<std::vector<int64_t>, migraphx::shape>> minus1_tests{
@@ -1205,7 +1205,7 @@ TEST_CASE(reshape_shape)
 
     for(auto& it : minus1_tests)
     {
-        expect_shape(it.second, migraphx::make_op("reshape", {{"out_lens", it.first}}), input);
+        expect_shape(it.second, migraphx::make_op("reshape", {{"dims", it.first}}), input);
     }
 }
 

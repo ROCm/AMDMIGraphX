@@ -3705,7 +3705,7 @@ TEST_CASE(reshape_test)
         auto* mm                       = p.get_main_module();
         auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {8, 3, 1, 1};
-        mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", new_shape}}), l);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector(3);
@@ -3717,7 +3717,7 @@ TEST_CASE(reshape_test)
         auto* mm                       = p.get_main_module();
         auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", new_shape}}), l);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector(3);
@@ -3729,7 +3729,7 @@ TEST_CASE(reshape_test)
         auto* mm                       = p.get_main_module();
         auto l                         = mm->add_literal(migraphx::literal{a_shape, data});
         std::vector<int64_t> new_shape = {1, 3, 4, 2};
-        mm->add_instruction(migraphx::make_op("reshape", {{"out_lens", new_shape}}), l);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", new_shape}}), l);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector(3);

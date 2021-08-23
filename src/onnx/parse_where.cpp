@@ -17,11 +17,13 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto lens = compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
-        lens      = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
+        auto lens =
+            compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
+        lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
         if(args[0]->get_shape().lens() != lens)
         {
-            args[0] = info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[0]);
+            args[0] =
+                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[0]);
         }
 
         if(args[1]->get_shape().lens() != lens)

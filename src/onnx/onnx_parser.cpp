@@ -225,16 +225,18 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
+    std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
-        instructions[f.name()] = mod->add_literal(parse_tensor(f));
+        // backup instructions in parent mod
+        mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
     }
 
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
         // input not in initializer_data, so it is a real input
-        if(!contains(instructions, name))
+        if(!contains(mod_insts, name))
         {
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
@@ -243,8 +245,20 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
             }
 
             shape s            = parse_type(input.type(), dims);
-            instructions[name] = mod->add_parameter(name, s);
+            mod_insts[name] = mod->add_parameter(name, s);
         }
+    }
+
+    // backup parameters/literals with the same names as that in 
+    // the parent module
+    std::unordered_map<std::string, instruction_ref> pmod_insts_bkup;
+    for(auto& ins_p : mod_insts)
+    {
+        if(contains(instructions, ins_p.first))
+        {
+            pmod_insts_bkup[ins_p.first] = instructions[ins_p.first];
+        }
+        instructions[ins_p.first] = ins_p.second;
     }
 
     for(auto&& node : graph.node())
@@ -313,6 +327,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     // remove instructions added in this mod
     erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+    std::copy(pmod_insts_bkup.begin(), pmod_insts_bkup.end(), std::inserter(instructions, instructions.end()));
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

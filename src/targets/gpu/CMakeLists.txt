@@ -153,7 +153,6 @@ add_library(migraphx_gpu
     softmax.cpp
     sync_device.cpp
     target.cpp
-    where.cpp
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)

@@ -3968,32 +3968,14 @@ TEST_CASE(where_test)
     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
 
-    auto int_c = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-        lc);
     auto lccm = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 2, 2}}}), int_c);
+        migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 2, 2}}}), lc);
     auto lxm = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 2, 2}}}), lx);
     auto lym = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"output_lens", {2, 2, 2, 2}}}), ly);
 
-    auto concat_data = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), lym, lxm);
-    auto rsp_data =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {32}}}), concat_data);
-
-    std::vector<int> offset(16, 16);
-    std::vector<int> ind(16);
-    std::iota(ind.begin(), ind.end(), 0);
-    migraphx::shape ind_s{migraphx::shape::int32_type, {2, 2, 2, 2}};
-
-    auto lind    = mm->add_literal(migraphx::literal(ind_s, ind));
-    auto loffset = mm->add_literal(migraphx::literal(ind_s, offset));
-
-    auto ins_co  = mm->add_instruction(migraphx::make_op("mul"), loffset, lccm);
-    auto ins_ind = mm->add_instruction(migraphx::make_op("add"), ins_co, lind);
-    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp_data, ins_ind);
+    auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("where_test.onnx");

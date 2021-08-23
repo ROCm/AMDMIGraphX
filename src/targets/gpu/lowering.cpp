@@ -37,6 +37,7 @@
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/unary_not.hpp>
+#include <migraphx/gpu/where.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -149,6 +150,7 @@ struct miopen_apply
         add_generic_op("sub");
         add_generic_op("tan");
         add_generic_op("tanh");
+        add_generic_op("where");
 
         add_extend_op("abs");
         add_extend_op("argmax");
@@ -175,7 +177,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("scatter");
         add_extend_op("softmax");
-        add_extend_op("where");
 
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");

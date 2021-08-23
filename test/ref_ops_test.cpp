@@ -4333,7 +4333,7 @@ TEST_CASE(where_test)
     migraphx::shape sb{migraphx::shape::bool_type, {3, 3}};
     migraphx::shape sx{migraphx::shape::float_type, {3, 3}};
 
-    std::vector<bool> b{1, 1, 1, 0, 0, 0, 1, 0, 1};
+    std::vector<bool> b{true, true, true, false, false, false, true, false, true};
     std::vector<float> x(1.0f, 9);
     std::vector<float> y(2.0f, 9);
 

@@ -154,8 +154,7 @@ operation onnx_parser::load(const std::string& name, const node_info& info) cons
     return op;
 }
 
-void onnx_parser::parse_undefined(module* mod,
-                                  const std::string& name)
+void onnx_parser::parse_undefined(module* mod, const std::string& name)
 {
     if(!contains(instructions, name))
     {
@@ -224,8 +223,7 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void onnx_parser::parse_graph(module* mod,
-                              const onnx::GraphProto& graph)
+void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
     for(auto&& f : graph.initializer())
     {
@@ -314,9 +312,7 @@ void onnx_parser::parse_graph(module* mod,
     mod->add_return(output_ins);
 
     // remove instructions added in this mod
-    erase_if(instructions, [&](auto&& p) {
-        return mod->has_instruction(p.second);
-    });
+    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

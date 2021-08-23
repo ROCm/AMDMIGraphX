@@ -244,12 +244,12 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                 dims = map_input_dims.at(name);
             }
 
-            shape s            = parse_type(input.type(), dims);
+            shape s         = parse_type(input.type(), dims);
             mod_insts[name] = mod->add_parameter(name, s);
         }
     }
 
-    // backup parameters/literals with the same names as that in 
+    // backup parameters/literals with the same names as that in
     // the parent module
     std::unordered_map<std::string, instruction_ref> pmod_insts_bkup;
     for(auto& ins_p : mod_insts)
@@ -327,7 +327,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     // remove instructions added in this mod
     erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
-    std::copy(pmod_insts_bkup.begin(), pmod_insts_bkup.end(), std::inserter(instructions, instructions.end()));
+    std::copy(pmod_insts_bkup.begin(),
+              pmod_insts_bkup.end(),
+              std::inserter(instructions, instructions.end()));
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

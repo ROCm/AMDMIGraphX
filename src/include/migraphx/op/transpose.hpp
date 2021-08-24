@@ -21,7 +21,7 @@ struct transpose
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dims, "dims"));
+        return pack(f(self.dims, "permutation"));
     }
 
     std::string name() const { return "transpose"; }

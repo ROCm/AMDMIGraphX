@@ -4131,11 +4131,9 @@ def thresholdedrelu_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
 
-    node = onnx.helper.make_node(
-        'ThresholdedRelu',
-        inputs=['x'],
-        outputs=['y']
-    )
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'])
 
     return ([node], [x], [y])
 
@@ -4146,12 +4144,10 @@ def thresholdedrelu_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
     alpha = 3.0
 
-    node = onnx.helper.make_node(
-        'ThresholdedRelu',
-        inputs=['x'],
-        outputs=['y'],
-        alpha=alpha
-    )
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=alpha)
 
     return ([node], [x], [y])
 

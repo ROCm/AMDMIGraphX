@@ -22,7 +22,8 @@ struct parse_where : op_parser<parse_where>
         lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
         if(args[0]->get_shape().lens() != lens)
         {
-            args[0] = info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
+            args[0] =
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
         }
 
         if(args[1]->get_shape().lens() != lens)

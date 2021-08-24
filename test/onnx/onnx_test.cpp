@@ -3968,8 +3968,8 @@ TEST_CASE(where_test)
     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
 
-    auto lccm = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
+    auto lccm =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
     auto lxm =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lx);
     auto lym =

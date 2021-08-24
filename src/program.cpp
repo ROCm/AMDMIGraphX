@@ -274,20 +274,16 @@ std::vector<argument> program::eval(parameter_map params) const
             auto check_context = [=, &ctx](auto g) {
                 assert(is_shared(ctx, *sctx));
                 auto x = g();
-                *sctx   = ctx;
+                *sctx  = ctx;
                 return x;
             };
-            return [=](auto&&... xs) {
-                return f(xs..., check_context);
-            };
+            return [=](auto&&... xs) { return f(xs..., check_context); };
         };
     };
 #else
     auto with_check_context = [](auto f) {
         return [=](auto&&) {
-            return [=](auto&&... xs) {
-                return f(xs..., [](auto g) { return g(); });
-            };
+            return [=](auto&&... xs) { return f(xs..., [](auto g) { return g(); }); };
         };
     };
 #endif
@@ -296,25 +292,33 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
-        return generic_eval(*this, ctx, std::move(params), with_check_context([&](auto& ins, auto f, auto&& check_context) {
-            ctx.finish();
-            std::cout << "Run instruction: ";
-            this->debug_print(ins);
-            timer t{};
-            auto result = check_context(f);
-            double t1   = t.record<milliseconds>();
-            ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load")
-                std::cout << "Output: " << result << std::endl;
-            return result;
-        }));
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto& ins, auto f, auto&& check_context) {
+                                ctx.finish();
+                                std::cout << "Run instruction: ";
+                                this->debug_print(ins);
+                                timer t{};
+                                auto result = check_context(f);
+                                double t1   = t.record<milliseconds>();
+                                ctx.finish();
+                                double t2 = t.record<milliseconds>();
+                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                                if(trace_level > 1 and ins->name().front() != '@' and
+                                   ins->name() != "load")
+                                    std::cout << "Output: " << result << std::endl;
+                                return result;
+                            }));
     }
     else
     {
-        return generic_eval(
-            *this, ctx, std::move(params), with_check_context([&](auto&, auto f, auto&& check_context) { return check_context(f); }));
+        return generic_eval(*this,
+                            ctx,
+                            std::move(params),
+                            with_check_context([&](auto&, auto f, auto&& check_context) {
+                                return check_context(f);
+                            }));
     }
 }
 

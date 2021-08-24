@@ -17,7 +17,8 @@ struct test_concat_transpose2 : verify_program<test_concat_transpose2>
         auto l0  = mm->add_parameter("x", s0);
         auto l1  = mm->add_parameter("y", s1);
         auto lp2 = mm->add_parameter("z", s2);
-        auto l2  = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), lp2);
+        auto l2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), lp2);
         mm->add_instruction(migraphx::make_op("concat", {{"axis", axis}}), l0, l1, l2);
         return p;
     }

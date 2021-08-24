@@ -22,20 +22,19 @@ struct parse_where : op_parser<parse_where>
         lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
         if(args[0]->get_shape().lens() != lens)
         {
-            args[0] =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[0]);
+            args[0] = info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
         }
 
         if(args[1]->get_shape().lens() != lens)
         {
             args[1] =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[1]);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[1]);
         }
 
         if(args[2]->get_shape().lens() != lens)
         {
             args[2] =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[2]);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[2]);
         }
 
         return info.add_instruction(make_op("where"), args[0], args[1], args[2]);

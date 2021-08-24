@@ -23,9 +23,9 @@ struct parse_relu6 : op_parser<parse_relu6>
         auto max_val    = info.add_literal(6.0f);
 
         min_val =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
         max_val =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
         return info.add_instruction(make_op("clip"), args.front(), min_val, max_val);
     }
 };

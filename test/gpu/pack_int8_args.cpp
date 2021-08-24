@@ -100,11 +100,13 @@ TEST_CASE(quant_dot_trans)
         migraphx::shape s1{migraphx::shape::int8_type, {3, 2, 8, 5}};
         migraphx::shape s2{migraphx::shape::int8_type, {3, 2, 7, 8}};
 
-        auto l1  = m.add_parameter("a", s1);
-        auto tl1 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
-        auto l2  = m.add_parameter("b", s2);
-        auto tl2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
-        auto r   = m.add_instruction(
+        auto l1 = m.add_parameter("a", s1);
+        auto tl1 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
+        auto l2 = m.add_parameter("b", s2);
+        auto tl2 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
+        auto r = m.add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2);
         m.add_return({r});
         return m;
@@ -120,13 +122,15 @@ TEST_CASE(quant_dot_trans)
         auto l2     = m.add_parameter("b", s2);
         auto output = m.add_parameter("test:#output_0", s3);
 
-        auto tl1 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
+        auto tl1 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
         migraphx::shape ts1{migraphx::shape::int8_type, {3, 2, 5, 8}};
         auto alloca = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
         auto conta = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl1, alloca);
 
-        auto tl2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
+        auto tl2 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         migraphx::shape ts2{migraphx::shape::int8_type, {3, 2, 8, 7}};
         auto allocb = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
@@ -245,11 +249,13 @@ TEST_CASE(quant_dot_trans_pad)
         migraphx::shape s1{migraphx::shape::int8_type, {3, 2, 9, 5}};
         migraphx::shape s2{migraphx::shape::int8_type, {3, 2, 7, 9}};
 
-        auto l1  = m.add_parameter("a", s1);
-        auto tl1 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
-        auto l2  = m.add_parameter("b", s2);
-        auto tl2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
-        auto r   = m.add_instruction(
+        auto l1 = m.add_parameter("a", s1);
+        auto tl1 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
+        auto l2 = m.add_parameter("b", s2);
+        auto tl2 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
+        auto r = m.add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 3}, {"beta", 2}}), tl1, tl2);
         m.add_return({r});
         return m;
@@ -267,7 +273,8 @@ TEST_CASE(quant_dot_trans_pad)
         auto l2     = m.add_parameter("b", s2);
         auto output = m.add_parameter("test:#output_0", s3);
 
-        auto tl1 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l1);
+        auto tl1 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
         migraphx::shape ts1{migraphx::shape::int8_type, {3, 2, 5, 9}};
         auto ta = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts1)}}));
@@ -287,7 +294,8 @@ TEST_CASE(quant_dot_trans_pad)
                 pta);
         }
 
-        auto tl2 = m.add_instruction(migraphx::make_op("transpose", {{"dims", {0, 1, 3, 2}}}), l2);
+        auto tl2 =
+            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         migraphx::shape ts2{migraphx::shape::int8_type, {3, 2, 9, 7}};
         auto tb = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));

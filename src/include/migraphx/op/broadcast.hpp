@@ -30,7 +30,7 @@ struct broadcast
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "dims"));
+        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "out_lens"));
     }
 
     std::string name() const { return "broadcast"; }

@@ -55,7 +55,8 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
             auto t_in  = in0->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
             auto dims  = val.at("dims").to_vector<int64_t>();
-            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto r_in =
+                m.insert_instruction(ins, make_op("transpose", {{"permutation", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else
@@ -85,7 +86,8 @@ static std::vector<instruction_ref> pad_inputs(module& m, instruction_ref ins)
             auto t_in  = in1->inputs().front();
             auto p_in  = pad_ins(m, t_in, offset);
             auto dims  = val.at("dims").to_vector<int64_t>();
-            auto r_in  = m.insert_instruction(ins, make_op("transpose", {{"dims", dims}}), p_in);
+            auto r_in =
+                m.insert_instruction(ins, make_op("transpose", {{"permutation", dims}}), p_in);
             ret_inputs.push_back(r_in);
         }
         else

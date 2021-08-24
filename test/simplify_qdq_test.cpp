@@ -30,12 +30,12 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
     migraphx::instruction_ref scale_mb;
     if(scale->get_shape().lens().front() == 1)
         scale_mb =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), scale);
     else
-        scale_mb =
-            m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}), scale);
+        scale_mb = m.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", lens}}), scale);
     auto shift_mb =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), shift);
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), shift);
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
 }
 
@@ -48,10 +48,10 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
     migraphx::instruction_ref scale_mb;
     if(scale->get_shape().lens().front() == 1)
         scale_mb =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", lens}}), scale);
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), scale);
     else
-        scale_mb =
-            m.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"dims", lens}}), scale);
+        scale_mb = m.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", lens}}), scale);
     return m.add_instruction(migraphx::make_op(name), x, scale_mb);
 }
 
@@ -402,7 +402,7 @@ TEST_CASE(conv_bias_add)
                                      d5,
                                      d1);
         auto b1 = m1.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1 = m1.add_instruction(migraphx::make_op("add"), c1, b1);
         m1.add_return({a1});
     }
@@ -428,7 +428,7 @@ TEST_CASE(conv_bias_add)
                                      weights);
         auto d6 = add_quantize_op(m2, "dequantizelinear", c1, scale1);
         auto b1 = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1 = m2.add_instruction(migraphx::make_op("add"), d6, b1);
         m2.add_return({a1});
     }
@@ -470,7 +470,7 @@ TEST_CASE(conv_pooling_dot)
                                      d5,
                                      d1);
         auto bc1 = m1.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1 = m1.add_instruction(migraphx::make_op("add"), c1, bc1);
         auto ap = m1.add_instruction(migraphx::make_op("pooling",
                                                        {{"mode", "average"},
@@ -484,10 +484,10 @@ TEST_CASE(conv_pooling_dot)
         auto d8 = add_quantize_op(m1, "dequantizelinear", q4, scale, zero);
         auto dot =
             m1.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d8, d4);
-        auto q5  = add_quantize_op(m1, "quantizelinear", dot, scale, zero);
-        auto d9  = add_quantize_op(m1, "dequantizelinear", q5, scale, zero);
-        auto mb1 = m1.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 1000}}}), d3);
+        auto q5 = add_quantize_op(m1, "quantizelinear", dot, scale, zero);
+        auto d9 = add_quantize_op(m1, "dequantizelinear", q5, scale, zero);
+        auto mb1 =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1000}}}), d3);
         auto a2 = m1.add_instruction(migraphx::make_op("add"), d9, mb1);
         m1.add_return({a2});
     }
@@ -517,7 +517,7 @@ TEST_CASE(conv_pooling_dot)
                                      weights);
         auto d5  = add_quantize_op(m2, "dequantizelinear", c1, scale1);
         auto bc1 = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1 = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
         auto ap = m2.add_instruction(migraphx::make_op("pooling",
                                                        {{"mode", "average"},
@@ -530,9 +530,9 @@ TEST_CASE(conv_pooling_dot)
         auto q4 = add_quantize_op(m2, "quantizelinear", fl, scale, zero);
         auto dot =
             m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q4, db);
-        auto d9  = add_quantize_op(m2, "dequantizelinear", dot, scale2);
-        auto mb1 = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 1000}}}), d3);
+        auto d9 = add_quantize_op(m2, "dequantizelinear", dot, scale2);
+        auto mb1 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1000}}}), d3);
         auto a2 = m2.add_instruction(migraphx::make_op("add"), d9, mb1);
         m2.add_return({a2});
     }
@@ -574,7 +574,7 @@ TEST_CASE(mobilenet_snippet)
                                      d5,
                                      d1);
         auto bc1 = mm.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", {1, 1280, 7, 7}}}), d2);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1 = mm.add_instruction(migraphx::make_op("add"), c1, bc1);
         auto q2 = add_quantize_op(mm, "quantizelinear", a1, scale, zero);
         auto d6 = add_quantize_op(mm, "dequantizelinear", q2, scale, zero);
@@ -592,10 +592,10 @@ TEST_CASE(mobilenet_snippet)
         auto d8 = add_quantize_op(mm, "dequantizelinear", q4, scale, zero);
         auto dot =
             mm.add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), d8, d4);
-        auto q5  = add_quantize_op(mm, "quantizelinear", dot, scale, zero);
-        auto d9  = add_quantize_op(mm, "dequantizelinear", q5, scale, zero);
-        auto mb1 = mm.add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 1000}}}), d3);
+        auto q5 = add_quantize_op(mm, "quantizelinear", dot, scale, zero);
+        auto d9 = add_quantize_op(mm, "dequantizelinear", q5, scale, zero);
+        auto mb1 =
+            mm.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1000}}}), d3);
         auto a2 = mm.add_instruction(migraphx::make_op("add"), d9, mb1);
         mm.add_return({a2});
 

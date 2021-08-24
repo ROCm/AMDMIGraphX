@@ -4334,8 +4334,8 @@ TEST_CASE(where_test)
     migraphx::shape sx{migraphx::shape::float_type, {3, 3}};
 
     std::vector<bool> b{true, true, true, false, false, false, true, false, true};
-    std::vector<float> x(1.0f, 9);
-    std::vector<float> y(2.0f, 9);
+    std::vector<float> x(9, 1.0);
+    std::vector<float> y(9, 2.0);
 
     auto lb = mm->add_literal(migraphx::literal{sb, b});
     auto lx = mm->add_literal(migraphx::literal{sx, x});

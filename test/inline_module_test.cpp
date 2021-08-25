@@ -175,6 +175,7 @@ TEST_CASE(inline_else_test)
         auto l2                 = mm->add_literal(s, rand);
         mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
+        mm->add_parameter("e", s);
         auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
         mm->add_return({r});
 

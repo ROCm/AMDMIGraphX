@@ -240,7 +240,7 @@ std::vector<argument> generic_eval(const module* mod,
                 });
 
             const auto& mod_args = ins->module_inputs();
-            auto module_eval = [&](module_ref smod,
+            auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
                 return generic_eval(smod, ctx, inputs, results, trace);
             };

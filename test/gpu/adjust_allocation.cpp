@@ -74,7 +74,7 @@ TEST_CASE(no_copy_dead_param)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto x   = mm->add_parameter("x", s);
+        auto x = mm->add_parameter("x", s);
         mm->add_parameter("y", s);
         auto sum = mm->add_instruction(migraphx::make_op("add"), x, x);
         mm->add_return({sum});
@@ -86,13 +86,13 @@ TEST_CASE(no_copy_dead_param)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto x   = mm->add_parameter("x", s);
+        auto x = mm->add_parameter("x", s);
         mm->add_parameter("y", s);
         auto xb = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
         auto gx = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), x, xb);
         auto ab = mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
         auto sum = mm->add_instruction(migraphx::make_op("gpu::add"), gx, gx, ab);
-        auto r = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), sum);
+        auto r   = mm->add_instruction(migraphx::make_op("hip::copy_from_gpu"), sum);
         mm->add_return({r});
 
         return p;
@@ -104,6 +104,5 @@ TEST_CASE(no_copy_dead_param)
     run_lowering(p1, true);
     EXPECT(p1 == p2);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

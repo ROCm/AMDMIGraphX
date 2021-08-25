@@ -55,6 +55,25 @@ TEST_CASE(double_transpose)
     EXPECT(result == get_2x2());
 }
 
+TEST_CASE(double_transpose_no_perm)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto l  = mm->add_literal(get_2x2());
+    auto t1 = mm->add_instruction(migraphx::make_op("transpose"), l);
+    auto t2 = mm->add_instruction(migraphx::make_op("transpose"), t1);
+    mm->add_return({t2});
+    EXPECT(mm->get_output_shapes().back().standard());
+    EXPECT(not mm->get_output_shapes().back().transposed());
+    run_pass(*mm);
+    EXPECT(mm->get_output_shapes().back().standard());
+    EXPECT(not mm->get_output_shapes().back().transposed());
+    EXPECT(std::distance(mm->begin(), mm->end()) == 2);
+    auto result = p.eval({}).back();
+    EXPECT(result == get_2x2());
+}
+
 TEST_CASE(double_transpose_contig)
 {
     migraphx::program p;

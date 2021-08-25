@@ -106,6 +106,24 @@ struct loop
                 std::fill(out.data() + iter * size, out.data() + max_iter_num * size, 0);
             }
         }
+
+        template <class T>
+        void print_params(const T& params) const
+        {
+            for(auto na : params)
+            {
+                std::cout << "ref, name = " << na.first << ", val = " << na.second << std::endl;
+            }
+        }
+
+        template <class T>
+        void print_outputs(const T& outputs) const
+        {
+            for(auto na : outputs)
+            {
+                std::cout << "ref, output = " << na << std::endl;
+            }
+        }
     };
 
     argument compute(context& ctx,
@@ -121,12 +139,14 @@ struct loop
         bool cond     = in_cond;
         int64_t iter  = 0;
         // insert iter and cond used in the loop
-        cpy_args.insert(cpy_args.begin() + 1, {{shape::int64_type}, &iter});
-        cpy_args.insert(cpy_args.begin() + 3, {{shape::bool_type}, &cond});
+        auto s_cond = args.at(1).get_shape();
+        auto s_iter = args.at(0).get_shape();
+        cpy_args.push_back({s_iter, &iter});
+        cpy_args.push_back({s_cond, &cond});
+        cpy_args.insert(cpy_args.end(), args.begin() + 2, args.end());
         // add cond and mod outputs to the argument list
-        cpy_args.push_back(argument(shape{shape::bool_type}));
+        cpy_args.push_back(argument(s_cond));
         cpy_args.push_back(argument(out_shape));
-
         // run loop
         return run_loop(ref_loop{max_iter_num}, ctx, cpy_args, mods, run);
     }

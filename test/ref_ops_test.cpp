@@ -2458,7 +2458,7 @@ TEST_CASE(loop_test)
         body->add_parameter("#loop_module_in_1", sc);
         auto in_v               = body->add_parameter("#loop_module_in_2", s);
         std::vector<int64_t> vd = {3};
-        auto l                  = body->add_literal(migraphx::literal(s, vd));
+        auto l                  = body->add_literal(migraphx::literal(si, vd));
         auto ad                 = body->add_instruction(migraphx::make_op("add"), iter, l);
         auto val                = body->add_instruction(migraphx::make_op("add"), in_v, ad);
         auto eq                 = body->add_instruction(migraphx::make_op("equal"), iter, l);

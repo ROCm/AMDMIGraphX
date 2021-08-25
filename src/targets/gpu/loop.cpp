@@ -1,3 +1,4 @@
+#include "migraphx/gpu/hip.hpp"
 #include <iterator>
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
@@ -10,10 +11,8 @@ namespace gpu {
 
 shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
 {
-    inputs.pop_back();
-    inputs.pop_back();
-    inputs.erase(inputs.begin() + 3);
-    inputs.erase(inputs.begin() + 1);
+    auto input_num = (inputs.size() - 2) / 2;
+    inputs.erase(inputs.begin() + input_num, inputs.end());
     return op.compute_shape(inputs, std::move(mods));
 }
 
@@ -33,6 +32,7 @@ struct gpu_loop
     {
         argument arg_src{dst.get_shape(), &src};
         copy_to_gpu(ctx, arg_src, dst);
+        ctx.finish();
     }
 
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
@@ -55,6 +55,25 @@ struct gpu_loop
             device::fill(ctx.get_stream().get(), argument::load(ss, out.data() + iter * size), 0);
         }
         ctx.finish();
+    }
+
+    template <class T>
+    void print_params(const T& params) const
+    {
+        for(auto na : params)
+        {
+            std::cout << "gpu, name = " << na.first
+                      << ", val = " << migraphx::gpu::from_gpu(na.second) << std::endl;
+        }
+    }
+
+    template <class T>
+    void print_outputs(const T& outputs) const
+    {
+        for(auto na : outputs)
+        {
+            std::cout << "gpu, output = " << migraphx::gpu::from_gpu(na) << std::endl;
+        }
     }
 };
 

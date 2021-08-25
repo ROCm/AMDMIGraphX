@@ -75,6 +75,7 @@ struct deconvolution
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto kdims = this->kdims();
         visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
             using type = typename decltype(output)::value_type;
 
@@ -101,10 +102,10 @@ struct deconvolution
                     const int w = idx_win[0];
 
                     auto input_dims_start = idx_win.begin() + 1;
-                    auto wei_dims_start   = idx_win.begin() + kdims() + 1;
+                    auto wei_dims_start   = idx_win.begin() + kdims + 1;
 
                     std::vector<std::ptrdiff_t> win_start;
-                    for(std::size_t n = 0; n < kdims(); ++n)
+                    for(std::size_t n = 0; n < kdims; ++n)
                     {
                         win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * stride[n]) -
                                             std::ptrdiff_t(padding[n]));
@@ -115,7 +116,7 @@ struct deconvolution
 
                     std::vector<std::ptrdiff_t> idx_out{o, in_ch};
 
-                    for(size_t n = 0; n < kdims(); n++)
+                    for(size_t n = 0; n < kdims; n++)
                     {
                         idx_out.push_back(win_start[n] + *(wei_dims_start + n) * dilation[n]);
                     }

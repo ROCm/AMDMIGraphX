@@ -93,7 +93,7 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
-void set_default_loop_num(onnx_options& options, int64_t value) { options.max_iter_num = value; }
+void set_default_loop_iterations(onnx_options& options, int64_t value) { options.max_loop_iterations = value; }
 
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 

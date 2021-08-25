@@ -2468,7 +2468,7 @@ TEST_CASE(loop_test)
         body->add_return({neq, val, val});
 
         auto rl = mm->add_instruction(
-            migraphx::make_op("loop", {{"max_iter_num", 10}}), {in_iter, in_cond, in_val}, {body});
+            migraphx::make_op("loop", {{"max_iterations", 10}}), {in_iter, in_cond, in_val}, {body});
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl);
         mm->add_return({r0, r1});

@@ -244,9 +244,9 @@ def onnx_options(h):
         invoke='migraphx::set_default_dim_value($@)',
     )
     h.method(
-        'set_default_loop_num',
+        'set_default_loop_iterations',
         api.params(value='int64_t'),
-        invoke='migraphx::set_default_loop_num($@)',
+        invoke='migraphx::set_default_loop_iterations($@)',
     )
 
 

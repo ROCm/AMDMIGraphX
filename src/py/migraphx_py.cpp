@@ -326,13 +326,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
              bool skip_unknown_operators,
              bool print_program_on_error,
-             int64_t max_iter_num) {
+             int64_t max_loop_iterations) {
               migraphx::onnx_options options;
               options.default_dim_value      = default_dim_value;
               options.map_input_dims         = map_input_dims;
               options.skip_unknown_operators = skip_unknown_operators;
               options.print_program_on_error = print_program_on_error;
-              options.max_iter_num           = max_iter_num;
+              options.max_loop_iterations    = max_loop_iterations;
               return migraphx::parse_onnx(filename, options);
           },
           "Parse onnx file",
@@ -341,7 +341,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
           py::arg("skip_unknown_operators") = false,
           py::arg("print_program_on_error") = false,
-          py::arg("max_iter_num")           = 10);
+          py::arg("max_loop_iterations")    = 10);
 
     m.def("parse_onnx_buffer",
           [](const std::string& onnx_buffer,

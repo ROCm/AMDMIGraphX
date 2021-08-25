@@ -2036,7 +2036,7 @@ TEST_CASE(loop_test)
     body->add_return({cv, sb, ad, ad1});
 
     auto lp = mm->add_instruction(
-        migraphx::make_op("loop", {{"max_iter_num", 10}}), {max_iter, icond, b}, {body});
+        migraphx::make_op("loop", {{"max_iterations", 10}}), {max_iter, icond, b}, {body});
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), lp);
     mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), lp);
     auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), lp);

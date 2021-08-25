@@ -18,7 +18,7 @@ shape hip_loop::compute_shape(std::vector<shape> inputs, std::vector<module_ref>
 
 struct gpu_loop
 {
-    int64_t max_iter_num = 0;
+    int64_t max_iterations = 0;
 
     template <class T>
     void copy(context& ctx, const argument& src, T& dst) const
@@ -40,14 +40,14 @@ struct gpu_loop
     void
     set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, const int iter) const
     {
-        if(iter >= max_iter_num)
+        if(iter >= max_iterations)
             return;
 
-        auto elem_num = max_iter_num - iter;
+        auto elem_num = max_iterations - iter;
         for(const auto& out : concatenated_outputs)
         {
             auto s    = out.get_shape();
-            auto size = s.bytes() / max_iter_num;
+            auto size = s.bytes() / max_iterations;
             auto lens = s.lens();
             lens[0]   = elem_num;
             shape ss{s.type(), lens};
@@ -66,7 +66,7 @@ hip_loop::compute(context& ctx,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    return run_loop(gpu_loop{op.max_iter_num}, ctx, args, mods, run);
+    return run_loop(gpu_loop{op.max_iterations}, ctx, args, mods, run);
 }
 
 } // namespace gpu

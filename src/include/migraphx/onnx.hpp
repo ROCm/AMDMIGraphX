@@ -19,7 +19,7 @@ struct onnx_options
     /// Print program if an error occurs
     bool print_program_on_error = false;
     /// Max iter num for the loop operator
-    int64_t max_iter_num = 10;
+    int64_t max_loop_iterations = 10;
 };
 
 /// Create a program from an onnx file

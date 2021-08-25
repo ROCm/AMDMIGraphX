@@ -22,19 +22,19 @@ struct parse_loop : op_parser<parse_loop>
                                        std::vector<instruction_ref> args) const
     {
         // default value of the max_iter_num
-        int64_t max_iter_num = parser.max_iter_num;
+        int64_t max_iterations = parser.max_loop_iterations;
         // iteration input is empty
         if(args.at(0)->name() == "undefined")
         {
             shape iter_s{shape::int64_type};
-            args[0] = info.add_literal(literal(iter_s, {max_iter_num}));
+            args[0] = info.add_literal(literal(iter_s, {max_iterations}));
         }
         else
         {
             auto arg_iters = args.at(0)->eval();
             if(not arg_iters.empty())
             {
-                max_iter_num = arg_iters.at<int64_t>();
+                max_iterations = arg_iters.at<int64_t>();
             }
         }
 
@@ -54,7 +54,7 @@ struct parse_loop : op_parser<parse_loop>
         parser.parse_graph(sub_mod, sub_graph);
 
         auto ret = info.add_instruction(
-            make_op("loop", {{"max_iter_num", max_iter_num}}), args, {sub_mod});
+            make_op("loop", {{"max_iterations", max_iterations}}), args, {sub_mod});
         auto out_s = ret->get_shape();
         assert(out_s.type() == shape::tuple_type);
 

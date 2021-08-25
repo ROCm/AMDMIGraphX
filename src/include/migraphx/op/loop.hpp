@@ -23,12 +23,12 @@ namespace op {
 
 struct loop
 {
-    int64_t max_iter_num = 0;
+    int64_t max_iterations = 10;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.max_iter_num, "max_iter_num"));
+        return pack(f(self.max_iterations, "max_iterations"));
     }
 
     std::string name() const { return "loop"; }
@@ -52,7 +52,7 @@ struct loop
         for(const auto& out_s : mod_out_shapes)
         {
             auto lens = out_s.lens();
-            lens.insert(lens.begin(), max_iter_num);
+            lens.insert(lens.begin(), max_iterations);
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
@@ -61,7 +61,7 @@ struct loop
 
     struct ref_loop
     {
-        int64_t max_iter_num = 0;
+        int64_t max_iterations = 0;
 
         template <class T>
         void copy(context&, const argument& src, T& dst) const
@@ -96,14 +96,14 @@ struct loop
         void
         set_zero(context&, const std::vector<argument>& concatenated_outputs, const int iter) const
         {
-            if(iter >= max_iter_num)
+            if(iter >= max_iterations)
                 return;
 
             for(const auto& out : concatenated_outputs)
             {
                 auto s    = out.get_shape();
-                auto size = s.bytes() / max_iter_num;
-                std::fill(out.data() + iter * size, out.data() + max_iter_num * size, 0);
+                auto size = s.bytes() / max_iterations;
+                std::fill(out.data() + iter * size, out.data() + max_iterations * size, 0);
             }
         }
     };
@@ -130,7 +130,7 @@ struct loop
         cpy_args.push_back(argument(s_cond));
         cpy_args.push_back(argument(out_shape));
         // run loop
-        return run_loop(ref_loop{max_iter_num}, ctx, cpy_args, mods, run);
+        return run_loop(ref_loop{max_iterations}, ctx, cpy_args, mods, run);
     }
 };
 

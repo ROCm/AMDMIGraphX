@@ -2,6 +2,8 @@
 #
 # Build MIGraphX prerequisites for docker container
 
+set -e
+
 #install pip3, rocm-cmake, rocblas and miopen
 apt update && apt install -y python3-pip rocm-cmake rocblas miopen-hip openmp-extras
 

@@ -18,14 +18,14 @@ struct test_add_gelu : verify_program<test_add_gelu>
         auto sqrt2       = mm->add_literal(static_cast<float>(M_SQRT2));
         auto add         = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto half_mbcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), half);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), half);
         auto mul_half     = mm->add_instruction(migraphx::make_op("mul"), add, half_mbcast);
         auto sqrt2_mbcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), sqrt2);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), sqrt2);
         auto div        = mm->add_instruction(migraphx::make_op("div"), add, sqrt2_mbcast);
         auto erf        = mm->add_instruction(migraphx::make_op("erf"), div);
         auto one_mbcast = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), one);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one);
         auto add_one = mm->add_instruction(migraphx::make_op("add"), erf, one_mbcast);
         mm->add_instruction(migraphx::make_op("mul"), mul_half, add_one);
         return p;

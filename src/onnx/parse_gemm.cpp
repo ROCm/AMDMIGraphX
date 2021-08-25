@@ -55,9 +55,11 @@ struct parse_gemm : op_parser<parse_gemm>
             }
         }
 
-        l1      = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), l1) : l1;
-        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
-                           : args[1];
+        l1 =
+            (transa) ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), l1) : l1;
+        auto l2 = (transb)
+                      ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
+                      : args[1];
 
         auto ret = info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), l1, l2);
 
@@ -71,8 +73,8 @@ struct parse_gemm : op_parser<parse_gemm>
                 auto l3_lens    = l3->get_shape().lens();
                 if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
                 {
-                    l3 = info.add_instruction(
-                        make_op("multibroadcast", {{"output_lens", out_lens}}), args[2]);
+                    l3 = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
+                                              args[2]);
                 }
                 auto beta_literal = info.add_literal(beta);
                 auto beta_l3      = info.add_broadcastable_binary_op("mul", l3, beta_literal);

@@ -106,24 +106,6 @@ struct loop
                 std::fill(out.data() + iter * size, out.data() + max_iter_num * size, 0);
             }
         }
-
-        template <class T>
-        void print_params(const T& params) const
-        {
-            for(auto na : params)
-            {
-                std::cout << "ref, name = " << na.first << ", val = " << na.second << std::endl;
-            }
-        }
-
-        template <class T>
-        void print_outputs(const T& outputs) const
-        {
-            for(auto na : outputs)
-            {
-                std::cout << "ref, output = " << na << std::endl;
-            }
-        }
     };
 
     argument compute(context& ctx,

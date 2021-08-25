@@ -61,7 +61,6 @@ argument run_loop(const LoopModel& model,
     int64_t iter = 0;
     for(iter = 0; iter < iter_num and cond; ++iter)
     {
-        std::cout << "1.iter = " << iter << ", cond = " << cond << std::endl;
         // copy iter num and cond to device memory
         model.copy(ctx, iter, in_args.at(0));
         model.copy(ctx, cond, in_args.at(1));
@@ -98,18 +97,11 @@ argument run_loop(const LoopModel& model,
             }
         }
 
-        model.print_params(params);
-
         auto mod_args = run(mod, params);
-        ctx.finish();
-
-        model.print_outputs(mod_args);
-
+        
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
         ctx.finish();
-
-        std::cout << "2.iter = " << iter << ", cond = " << cond << std::endl;
 
         // mod outputs are used as next loop input
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
@@ -118,8 +110,6 @@ argument run_loop(const LoopModel& model,
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
         model.append(mod_scan_outs, scan_outputs, iter);
-
-        std::cout << "3.iter = " << iter << ", cond = " << cond << std::endl << std::endl;
     }
 
     out_args.erase(out_args.begin());

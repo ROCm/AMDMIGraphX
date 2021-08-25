@@ -56,25 +56,6 @@ struct gpu_loop
         }
         ctx.finish();
     }
-
-    template <class T>
-    void print_params(const T& params) const
-    {
-        for(auto na : params)
-        {
-            std::cout << "gpu, name = " << na.first
-                      << ", val = " << migraphx::gpu::from_gpu(na.second) << std::endl;
-        }
-    }
-
-    template <class T>
-    void print_outputs(const T& outputs) const
-    {
-        for(auto na : outputs)
-        {
-            std::cout << "gpu, output = " << migraphx::gpu::from_gpu(na) << std::endl;
-        }
-    }
 };
 
 argument

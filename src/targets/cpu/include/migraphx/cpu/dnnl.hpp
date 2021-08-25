@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <migraphx/errors.hpp>
 #include <migraphx/assert.hpp>
-#ifdef ENABLE_ZENDNN
+#ifdef MIGRAPHX_ENABLE_ZENDNN
 #include <zendnn.hpp>
 #else
 #include <dnnl.hpp>
@@ -19,7 +19,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
-#ifdef ENABLE_ZENDNN
+#ifdef MIGRAPHX_ENABLE_ZENDNN
 namespace dnnl = zendnn;
 #define MIGRAPHX_CONCAT_PREFIX(b) ZENDNN_##b // NOLINT
 #else
@@ -130,7 +130,7 @@ struct dnnl_op : auto_register_op<Derived>
     {
         auto desc       = prim.get_primitive_desc();
         const char* str = nullptr;
-#ifdef ENABLE_ZENDNN
+#ifdef MIGRAPHX_ENABLE_ZENDNN
         zendnn_primitive_desc_query(desc, zendnn_query_impl_info_str, 0, &str);
 #else
         dnnl_primitive_desc_query(desc, dnnl_query_impl_info_str, 0, &str);

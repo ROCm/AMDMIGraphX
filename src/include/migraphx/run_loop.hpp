@@ -98,7 +98,7 @@ argument run_loop(const LoopModel& model,
         }
 
         auto mod_args = run(mod, params);
-        
+
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
         ctx.finish();

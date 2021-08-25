@@ -240,11 +240,9 @@ std::vector<argument> generic_eval(const module* mod,
                 });
 
             const auto& mod_args = ins->module_inputs();
-            // context ssctx = ctx;
             auto module_eval = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                context& ssctx = ctx;
-                return generic_eval(smod, ssctx, inputs, results, trace);
+                return generic_eval(smod, ctx, inputs, results, trace);
             };
 
             results.emplace(ins, trace(ins, [&] {

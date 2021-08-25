@@ -1,5 +1,4 @@
 
-#include <iterator>
 #include <migraphx/gpu/hip.hpp>
 
 #include <migraphx/manage_ptr.hpp>

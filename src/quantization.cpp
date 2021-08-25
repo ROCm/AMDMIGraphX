@@ -69,9 +69,9 @@ instruction_ref insert_quant_ins(module& modl,
         auto ins_scale  = modl.add_literal(1.0f / scale);
         auto lens       = ins->get_shape().lens();
         ins_scale       = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), ins_scale);
+            insert_loc, make_op("multibroadcast", {{"out_lens", lens}}), ins_scale);
         zero_point = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", lens}}), zero_point);
+            insert_loc, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
         quant_ins = modl.insert_instruction(
             insert_loc, make_op("quantizelinear"), ins, ins_scale, zero_point);
     }
@@ -265,12 +265,12 @@ static void ins_quantize_int8(module& modl,
         auto scale      = modl.add_literal(literal(s_scale, vec));
         auto zero_point = modl.add_literal(int32_t(0));
         zero_point      = modl.insert_instruction(
-            ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), zero_point);
+            ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_point);
         if(inputs.size() == 3 and (not float_equal(beta, 0.0f)))
         {
             auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
             auto m_beta = modl.insert_instruction(
-                ins, make_op("multibroadcast", {{"output_lens", s.lens()}}), l_beta);
+                ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), l_beta);
             if(input_c->get_shape().type() != shape::float_type)
             {
                 input_c = modl.insert_instruction(

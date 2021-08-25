@@ -9,7 +9,6 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gemm.hpp>
-// #include <migraphx/ref/gemm.hpp>
 #include <cmath>
 #include <utility>
 

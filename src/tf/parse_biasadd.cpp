@@ -20,7 +20,8 @@ struct parse_biasadd : op_parser<parse_biasadd>
         uint64_t axis = 1; // assume output of previous layer is in NCHW (broadcast on channel)
 
         auto l0 = info.add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}), args[1]);
+            make_op("broadcast", {{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),
+            args[1]);
         return info.add_instruction(make_op("add"), args[0], l0);
     }
 };

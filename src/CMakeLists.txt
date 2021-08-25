@@ -51,8 +51,10 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     remap.cpp
+    simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
+    rewrite_quantization.cpp
     rewrite_rnn.cpp
     schedule.cpp
     serialize.cpp
@@ -94,6 +96,7 @@ register_migraphx_ops(
     cosh
     cos
     deconvolution
+    dequantizelinear
     div
     dot
     elu
@@ -132,6 +135,7 @@ register_migraphx_ops(
     prelu
     quant_convolution
     quant_dot
+    quantizelinear
     recip
     reduce_max
     reduce_mean
@@ -148,6 +152,7 @@ register_migraphx_ops(
     round
     rsqrt
     scalar
+    scatter
     sigmoid
     sign
     sinh

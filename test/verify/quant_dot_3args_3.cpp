@@ -14,10 +14,11 @@ struct quant_dot_3args_3 : verify_program<quant_dot_3args_3>
         migraphx::shape m2_shape{migraphx::shape::int8_type, {7, 8}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
 
-        auto l1  = mm->add_parameter("a", m1_shape);
-        auto l2  = mm->add_parameter("b", m2_shape);
-        auto tl2 = mm->add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l2);
-        auto l3  = mm->add_parameter("c", m3_shape);
+        auto l1 = mm->add_parameter("a", m1_shape);
+        auto l2 = mm->add_parameter("b", m2_shape);
+        auto tl2 =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
+        auto l3 = mm->add_parameter("c", m3_shape);
         mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 2}, {"beta", 3}}), l1, tl2, l3);
         return p;

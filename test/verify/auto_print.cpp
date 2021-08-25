@@ -1,6 +1,7 @@
 #include "auto_print.hpp"
 #include <map>
 #include <exception>
+#include <iostream>
 
 #ifdef __clang__
 #pragma clang diagnostic push

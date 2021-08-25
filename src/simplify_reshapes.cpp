@@ -153,7 +153,8 @@ struct find_transpose
         }
         else
         {
-            p.replace_instruction(ins, make_op("transpose", {{"dims", dims}}), t->inputs().front());
+            p.replace_instruction(
+                ins, make_op("transpose", {{"permutation", dims}}), t->inputs().front());
         }
     }
 };
@@ -278,10 +279,12 @@ struct find_concat_transpose
         std::vector<instruction_ref> inputs;
         std::transform(
             ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return p.insert_instruction(ins, make_op("transpose", {{"dims", permutation}}), i);
+                return p.insert_instruction(
+                    ins, make_op("transpose", {{"permutation", permutation}}), i);
             });
         auto concat = p.insert_instruction(ins, op, inputs);
-        auto t = p.insert_instruction(ins, make_op("transpose", {{"dims", ipermutation}}), concat);
+        auto t      = p.insert_instruction(
+            ins, make_op("transpose", {{"permutation", ipermutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
         p.replace_instruction(ins, t);
     }
@@ -418,7 +421,7 @@ struct find_resize
         auto rsp_data = p.insert_instruction(
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = p.insert_instruction(
-            ins_rsp, migraphx::make_op("multibroadcast", {{"output_lens", out_dims}}), rsp_data);
+            ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
         auto std_mb = p.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
         p.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);

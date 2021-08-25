@@ -16,7 +16,7 @@ struct test_sub2 : verify_program<test_sub2>
         auto y  = mm->add_parameter("y", s);
         auto z  = mm->add_parameter("z", b);
         auto zb = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), z);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), z);
         auto diff = mm->add_instruction(migraphx::make_op("sub"), x, y);
         mm->add_instruction(migraphx::make_op("sub"), diff, zb);
         return p;

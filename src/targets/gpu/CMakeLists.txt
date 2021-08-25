@@ -73,6 +73,7 @@ add_library(migraphx_device
     device/rnn_variable_seq_lens.cpp
     device/round.cpp
     device/rsqrt.cpp
+    device/scatter.cpp
     device/sigmoid.cpp
     device/sign.cpp
     device/sin.cpp
@@ -118,6 +119,7 @@ add_library(migraphx_gpu
     code_object_op.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_pointwise.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -145,8 +147,9 @@ add_library(migraphx_gpu
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
-    softmax.cpp
+    scatter.cpp
     schedule_model.cpp
+    softmax.cpp
     sync_device.cpp
     target.cpp
     write_literals.cpp
@@ -204,6 +207,7 @@ register_migraphx_gpu_ops(hip_
     reverse
     round
     rsqrt
+    scatter
     sigmoid
     sign
     sinh
@@ -280,6 +284,10 @@ if(MIGRAPHX_ENABLE_MLIR)
     target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
 endif()
 
+set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")
+if(MIGRAPHX_USE_HIPRTC)
+target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
+else()
 # Get flags needed to compile hip
 include(TargetFlags)
 target_flags(HIP_COMPILER_FLAGS hip::device)
@@ -292,7 +300,9 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}" 
     "-DMIGRAPHX_OFFLOADBUNDLER_BIN=${MIGRAPHX_OFFLOADBUNDLER_BIN}"
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
+    "-DMIGRAPHX_USE_HIPRTC=0"
 )
+endif()
 
 # Check miopen find mode api
 include(CheckLibraryExists)
@@ -309,6 +319,8 @@ endif()
 target_compile_definitions(migraphx_gpu PUBLIC -D__HIP_PLATFORM_HCC__=1)
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+
+add_subdirectory(driver)
 
 rocm_install_targets(
   TARGETS migraphx_gpu migraphx_device

@@ -197,7 +197,7 @@ struct miopen_apply
                 continue;
 
             // parameter no outputs, no need to insert copy to gpu
-            if(ins->outputs().size() == 0)
+            if(ins->outputs().empty())
                 continue;
 
             auto pos = std::next(ins);

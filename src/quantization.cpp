@@ -1,22 +1,11 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/op/convert.hpp>
-#include <migraphx/op/clip.hpp>
-#include <migraphx/op/round.hpp>
-#include <migraphx/op/dot.hpp>
-#include <migraphx/op/mul.hpp>
-#include <migraphx/op/add.hpp>
-#include <migraphx/op/quant_dot.hpp>
-#include <migraphx/op/capture.hpp>
-#include <migraphx/op/convolution.hpp>
-#include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/op/capture.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/make_op.hpp>
@@ -235,9 +224,13 @@ static void ins_quantize_int8(module& modl,
     auto inputs    = ins->inputs();
     if(ins->name() == "dot")
     {
-        auto dot_op     = any_cast<op::dot>(ins->get_operator());
-        float scale_val = dot_op.alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
-        float beta      = (inputs.size() == 3) ? dot_op.beta : 0.0f;
+        auto dot_val = ins->get_operator().to_value();
+        assert(contains(dot_val, "alpha"));
+        assert(contains(dot_val, "beta"));
+        auto dot_alpha = dot_val.at("alpha").to<float>();
+        auto dot_beta = dot_val.at("beta").to<float>();
+        float scale_val = dot_alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
+        float beta      = (inputs.size() == 3) ? dot_beta : 0.0f;
         // We need additional checking about the quant_alpha value. If
         // abs(quant_alpha) > 50 (some tmp value set here), we can convert
         // it to an integer as the new_alpha in the quant_dot
@@ -289,18 +282,11 @@ static void ins_quantize_int8(module& modl,
     {
         // Current MIOpen convolution does not support alpha and beta,
         // so we need a separate multiply to adjust the output
-        auto conv_op      = any_cast<op::convolution>(ins->get_operator());
-        auto padding      = conv_op.padding;
-        auto stride       = conv_op.stride;
-        auto dilation     = conv_op.dilation;
-        auto padding_mode = conv_op.padding_mode;
-        auto group        = conv_op.group;
+        auto conv_val = ins->get_operator().to_value();
         auto scale_val    = 1.0 / (ins_quant_params[0].first * ins_quant_params[1].first);
 
         auto quant_conv = modl.insert_instruction(
-            ins,
-            op::quant_convolution{padding, stride, dilation, padding_mode, group},
-            converted_inputs);
+            ins, make_op("quant_convolution", conv_val), converted_inputs);
 
         auto s = quant_conv->get_shape();
         std::vector<float> vec_scale(s.elements(), scale_val);

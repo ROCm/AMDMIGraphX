@@ -87,9 +87,9 @@ static void convert_outputs_fp16(instruction_ref ins)
         {
             continue;
         }
-        
+
         if(in->get_shape().type() == shape::float_type or
-            in->get_shape().type() == shape::double_type)
+           in->get_shape().type() == shape::double_type)
         {
             assert(in->name() == "convert" and
                    in->inputs().front()->get_shape().type() == shape::half_type);

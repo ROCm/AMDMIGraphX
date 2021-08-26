@@ -23,7 +23,7 @@ struct parse_transpose : op_parser<parse_transpose>
             auto&& perm_vals = info.attributes["perm"].ints();
             perm             = std::vector<int64_t>(perm_vals.begin(), perm_vals.end());
         }
-        
+
         // if perm is empty, use the default value
         auto n_dim = args.front()->get_shape().lens().size();
         if(perm.empty())

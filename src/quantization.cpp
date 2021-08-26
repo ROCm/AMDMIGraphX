@@ -485,10 +485,10 @@ void quantize_int8(program& prog,
 
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
-void capture_arguments(module& m,
+std::size_t capture_arguments(module& m,
                        const std::vector<std::string>& ins_names,
                        const std::function<void(std::size_t, std::vector<argument>)>& func,
-                       std::size_t& num_quant_params)
+                       std::size_t num_quant_params)
 {
     // the int8 quantization only support dot and convolution
     std::set<std::string> op_names = {"dot", "convolution"};
@@ -505,7 +505,7 @@ void capture_arguments(module& m,
         auto mod_inputs = ins->module_inputs();
         for(auto*& smod : mod_inputs)
         {
-            capture_arguments(*smod, ins_names, func, num_quant_params);
+            num_quant_params = capture_arguments(*smod, ins_names, func, num_quant_params);
         }
 
         if(not contains(ins_names, ins->name()))
@@ -532,6 +532,8 @@ void capture_arguments(module& m,
 
         instruction::replace(ins, ins->get_operator(), ins->get_shape(), new_args);
     }
+
+    return num_quant_params;
 }
 
 std::size_t capture_arguments(program& prog,
@@ -539,10 +541,7 @@ std::size_t capture_arguments(program& prog,
                               const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
     auto* mm                     = prog.get_main_module();
-    std::size_t num_quant_params = 0;
-    capture_arguments(*mm, ins_names, func, num_quant_params);
-
-    return num_quant_params;
+    return capture_arguments(*mm, ins_names, func, 0);
 }
 
 std::shared_ptr<std::vector<std::pair<float, float>>>

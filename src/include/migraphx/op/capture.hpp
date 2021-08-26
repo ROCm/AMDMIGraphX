@@ -30,7 +30,7 @@ struct capture
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
-    // the context argument is added to prevent the op from be eliminated by 
+    // the context argument is added to prevent the op from be eliminated by
     // constant propagation
     argument compute(context&, const shape&, const std::vector<argument>& args) const
     {

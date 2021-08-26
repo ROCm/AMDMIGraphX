@@ -21,13 +21,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 //     return quantable_types;
 // }
 
-static instruction_ref insert_quant_ins(module& modl,
-                                 const instruction_ref& insert_loc,
-                                 instruction_ref& ins,
-                                 shape::type_t type,
-                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                                 float scale = 1.0f,
-                                 float shift = 0.0f)
+static instruction_ref
+insert_quant_ins(module& modl,
+                 const instruction_ref& insert_loc,
+                 instruction_ref& ins,
+                 shape::type_t type,
+                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                 float scale = 1.0f,
+                 float shift = 0.0f)
 {
     if(map_ins.count(ins) > 0)
     {
@@ -86,9 +87,9 @@ static void convert_outputs_fp16(instruction_ref ins)
 }
 
 static void quantize_module(module& m,
-                   const std::vector<std::string>& ins_names,
-                   std::unordered_map<instruction_ref, instruction_ref>& map_fp16,
-                   bool quantize_inout = false)
+                            const std::vector<std::string>& ins_names,
+                            std::unordered_map<instruction_ref, instruction_ref>& map_fp16,
+                            bool quantize_inout = false)
 {
     for(auto ins : iterator_for(m))
     {

@@ -111,7 +111,8 @@ static void convert_outputs_fp16(instruction_ref ins)
 //             if(s.type() == shape::float_type or s.type() == shape::double_type)
 //             {
 //                 auto fp16_ins = m.insert_instruction(
-//                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
+//                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}),
+//                     ins);
 //                 map_fp16[ins] = fp16_ins;
 //             }
 
@@ -149,7 +150,8 @@ static void convert_outputs_fp16(instruction_ref ins)
 //             {
 //                 auto in_outs = input->outputs();
 //                 auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-//                     return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
+//                     return (o->name() == "convert" and o->get_shape().type() ==
+//                     shape::half_type);
 //                 });
 //                 assert(it != in_outs.end());
 //                 input_fp16 = *it;
@@ -197,7 +199,8 @@ static void convert_outputs_fp16(instruction_ref ins)
 //             {
 //                 // check the dead code case to avoid assert
 //                 auto ins_orig_shape = m.insert_instruction(
-//                     std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
+//                     std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}),
+//                     ins);
 //                 m.replace_instruction(ins, ins_orig_shape);
 //             }
 //         }

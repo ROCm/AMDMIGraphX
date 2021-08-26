@@ -227,8 +227,8 @@ static void ins_quantize_int8(module& modl,
         auto dot_val = ins->get_operator().to_value();
         assert(contains(dot_val, "alpha"));
         assert(contains(dot_val, "beta"));
-        auto dot_alpha = dot_val.at("alpha").to<float>();
-        auto dot_beta = dot_val.at("beta").to<float>();
+        auto dot_alpha  = dot_val.at("alpha").to<float>();
+        auto dot_beta   = dot_val.at("beta").to<float>();
         float scale_val = dot_alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
         float beta      = (inputs.size() == 3) ? dot_beta : 0.0f;
         // We need additional checking about the quant_alpha value. If
@@ -282,11 +282,11 @@ static void ins_quantize_int8(module& modl,
     {
         // Current MIOpen convolution does not support alpha and beta,
         // so we need a separate multiply to adjust the output
-        auto conv_val = ins->get_operator().to_value();
-        auto scale_val    = 1.0 / (ins_quant_params[0].first * ins_quant_params[1].first);
+        auto conv_val  = ins->get_operator().to_value();
+        auto scale_val = 1.0 / (ins_quant_params[0].first * ins_quant_params[1].first);
 
-        auto quant_conv = modl.insert_instruction(
-            ins, make_op("quant_convolution", conv_val), converted_inputs);
+        auto quant_conv =
+            modl.insert_instruction(ins, make_op("quant_convolution", conv_val), converted_inputs);
 
         auto s = quant_conv->get_shape();
         std::vector<float> vec_scale(s.elements(), scale_val);

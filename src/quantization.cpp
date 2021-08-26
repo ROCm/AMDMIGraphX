@@ -1,6 +1,6 @@
-#include "migraphx/float_equal.hpp"
-#include "migraphx/instruction_ref.hpp"
-#include "migraphx/literal.hpp"
+#include <migraphx/float_equal.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -19,16 +19,8 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/target.hpp>
-#include <new>
-#include <utility>
-#include <set>
-#include <iomanip>
-#include <migraphx/serialize.hpp>
-
 #include <migraphx/make_op.hpp>
-
-#include <fstream>
-#include <algorithm>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

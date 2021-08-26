@@ -486,9 +486,9 @@ void quantize_int8(program& prog,
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
 std::size_t capture_arguments(module& m,
-                       const std::vector<std::string>& ins_names,
-                       const std::function<void(std::size_t, std::vector<argument>)>& func,
-                       std::size_t num_quant_params)
+                              const std::vector<std::string>& ins_names,
+                              const std::function<void(std::size_t, std::vector<argument>)>& func,
+                              std::size_t num_quant_params)
 {
     // the int8 quantization only support dot and convolution
     std::set<std::string> op_names = {"dot", "convolution"};
@@ -540,7 +540,7 @@ std::size_t capture_arguments(program& prog,
                               const std::vector<std::string>& ins_names,
                               const std::function<void(std::size_t, std::vector<argument>)>& func)
 {
-    auto* mm                     = prog.get_main_module();
+    auto* mm = prog.get_main_module();
     return capture_arguments(*mm, ins_names, func, 0);
 }
 

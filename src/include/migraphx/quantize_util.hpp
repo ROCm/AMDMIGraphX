@@ -13,14 +13,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 const std::vector<shape::type_t>& get_quantizable_type();
-instruction_ref
-insert_quant_ins(module& modl,
-                 const instruction_ref& insert_loc,
-                 instruction_ref& ins,
-                 shape::type_t type,
-                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                 float scale = 1.0f,
-                 float shift = 0.0f);
+instruction_ref insert_quant_ins(module& modl,
+                                 const instruction_ref& insert_loc,
+                                 instruction_ref& ins,
+                                 shape::type_t type,
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                                 float scale = 1.0f,
+                                 float shift = 0.0f);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

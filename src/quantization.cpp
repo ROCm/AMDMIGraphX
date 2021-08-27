@@ -27,8 +27,7 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     run_passes(prog, {quantize_fp16_pass{ins_names}});
 }
 
-static std::size_t capture_argument_num(module& m,
-                              const std::vector<std::string>& ins_names)
+static std::size_t capture_argument_num(module& m, const std::vector<std::string>& ins_names)
 {
     std::size_t num_params = 0;
     for(auto ins : iterator_for(m))
@@ -56,16 +55,19 @@ static std::size_t capture_argument_num(program& prog, const std::vector<std::st
     return capture_argument_num(*mm, ins_names);
 }
 
-static const std::vector<std::pair<float, float>> calc_quantize_params(
-                   program prog, const target& t,
-                   const std::vector<parameter_map>& calibration,
-                   const std::vector<std::string>& ins_names)
+static const std::vector<std::pair<float, float>>
+calc_quantize_params(program prog,
+                     const target& t,
+                     const std::vector<parameter_map>& calibration,
+                     const std::vector<std::string>& ins_names)
 {
     auto num_quant_params = capture_argument_num(prog, ins_names);
 
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
-        std::make_shared<std::vector<std::pair<float, float>>>(num_quant_params, std::pair<float, float>(64.0f, 0.0f));
-    std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>(num_quant_params, 0.0f);
+        std::make_shared<std::vector<std::pair<float, float>>>(
+            num_quant_params, std::pair<float, float>(64.0f, 0.0f));
+    std::shared_ptr<std::vector<float>> max_abs_vals =
+        std::make_shared<std::vector<float>>(num_quant_params, 0.0f);
 
     auto calc_quant_params = [int8_quant_params, max_abs_vals, &t](std::size_t ins_index,
                                                                    std::vector<argument> args) {

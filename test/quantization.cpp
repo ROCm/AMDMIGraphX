@@ -600,7 +600,7 @@ TEST_CASE(dot_float)
         return p;
     };
 
-    auto p = create_program();
+    auto p                                                  = create_program();
     const std::vector<std::pair<float, float>> quant_params = {
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
@@ -1102,7 +1102,9 @@ TEST_CASE(conv_float_throw)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    test::throws([&] { migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"add"}, quant_params}}); });
+    test::throws([&] {
+        migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"add"}, quant_params}});
+    });
 }
 
 TEST_CASE(conv_int32)
@@ -1371,7 +1373,7 @@ TEST_CASE(int8_quantization_conv)
         std::vector<float> v(sx.elements(), 0.5f);
         auto input   = mm->add_literal(migraphx::literal(sx, v));
         auto weights = mm->add_literal(migraphx::literal(sw, v));
-        auto r = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto r       = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         mm->add_return({r});
 
         return p;
@@ -1519,7 +1521,7 @@ TEST_CASE(test_op_capture)
     auto ps = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
     mm->add_instruction(migraphx::make_op("dot"), pa, ps);
 
-    auto calc = [](std::size_t, std::vector<migraphx::argument>) { };
+    auto calc = [](std::size_t, std::vector<migraphx::argument>) {};
 
     migraphx::program capture_p = p;
     migraphx::target t          = migraphx::ref::target{};
@@ -1538,6 +1540,5 @@ TEST_CASE(test_op_capture)
 
     EXPECT(migraphx::verify_range(vec, cap_vec));
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

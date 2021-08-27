@@ -7,7 +7,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

@@ -15,14 +15,13 @@ const std::vector<shape::type_t>& get_quantizable_type()
     return quantable_types;
 }
 
-instruction_ref
-insert_quant_ins(module& modl,
-                 const instruction_ref& insert_loc,
-                 instruction_ref& ins,
-                 shape::type_t type,
-                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-                 float scale,
-                 float shift)
+instruction_ref insert_quant_ins(module& modl,
+                                 const instruction_ref& insert_loc,
+                                 instruction_ref& ins,
+                                 shape::type_t type,
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                                 float scale,
+                                 float shift)
 {
     if(map_ins.count(ins) > 0)
     {
@@ -62,4 +61,3 @@ insert_quant_ins(module& modl,
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

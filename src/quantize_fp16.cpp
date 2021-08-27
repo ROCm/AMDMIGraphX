@@ -13,7 +13,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 static void convert_outputs_fp16(instruction_ref ins)
 {
     auto inputs = ins->inputs();

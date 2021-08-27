@@ -238,10 +238,11 @@ void quantize_int8_pass::apply(program& p) const
 
 // For the input of each input argument, we need to insert a
 // capture operator to compute the scale and shift
-static std::size_t capture_arguments(module& m,
-                              const std::vector<std::string>& ins_names,
-                              const std::function<void(std::size_t, std::vector<argument>)>& func,
-                              std::size_t param_index)
+static std::size_t
+capture_arguments(module& m,
+                  const std::vector<std::string>& ins_names,
+                  const std::function<void(std::size_t, std::vector<argument>)>& func,
+                  std::size_t param_index)
 {
     // the int8 quantization only support dot and convolution
     std::set<std::string> op_names = {"dot", "convolution"};
@@ -277,7 +278,7 @@ static std::size_t capture_arguments(module& m,
             }
             else
             {
-                new_ins = m.insert_instruction(ins, op::capture{param_index++, func}, input);
+                new_ins        = m.insert_instruction(ins, op::capture{param_index++, func}, input);
                 ins_map[input] = new_ins;
             }
             new_args.push_back(new_ins);
@@ -294,7 +295,6 @@ void capture_arguments_pass::apply(program& prog) const
     auto* mm = prog.get_main_module();
     capture_arguments(*mm, ins_names, f, 0);
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

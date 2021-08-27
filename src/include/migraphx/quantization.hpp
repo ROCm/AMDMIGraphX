@@ -21,10 +21,12 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names = {"
 // to int8
 // std::size_t capture_arguments(program& prog,
 //                               const std::vector<std::string>& ins_names,
-//                               const std::function<void(std::size_t, std::vector<argument>)>& func);
+//                               const std::function<void(std::size_t, std::vector<argument>)>&
+//                               func);
 
 // std::shared_ptr<std::vector<std::pair<float, float>>>
-// capture_arguments_impl(program& prog, const target& t, const std::vector<std::string>& ins_names);
+// capture_arguments_impl(program& prog, const target& t, const std::vector<std::string>&
+// ins_names);
 
 // template <class T>
 // std::shared_ptr<std::vector<std::pair<float, float>>>

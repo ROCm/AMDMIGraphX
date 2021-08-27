@@ -76,87 +76,85 @@ struct roialign
                          std::vector<pos_weight<T>>& pos_weights) const
     {
         int64_t pre_calc_index = 0;
-        shape_for_each(comp_s, [&](auto idx)
-        {
-            auto ph = idx[0];
-            auto pw = idx[1];
-            auto iy = idx[2];
-            auto ix = idx[3];
-                    const T yy =
-                        static_cast<T>(roi_start_h + ph * bin_size_h +
-                                       static_cast<T>(iy + .5) * bin_size_h /
-                                           static_cast<T>(roi_bin_grid_h)); // e.g., 0.5, 1.5
-                        const T xx = static_cast<T>(roi_start_w + pw * bin_size_w +
-                                                    static_cast<T>(ix + .5) * bin_size_w /
-                                                        static_cast<T>(roi_bin_grid_w));
+        shape_for_each(comp_s, [&](auto idx) {
+            auto ph    = idx[0];
+            auto pw    = idx[1];
+            auto iy    = idx[2];
+            auto ix    = idx[3];
+            const T yy = static_cast<T>(roi_start_h + ph * bin_size_h +
+                                        static_cast<T>(iy + .5) * bin_size_h /
+                                            static_cast<T>(roi_bin_grid_h)); // e.g., 0.5, 1.5
+            const T xx = static_cast<T>(roi_start_w + pw * bin_size_w +
+                                        static_cast<T>(ix + .5) * bin_size_w /
+                                            static_cast<T>(roi_bin_grid_w));
 
-                        T x = xx;
-                        T y = yy;
-                        // deal with: inverse elements are out of feature map boundary
-                        if(y < -1.0 || y > height || x < -1.0 || x > width)
-                        {
-                            auto& pc = pos_weights[pre_calc_index];
-                            pc.pos1  = 0;
-                            pc.pos2  = 0;
-                            pc.pos3  = 0;
-                            pc.pos4  = 0;
-                            pc.w1    = 0;
-                            pc.w2    = 0;
-                            pc.w3    = 0;
-                            pc.w4    = 0;
-                            pre_calc_index += 1;
-                            return;
-                        }
+            T x = xx;
+            T y = yy;
+            // deal with: inverse elements are out of feature map boundary
+            if(y < -1.0 || y > height || x < -1.0 || x > width)
+            {
+                auto& pc = pos_weights[pre_calc_index];
+                pc.pos1  = 0;
+                pc.pos2  = 0;
+                pc.pos3  = 0;
+                pc.pos4  = 0;
+                pc.w1    = 0;
+                pc.w2    = 0;
+                pc.w3    = 0;
+                pc.w4    = 0;
+                pre_calc_index += 1;
+                return;
+            }
 
-                        y = (y <= 0) ? 0 : y;
-                        x = (x <= 0) ? 0 : x;
-                        auto y_low = static_cast<int64_t>(y);
-                        auto x_low = static_cast<int64_t>(x);
-                        int64_t y_high;
-                        int64_t x_high;
+            y          = (y <= 0) ? 0 : y;
+            x          = (x <= 0) ? 0 : x;
+            auto y_low = static_cast<int64_t>(y);
+            auto x_low = static_cast<int64_t>(x);
+            int64_t y_high;
+            int64_t x_high;
 
-                        if(y_low >= height - 1)
-                        {
-                            y_high = y_low = height - 1;
-                            y              = y_low;
-                        }
-                        else
-                        {
-                            y_high = y_low + 1;
-                        }
+            if(y_low >= height - 1)
+            {
+                y_high = y_low = height - 1;
+                y              = y_low;
+            }
+            else
+            {
+                y_high = y_low + 1;
+            }
 
-                        if(x_low >= width - 1)
-                        {
-                            x_high = x_low = width - 1;
-                            x              = x_low;
-                        }
-                        else
-                        {
-                            x_high = x_low + 1;
-                        }
+            if(x_low >= width - 1)
+            {
+                x_high = x_low = width - 1;
+                x              = x_low;
+            }
+            else
+            {
+                x_high = x_low + 1;
+            }
 
-                        T ly = static_cast<T>(y - y_low);
-                        T lx = static_cast<T>(x - x_low);
-                        T hy = static_cast<T>(1.) - ly;
-                        T hx = static_cast<T>(1.) - lx;
-                        T w1 = hy * hx;
-                        T w2 = hy * lx;
-                        T w3 = ly * hx;
-                        T w4 = ly * lx;
+            T ly = static_cast<T>(y - y_low);
+            T lx = static_cast<T>(x - x_low);
+            T hy = static_cast<T>(1.) - ly;
+            T hx = static_cast<T>(1.) - lx;
+            T w1 = hy * hx;
+            T w2 = hy * lx;
+            T w3 = ly * hx;
+            T w4 = ly * lx;
 
-                        // save weights and indeces
-                        pos_weight<T> pc;
-                        pc.pos1                     = y_low * width + x_low;
-                        pc.pos2                     = y_low * width + x_high;
-                        pc.pos3                     = y_high * width + x_low;
-                        pc.pos4                     = y_high * width + x_high;
-                        pc.w1                       = w1;
-                        pc.w2                       = w2;
-                        pc.w3                       = w3;
-                        pc.w4                       = w4;
-                        pos_weights[pre_calc_index] = pc;
+            // save weights and indeces
+            pos_weight<T> pc;
+            pc.pos1                     = y_low * width + x_low;
+            pc.pos2                     = y_low * width + x_high;
+            pc.pos3                     = y_high * width + x_low;
+            pc.pos4                     = y_high * width + x_high;
+            pc.w1                       = w1;
+            pc.w2                       = w2;
+            pc.w3                       = w3;
+            pc.w4                       = w4;
+            pos_weights[pre_calc_index] = pc;
 
-                        pre_calc_index += 1;
+            pre_calc_index += 1;
         });
     }
 
@@ -210,7 +208,8 @@ struct roialign
                 // this is the key point of optimization
                 std::vector<pos_weight<T>> pre_calc(roi_bin_grid_h * roi_bin_grid_w * pooled_width *
                                                     pooled_height);
-                std::vector<int64_t> lens = {pooled_height, pooled_width, roi_bin_grid_h, roi_bin_grid_w};
+                std::vector<int64_t> lens = {
+                    pooled_height, pooled_width, roi_bin_grid_h, roi_bin_grid_w};
                 std::vector<std::size_t> comp_lens(lens.begin(), lens.end());
                 shape comp_s{shape::float_type, comp_lens};
                 this->calc_pos_weight(height,

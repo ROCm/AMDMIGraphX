@@ -46,8 +46,9 @@ struct roialign
         return {type, out_lens};
     }
 
-    template<class T>
-    struct pos_weight {
+    template <class T>
+    struct pos_weight
+    {
         int64_t pos1;
         int64_t pos2;
         int64_t pos3;
@@ -59,41 +60,60 @@ struct roialign
     };
 
     template <typename T>
-    static void calc_pos_weight(const int64_t height, const int64_t width, const int64_t pooled_height,
-                                const int64_t pooled_width, const int64_t iy_upper, const int64_t ix_upper,
-                                T roi_start_h, T roi_start_w, T bin_size_h, T bin_size_w, int64_t roi_bin_grid_h,
-                                int64_t roi_bin_grid_w, std::vector<pos_weight<T>>& pos_weights) {
+    static void calc_pos_weight(const int64_t height,
+                                const int64_t width,
+                                const int64_t pooled_height,
+                                const int64_t pooled_width,
+                                const int64_t iy_upper,
+                                const int64_t ix_upper,
+                                T roi_start_h,
+                                T roi_start_w,
+                                T bin_size_h,
+                                T bin_size_w,
+                                int64_t roi_bin_grid_h,
+                                int64_t roi_bin_grid_w,
+                                std::vector<pos_weight<T>>& pos_weights)
+    {
         int64_t pre_calc_index = 0;
-        for (int64_t ph = 0; ph < pooled_height; ph++) {
-            for (int64_t pw = 0; pw < pooled_width; pw++) {
-                for (int64_t iy = 0; iy < iy_upper; iy++) {
+        for(int64_t ph = 0; ph < pooled_height; ph++)
+        {
+            for(int64_t pw = 0; pw < pooled_width; pw++)
+            {
+                for(int64_t iy = 0; iy < iy_upper; iy++)
+                {
                     const T yy = roi_start_h + ph * bin_size_h +
-                                static_cast<T>(iy + .5f) * bin_size_h / static_cast<T>(roi_bin_grid_h);  // e.g., 0.5, 1.5
-                    for (int64_t ix = 0; ix < ix_upper; ix++) {
+                                 static_cast<T>(iy + .5f) * bin_size_h /
+                                     static_cast<T>(roi_bin_grid_h); // e.g., 0.5, 1.5
+                    for(int64_t ix = 0; ix < ix_upper; ix++)
+                    {
                         const T xx =
-                            roi_start_w + pw * bin_size_w + static_cast<T>(ix + .5f) * bin_size_w / static_cast<T>(roi_bin_grid_w);
+                            roi_start_w + pw * bin_size_w +
+                            static_cast<T>(ix + .5f) * bin_size_w / static_cast<T>(roi_bin_grid_w);
 
                         T x = xx;
                         T y = yy;
                         // deal with: inverse elements are out of feature map boundary
-                        if (y < -1.0 || y > height || x < -1.0 || x > width) {
+                        if(y < -1.0 || y > height || x < -1.0 || x > width)
+                        {
                             auto& pc = pos_weights[pre_calc_index];
-                            pc.pos1 = 0;
-                            pc.pos2 = 0;
-                            pc.pos3 = 0;
-                            pc.pos4 = 0;
-                            pc.w1 = 0;
-                            pc.w2 = 0;
-                            pc.w3 = 0;
-                            pc.w4 = 0;
+                            pc.pos1  = 0;
+                            pc.pos2  = 0;
+                            pc.pos3  = 0;
+                            pc.pos4  = 0;
+                            pc.w1    = 0;
+                            pc.w2    = 0;
+                            pc.w3    = 0;
+                            pc.w4    = 0;
                             pre_calc_index += 1;
                             continue;
                         }
 
-                        if (y <= 0) {
+                        if(y <= 0)
+                        {
                             y = 0;
                         }
-                        if (x <= 0) {
+                        if(x <= 0)
+                        {
                             x = 0;
                         }
 
@@ -102,17 +122,23 @@ struct roialign
                         int64_t y_high;
                         int64_t x_high;
 
-                        if (y_low >= height - 1) {
+                        if(y_low >= height - 1)
+                        {
                             y_high = y_low = height - 1;
-                            y = (T)y_low;
-                        } else {
+                            y              = (T)y_low;
+                        }
+                        else
+                        {
                             y_high = y_low + 1;
                         }
 
-                        if (x_low >= width - 1) {
+                        if(x_low >= width - 1)
+                        {
                             x_high = x_low = width - 1;
-                            x = (T)x_low;
-                        } else {
+                            x              = (T)x_low;
+                        }
+                        else
+                        {
                             x_high = x_low + 1;
                         }
 
@@ -127,14 +153,14 @@ struct roialign
 
                         // save weights and indeces
                         pos_weight<T> pc;
-                        pc.pos1 = y_low * width + x_low;
-                        pc.pos2 = y_low * width + x_high;
-                        pc.pos3 = y_high * width + x_low;
-                        pc.pos4 = y_high * width + x_high;
-                        pc.w1 = w1;
-                        pc.w2 = w2;
-                        pc.w3 = w3;
-                        pc.w4 = w4;
+                        pc.pos1                     = y_low * width + x_low;
+                        pc.pos2                     = y_low * width + x_high;
+                        pc.pos3                     = y_high * width + x_low;
+                        pc.pos4                     = y_high * width + x_high;
+                        pc.w1                       = w1;
+                        pc.w2                       = w2;
+                        pc.w3                       = w3;
+                        pc.w4                       = w4;
                         pos_weights[pre_calc_index] = pc;
 
                         pre_calc_index += 1;
@@ -149,11 +175,10 @@ struct roialign
         argument result{output_shape};
         const auto& out_lens = output_shape.lens();
 
-        int64_t n_rois = out_lens[0];
-        int64_t channels = out_lens[1];
+        int64_t n_rois        = out_lens[0];
+        int64_t channels      = out_lens[1];
         int64_t pooled_height = out_lens[2];
-        int64_t pooled_width = out_lens[3];
-
+        int64_t pooled_width  = out_lens[3];
 
         return result;
     }

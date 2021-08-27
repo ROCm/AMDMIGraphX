@@ -22,10 +22,7 @@ struct where
 {
     std::string name() const { return "where"; }
 
-    value attributes() const
-    {
-        return {{"pointwise", true}, {"point_op", "${0} ? ${1} : ${2}"}};
-    }
+    value attributes() const { return {{"pointwise", true}, {"point_op", "${0} ? ${1} : ${2}"}}; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

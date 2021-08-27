@@ -4361,12 +4361,12 @@ TEST_CASE(where_broadcasted_inputs_test)
 
     std::vector<bool> b{true, true, true, false, false, false, true, false, true};
 
-    auto lb = mm->add_literal(migraphx::literal{sb, b});
-    auto lx = mm->add_literal(migraphx::literal(1.0f));
-    auto ly = mm->add_literal(migraphx::literal(2.0f));
+    auto lb  = mm->add_literal(migraphx::literal{sb, b});
+    auto lx  = mm->add_literal(migraphx::literal(1.0f));
+    auto ly  = mm->add_literal(migraphx::literal(2.0f));
     auto mbx = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), lx);
     auto mby = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), ly);
-    auto w  = mm->add_instruction(migraphx::make_op("where"), lb, mbx, mby);
+    auto w   = mm->add_instruction(migraphx::make_op("where"), lb, mbx, mby);
     mm->add_return({w});
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();

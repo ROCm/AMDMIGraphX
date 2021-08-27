@@ -55,7 +55,7 @@ static std::size_t capture_argument_num(program& prog, const std::vector<std::st
     return capture_argument_num(*mm, ins_names);
 }
 
-static const std::vector<std::pair<float, float>>
+const static std::vector<std::pair<float, float>>
 calc_quantize_params(program prog,
                      const target& t,
                      const std::vector<parameter_map>& calibration,

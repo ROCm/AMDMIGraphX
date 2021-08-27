@@ -3,6 +3,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/quantize_util.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <unordered_map>
 
 namespace migraphx {

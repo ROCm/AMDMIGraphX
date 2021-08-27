@@ -201,7 +201,7 @@ void quantize_int8_impl(module& m,
     }
 }
 
-void quantize_int8_pass::apply(program& p) const
+void quantize_int8_pass::apply(program& prog) const
 {
     if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
     {
@@ -223,7 +223,7 @@ void quantize_int8_pass::apply(program& p) const
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
-    auto* mm                      = p.get_main_module();
+    auto* mm                      = prog.get_main_module();
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
     std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;

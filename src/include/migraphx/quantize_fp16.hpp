@@ -17,7 +17,7 @@ struct quantize_fp16_pass
 {
     std::vector<std::string> ins_names = {"all"};
     std::string name() const { return "quantize_fp16"; }
-    void apply(program& p) const;
+    void apply(program& prog) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

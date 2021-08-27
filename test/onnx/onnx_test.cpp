@@ -3824,6 +3824,11 @@ TEST_CASE(transpose_default_perm_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(transpose_invalid_perm_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("transpose_invalid_perm_test.onnx"); }));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::program p;

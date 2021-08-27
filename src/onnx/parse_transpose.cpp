@@ -28,8 +28,7 @@ struct parse_transpose : op_parser<parse_transpose>
         if(perm.empty())
         {
             perm.resize(n_dim);
-            std::iota(perm.begin(), perm.end(), 0);
-            std::reverse(perm.begin(), perm.end());
+            std::iota(perm.rbegin(), perm.rend(), 0);
         }
 
         if(perm.size() != n_dim)

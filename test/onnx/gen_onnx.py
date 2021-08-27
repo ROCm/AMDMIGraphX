@@ -4165,6 +4165,21 @@ def transpose_default_perm_test():
 
 
 @onnx_test
+def transpose_invalid_perm_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 4, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        perm=[0, 2, 1],
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def transpose_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

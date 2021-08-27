@@ -1521,7 +1521,7 @@ TEST_CASE(test_op_capture)
     auto ps = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
     mm->add_instruction(migraphx::make_op("dot"), pa, ps);
 
-    auto calc = [](std::size_t, std::vector<migraphx::argument>) {};
+    auto calc = [](std::size_t, const std::vector<migraphx::argument>&) {};
 
     migraphx::program capture_p = p;
     migraphx::target t          = migraphx::ref::target{};

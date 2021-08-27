@@ -2,7 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_FP16_HPP
 
 #include <string>
-#include <migraphx/instruction_ref.hpp>
+#include <vector>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

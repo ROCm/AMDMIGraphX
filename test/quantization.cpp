@@ -7,12 +7,15 @@
 #include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/quantize_int8.hpp>
+#include <migraphx/quantize_fp16.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/argument.hpp>
 
 #include "migraphx/shape.hpp"
 #include "test.hpp"
@@ -460,7 +463,7 @@ TEST_CASE(op_capture)
         auto p             = create_program_float();
         auto op_capture_p  = create_program_op();
         migraphx::target t = migraphx::ref::target{};
-        migraphx::capture_arguments(p, t, {"dot", "convolution"});
+        migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot", "convolution"}}});
         EXPECT(p == op_capture_p);
     }
 }
@@ -533,7 +536,8 @@ TEST_CASE(op_capture_subgraph)
         auto p             = create_program();
         auto op_capture_p  = create_program_op();
         migraphx::target t = migraphx::ref::target{};
-        migraphx::capture_arguments(p, t, {"dot", "convolution"});
+        migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot", "convolution"}}});
+
         EXPECT(p == op_capture_p);
     }
 }
@@ -597,9 +601,9 @@ TEST_CASE(dot_float)
     };
 
     auto p = create_program();
-    const std::vector<std::pair<float, float>>& quant_params{
+    const std::vector<std::pair<float, float>> quant_params = {
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
 
     auto qp = create_int8_quantized_prog();
@@ -663,7 +667,7 @@ TEST_CASE(dot_double_2args)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -732,7 +736,7 @@ TEST_CASE(dot_large_alpha_beta_float)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -808,7 +812,7 @@ TEST_CASE(dot_large_alpha_beta_int32)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -862,7 +866,7 @@ TEST_CASE(dot_int32_one_arg)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{1.0f, 1.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -948,13 +952,13 @@ TEST_CASE(dot_int32)
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 1.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
     auto p_ret = create_program(true);
-    migraphx::quantize_int8_impl(p_ret, quant_params, {"dot"});
+    migraphx::run_passes(p_ret, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p_ret.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp_ret = create_int8_quantized_prog(true);
     EXPECT(p_ret == qp_ret);
 
     auto p = create_program();
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
     EXPECT(p == qp);
@@ -1015,7 +1019,7 @@ TEST_CASE(dot_float_convert)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 1.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"dot"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -1074,7 +1078,7 @@ TEST_CASE(conv_float)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"convolution"}, quant_params}});
     migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -1098,7 +1102,7 @@ TEST_CASE(conv_float_throw)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    test::throws([&] { migraphx::quantize_int8_impl(p, quant_params, {"add"}); });
+    test::throws([&] { migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"add"}, quant_params}}); });
 }
 
 TEST_CASE(conv_int32)
@@ -1154,7 +1158,7 @@ TEST_CASE(conv_int32)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"convolution"}, quant_params}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -1212,7 +1216,7 @@ TEST_CASE(conv_half)
 
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
-    migraphx::quantize_int8_impl(p, quant_params, {"convolution"});
+    migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"convolution"}, quant_params}});
     auto qp = create_int8_quantized_prog();
 
     EXPECT(p == qp);
@@ -1367,7 +1371,8 @@ TEST_CASE(int8_quantization_conv)
         std::vector<float> v(sx.elements(), 0.5f);
         auto input   = mm->add_literal(migraphx::literal(sx, v));
         auto weights = mm->add_literal(migraphx::literal(sw, v));
-        mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto r = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        mm->add_return({r});
 
         return p;
     };
@@ -1488,11 +1493,51 @@ TEST_CASE(int8_subgraph)
     auto p1 = create_program();
     const std::vector<std::pair<float, float>>& quant_params{
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.5f, 0.0f}, {0.6f, 0.0f}};
-    migraphx::quantize_int8_impl(p1, quant_params, {"convolution", "dot"});
+    migraphx::run_passes(p1, {migraphx::quantize_int8_pass{{"convolution", "dot"}, quant_params}});
     migraphx::run_passes(p1, {migraphx::dead_code_elimination{}});
 
     auto p2 = create_int8_program();
     EXPECT(p1 == p2);
 }
+
+TEST_CASE(test_op_capture)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
+    std::vector<float> d1(s1.elements());
+    std::vector<float> d2(s2.elements());
+    std::iota(d1.begin(), d1.end(), 0.0f);
+    std::iota(d2.begin(), d2.end(), 0.0f);
+
+    auto p1 = mm->add_literal(s1, d1);
+    auto p2 = mm->add_literal(s1, d1);
+    auto pb = mm->add_literal(s2, d2);
+    auto pc = mm->add_literal(s2, d2);
+    auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
+    auto ps = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+    mm->add_instruction(migraphx::make_op("dot"), pa, ps);
+
+    auto calc = [](std::size_t, std::vector<migraphx::argument>) { };
+
+    migraphx::program capture_p = p;
+    migraphx::target t          = migraphx::ref::target{};
+    migraphx::run_passes(capture_p, {migraphx::capture_arguments_pass{{"dot"}, calc}});
+
+    p.compile(migraphx::ref::target{});
+    capture_p.compile(migraphx::ref::target{});
+
+    auto cap_res = capture_p.eval({}).back();
+    auto res     = p.eval({}).back();
+
+    std::vector<float> vec;
+    std::vector<float> cap_vec;
+    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
+    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
+
+    EXPECT(migraphx::verify_range(vec, cap_vec));
+}
+
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

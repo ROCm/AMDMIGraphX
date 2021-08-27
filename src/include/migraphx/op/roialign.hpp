@@ -253,7 +253,7 @@ struct roialign
 
                             double output_val = 0.;
                             if(mode == "avg")
-                            { 
+                            {
                                 // avg pooling
                                 for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
                                 {
@@ -271,7 +271,7 @@ struct roialign
                                 output_val /= count;
                             }
                             else
-                            { 
+                            {
                                 // max pooling
                                 output_val = std::numeric_limits<double>::min();
                                 for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)

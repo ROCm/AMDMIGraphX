@@ -16,7 +16,8 @@ void where(hipStream_t stream,
 {
     hip_visit_all(result, arg1, arg2)([&](auto output, auto x, auto y) {
         hip_visit_all(arg0)([&](auto cond) {
-            gs_launch(stream, arg1.get_shape().elements())([=](auto i) __device__ { output[i] = cond[i] ? x[i] : y[i]; });
+            gs_launch(stream, arg1.get_shape().elements())(
+                [=](auto i) __device__ { output[i] = cond[i] ? x[i] : y[i]; });
         });
     });
 }

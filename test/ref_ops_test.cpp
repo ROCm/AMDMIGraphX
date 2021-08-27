@@ -4353,4 +4353,32 @@ TEST_CASE(where_test)
     EXPECT(migraphx::verify_range(result_vec, gold));
 }
 
+TEST_CASE(where_broadcasted_inputs_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::bool_type, {3, 3}};
+
+    std::vector<bool> b{true, true, true, false, false, false, true, false, true};
+
+    auto lb  = mm->add_literal(migraphx::literal{sb, b});
+    auto lx  = mm->add_literal(migraphx::literal(1.0f));
+    auto ly  = mm->add_literal(migraphx::literal(2.0f));
+    auto mbx = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), lx);
+    auto mby = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), ly);
+    auto w   = mm->add_instruction(migraphx::make_op("where"), lb, mbx, mby);
+    mm->add_return({w});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<float> gold(9);
+    std::vector<float> x(9, 1.0);
+    std::vector<float> y(9, 2.0);
+    for(int i = 0; i < gold.size(); ++i)
+        gold[i] = b[i] ? x[i] : y[i];
+
+    EXPECT(migraphx::verify_range(result_vec, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

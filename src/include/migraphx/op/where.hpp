@@ -22,10 +22,29 @@ struct where
 {
     std::string name() const { return "where"; }
 
+    value attributes() const { return {{"pointwise", true}, {"point_op", "${0} ? ${1} : ${2}"}}; }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims();
-        return inputs[1];
+        check_shapes{inputs, *this}.has(3).same_dims();
+        auto s1 = inputs.at(1);
+        auto s2 = inputs.at(2);
+        if(s1 == s2 and s1.packed())
+        {
+            return s1;
+        }
+        else if(s1.packed() != s2.packed())
+        {
+            return s1.packed() ? s1 : s2;
+        }
+        else if(s1.broadcasted() != s2.broadcasted())
+        {
+            return s1.broadcasted() ? s2.with_lens(s1.lens()) : s1.with_lens(s1.lens());
+        }
+        else
+        {
+            return {s1.type(), s1.lens()};
+        }
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

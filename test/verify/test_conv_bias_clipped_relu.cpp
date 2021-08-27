@@ -22,15 +22,15 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         auto bias      = mm->add_literal(l0);
         auto conv      = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         auto bcast_add = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", conv->get_shape().lens()}}),
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             bias);
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_add);
         auto min_val  = mm->add_literal(0.0f);
         auto max_val  = mm->add_literal(6.0f);
         min_val       = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), min_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
         max_val = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", input_lens}}), max_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
         mm->add_instruction(migraphx::make_op("clip"), bias_add, min_val, max_val);
         return p;
     }

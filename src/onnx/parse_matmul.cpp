@@ -58,12 +58,12 @@ struct parse_matmul : op_parser<parse_matmul>
             if(l0_lens != l0_broadcasted_lens)
             {
                 bl0 = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", l0_broadcasted_lens}}), l0);
+                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), l0);
             }
             if(l1_lens != l1_broadcasted_lens)
             {
                 bl1 = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", l1_broadcasted_lens}}), l1);
+                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), l1);
             }
         }
 

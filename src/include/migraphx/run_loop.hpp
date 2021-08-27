@@ -105,7 +105,7 @@ argument run_loop(const LoopModel& model,
 
         // mod outputs are used as next loop input
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);
-        const auto& dep_out = loop_carry_deps[(iter + 1) & 1];
+        const auto& dep_out = loop_carry_deps[(iter + 1) % 2];
         std::copy(dep_out.begin(), dep_out.end(), out_args.begin());
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());

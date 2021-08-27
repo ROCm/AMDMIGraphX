@@ -6,6 +6,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
+#include <migraphx/shape_for_each.hpp>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -65,10 +66,7 @@ struct roialign
     template <typename T>
     void calc_pos_weight(const int64_t height,
                          const int64_t width,
-                         const int64_t pooled_height,
-                         const int64_t pooled_width,
-                         const int64_t iy_upper,
-                         const int64_t ix_upper,
+                         const shape& comp_s,
                          T roi_start_h,
                          T roi_start_w,
                          T bin_size_h,
@@ -78,18 +76,16 @@ struct roialign
                          std::vector<pos_weight<T>>& pos_weights) const
     {
         int64_t pre_calc_index = 0;
-        for(int64_t ph = 0; ph < pooled_height; ph++)
+        shape_for_each(comp_s, [&](auto idx)
         {
-            for(int64_t pw = 0; pw < pooled_width; pw++)
-            {
-                for(int64_t iy = 0; iy < iy_upper; iy++)
-                {
+            auto ph = idx[0];
+            auto pw = idx[1];
+            auto iy = idx[2];
+            auto ix = idx[3];
                     const T yy =
                         static_cast<T>(roi_start_h + ph * bin_size_h +
                                        static_cast<T>(iy + .5) * bin_size_h /
                                            static_cast<T>(roi_bin_grid_h)); // e.g., 0.5, 1.5
-                    for(int64_t ix = 0; ix < ix_upper; ix++)
-                    {
                         const T xx = static_cast<T>(roi_start_w + pw * bin_size_w +
                                                     static_cast<T>(ix + .5) * bin_size_w /
                                                         static_cast<T>(roi_bin_grid_w));
@@ -109,18 +105,11 @@ struct roialign
                             pc.w3    = 0;
                             pc.w4    = 0;
                             pre_calc_index += 1;
-                            continue;
+                            return;
                         }
 
-                        if(y <= 0)
-                        {
-                            y = 0;
-                        }
-                        if(x <= 0)
-                        {
-                            x = 0;
-                        }
-
+                        y = (y <= 0) ? 0 : y;
+                        x = (x <= 0) ? 0 : x;
                         auto y_low = static_cast<int64_t>(y);
                         auto x_low = static_cast<int64_t>(x);
                         int64_t y_high;
@@ -168,10 +157,7 @@ struct roialign
                         pos_weights[pre_calc_index] = pc;
 
                         pre_calc_index += 1;
-                    }
-                }
-            }
-        }
+        });
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -193,7 +179,6 @@ struct roialign
             par_for(n_rois, [&](auto n) {
                 const T* bottom_data = x.data();
 
-                // int64_t index_n = n * channels * pooled_width * pooled_height;
                 const auto roi_batch_ind = batch_indices_ptr[n];
 
                 // Do not using rounding; this implementation detail is critical
@@ -225,12 +210,12 @@ struct roialign
                 // this is the key point of optimization
                 std::vector<pos_weight<T>> pre_calc(roi_bin_grid_h * roi_bin_grid_w * pooled_width *
                                                     pooled_height);
+                std::vector<int64_t> lens = {pooled_height, pooled_width, roi_bin_grid_h, roi_bin_grid_w};
+                std::vector<std::size_t> comp_lens(lens.begin(), lens.end());
+                shape comp_s{shape::float_type, comp_lens};
                 this->calc_pos_weight(height,
                                       width,
-                                      pooled_height,
-                                      pooled_width,
-                                      roi_bin_grid_h,
-                                      roi_bin_grid_w,
+                                      comp_s,
                                       roi_start_h,
                                       roi_start_w,
                                       bin_size_h,

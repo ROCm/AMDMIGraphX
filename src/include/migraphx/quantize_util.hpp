@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>

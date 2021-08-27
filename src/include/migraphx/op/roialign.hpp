@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 
+#include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
@@ -196,7 +197,6 @@ struct roialign
                 const auto roi_batch_ind = batch_indices_ptr[n];
 
                 // Do not using rounding; this implementation detail is critical
-                std::vector<std::size_t> roi_lens = {n, 0};
                 T roi_start_w = roi[roi_s.index({n, 0})] * static_cast<T>(spatial_scale);
                 T roi_start_h = roi[roi_s.index({n, 1})] * static_cast<T>(spatial_scale);
                 T roi_end_w   = roi[roi_s.index({n, 2})] * static_cast<T>(spatial_scale);
@@ -253,7 +253,8 @@ struct roialign
 
                             double output_val = 0.;
                             if(mode == "avg")
-                            { // avg pooling
+                            { 
+                                // avg pooling
                                 for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
                                 {
                                     for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
@@ -270,8 +271,9 @@ struct roialign
                                 output_val /= count;
                             }
                             else
-                            { // max pooling
-                                bool max_flag = false;
+                            { 
+                                // max pooling
+                                output_val = std::numeric_limits<double>::min();
                                 for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
                                 {
                                     for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
@@ -282,16 +284,7 @@ struct roialign
                                                               pc.w2 * offset_bottom_data[pc.pos2]),
                                                      pc.w3 * offset_bottom_data[pc.pos3]),
                                             pc.w4 * offset_bottom_data[pc.pos4]);
-                                        if(!max_flag)
-                                        {
-                                            output_val = val;
-                                            max_flag   = true;
-                                        }
-                                        else
-                                        {
-                                            output_val = std::max<double>(output_val, val);
-                                        }
-
+                                        output_val = std::max<double>(output_val, val);
                                         pre_calc_index += 1;
                                     }
                                 }

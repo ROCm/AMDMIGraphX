@@ -17,11 +17,9 @@ struct parse_thresholdedrelu : op_parser<parse_thresholdedrelu>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        double alpha;
+        float alpha = 1.0;
         if(contains(info.attributes, "alpha"))
             alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
-        else
-            alpha = 1.0f;
 
         auto x_shape = args[0]->get_shape();
         std::vector<double> zeros(x_shape.elements(), 0);

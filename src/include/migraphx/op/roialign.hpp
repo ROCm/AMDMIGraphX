@@ -262,35 +262,33 @@ struct roialign
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
                 std::vector<double> vec_outputs(channels);
-                shape_for_each(comp_s1, [&](auto idx) {   
-                    auto c = idx[0];
+                shape_for_each(comp_s1, [&](auto idx) {
+                    auto c  = idx[0];
                     auto ph = idx[1];
                     auto pw = idx[2];
 
                     const T* offset_bottom_data =
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
-                    vec_outputs[c] = (mode == "avg")
-                                                    ? this->calc_pooling(offset_bottom_data,
-                                                                         roi_bin_grid_h,
-                                                                         roi_bin_grid_w,
-                                                                         pre_calc,
-                                                                         vec_index[c],
-                                                                         avg_pool{})
-                                                    : this->calc_pooling(offset_bottom_data,
-                                                                         roi_bin_grid_h,
-                                                                         roi_bin_grid_w,
-                                                                         pre_calc,
-                                                                         vec_index[c],
-                                                                         max_pool{});
-                            auto out_idx                        = output_shape.lens();
-                            out_idx[0]                          = n;
-                            out_idx[1]                          = c;
-                            out_idx[2]                          = ph;
-                            out_idx[3]                          = pw;
-                            output[output_shape.index(out_idx)] = vec_outputs[c];
+                    vec_outputs[c] = (mode == "avg") ? this->calc_pooling(offset_bottom_data,
+                                                                          roi_bin_grid_h,
+                                                                          roi_bin_grid_w,
+                                                                          pre_calc,
+                                                                          vec_index[c],
+                                                                          avg_pool{})
+                                                     : this->calc_pooling(offset_bottom_data,
+                                                                          roi_bin_grid_h,
+                                                                          roi_bin_grid_w,
+                                                                          pre_calc,
+                                                                          vec_index[c],
+                                                                          max_pool{});
+                    auto out_idx                        = output_shape.lens();
+                    out_idx[0]                          = n;
+                    out_idx[1]                          = c;
+                    out_idx[2]                          = ph;
+                    out_idx[3]                          = pw;
+                    output[output_shape.index(out_idx)] = vec_outputs[c];
                 });
-
 
                 // for(int64_t c = 0; c < channels; c++)
                 // {

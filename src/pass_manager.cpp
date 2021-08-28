@@ -46,10 +46,11 @@ struct module_pm : module_pass_manager
     tracer* t;
 
     module_pm(module* pmod = nullptr, program* pprog = nullptr, tracer* pt = nullptr)
-    : mod(pmod), prog(pprog), t(pt)
-    {}
+        : mod(pmod), prog(pprog), t(pt)
+    {
+    }
 
-    template<class... Ts>
+    template <class... Ts>
     void trace(Ts&&... xs) const
     {
         assert(t);
@@ -77,10 +78,7 @@ struct module_pm : module_pass_manager
     }
 };
 
-module& get_module(module_pass_manager& mpm)
-{
-    return mpm.get_module();
-}
+module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {

@@ -136,60 +136,59 @@ struct roialign
 
             // save weights and indeces
             pos_weight<T> pc;
-            pc.pos1                     = y_low * width + x_low;
-            pc.pos2                     = y_low * width + x_high;
-            pc.pos3                     = y_high * width + x_low;
-            pc.pos4                     = y_high * width + x_high;
-            pc.w1                       = w1;
-            pc.w2                       = w2;
-            pc.w3                       = w3;
-            pc.w4                       = w4;
+            pc.pos1            = y_low * width + x_low;
+            pc.pos2            = y_low * width + x_high;
+            pc.pos3            = y_high * width + x_low;
+            pc.pos4            = y_high * width + x_high;
+            pc.w1              = w1;
+            pc.w2              = w2;
+            pc.w3              = w3;
+            pc.w4              = w4;
             pos_weights[index] = pc;
         });
     }
 
-struct max_pool
-{
-    double init()
+    struct max_pool
     {
-        return std::numeric_limits<double>::lowest();
-    }
+        double init() { return std::numeric_limits<double>::lowest(); }
 
-    double op(double x, double y)
+        double op(double x, double y)
+        {
+            double m = std::max(x, y);
+            return (m);
+        }
+
+        double final(double x, std::size_t) { return (x); }
+    };
+
+    struct avg_pool
     {
-        double m = std::max(x, y);
-        return (m);
-    }
+        double init() { return 0.0; }
 
-    double final(double x, std::size_t) { return (x); }
-};
+        double op(double x, double y) { return x + y; }
 
-struct avg_pool
-{
-    double init()
+        double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
+    };
+
+    template <class T, class Op>
+    double calc_pooling(const T* data,
+                        int64_t roi_bin_grid_h,
+                        int64_t roi_bin_grid_w,
+                        const std::vector<pos_weight<T>>& pos_weights,
+                        int64_t& index,
+                        Op op) const
     {
-        return 0.0;
-    }
-
-    double op(double x, double y) { return x + y; }
-
-    double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
-};
-
-    template<class T, class Op>
-    double calc_pooling(const T* data, int64_t roi_bin_grid_h, int64_t roi_bin_grid_w, const std::vector<pos_weight<T>>& pos_weights, int64_t& index, Op op) const
-    {
-        double output_val = op.init();
+        double output_val   = op.init();
         const int64_t count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
         for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
         {
             for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
             {
                 const auto& pc = pos_weights[index];
-                output_val = op.op(output_val, pc.w1 * data[pc.pos1]);
-                output_val = op.op(output_val, pc.w2 * data[pc.pos2]);
-                output_val = op.op(output_val, pc.w3 * data[pc.pos3]);
-                output_val = op.op(output_val, pc.w4 * data[pc.pos4]);
+                output_val     = op.op(output_val, pc.w1 * data[pc.pos1]);
+                output_val     = op.op(output_val, pc.w2 * data[pc.pos2]);
+                output_val     = op.op(output_val, pc.w3 * data[pc.pos3]);
+                output_val     = op.op(output_val, pc.w4 * data[pc.pos4]);
                 index += 1;
             }
         }
@@ -215,7 +214,7 @@ struct avg_pool
             using T                 = typename decltype(output)::value_type;
             auto* batch_indices_ptr = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
-                const T* bottom_data = x.data();
+                const T* bottom_data     = x.data();
                 const auto roi_batch_ind = batch_indices_ptr[n];
                 // Do not using rounding; this implementation detail is critical
                 T roi_start_w = roi[roi_s.index({n, 0})] * static_cast<T>(spatial_scale);
@@ -272,9 +271,19 @@ struct avg_pool
                     {
                         for(int64_t pw = 0; pw < pooled_width; pw++)
                         {
-                            double output_val = (mode == "avg") ? 
-                                this->calc_pooling(offset_bottom_data, roi_bin_grid_h, roi_bin_grid_w, pre_calc, pre_calc_index, avg_pool{}) : 
-                                this->calc_pooling(offset_bottom_data, roi_bin_grid_h, roi_bin_grid_w, pre_calc, pre_calc_index, max_pool{});
+                            double output_val = (mode == "avg")
+                                                    ? this->calc_pooling(offset_bottom_data,
+                                                                         roi_bin_grid_h,
+                                                                         roi_bin_grid_w,
+                                                                         pre_calc,
+                                                                         pre_calc_index,
+                                                                         avg_pool{})
+                                                    : this->calc_pooling(offset_bottom_data,
+                                                                         roi_bin_grid_h,
+                                                                         roi_bin_grid_w,
+                                                                         pre_calc,
+                                                                         pre_calc_index,
+                                                                         max_pool{});
                             auto out_idx                        = output_shape.lens();
                             out_idx[0]                          = n;
                             out_idx[1]                          = c;

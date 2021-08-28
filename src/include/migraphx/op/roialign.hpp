@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 
+#include "migraphx/op/tan.hpp"
 #include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
@@ -75,12 +76,12 @@ struct roialign
                          int64_t roi_bin_grid_w,
                          std::vector<pos_weight<T>>& pos_weights) const
     {
-        int64_t pre_calc_index = 0;
         shape_for_each(comp_s, [&](auto idx) {
             auto ph    = idx[0];
             auto pw    = idx[1];
             auto iy    = idx[2];
             auto ix    = idx[3];
+            auto index = comp_s.index(idx);
             const T yy = static_cast<T>(roi_start_h + ph * bin_size_h +
                                         static_cast<T>(iy + .5) * bin_size_h /
                                             static_cast<T>(roi_bin_grid_h)); // e.g., 0.5, 1.5
@@ -93,7 +94,7 @@ struct roialign
             // deal with: inverse elements are out of feature map boundary
             if(y < -1.0 || y > height || x < -1.0 || x > width)
             {
-                auto& pc = pos_weights[pre_calc_index];
+                auto& pc = pos_weights[index];
                 pc.pos1  = 0;
                 pc.pos2  = 0;
                 pc.pos3  = 0;
@@ -102,7 +103,6 @@ struct roialign
                 pc.w2    = 0;
                 pc.w3    = 0;
                 pc.w4    = 0;
-                pre_calc_index += 1;
                 return;
             }
 
@@ -113,24 +113,16 @@ struct roialign
             int64_t y_high;
             int64_t x_high;
 
+            y_high = y_low + 1;
             if(y_low >= height - 1)
             {
-                y_high = y_low = height - 1;
-                y              = y_low;
-            }
-            else
-            {
-                y_high = y_low + 1;
+                y = y_high = y_low = height - 1;
             }
 
+            x_high = x_low + 1;
             if(x_low >= width - 1)
             {
-                x_high = x_low = width - 1;
-                x              = x_low;
-            }
-            else
-            {
-                x_high = x_low + 1;
+                x = x_high = x_low = width - 1;
             }
 
             T ly = static_cast<T>(y - y_low);
@@ -152,10 +144,58 @@ struct roialign
             pc.w2                       = w2;
             pc.w3                       = w3;
             pc.w4                       = w4;
-            pos_weights[pre_calc_index] = pc;
-
-            pre_calc_index += 1;
+            pos_weights[index] = pc;
         });
+    }
+
+struct max_pool
+{
+    double init()
+    {
+        return std::numeric_limits<double>::lowest();
+    }
+
+    double op(double x, double y)
+    {
+        double m = std::max(x, y);
+        return (m);
+    }
+
+    double final(double x, std::size_t) { return (x); }
+};
+
+struct avg_pool
+{
+    double init()
+    {
+        return 0.0;
+    }
+
+    double op(double x, double y) { return x + y; }
+
+    double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
+};
+
+    template<class T, class Op>
+    double calc_pooling(const T* data, int64_t roi_bin_grid_h, int64_t roi_bin_grid_w, const std::vector<pos_weight<T>>& pos_weights, int64_t& index, Op op) const
+    {
+        double output_val = op.init();
+        const int64_t count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
+        for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
+        {
+            for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
+            {
+                const auto& pc = pos_weights[index];
+                output_val = op.op(output_val, pc.w1 * data[pc.pos1]);
+                output_val = op.op(output_val, pc.w2 * data[pc.pos2]);
+                output_val = op.op(output_val, pc.w3 * data[pc.pos3]);
+                output_val = op.op(output_val, pc.w4 * data[pc.pos4]);
+                index += 1;
+            }
+        }
+        output_val = op.final(output_val, count);
+
+        return output_val;
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -176,9 +216,7 @@ struct roialign
             auto* batch_indices_ptr = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
                 const T* bottom_data = x.data();
-
                 const auto roi_batch_ind = batch_indices_ptr[n];
-
                 // Do not using rounding; this implementation detail is critical
                 T roi_start_w = roi[roi_s.index({n, 0})] * static_cast<T>(spatial_scale);
                 T roi_start_h = roi[roi_s.index({n, 1})] * static_cast<T>(spatial_scale);
@@ -202,7 +240,7 @@ struct roialign
                         : static_cast<int64_t>(std::ceil(roi_width / pooled_width));
 
                 // We do average (integral) pooling inside a bin
-                const int64_t count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
+                // const int64_t count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
 
                 // we want to precalculate indices and weights shared by all channels,
                 // this is the key point of optimization
@@ -234,45 +272,9 @@ struct roialign
                     {
                         for(int64_t pw = 0; pw < pooled_width; pw++)
                         {
-
-                            double output_val = 0.;
-                            if(mode == "avg")
-                            {
-                                // avg pooling
-                                for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
-                                {
-                                    for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
-                                    {
-                                        const auto& pc = pre_calc[pre_calc_index];
-                                        output_val += pc.w1 * offset_bottom_data[pc.pos1] +
-                                                      pc.w2 * offset_bottom_data[pc.pos2] +
-                                                      pc.w3 * offset_bottom_data[pc.pos3] +
-                                                      pc.w4 * offset_bottom_data[pc.pos4];
-
-                                        pre_calc_index += 1;
-                                    }
-                                }
-                                output_val /= count;
-                            }
-                            else
-                            {
-                                // max pooling
-                                output_val = std::numeric_limits<double>::min();
-                                for(int64_t iy = 0; iy < roi_bin_grid_h; iy++)
-                                {
-                                    for(int64_t ix = 0; ix < roi_bin_grid_w; ix++)
-                                    {
-                                        const auto& pc = pre_calc[pre_calc_index];
-                                        T val          = std::max(
-                                            std::max(std::max(pc.w1 * offset_bottom_data[pc.pos1],
-                                                              pc.w2 * offset_bottom_data[pc.pos2]),
-                                                     pc.w3 * offset_bottom_data[pc.pos3]),
-                                            pc.w4 * offset_bottom_data[pc.pos4]);
-                                        output_val = std::max<double>(output_val, val);
-                                        pre_calc_index += 1;
-                                    }
-                                }
-                            }
+                            double output_val = (mode == "avg") ? 
+                                this->calc_pooling(offset_bottom_data, roi_bin_grid_h, roi_bin_grid_w, pre_calc, pre_calc_index, avg_pool{}) : 
+                                this->calc_pooling(offset_bottom_data, roi_bin_grid_h, roi_bin_grid_w, pre_calc, pre_calc_index, max_pool{});
                             auto out_idx                        = output_shape.lens();
                             out_idx[0]                          = n;
                             out_idx[1]                          = c;

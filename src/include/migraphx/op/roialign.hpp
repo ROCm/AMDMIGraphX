@@ -290,41 +290,6 @@ struct roialign
                     output[output_shape.index(out_idx)] = vec_outputs[c];
                 });
 
-                // for(int64_t c = 0; c < channels; c++)
-                // {
-                //     const T* offset_bottom_data =
-                //         bottom_data +
-                //         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
-
-                //     int64_t pre_calc_index = 0;
-
-                //     for(int64_t ph = 0; ph < pooled_height; ph++)
-                //     {
-                //         for(int64_t pw = 0; pw < pooled_width; pw++)
-                //         {
-                //             double output_val = (mode == "avg")
-                //                                     ? this->calc_pooling(offset_bottom_data,
-                //                                                          roi_bin_grid_h,
-                //                                                          roi_bin_grid_w,
-                //                                                          pre_calc,
-                //                                                          pre_calc_index,
-                //                                                          avg_pool{})
-                //                                     : this->calc_pooling(offset_bottom_data,
-                //                                                          roi_bin_grid_h,
-                //                                                          roi_bin_grid_w,
-                //                                                          pre_calc,
-                //                                                          pre_calc_index,
-                //                                                          max_pool{});
-                //             auto out_idx                        = output_shape.lens();
-                //             out_idx[0]                          = n;
-                //             out_idx[1]                          = c;
-                //             out_idx[2]                          = ph;
-                //             out_idx[3]                          = pw;
-                //             output[output_shape.index(out_idx)] = output_val;
-                //         }
-                //     }
-                // }
-
             });
         });
 

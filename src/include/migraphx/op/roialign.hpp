@@ -238,9 +238,6 @@ struct roialign
                         ? sampling_ratio
                         : static_cast<int64_t>(std::ceil(roi_width / pooled_width));
 
-                // We do average (integral) pooling inside a bin
-                // const int64_t count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
-
                 // we want to precalculate indices and weights shared by all channels,
                 // this is the key point of optimization
                 std::vector<pos_weight<T>> pre_calc(roi_bin_grid_h * roi_bin_grid_w * pooled_width *
@@ -260,39 +257,75 @@ struct roialign
                                       roi_bin_grid_w,
                                       pre_calc);
 
-                for(int64_t c = 0; c < channels; c++)
-                {
+                std::vector<int64_t> lens1 = {channels, pooled_height, pooled_width};
+                std::vector<std::size_t> comp_lens1(lens1.begin(), lens1.end());
+                shape comp_s1{migraphx::shape::float_type, comp_lens1};
+                std::vector<int64_t> vec_index(channels, 0);
+                std::vector<double> vec_outputs(channels);
+                shape_for_each(comp_s1, [&](auto idx) {   
+                    auto c = idx[0];
+                    auto ph = idx[1];
+                    auto pw = idx[2];
+
                     const T* offset_bottom_data =
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
-                    int64_t pre_calc_index = 0;
-
-                    for(int64_t ph = 0; ph < pooled_height; ph++)
-                    {
-                        for(int64_t pw = 0; pw < pooled_width; pw++)
-                        {
-                            double output_val = (mode == "avg")
+                    vec_outputs[c] = (mode == "avg")
                                                     ? this->calc_pooling(offset_bottom_data,
                                                                          roi_bin_grid_h,
                                                                          roi_bin_grid_w,
                                                                          pre_calc,
-                                                                         pre_calc_index,
+                                                                         vec_index[c],
                                                                          avg_pool{})
                                                     : this->calc_pooling(offset_bottom_data,
                                                                          roi_bin_grid_h,
                                                                          roi_bin_grid_w,
                                                                          pre_calc,
-                                                                         pre_calc_index,
+                                                                         vec_index[c],
                                                                          max_pool{});
                             auto out_idx                        = output_shape.lens();
                             out_idx[0]                          = n;
                             out_idx[1]                          = c;
                             out_idx[2]                          = ph;
                             out_idx[3]                          = pw;
-                            output[output_shape.index(out_idx)] = output_val;
-                        }
-                    }
-                }
+                            output[output_shape.index(out_idx)] = vec_outputs[c];
+                });
+
+
+                // for(int64_t c = 0; c < channels; c++)
+                // {
+                //     const T* offset_bottom_data =
+                //         bottom_data +
+                //         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
+
+                //     int64_t pre_calc_index = 0;
+
+                //     for(int64_t ph = 0; ph < pooled_height; ph++)
+                //     {
+                //         for(int64_t pw = 0; pw < pooled_width; pw++)
+                //         {
+                //             double output_val = (mode == "avg")
+                //                                     ? this->calc_pooling(offset_bottom_data,
+                //                                                          roi_bin_grid_h,
+                //                                                          roi_bin_grid_w,
+                //                                                          pre_calc,
+                //                                                          pre_calc_index,
+                //                                                          avg_pool{})
+                //                                     : this->calc_pooling(offset_bottom_data,
+                //                                                          roi_bin_grid_h,
+                //                                                          roi_bin_grid_w,
+                //                                                          pre_calc,
+                //                                                          pre_calc_index,
+                //                                                          max_pool{});
+                //             auto out_idx                        = output_shape.lens();
+                //             out_idx[0]                          = n;
+                //             out_idx[1]                          = c;
+                //             out_idx[2]                          = ph;
+                //             out_idx[3]                          = pw;
+                //             output[output_shape.index(out_idx)] = output_val;
+                //         }
+                //     }
+                // }
 
             });
         });

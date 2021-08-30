@@ -76,15 +76,16 @@ void quantize_int8_impl(module& m,
             if(contains(quantizable_types, s.type()) and s.type() != quant_type)
             {
                 auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
-                auto scale  = m.add_literal(1.0f / param.first);
+                auto scale      = m.add_literal(1.0f / param.first);
                 auto lens       = input->get_shape().lens();
-                scale       = m.insert_instruction(
+                scale           = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
                 zero_point = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
-                auto q_in = m.insert_instruction(
-                    ins, make_op("quantizelinear"), input, scale, zero_point);
-                auto dq_in = m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
+                auto q_in =
+                    m.insert_instruction(ins, make_op("quantizelinear"), input, scale, zero_point);
+                auto dq_in =
+                    m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
                 instruction::replace_argument(ins, input, dq_in);
             }
         }

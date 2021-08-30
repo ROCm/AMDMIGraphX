@@ -20,7 +20,7 @@ struct parse_transpose : op_parser<parse_transpose>
         auto perm = args[1]->eval().get<int32_t>().to_vector();
         std::vector<int64_t> dims(perm.begin(), perm.end());
 
-        return info.add_instruction(make_op("transpose", {{"dims", dims}}), args.front());
+        return info.add_instruction(make_op("transpose", {{"permutation", dims}}), args.front());
     }
 };
 

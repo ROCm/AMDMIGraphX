@@ -2,7 +2,6 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_int8.hpp>
-#include <migraphx/quantize_util.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -18,6 +17,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
+
+const static std::vector<shape::type_t>& get_quantizable_type()
+{
+    static std::vector<shape::type_t> quantable_types = {
+        shape::float_type, shape::double_type, shape::half_type, shape::int32_type};
+    return quantable_types;
+}
 
 // int8 quantization is different from fp16 since int8 can only handle value
 // -128 ~ 127. To convert the float or double to int8, we need a scale and

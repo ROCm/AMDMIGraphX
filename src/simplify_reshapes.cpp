@@ -182,8 +182,8 @@ struct find_useless_convert
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
+        auto ins     = mr.result;
+        auto x       = ins->inputs().front();
         auto outputs = x->outputs();
         if(x->get_shape() == ins->get_shape())
         {

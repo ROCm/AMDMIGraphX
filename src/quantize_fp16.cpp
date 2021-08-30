@@ -55,7 +55,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 //             if(s.type() == shape::float_type or s.type() == shape::double_type)
 //             {
 //                 auto fp16_ins = m.insert_instruction(
-//                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}), ins);
+//                     std::next(ins), make_op("convert", {{"target_type", shape::half_type}}),
+//                     ins);
 //                 map_fp16[ins] = fp16_ins;
 //             }
 
@@ -93,7 +94,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 //             {
 //                 auto in_outs = input->outputs();
 //                 auto it      = std::find_if(in_outs.begin(), in_outs.end(), [](auto o) {
-//                     return (o->name() == "convert" and o->get_shape().type() == shape::half_type);
+//                     return (o->name() == "convert" and o->get_shape().type() ==
+//                     shape::half_type);
 //                 });
 //                 assert(it != in_outs.end());
 //                 input_fp16 = *it;
@@ -141,7 +143,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 //             {
 //                 // check the dead code case to avoid assert
 //                 auto ins_orig_shape = m.insert_instruction(
-//                     std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}), ins);
+//                     std::next(ins), make_op("convert", {{"target_type", orig_shape.type()}}),
+//                     ins);
 //                 m.replace_instruction(ins, ins_orig_shape);
 //             }
 //         }
@@ -149,28 +152,28 @@ inline namespace MIGRAPHX_INLINE_NS {
 //     }
 // }
 
-static void quantize_module(module& m,
-                            const std::vector<std::string>& ins_names)
+static void quantize_module(module& m, const std::vector<std::string>& ins_names)
 {
     for(auto ins : iterator_for(m))
     {
         // instructions are not in the set to be quantized
-        if (not (contains(ins_names, ins->name()) or contains(ins_names, "all")))
+        if(not(contains(ins_names, ins->name()) or contains(ins_names, "all")))
             continue;
 
         // skip return and convert instructions
-        if (contains({"@return", "convert"}, ins->name()))
+        if(contains({"@return", "convert"}, ins->name()))
             continue;
 
-        if (ins->inputs().empty())
+        if(ins->inputs().empty())
             continue;
 
         auto mod_inputs = ins->module_inputs();
-        auto s = ins->get_shape();
+        auto s          = ins->get_shape();
         // Convert back to original type before quantizing the inputs
-        if (mod_inputs.empty())
+        if(mod_inputs.empty())
         {
-            auto r = m.insert_instruction(std::next(ins), make_op("convert", {{"target_type", s.type()}}), ins);
+            auto r = m.insert_instruction(
+                std::next(ins), make_op("convert", {{"target_type", s.type()}}), ins);
             m.replace_instruction(ins, r);
         }
 
@@ -180,7 +183,8 @@ static void quantize_module(module& m,
             auto input_type = input->get_shape().type();
             if(input_type != shape::float_type and input_type != shape::double_type)
                 return input;
-            return m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), input);
+            return m.insert_instruction(
+                ins, make_op("convert", {{"target_type", shape::half_type}}), input);
         });
 
         // Replace inputs
@@ -188,10 +192,7 @@ static void quantize_module(module& m,
     }
 }
 
-void quantize_fp16_pass::apply(module& m) const
-{
-    quantize_module(m, ins_names);
-}
+void quantize_fp16_pass::apply(module& m) const { quantize_module(m, ins_names); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

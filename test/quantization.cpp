@@ -26,14 +26,19 @@
 
 static void optimize_prog_fp16(migraphx::program& prog)
 {
-    migraphx::run_passes(prog, {migraphx::simplify_reshapes{}, migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(prog,
+                         {migraphx::simplify_reshapes{},
+                          migraphx::eliminate_common_subexpression{},
+                          migraphx::dead_code_elimination{}});
 }
 
 static void optimize_prog_int8(migraphx::program& prog)
 {
-    migraphx::run_passes(prog, {migraphx::simplify_qdq{}, migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(prog,
+                         {migraphx::simplify_qdq{},
+                          migraphx::eliminate_common_subexpression{},
+                          migraphx::dead_code_elimination{}});
 }
-
 
 TEST_CASE(param_add)
 {
@@ -116,7 +121,7 @@ TEST_CASE(param_add_sub)
         auto p2   = mm->add_parameter("y", s);
         auto sum  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
         auto diff = mm->add_instruction(migraphx::make_op("sub"), sum, p2);
-        auto r = mm->add_instruction(migraphx::make_op("add"), diff, p1);
+        auto r    = mm->add_instruction(migraphx::make_op("add"), diff, p1);
         mm->add_return({r});
 
         return p;
@@ -129,27 +134,18 @@ TEST_CASE(param_add_sub)
         auto p1  = mm->add_parameter("x", s);
         auto p2  = mm->add_parameter("y", s);
         auto hp1 = mm->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            p1);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p1);
         auto hp2 = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            p2);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p2);
         auto hsum = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto sum  = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::float_type}}),
-            hsum);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hsum);
         auto diff  = mm->add_instruction(migraphx::make_op("sub"), sum, p2);
         auto hdiff = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            diff);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), diff);
         auto res = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
-        auto r = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::float_type}}),
-            res);
+        auto r   = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), res);
         mm->add_return({r});
 
         return p;
@@ -159,22 +155,16 @@ TEST_CASE(param_add_sub)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto p1 = mm->add_parameter("x", s);
-        auto p2  = mm->add_parameter("y", s);
+        auto p1   = mm->add_parameter("x", s);
+        auto p2   = mm->add_parameter("y", s);
         auto sum  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
         auto hsum = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            sum);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), sum);
         auto hp2 = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            p2);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p2);
         auto hdiff = mm->add_instruction(migraphx::make_op("sub"), hsum, hp2);
         auto diff  = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::float_type}}),
-            hdiff);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hdiff);
         auto r = mm->add_instruction(migraphx::make_op("add"), diff, p1);
         mm->add_return({r});
 
@@ -188,20 +178,14 @@ TEST_CASE(param_add_sub)
         auto p1  = mm->add_parameter("x", s);
         auto p2  = mm->add_parameter("y", s);
         auto hp1 = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            p1);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p1);
         auto hp2 = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::half_type}}),
-            p2);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), p2);
         auto hsum  = mm->add_instruction(migraphx::make_op("add"), hp1, hp2);
         auto hdiff = mm->add_instruction(migraphx::make_op("sub"), hsum, hp2);
         auto hres  = mm->add_instruction(migraphx::make_op("add"), hdiff, hp1);
-        auto r = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::shape::float_type}}),
-            hres);
+        auto r     = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hres);
         mm->add_return({r});
 
         return p;
@@ -375,57 +359,57 @@ TEST_CASE(fp16_subgraph)
         //     y);
 
         auto* then_mod = p.create_module("If_6_if");
-        auto hl1  = then_mod->add_instruction(
+        auto hl1       = then_mod->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
-        auto mhl1      = then_mod->add_instruction(
+        auto mhl1 = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), hl1);
         auto hx = then_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            x);
-        auto ad   = then_mod->add_instruction(migraphx::make_op("add"), hx, mhl1);
-        auto fad = then_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
+        auto ad  = then_mod->add_instruction(migraphx::make_op("add"), hx, mhl1);
+        auto fad = then_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad);
         auto hl2 = then_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            l2);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l2);
         auto mhl2 = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), hl2);
         auto hy1 = then_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            y);
-        auto mu      = then_mod->add_instruction(migraphx::make_op("mul"), hy1, mhl2);
-        auto fmu = then_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), y);
+        auto mu  = then_mod->add_instruction(migraphx::make_op("mul"), hy1, mhl2);
+        auto fmu = then_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu);
         // auto mu_fp32 = then_mod->add_instruction(
         //     migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu);
         // auto mu_fp16 = then_mod->add_instruction(
-        //     migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), mu_fp32);
+        //     migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+        //     mu_fp32);
         then_mod->add_return({fad, fmu, mu});
 
         auto* else_mod = p.create_module("If_6_else");
-        auto hl3 = else_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            l3);
-        auto mhl3      = else_mod->add_instruction(
+        auto hl3       = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l3);
+        auto mhl3 = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), hl3);
         auto hx2 = else_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            x);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
         auto mu1  = else_mod->add_instruction(migraphx::make_op("mul"), hx2, mhl3);
-        auto fmu1 = else_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu1);
+        auto fmu1 = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mu1);
         auto mhl4 = else_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), hl3);
         auto hy = else_mod->add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            y);
-        auto ad1     = else_mod->add_instruction(migraphx::make_op("add"), hy, mhl4);
-        auto fad1 = else_mod->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad1);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), y);
+        auto ad1  = else_mod->add_instruction(migraphx::make_op("add"), hy, mhl4);
+        auto fad1 = else_mod->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad1);
         // auto ad_fp32 = else_mod->add_instruction(
         //     migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ad1);
         // auto ad_fp16 = else_mod->add_instruction(
-        //     migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), ad_fp32);
+        //     migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+        //     ad_fp32);
         else_mod->add_return({fmu1, fad1, ad1});
 
         auto iff = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), iff);
+        auto r0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), iff);
         // auto r0  = mm->add_instruction(
         //     migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hr0);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), iff);
@@ -610,7 +594,7 @@ TEST_CASE(dot_float)
             migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), scale_a);
         zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}),
                                    zp_a);
-        auto qa = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
+        auto qa  = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
         auto dqa = mm->add_instruction(migraphx::make_op("dequantizelinear"), qa, scale_a, zp_a);
 
         auto zp_b    = mm->add_literal(static_cast<int8_t>(0));
@@ -619,7 +603,7 @@ TEST_CASE(dot_float)
             migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), scale_b);
         zp_b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}),
                                    zp_b);
-        auto qb = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        auto qb  = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
         auto dqb = mm->add_instruction(migraphx::make_op("dequantizelinear"), qb, scale_b, zp_b);
 
         auto zp_c    = mm->add_literal(static_cast<int8_t>(100));
@@ -628,7 +612,7 @@ TEST_CASE(dot_float)
             migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}), scale_c);
         zp_c = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}),
                                    zp_c);
-        auto qc = mm->add_instruction(migraphx::make_op("quantizelinear"), pc, scale_c, zp_c);
+        auto qc  = mm->add_instruction(migraphx::make_op("quantizelinear"), pc, scale_c, zp_c);
         auto dqc = mm->add_instruction(migraphx::make_op("dequantizelinear"), qc, scale_c, zp_c);
         auto r   = mm->add_instruction(migraphx::make_op("dot"), dqa, dqb, dqc);
         mm->add_return({r});
@@ -642,26 +626,27 @@ TEST_CASE(dot_float)
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        auto pa      = mm->add_parameter("a", sa);
-        auto pb      = mm->add_parameter("b", sb);
+        auto pa = mm->add_parameter("a", sa);
+        auto pb = mm->add_parameter("b", sb);
         mm->add_parameter("c", sc);
-        auto zp    = mm->add_literal(static_cast<int8_t>(0));
-        auto scale = mm->add_literal(10.0f);
-        auto scale_a      = mm->add_instruction(
+        auto zp      = mm->add_literal(static_cast<int8_t>(0));
+        auto scale   = mm->add_literal(10.0f);
+        auto scale_a = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), scale);
-        auto zp_a = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}),
-                                   zp);
+        auto zp_a =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), zp);
         auto quant_a = mm->add_instruction(migraphx::make_op("quantizelinear"), pa, scale_a, zp_a);
-        auto scale_b      = mm->add_instruction(
+        auto scale_b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), scale);
-        auto zp_b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}),
-                                   zp);
+        auto zp_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), zp);
         auto quant_b = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
         auto quant   = mm->add_instruction(
             migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), quant_a, quant_b);
         std::vector<float> vec(sc.elements(), 100.0f);
-        auto dc      = mm->add_literal(100.0f);
-        auto mdc = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}), dc);
+        auto dc = mm->add_literal(100.0f);
+        auto mdc =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}), dc);
         auto r = mm->add_instruction(migraphx::make_op("dequantizelinear"), quant, mdc);
         mm->add_return({r});
 
@@ -670,7 +655,7 @@ TEST_CASE(dot_float)
 
     const std::vector<std::pair<float, float>> quant_params = {
         {0.1f, 0.0f}, {0.1f, 0.0f}, {0.1f, 100.0f}};
-    auto p                                                  = create_program();
+    auto p = create_program();
     migraphx::run_passes(p, {migraphx::quantize_int8_pass{{"dot"}, quant_params}});
     auto qp = create_int8_quantized_prog();
     EXPECT(p == qp);

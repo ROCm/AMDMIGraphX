@@ -13,7 +13,7 @@ struct test_conv_bias_relu : verify_program<test_conv_bias_relu>
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<float> bias_vals(64, 2.0f);
-        auto input =
+        auto input =  
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 64, 56, 56}});
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {64, 64, 1, 1}});

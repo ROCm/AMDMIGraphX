@@ -25,8 +25,10 @@ struct parse_thresholdedrelu : op_parser<parse_thresholdedrelu>
         std::vector<double> zeros(x_shape.elements(), 0);
         std::vector<double> alphas(x_shape.elements(), alpha);
 
-        auto lzeros    = info.add_literal(migraphx::literal{shape{x_shape.type(), x_shape.lens()}, zeros});
-        auto lalphas   = info.add_literal(migraphx::literal{shape{x_shape.type(), x_shape.lens()}, alphas});
+        auto lzeros =
+            info.add_literal(migraphx::literal{shape{x_shape.type(), x_shape.lens()}, zeros});
+        auto lalphas =
+            info.add_literal(migraphx::literal{shape{x_shape.type(), x_shape.lens()}, alphas});
         auto condition = info.add_instruction(migraphx::make_op("greater"), args[0], lalphas);
 
         return info.add_instruction(migraphx::make_op("where"), condition, args[0], lzeros);

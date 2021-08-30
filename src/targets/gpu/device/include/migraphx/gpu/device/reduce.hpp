@@ -98,10 +98,10 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
     in  = op(in, out);
-    out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
-    in  = op(in, out);
+    // out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
+    // in  = op(in, out);
+    // out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
+    // in  = op(in, out);
 }
 
 __device__ inline void dpp_reduce(float& x, sum)
@@ -118,9 +118,9 @@ __device__ inline void dpp_reduce(float& x, sum)
                      "s_nop 1\n"
                      "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
                      "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
-                     "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
+                    //  "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
+                    //  "s_nop 1\n"
+                    //  "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
                      "s_nop 1\n"
                      : "=v"(x)
                      : "0"(x));
@@ -136,20 +136,22 @@ template <index_int N,
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
     using type = decltype(f(deduce_for_stride(fs)));
-    MIGRAPHX_DEVICE_SHARED type buffer[N / 64];
+    MIGRAPHX_DEVICE_SHARED type buffer[N / 16];
     type x = init;
     fs([&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
 
-    const auto ldsidx = idx.local / 64;
-    if((idx.local % 64) == 63)
+    __syncthreads();
+
+    const auto ldsidx = idx.local / 16;
+    if((idx.local % 16) == 15)
     {
         buffer[ldsidx] = x;
     }
     __syncthreads();
 
     type y = init;
-    for(index_int i = 0; i < idx.nlocal() / 64; i++)
+    for(index_int i = 0; i < idx.nlocal() / 16; i++)
     {
         y = op(y, buffer[i]);
     }
@@ -233,7 +235,7 @@ void reduce_standard_impl(hipStream_t stream,
     hip_visit_all(result, arg)([&](auto output, auto input) {
         auto nelements = result.get_shape().elements();
 
-        const index_int max_block_size = 256;
+        const index_int max_block_size = 128;
         const index_int block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = i / block_size;

@@ -19,97 +19,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
-static void ins_quantize_int8(module& modl,
-                              instruction_ref ins,
-                              std::vector<instruction_ref>& converted_inputs,
-                              const std::vector<std::pair<float, float>>& ins_quant_params)
-{
-    auto orig_type = ins->get_shape().type();
-    auto inputs    = ins->inputs();
-    if(ins->name() == "dot")
-    {
-        auto dot_val = ins->get_operator().to_value();
-        assert(contains(dot_val, "alpha"));
-        assert(contains(dot_val, "beta"));
-        auto dot_alpha  = dot_val.at("alpha").to<float>();
-        auto dot_beta   = dot_val.at("beta").to<float>();
-        float scale_val = dot_alpha / (ins_quant_params[0].first * ins_quant_params[1].first);
-        float beta      = (inputs.size() == 3) ? dot_beta : 0.0f;
-        // We need additional checking about the quant_alpha value. If
-        // abs(quant_alpha) > 50 (some tmp value set here), we can convert
-        // it to an integer as the new_alpha in the quant_dot
-        instruction_ref input_c{};
-        if(converted_inputs.size() == 3)
-        {
-            input_c = converted_inputs.back();
-            converted_inputs.pop_back();
-        }
-
-        auto quant_dot = modl.insert_instruction(
-            ins, make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), converted_inputs);
-        auto s = quant_dot->get_shape();
-
-        // wrap scale
-        shape s_scale{shape::float_type, s.lens()};
-        std::vector<float> vec(s.elements(), scale_val);
-        auto scale      = modl.add_literal(literal(s_scale, vec));
-        auto zero_point = modl.add_literal(int32_t(0));
-        zero_point      = modl.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_point);
-        if(inputs.size() == 3 and (not float_equal(beta, 0.0f)))
-        {
-            auto l_beta = modl.add_literal(-1.0f * beta / scale_val);
-            auto m_beta = modl.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", s.lens()}}), l_beta);
-            if(input_c->get_shape().type() != shape::float_type)
-            {
-                input_c = modl.insert_instruction(
-                    ins, make_op("convert", {{"target_type", shape::float_type}}), input_c);
-            }
-            zero_point = modl.insert_instruction(ins, make_op("mul"), m_beta, input_c);
-            if(zero_point->get_shape().type() != s.type())
-            {
-                zero_point = modl.insert_instruction(
-                    ins, make_op("convert", {{"target_type", s.type()}}), zero_point);
-            }
-        }
-        quant_dot =
-            modl.insert_instruction(ins, make_op("dequantizelinear"), quant_dot, scale, zero_point);
-        if(quant_dot->get_shape().type() != orig_type)
-        {
-            quant_dot = modl.insert_instruction(
-                ins, make_op("convert", {{"target_type", orig_type}}), quant_dot);
-        }
-        modl.replace_instruction(ins, quant_dot);
-    }
-    else if(ins->name() == "convolution")
-    {
-        // Current MIOpen convolution does not support alpha and beta,
-        // so we need a separate multiply to adjust the output
-        auto conv_val  = ins->get_operator().to_value();
-        auto scale_val = 1.0 / (ins_quant_params[0].first * ins_quant_params[1].first);
-
-        auto quant_conv =
-            modl.insert_instruction(ins, make_op("quant_convolution", conv_val), converted_inputs);
-
-        auto s = quant_conv->get_shape();
-        std::vector<float> vec_scale(s.elements(), scale_val);
-        shape s_scale{shape::float_type, s.lens()};
-        auto scale = modl.add_literal(literal(s_scale, vec_scale));
-        quant_conv = modl.insert_instruction(ins, make_op("dequantizelinear"), quant_conv, scale);
-        if(quant_conv->get_shape().type() != orig_type)
-        {
-            quant_conv = modl.insert_instruction(
-                ins, make_op("convert", {{"target_type", orig_type}}), quant_conv);
-        }
-        modl.replace_instruction(ins, quant_conv);
-    }
-    else
-    {
-        MIGRAPHX_THROW("QUANTIZE_INT8: does not support operator " + ins->name());
-    }
-}
-
 // int8 quantization is different from fp16 since int8 can only handle value
 // -128 ~ 127. To convert the float or double to int8, we need a scale and
 // a shift, then the convert can be done as v_int8 = fp * scale + shift.
@@ -164,40 +73,21 @@ void quantize_int8_impl(module& m,
             // be converted to int32_type
             shape::type_t quant_type = shape::int8_type;
             auto s                   = input->get_shape();
-            if(contains(quantizable_types, s.type()) and s.type() != quant_type and
-               (not(inputs.size() == 3 and input == inputs.back())))
+            if(contains(quantizable_types, s.type()) and s.type() != quant_type)
             {
-                // if the input is a convert operator, uses its input
-                // as its current input
-                instruction_ref quant_input{};
-                if(input->name() == "convert" and
-                   input->inputs().front()->get_shape().type() == quant_type)
-                {
-                    quant_input = input->inputs().front();
-                    // the scale in this case is not used, so tune the scale
-                    // to 1.0f for this parameter
-                    ins_quant_params.back() = std::pair<float, float>(1.0f, 0.0f);
-                }
-                else
-                {
-                    quant_input = insert_quant_ins(
-                        m, ins, input, quant_type, map_quant_ins, param.first, param.second);
-                }
-                converted_inputs.push_back(quant_input);
-            }
-            else
-            {
-                converted_inputs.push_back(input);
+                auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
+                auto scale  = m.add_literal(1.0f / param.first);
+                auto lens       = input->get_shape().lens();
+                scale       = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
+                zero_point = m.insert_instruction(
+                    ins, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
+                auto q_in = m.insert_instruction(
+                    ins, make_op("quantizelinear"), input, scale, zero_point);
+                auto dq_in = m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
+                instruction::replace_argument(ins, input, dq_in);
             }
         }
-
-        // no change for the input, go to the next instruction
-        if(inputs == converted_inputs)
-        {
-            continue;
-        }
-
-        ins_quantize_int8(m, ins, converted_inputs, ins_quant_params);
     }
 }
 

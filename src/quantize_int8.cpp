@@ -11,6 +11,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <numeric>
 #include <set>
 
 namespace migraphx {
@@ -90,10 +91,6 @@ void quantize_int8_impl(module& m,
                     m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
                 dq_inputs.push_back(dq_in);
             }
-            else
-            {
-                dq_inputs.push_back(input);
-            }
         }
         if(inputs != dq_inputs)
         {
@@ -102,7 +99,7 @@ void quantize_int8_impl(module& m,
     }
 }
 
-void quantize_int8_pass::apply(program& prog) const
+void quantize_int8_pass::apply(program& prog) const // NOLINT
 {
     if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
     {
@@ -156,10 +153,9 @@ capture_arguments(module& m,
     for(auto ins : iterator_for(m))
     {
         auto mod_inputs = ins->module_inputs();
-        for(auto*& smod : mod_inputs)
-        {
-            param_index = capture_arguments(*smod, ins_names, func, param_index);
-        }
+        param_index = std::accumulate(mod_inputs.begin(), mod_inputs.end(), param_index, [&](auto v, auto* smod) {
+            return capture_arguments(*smod, ins_names, func, v);
+        });
 
         if(not contains(ins_names, ins->name()))
         {
@@ -189,7 +185,7 @@ capture_arguments(module& m,
     return param_index;
 }
 
-void capture_arguments_pass::apply(program& prog) const
+void capture_arguments_pass::apply(program& prog) const // NOLINT
 {
     auto* mm = prog.get_main_module();
     capture_arguments(*mm, ins_names, f, 0);

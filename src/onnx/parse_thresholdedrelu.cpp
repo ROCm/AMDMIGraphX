@@ -23,8 +23,8 @@ struct parse_thresholdedrelu : op_parser<parse_thresholdedrelu>
 
         auto x_shape = args[0]->get_shape();
 
-        auto lit_zero  = info.add_literal(migraphx::literal(0));
-        auto lit_alpha = info.add_literal(migraphx::literal(alpha));
+        auto lit_zero  = info.add_literal(migraphx::literal{migraphx::shape{x_shape.type()}, {0}});
+        auto lit_alpha = info.add_literal(migraphx::literal{migraphx::shape{x_shape.type()}, {alpha}});
         auto mb_zero   = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", x_shape.lens()}}), lit_zero);
         auto mb_alpha = info.add_instruction(

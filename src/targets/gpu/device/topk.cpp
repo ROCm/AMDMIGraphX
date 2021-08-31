@@ -90,7 +90,7 @@ struct hip_heap_vector
 
     MIGRAPHX_DEVICE_CONSTEXPR inline void make_heap(index_int n)
     {
-        for(int j = n/2 - 1; j >= 0; --j)
+        for(int j = n / 2 - 1; j >= 0; --j)
         {
             heapify_down(n, j);
         }
@@ -120,7 +120,8 @@ struct hip_heap_vector
 };
 
 template <class T, class Index, class Compare>
-__device__ hip_heap_vector<T, Index, Compare> make_heap(T* data, index_int n, Index idx, Compare compare)
+__device__ hip_heap_vector<T, Index, Compare>
+make_heap(T* data, index_int n, Index idx, Compare compare)
 {
     return {data, n, idx, compare};
 }

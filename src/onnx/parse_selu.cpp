@@ -35,9 +35,9 @@ struct parse_selu : op_parser<parse_selu>
         if(lens != std::vector<std::size_t>{1})
         {
             l_alpha =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_alpha);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), l_alpha);
             l_gamma =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), l_gamma);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), l_gamma);
         }
 
         auto sign_x = info.add_instruction(make_op("sign"), args[0]);

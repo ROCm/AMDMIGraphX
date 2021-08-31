@@ -40,7 +40,7 @@ struct parse_imagescalar : op_parser<parse_imagescalar>
         auto img_scaled =
             info.add_instruction(migraphx::make_op("mul"), args.front(), scale_tensor);
         auto bias_bcast = info.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", input_lens}}), bias_vals);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", input_lens}}), bias_vals);
         return info.add_instruction(migraphx::make_op("add"), img_scaled, bias_bcast);
     }
 };

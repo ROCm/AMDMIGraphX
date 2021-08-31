@@ -57,6 +57,7 @@ ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+RUN test -f /usr/local/hash || exit 1
 
 # Install yapf
 RUN pip3 install yapf==0.28.0

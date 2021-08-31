@@ -250,9 +250,6 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
-        if(results.at(ins).get_shape() != ins->get_shape())
-            std::cout << "Mismatch: " << results.at(ins).get_shape() << " != " << ins->get_shape()
-                      << std::endl;
         assert(results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};

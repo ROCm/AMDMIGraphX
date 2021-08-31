@@ -58,10 +58,7 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
     return parse_onnx_from(options, data, size);
 }
 
-std::vector<std::string> get_onnx_operators()
-{
-    return onnx::get_op_parsers();
-}
+std::vector<std::string> get_onnx_operators() { return onnx::get_op_parsers(); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

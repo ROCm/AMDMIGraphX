@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/heap.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
@@ -49,6 +48,38 @@ struct topk
         return shape({s_val, s_ind});
     }
 
+    template <class T, class Compare>
+    struct heap_vector
+    {
+        std::vector<T> data;
+        Compare compare;
+
+        heap_vector(const std::vector<T>& val, Compare comp) : data(val), compare(std::move(comp))
+        {
+            std::make_heap(data.begin(), data.end(), compare);
+        }
+
+        void try_push(const T val)
+        {
+            std::pop_heap(data.begin(), data.end(), compare);
+            if(compare(val, data.back()))
+                data.back() = val;
+            std::push_heap(data.begin(), data.end(), compare);
+        }
+
+        std::vector<T> sort() { 
+            auto sorted_data = data;
+            std::sort_heap(sorted_data.begin(), sorted_data.end(), compare); 
+            return std::move(sorted_data);
+        }
+    };
+
+    template <class T, class Compare>
+    heap_vector<T, Compare> make_heap(std::vector<T> val, Compare compare) const
+    {
+        return {std::move(val), std::move(compare)};
+    }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto vec_ss = output_shape.sub_shapes();
@@ -79,14 +110,12 @@ struct topk
                                : std::less<>{}(input[in_s.index(idx1)], input[in_s.index(idx2)]);
                 };
 
-                auto hp = make_heap(indices, comp);
+                auto hp = this->make_heap(indices, comp);
                 for(std::size_t ii = indices.size(); ii < axis_dim; ++ii)
                 {
-                    hp.update(ii);
+                    hp.try_push(ii);
                 }
-                hp.sort();
-
-                auto sorted_indices = hp.get();
+                auto sorted_indices = hp.sort();
                 auto out_idx        = idx;
                 auto in_idx         = idx;
                 for(auto j : range(sorted_indices.size()))

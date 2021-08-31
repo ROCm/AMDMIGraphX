@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 
-const static std::vector<shape::type_t>& get_quantizable_type()
+static const std::vector<shape::type_t>& get_quantizable_type()
 {
     static std::vector<shape::type_t> quantable_types = {
         shape::float_type, shape::double_type, shape::half_type};
@@ -32,7 +32,7 @@ const static std::vector<shape::type_t>& get_quantizable_type()
 void quantize_int8_impl(module& m,
                         const std::vector<std::pair<float, float>>& quant_params,
                         const std::vector<std::string>& ins_names,
-                        std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins,
+                        // std::unordered_map<instruction_ref, instruction_ref>& map_quant_ins,
                         std::unordered_map<instruction_ref, std::size_t>& map_ins_index,
                         std::size_t& quant_param_index)
 {
@@ -47,17 +47,13 @@ void quantize_int8_impl(module& m,
         for(auto*& smod : mod_inputs)
         {
             quantize_int8_impl(
-                *smod, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+                *smod, quant_params, ins_names, map_ins_index, quant_param_index);
         }
 
         if(not contains(ins_names, ins->name()))
         {
             continue;
         }
-
-        // for the dot operator, there could be 2 or 3 input arguments
-        // if the 3rd argument is available, convert it to an int32.
-        std::vector<instruction_ref> converted_inputs;
 
         // process all inputs, if input is a fp32 or fp64, convert it
         // to a int8 type by adding a convert operator and replace
@@ -132,9 +128,8 @@ void quantize_int8_pass::apply(program& prog) const
     auto* mm                      = prog.get_main_module();
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
-    std::unordered_map<instruction_ref, instruction_ref> map_quant_ins;
     quantize_int8_impl(
-        *mm, quant_params, ins_names, map_quant_ins, map_ins_index, quant_param_index);
+        *mm, quant_params, ins_names, map_ins_index, quant_param_index);
 
     if(quant_param_index > quant_params.size())
     {

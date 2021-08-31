@@ -46,8 +46,7 @@ void quantize_int8_impl(module& m,
         auto mod_inputs = ins->module_inputs();
         for(auto*& smod : mod_inputs)
         {
-            quantize_int8_impl(
-                *smod, quant_params, ins_names, map_ins_index, quant_param_index);
+            quantize_int8_impl(*smod, quant_params, ins_names, map_ins_index, quant_param_index);
         }
 
         if(not contains(ins_names, ins->name()))
@@ -128,8 +127,7 @@ void quantize_int8_pass::apply(program& prog) const
     auto* mm                      = prog.get_main_module();
     std::size_t quant_param_index = 0;
     std::unordered_map<instruction_ref, std::size_t> map_ins_index;
-    quantize_int8_impl(
-        *mm, quant_params, ins_names, map_ins_index, quant_param_index);
+    quantize_int8_impl(*mm, quant_params, ins_names, map_ins_index, quant_param_index);
 
     if(quant_param_index > quant_params.size())
     {

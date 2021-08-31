@@ -73,7 +73,7 @@ struct topk
         {
             auto sorted_data = data;
             std::sort_heap(sorted_data.begin(), sorted_data.end(), compare);
-            return std::move(sorted_data);
+            return sorted_data;
         }
     };
 

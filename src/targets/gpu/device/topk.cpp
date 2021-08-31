@@ -1,4 +1,3 @@
-#include "migraphx/gpu/device/shape.hpp"
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/topk.hpp>

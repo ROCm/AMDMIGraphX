@@ -8,7 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<class Shape>
+template <class Shape>
 constexpr auto get_rank(const Shape&)
 {
     return decltype(typename Shape::hip_index{}.size()){};
@@ -24,11 +24,10 @@ void where(hipStream_t stream,
         hip_visit_all(arg0)([&](auto cond) {
             if constexpr(get_rank(cond.get_shape()) == get_rank(output.get_shape()))
             {
-                gs_launch(stream, arg1.get_shape().elements())(
-                    [=](auto idx) __device__ { 
-                        auto i = output.get_shape().multi(idx);
-                        output[i] = cond[i] ? x[i] : y[i];
-                    });
+                gs_launch(stream, arg1.get_shape().elements())([=](auto idx) __device__ {
+                    auto i    = output.get_shape().multi(idx);
+                    output[i] = cond[i] ? x[i] : y[i];
+                });
             }
         });
     });

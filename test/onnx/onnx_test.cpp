@@ -3782,6 +3782,40 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(thresholdedrelu_default_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 3}});
+    std::vector<double> z(x->get_shape().elements(), 0);
+    std::vector<double> a(x->get_shape().elements(), 1.0);
+    auto lz        = mm->add_literal(migraphx::literal(x->get_shape(), z));
+    auto la        = mm->add_literal(migraphx::literal(x->get_shape(), a));
+    auto condition = mm->add_instruction(migraphx::make_op("greater"), x, la);
+    mm->add_instruction(migraphx::make_op("where"), condition, x, lz);
+
+    auto prog = optimize_onnx("thresholdedrelu_default_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(thresholdedrelu_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 3}});
+    std::vector<double> z(x->get_shape().elements(), 0);
+    std::vector<double> a(x->get_shape().elements(), 3.0);
+    auto lz        = mm->add_literal(migraphx::literal(x->get_shape(), z));
+    auto la        = mm->add_literal(migraphx::literal(x->get_shape(), a));
+    auto condition = mm->add_instruction(migraphx::make_op("greater"), x, la);
+    mm->add_instruction(migraphx::make_op("where"), condition, x, lz);
+
+    auto prog = optimize_onnx("thresholdedrelu_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(tile_test)
 {
     migraphx::program p;

@@ -11,7 +11,7 @@ struct dnnl_softmax : dnnl_extend_op<dnnl_softmax, dnnl::softmax_forward, op::so
     dnnl::softmax_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         int axis = this->op.axis;
-        return {dnnl::prop_kind::forward_inference, m.at(DNNL_ARG_SRC_0), axis};
+        return {dnnl::prop_kind::forward_inference, m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)), axis};
     }
 };
 

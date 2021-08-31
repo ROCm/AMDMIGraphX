@@ -59,11 +59,13 @@ struct topk
             std::make_heap(data.begin(), data.end(), compare);
         }
 
-        void try_push(const T val)
+        void try_push(T val)
         {
+            if(not compare(val, data.front()))
+                return;
+
             std::pop_heap(data.begin(), data.end(), compare);
-            if(compare(val, data.back()))
-                data.back() = val;
+            data.back() = val;
             std::push_heap(data.begin(), data.end(), compare);
         }
 

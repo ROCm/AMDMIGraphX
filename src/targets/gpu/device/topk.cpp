@@ -5,13 +5,125 @@
 #include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/visit.hpp>
-#include <migraphx/gpu/device/heap.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
+
+template <class T, class Index, class Compare>
+struct hip_heap_vector
+{
+    MIGRAPHX_DEVICE_CONSTEXPR hip_heap_vector(T* val, index_int n, Index v_idx, Compare comp)
+        : data(val), size(n), data_index(v_idx), compare(comp)
+    {
+        make_heap(size);
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR void try_push(const T val)
+    {
+        if(compare(val, data[data_index(0)]))
+            return;
+
+        pop_heap(size - 1);
+        data[data_index(size - 1)] = val;
+        push_heap(size - 1);
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR void sort() { sort_heap(size); }
+
+    private:
+    MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2)
+    {
+        T v = v1;
+        v1  = v2;
+        v2  = v;
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void heapify_down(index_int n, index_int index)
+    {
+        while(index < n)
+        {
+            auto pre_index = index;
+            index_int l    = 2 * index + 1;
+            index_int r    = 2 * index + 2;
+
+            if(l < n && compare(data[data_index(l)], data[data_index(index)]))
+            {
+                index = l;
+            }
+
+            if(r < n && compare(data[data_index(r)], data[data_index(index)]))
+            {
+                index = r;
+                if(compare(data[data_index(l)], data[data_index(r)]))
+                {
+                    index = l;
+                }
+            }
+
+            if(index == pre_index)
+            {
+                break;
+            }
+
+            swap(data[data_index(index)], data[data_index(pre_index)]);
+        }
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void heapify_up(index_int index)
+    {
+        while(index > 0)
+        {
+            auto parent_idx = (index - 1) / 2;
+
+            if(not compare(data[data_index(index)], data[data_index(parent_idx)]))
+            {
+                break;
+            }
+
+            swap(data[data_index(index)], data[data_index(parent_idx)]);
+            index = parent_idx;
+        }
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void make_heap(index_int n)
+    {
+        for(int j = n/2 - 1; j >= 0; --j)
+        {
+            heapify_down(n, j);
+        }
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void push_heap(index_int loc) { heapify_up(loc); }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void pop_heap(index_int loc)
+    {
+        swap(data[data_index(0)], data[data_index(loc)]);
+        heapify_down(loc, 0);
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR inline void sort_heap(index_int n)
+    {
+        for(int j = n - 1; j > 0; --j)
+        {
+            swap(data[data_index(0)], data[data_index(j)]);
+            heapify_down(j, 0);
+        }
+    }
+
+    T* data = nullptr;
+    index_int size;
+    Index data_index;
+    Compare compare;
+};
+
+template <class T, class Index, class Compare>
+__device__ hip_heap_vector<T, Index, Compare> make_heap(T* data, index_int n, Index idx, Compare compare)
+{
+    return {data, n, idx, compare};
+}
 
 template <class Compare>
 std::vector<argument> topk(hipStream_t stream,
@@ -63,7 +175,7 @@ std::vector<argument> topk(hipStream_t stream,
                 auto hp = make_heap(ind, k, out_idx, data_compare);
                 for(int j = k; j < axis_dim; ++j)
                 {
-                    hp.update(j);
+                    hp.try_push(j);
                 }
                 hp.sort();
 

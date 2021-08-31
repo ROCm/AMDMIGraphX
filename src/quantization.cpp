@@ -93,9 +93,9 @@ instruction_ref insert_quant_ins(module& modl,
         auto max_clip     = modl.add_literal(127.0f);
         auto min_clip     = modl.add_literal(-128.0f);
         max_clip          = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", rounded_lens}}), max_clip);
+            insert_loc, make_op("multibroadcast", {{"out_lens", rounded_lens}}), max_clip);
         min_clip = modl.insert_instruction(
-            insert_loc, make_op("multibroadcast", {{"output_lens", rounded_lens}}), min_clip);
+            insert_loc, make_op("multibroadcast", {{"out_lens", rounded_lens}}), min_clip);
         auto clipped_ins =
             modl.insert_instruction(insert_loc, make_op("clip"), rounded_ins, min_clip, max_clip);
         quant_ins = modl.insert_instruction(

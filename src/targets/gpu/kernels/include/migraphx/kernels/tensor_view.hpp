@@ -2,18 +2,22 @@
 #define MIGRAPHX_GUARD_KERNELS_TENSOR_VIEW_HPP
 
 #include <migraphx/kernels/shape.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
 template <class T, class Shape>
 struct tensor_view
 {
+    using type = T;
+
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr index_int size() const { return get_shape().elements(); }
 
     template <class U>
     constexpr T& operator[](U i) const
     {
+        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().element_space());
         return x[get_shape().index(i)];
     }
 
@@ -21,6 +25,13 @@ struct tensor_view
 
     constexpr T* begin() const { return data(); }
     constexpr T* end() const { return data() + size(); }
+
+    template <class U>
+    constexpr tensor_view<U, Shape> with(U* y) const
+    {
+        static_assert(sizeof(T) == sizeof(U), "Not the same size");
+        return {y};
+    }
 
     T* x;
 };

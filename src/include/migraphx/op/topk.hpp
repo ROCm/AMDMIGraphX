@@ -67,9 +67,10 @@ struct topk
             std::push_heap(data.begin(), data.end(), compare);
         }
 
-        std::vector<T> sort() { 
+        std::vector<T> sort()
+        {
             auto sorted_data = data;
-            std::sort_heap(sorted_data.begin(), sorted_data.end(), compare); 
+            std::sort_heap(sorted_data.begin(), sorted_data.end(), compare);
             return std::move(sorted_data);
         }
     };

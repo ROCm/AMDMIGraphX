@@ -3,6 +3,10 @@
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_fp16.hpp>
 #include <migraphx/quantize_int8.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/simplify_qdq.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -24,7 +28,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 // truncate of the input to get the fp16.
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
-    run_passes(prog, {quantize_fp16_pass{ins_names}});
+    run_passes(prog, {quantize_fp16_pass{ins_names}, eliminate_common_subexpression{}, dead_code_elimination{},simplify_reshapes{}, dead_code_elimination{}, simplify_qdq{}, dead_code_elimination{}});
 }
 
 static std::size_t capture_argument_num(module& m, const std::vector<std::string>& ins_names)
@@ -130,7 +134,7 @@ void quantize_int8(program& prog,
 {
     // insert capture operator
     const auto& int8_quant_params = calc_quantize_params(prog, t, calibration, ins_names);
-    run_passes(prog, {quantize_int8_pass{ins_names, int8_quant_params}});
+    run_passes(prog, {quantize_int8_pass{ins_names, int8_quant_params}, eliminate_common_subexpression{}, dead_code_elimination{}, simplify_reshapes{}, dead_code_elimination{}, simplify_qdq{}, dead_code_elimination{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

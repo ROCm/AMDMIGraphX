@@ -21,7 +21,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
 const static std::vector<shape::type_t>& get_quantizable_type()
 {
     static std::vector<shape::type_t> quantable_types = {
-        shape::float_type, shape::double_type, shape::half_type, shape::int32_type};
+        shape::float_type, shape::double_type, shape::half_type};
     return quantable_types;
 }
 
@@ -64,6 +64,7 @@ void quantize_int8_impl(module& m,
         // the operator with the corresponding int8 version
         auto inputs = ins->inputs();
         std::vector<std::pair<float, float>> ins_quant_params;
+        std::vector<instruction_ref> dq_inputs;
         for(auto input : inputs)
         {
             // calculate the index of each instruction to be quantized
@@ -82,7 +83,7 @@ void quantize_int8_impl(module& m,
             if(contains(quantizable_types, s.type()) and s.type() != quant_type)
             {
                 auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
-                auto scale      = m.add_literal(1.0f / param.first);
+                auto scale      = m.add_literal(literal({s.type()}, {1.0f / param.first}));
                 auto lens       = input->get_shape().lens();
                 scale           = m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
@@ -92,8 +93,16 @@ void quantize_int8_impl(module& m,
                     m.insert_instruction(ins, make_op("quantizelinear"), input, scale, zero_point);
                 auto dq_in =
                     m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
-                instruction::replace_argument(ins, input, dq_in);
+                dq_inputs.push_back(dq_in);
             }
+            else
+            {
+                dq_inputs.push_back(input);
+            }
+        }
+        if(inputs != dq_inputs)
+        {
+            m.replace_instruction(ins, ins->get_operator(), dq_inputs);
         }
     }
 }

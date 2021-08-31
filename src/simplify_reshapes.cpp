@@ -176,23 +176,6 @@ struct find_nested_convert
     }
 };
 
-struct find_useless_convert
-{
-    auto matcher() const { return match::name("convert"); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins     = mr.result;
-        auto x       = ins->inputs().front();
-        auto outputs = x->outputs();
-        if(x->get_shape() == ins->get_shape())
-        {
-            m.replace_instruction(ins, x);
-            m.move_instruction(ins, m.end());
-        }
-    }
-};
-
 struct find_nested_slice
 {
     auto matcher() const { return match::name("slice")(match::arg(0)(match::name("slice"))); }
@@ -569,7 +552,6 @@ void simplify_reshapes::apply(module& p) const
                             find_transpose{},
                             find_concat_transpose{},
                             find_nested_convert{},
-                            find_useless_convert{},
                             find_nested_slice{},
                             find_nested_concat{});
         dead_code_elimination{}.apply(p);

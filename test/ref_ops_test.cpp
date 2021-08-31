@@ -14,7 +14,6 @@
 
 #include <migraphx/serialize.hpp>
 
-#include "migraphx/pass_manager.hpp"
 #include "test.hpp"
 #include <migraphx/half.hpp>
 #include <iomanip>

@@ -153,9 +153,10 @@ capture_arguments(module& m,
     for(auto ins : iterator_for(m))
     {
         auto mod_inputs = ins->module_inputs();
-        param_index = std::accumulate(mod_inputs.begin(), mod_inputs.end(), param_index, [&](auto v, auto* smod) {
-            return capture_arguments(*smod, ins_names, func, v);
-        });
+        param_index     = std::accumulate(
+            mod_inputs.begin(), mod_inputs.end(), param_index, [&](auto v, auto* smod) {
+                return capture_arguments(*smod, ins_names, func, v);
+            });
 
         if(not contains(ins_names, ins->name()))
         {

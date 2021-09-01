@@ -52,7 +52,7 @@ struct gpu_loop
             lens[0]   = elem_num;
             shape ss{s.type(), lens};
             assert(ss.bytes() + iter * size <= out.get_shape().bytes());
-            device::fill(ctx.get_stream().get(), argument::load(ss, out.data() + iter * size), 0);
+            device::fill(ctx.get_stream().get(), argument(ss, out.data() + iter * size), 0);
         }
         ctx.finish();
     }

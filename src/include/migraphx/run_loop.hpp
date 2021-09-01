@@ -88,7 +88,7 @@ argument run_loop(const LoopModel& model,
                 {
                     const auto& arg = out_args.at(output_index);
                     assert((iter + 1) * ps.bytes() <= arg.get_shape().bytes());
-                    params[name] = argument::load(ps, arg.data() + iter * ps.bytes());
+                    params[name] = argument(ps, arg.data() + iter * ps.bytes());
                 }
                 else
                 {

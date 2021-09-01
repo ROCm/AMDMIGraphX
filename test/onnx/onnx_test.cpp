@@ -3886,6 +3886,25 @@ TEST_CASE(tile_test_3x2)
     EXPECT(p == prog);
 }
 
+TEST_CASE(transpose_default_perm_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 5, 2, 3}});
+    std::vector<int64_t> perm{3, 2, 1, 0};
+    auto r = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("transpose_default_perm_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(transpose_invalid_perm_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("transpose_invalid_perm_test.onnx"); }));
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::program p;

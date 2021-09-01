@@ -1,3 +1,4 @@
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
@@ -26,59 +27,41 @@ struct parse_if : op_parser<parse_if>
             MIGRAPHX_THROW("PARSE_IF: condition input can have only one element!");
         }
 
-        migraphx::argument cond_arg = args.front()->eval();
-        // cond is not constant, need to create sub_modules
-        if(cond_arg.empty())
+        std::string then_name = info.name + "_if";
+        module_ref then_mdl   = parser.prog.create_module(then_name);
+
+        std::string else_name = info.name + "_else";
+        module_ref else_mdl   = parser.prog.create_module(else_name);
+
+        // parse the then sub_graph
+        parser.parse_graph(then_mdl, then_graph);
+
+        // parse_the else sub_graph
+        parser.parse_graph(else_mdl, else_graph);
+
+        auto then_out_shapes = then_mdl->get_output_shapes();
+        auto else_out_shapes = else_mdl->get_output_shapes();
+        if(not std::equal(then_out_shapes.begin(),
+                          then_out_shapes.end(),
+                          else_out_shapes.begin(),
+                          else_out_shapes.end()))
         {
-            std::string then_name = info.name + "_if";
-            module_ref then_mdl   = parser.prog.create_module(then_name);
-
-            std::string else_name = info.name + "_else";
-            module_ref else_mdl   = parser.prog.create_module(else_name);
-
-            // parse the then sub_graph
-            parser.parse_graph(then_mdl, then_graph);
-
-            // parse_the else sub_graph
-            parser.parse_graph(else_mdl, else_graph);
-
-            auto then_out_shapes = then_mdl->get_output_shapes();
-            auto else_out_shapes = else_mdl->get_output_shapes();
-            if(not std::equal(then_out_shapes.begin(),
-                              then_out_shapes.end(),
-                              else_out_shapes.begin(),
-                              else_out_shapes.end()))
-            {
-                MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
-            }
-
-            auto ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
-
-            return {ret};
+            MIGRAPHX_THROW("PARSE_IF: then and else sub_grahps must have same output shapes!");
         }
-        else
+
+        auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});
+        auto out_s  = if_ret->get_shape();
+        assert(out_s.type() == shape::tuple_type);
+
+        const auto& vec_shapes = out_s.sub_shapes();
+        std::vector<instruction_ref> out_inss;
+        for(std::size_t i = 0; i < vec_shapes.size(); ++i)
         {
-            auto* mod = info.mod;
-            // then branch
-            if(cond_arg.at<bool>())
-            {
-                parser.parse_graph(mod, then_graph);
-            }
-            // else branch
-            else
-            {
-                parser.parse_graph(mod, else_graph);
-            }
-
-            // inputs of the return instruction are that of the output of the
-            // if instruction
-            instruction_ref ret_ins = std::prev(mod->end());
-            auto outputs            = ret_ins->inputs();
-            assert(ret_ins->name() == "@return");
-            mod->remove_instruction(ret_ins);
-
-            return outputs;
+            auto ret = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), if_ret);
+            out_inss.push_back(ret);
         }
+
+        return out_inss;
     }
 };
 

@@ -2,10 +2,12 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/dom_info.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
@@ -16,6 +18,7 @@
 #include <set>
 #include <deque>
 #include <chrono>
+#include <iomanip>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -88,7 +91,7 @@ struct stream_info
             return args.end();
         }
 
-        const std::size_t min_partition_threshold = 1;
+        const std::size_t min_partition_threshold = 2;
         sort_args_by_weight(args, std::greater<>{});
 
         auto it = std::lower_bound(std::next(args.begin()),
@@ -120,10 +123,10 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
-            assert(ins != p.end());
-            if(contains(partitions, ins))
-                return;
+            assert(not is_end(ins, p.end()));
             if(not p.has_instruction(ins))
+                return;
+            if(contains(partitions, ins))
                 return;
 
             // Add an entry so we know the instruction was visited
@@ -235,6 +238,18 @@ struct stream_info
                     add_child(ins);
                 }
             }
+        }
+
+        // move dangling parameter to the front so as not be removed
+        auto ins = std::next(last);
+        while(ins != p.end())
+        {
+            auto next = std::next(ins);
+            if(ins->name() == "@param")
+            {
+                p.move_instruction(ins, p.begin());
+            }
+            ins = next;
         }
     }
 
@@ -353,6 +368,7 @@ struct stream_info
     {
         std::unordered_map<instruction_ref, std::vector<std::vector<instruction_ref>>> result;
         std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>> merge_from;
+        dominator_info di = compute_dominator(p);
         result.reserve(p.size());
         merge_from.reserve(p.size());
         for(auto ins : reverse_iterator_for(p))
@@ -366,8 +382,13 @@ struct stream_info
                 merge_from[ins].insert(merge_from[arg].begin(), merge_from[arg].end());
             }
 
-            auto streams = this->get_streams(ins);
+            if(is_split_point(ins))
+            {
+                erase_if(merge_from[ins],
+                         [&](auto merge) { return di.strictly_dominate(ins, merge); });
+            }
 
+            auto streams = this->get_streams(ins);
             // Collect concur instructions for each merge point.
             for(const auto& merge : merge_from[ins])
             {
@@ -396,10 +417,17 @@ struct stream_info
     std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>
     get_conflicts(module& p)
     {
+
         using conflict_table_type =
             std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
         conflict_table_type conflict_table;
         auto concur_ins = this->find_concurrent_instructions(p);
+
+        // Compute an index for each instruction
+        std::unordered_map<instruction_ref, std::size_t> ins2index;
+        std::size_t index_total = 0;
+        for(auto ins : iterator_for(p))
+            ins2index[ins] = index_total++;
 
         std::vector<conflict_table_type> thread_conflict_tables(
             std::thread::hardware_concurrency());
@@ -442,14 +470,13 @@ struct stream_info
 
                 for(auto ins1 : ins1_set)
                 {
-                    auto p1 = std::distance(ins1, merge_first);
+                    auto p1 = ins2index.at(ins1);
                     for(auto ins2 : ins2_set)
                     {
                         if(ins1 == ins2)
                             continue;
-                        auto p2 = std::distance(ins2, merge_first);
-                        // The smaller distance means the instruction occurs later
-                        if(p1 > p2)
+                        auto p2 = ins2index.at(ins2);
+                        if(p2 > p1)
                             thrd_table[ins2].insert(ins1);
                         else
                             thrd_table[ins1].insert(ins2);
@@ -495,6 +522,9 @@ void schedule::apply(module& p) const
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
         p.annotate(std::cout, [&](auto ins) {
+            if(ins->name() == "@param" and not contains(si.weights, ins))
+                return;
+
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
             std::cout << " input={";
@@ -535,11 +565,9 @@ void schedule::apply(module& p) const
         {
             for(auto i : si.get_recorded_instructions(ins))
             {
-                if(not si.has_stream(i))
+                if(not si.has_stream(i) or si.get_stream(i) == stream)
                     continue;
-                auto istream = si.get_stream(i);
-                if(stream == istream)
-                    continue;
+
                 // Create a new event if it hasn't been recorded
                 if(not contains(ins2wait, i))
                 {

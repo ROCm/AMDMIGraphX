@@ -1,6 +1,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 
 namespace migraphx {
@@ -22,19 +23,19 @@ struct parse_where : op_parser<parse_where>
         lens      = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
         if(cond->get_shape().lens() != lens)
         {
-            cond = info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), cond);
+            cond = info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), cond);
         }
 
         if(args[1]->get_shape().lens() != lens)
         {
             args[1] =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[1]);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[1]);
         }
 
         if(args[2]->get_shape().lens() != lens)
         {
             args[2] =
-                info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), args[2]);
+                info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[2]);
         }
 
         // compute index

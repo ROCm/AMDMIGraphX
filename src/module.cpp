@@ -6,6 +6,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
@@ -25,12 +26,12 @@ struct module_impl
     // A list is used to keep references to an instruction stable
     std::list<instruction> instructions;
     std::unordered_set<instruction*> instruction_set;
-    std::vector<std::string> input_names;
     std::string name;
+    uint32_t nparams = 0;
 
     bool contains(instruction_ref ins) const
     {
-        if(ins == instructions.end())
+        if(is_end(ins, instructions.end()))
             return false;
         return instruction_set.count(std::addressof(*ins)) > 0;
     }
@@ -110,8 +111,7 @@ void module::assign(const module& m)
     {
         impl->instructions.clear();
     }
-    impl->input_names = m.impl->input_names;
-    impl->name        = m.impl->name;
+    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))
@@ -125,9 +125,10 @@ void module::assign(const module& m)
         else if(ins->name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
-            copy_ins =
-                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
+            copy_ins    = impl->insert(impl->instructions.end(),
+                                    {builtin::param{name, order}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {
@@ -150,14 +151,7 @@ void module::assign(const module& m)
             }
             else
             {
-                if(module_args.empty())
-                {
-                    copy_ins = add_instruction(ins->get_operator(), copy_inputs);
-                }
-                else
-                {
-                    copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
-                }
+                copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }
 
@@ -312,9 +306,8 @@ instruction_ref module::add_outline(const shape& s)
 instruction_ref module::add_parameter(std::string name, shape s)
 {
     assert(get_parameter_shape(name) == shape{});
-    impl->input_names.push_back(name);
-
-    impl->push_front({builtin::param{std::move(name)}, std::move(s), {}});
+    impl->push_front({builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
+    impl->nparams++;
     return impl->instructions.begin();
 }
 
@@ -350,17 +343,21 @@ shape module::get_parameter_shape(std::string name) const
 
 std::vector<std::string> module::get_parameter_names() const
 {
-    std::vector<std::string> result = impl->input_names;
-    std::unordered_set<std::string> params;
+    std::vector<std::string> result;
+    std::vector<builtin::param> params;
     for(auto&& ins : impl->instructions)
     {
         if(ins.name() == "@param")
         {
-            auto&& name = any_cast<builtin::param>(ins.get_operator()).parameter;
-            params.insert(name);
+            auto&& param = any_cast<builtin::param>(ins.get_operator());
+            params.push_back(param);
         }
     }
-    erase_if(result, [&](auto&& name) { return params.count(name) == 0; });
+    std::stable_sort(
+        params.begin(), params.end(), by(std::less<>{}, [](auto&& p) { return p.order; }));
+    std::transform(params.begin(), params.end(), std::back_inserter(result), [&](auto&& p) {
+        return p.parameter;
+    });
     return result;
 }
 
@@ -444,17 +441,19 @@ bool is_borrowed(instruction_ref ins)
     auto alias = instruction::get_output_alias(ins, true);
     if(alias == ins)
         return false;
-    if(alias->get_operator().is_borrowed())
+    lifetime l = alias->get_operator().get_lifetime();
+    if(l == lifetime::borrow)
         return true;
     return is_borrowed(alias);
 }
 
-bool is_param_alias(instruction_ref ins)
+bool is_global(instruction_ref ins)
 {
-    return instruction::get_output_alias(ins)->name() == "@param";
+    const auto& op = instruction::get_output_alias(ins)->get_operator();
+    return op.name() == "@param" or op.get_lifetime() == lifetime::global;
 }
 
-bool is_dangling(instruction_ref ins) { return not is_param_alias(ins) and is_borrowed(ins); }
+bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
 
 instruction_ref module::find_dangling_reference() const
 {
@@ -496,7 +495,7 @@ void module::debug_print() const { std::cout << *this << std::endl; }
 void module::debug_print(instruction_ref ins,
                          std::unordered_map<instruction_ref, std::string>& names) const
 {
-    if(ins == this->end())
+    if(is_end(ins, this->end()))
     {
         std::cout << "End instruction" << std::endl;
         return;

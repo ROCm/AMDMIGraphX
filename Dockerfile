@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/4.1/ xenial main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/4.2/ xenial main > /etc/apt/sources.list.d/rocm.list'
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -53,9 +53,11 @@ ENV LANG=C.UTF-8
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
+ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+RUN test -f /usr/local/hash || exit 1
 
 # Install yapf
 RUN pip3 install yapf==0.28.0
@@ -95,4 +97,5 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 

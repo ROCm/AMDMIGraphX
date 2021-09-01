@@ -29,7 +29,8 @@ struct test_if_param : verify_program<test_if_param>
         else_mod->add_return({a2});
 
         auto ret = mm->add_instruction(migraphx::make_op("if"), {cond}, {then_mod, else_mod});
-        mm->add_return({ret});
+        auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
+        mm->add_return({r});
 
         return p;
     }

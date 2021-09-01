@@ -15,6 +15,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/auto_any_cast.hpp>
+#include <migraphx/lifetime.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -178,7 +179,7 @@ shape normalize_compute_shape_op(const T& x,
 }
 
 template <class T>
-auto compute_op(rank<2>,
+auto compute_op(rank<1>,
                 const T& x,
                 context& ctx,
                 const shape& output_shape,
@@ -186,14 +187,6 @@ auto compute_op(rank<2>,
     -> decltype(x.compute(auto_any_cast(ctx), output_shape, input))
 {
     return x.compute(auto_any_cast(ctx), output_shape, input);
-}
-
-template <class T>
-auto compute_op(
-    rank<1>, const T& x, context&, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -207,22 +200,14 @@ template <class T>
 argument
 compute_op(const T& x, context& ctx, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, ctx, output_shape, input);
-}
-
-template <class T>
-auto compute_op(rank<2>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(output_shape, input))
-{
-    return x.compute(output_shape, input);
+    return compute_op(rank<1>{}, x, ctx, output_shape, input);
 }
 
 template <class T>
 auto compute_op(rank<1>, const T& x, const shape& output_shape, const std::vector<argument>& input)
-    -> decltype(x.compute(auto_any_cast(std::declval<context&>()), output_shape, input))
+    -> decltype(x.compute(output_shape, input))
 {
-    std::string name = x.name();
-    MIGRAPHX_THROW("Not computable without a context: " + name);
+    return x.compute(output_shape, input);
 }
 
 template <class T>
@@ -235,22 +220,27 @@ argument compute_op(rank<0>, const T& x, const shape&, const std::vector<argumen
 template <class T>
 argument compute_op(const T& x, const shape& output_shape, const std::vector<argument>& input)
 {
-    return compute_op(rank<2>{}, x, output_shape, input);
+    return compute_op(rank<1>{}, x, output_shape, input);
 }
 
 template <class T, class F>
 auto compute_op(rank<1>,
                 const T& x,
+                const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(inputs, module_args, f))
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
 {
-    return x.compute(inputs, module_args, f);
+    return x.compute(output, inputs, module_args, f);
 }
 
 template <class T, class F>
-argument
-    compute_op(rank<0>, const T& x, const std::vector<argument>&, const std::vector<module_ref>&, F)
+argument compute_op(rank<0>,
+                    const T& x,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -258,11 +248,72 @@ argument
 
 template <class T, class F>
 argument compute_op(const T& x,
+                    const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<3>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>& module_args,
+                F f) -> decltype(x.compute(output, inputs, module_args, f))
+{
+    return x.compute(output, inputs, module_args, f);
+}
+
+template <class T, class F>
+auto compute_op(rank<2>,
+                const T& x,
+                context&,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(output, inputs))
+{
+    return x.compute(output, inputs);
+}
+
+template <class T, class F>
+auto compute_op(rank<1>,
+                const T& x,
+                context& ctx,
+                const shape& output,
+                const std::vector<argument>& inputs,
+                const std::vector<module_ref>&,
+                F) -> decltype(x.compute(auto_any_cast(ctx), output, inputs))
+{
+    return x.compute(auto_any_cast(ctx), output, inputs);
+}
+
+template <class T, class F>
+argument compute_op(rank<0>,
+                    const T& x,
+                    context&,
+                    const shape&,
+                    const std::vector<argument>&,
+                    const std::vector<module_ref>&,
+                    F)
+{
+    std::string name = x.name();
+    MIGRAPHX_THROW("Not computable: " + name);
+}
+
+template <class T, class F>
+argument compute_op(const T& x,
+                    context& ctx,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
+                    F f)
+{
+    return compute_op(rank<3>{}, x, ctx, output, inputs, module_args, f);
 }
 
 template <class T>
@@ -385,9 +436,9 @@ void from_value_op(T& x, const value& v)
 }
 
 template <class T>
-bool is_borrowed_op(const T&)
+lifetime get_lifetime_op(const T&)
 {
-    return false;
+    return lifetime::local;
 }
 
 } // namespace detail
@@ -401,7 +452,7 @@ bool is_borrowed_op(const T&)
  *      bool is_context_free() const;
  *      bool need_normalization() const;
  *      bool has_finalize() const;
- *      bool is_borrowed() const;
+ *      lifetime get_lifetime() const;
  *      std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
  *      value compile(context& ctx,const shape& output,const std::vector<shape>& input) ;
  *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
@@ -409,9 +460,12 @@ bool is_borrowed_op(const T&)
  *      shape compute_shape(const std::vector<shape>& inputs,const std::vector<module_ref>&
  * mod_args) const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
  * input) const; argument compute(const shape& output,const std::vector<argument>& input)
- * const; argument compute(const std::vector<argument>& input,const std::vector<module_ref>&
- * module_args,std::function<std::vector<argument>(module_ref& mdl, const
- * std::unordered_map<std::string, argument>& inputs)> run) const; value to_value() const; void
+ * const; argument compute(const shape& output,const std::vector<argument>& input,const
+ * std::vector<module_ref>& module_args,std::function<std::vector<argument>(module_ref&, const
+ * std::unordered_map<std::string, argument>&)> run) const; argument compute(context& ctx,const
+ * shape& output,const std::vector<argument>& input,const std::vector<module_ref>&
+ * module_args,std::function<std::vector<argument>(module_ref&, const
+ * std::unordered_map<std::string, argument>&)> run) const; value to_value() const; void
  * from_value(const value& v) ; value attributes() const; friend std::ostream &
  * operator<<(std::ostream & os,const operation & op) ; friend bool operator==(const operation &
  * x,const operation & y) ;
@@ -506,10 +560,10 @@ struct operation
         return (*this).private_detail_te_get_handle().has_finalize();
     }
 
-    bool is_borrowed() const
+    lifetime get_lifetime() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().is_borrowed();
+        return (*this).private_detail_te_get_handle().get_lifetime();
     }
 
     std::ptrdiff_t output_alias(const std::vector<shape>& input) const
@@ -555,14 +609,27 @@ struct operation
         return (*this).private_detail_te_get_handle().compute(output, input);
     }
 
-    argument compute(
-        const std::vector<argument>& input,
-        const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run) const
+    argument compute(const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().compute(input, module_args, std::move(run));
+        return (*this).private_detail_te_get_handle().compute(
+            output, input, module_args, std::move(run));
+    }
+
+    argument compute(context& ctx,
+                     const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().compute(
+            ctx, output, input, module_args, std::move(run));
     }
 
     value to_value() const
@@ -612,7 +679,7 @@ struct operation
         virtual bool is_context_free() const                                       = 0;
         virtual bool need_normalization() const                                    = 0;
         virtual bool has_finalize() const                                          = 0;
-        virtual bool is_borrowed() const                                           = 0;
+        virtual lifetime get_lifetime() const                                      = 0;
         virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
@@ -625,16 +692,23 @@ struct operation
         compute(context& ctx, const shape& output, const std::vector<argument>& input) const    = 0;
         virtual argument compute(const shape& output, const std::vector<argument>& input) const = 0;
         virtual argument
-        compute(const std::vector<argument>& input,
+        compute(const shape& output,
+                const std::vector<argument>& input,
                 const std::vector<module_ref>& module_args,
                 std::function<std::vector<argument>(
-                    module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
-            const                                                         = 0;
-        virtual value to_value() const                                    = 0;
-        virtual void from_value(const value& v)                           = 0;
-        virtual value attributes() const                                  = 0;
-        virtual std::ostream& operator_shift_left(std::ostream& os) const = 0;
-        virtual bool operator==(const operation& y) const                 = 0;
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual argument
+        compute(context& ctx,
+                const shape& output,
+                const std::vector<argument>& input,
+                const std::vector<module_ref>& module_args,
+                std::function<std::vector<argument>(
+                    module_ref&, const std::unordered_map<std::string, argument>&)> run) const = 0;
+        virtual value to_value() const                                                         = 0;
+        virtual void from_value(const value& v)                                                = 0;
+        virtual value attributes() const                                                       = 0;
+        virtual std::ostream& operator_shift_left(std::ostream& os) const                      = 0;
+        virtual bool operator==(const operation& y) const                                      = 0;
     };
 
     template <class T>
@@ -677,16 +751,16 @@ struct operation
     }
 
     template <class T>
-    static auto private_detail_te_default_is_borrowed(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.is_borrowed())
+    static auto private_detail_te_default_get_lifetime(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_lifetime())
     {
-        return private_detail_te_self.is_borrowed();
+        return private_detail_te_self.get_lifetime();
     }
 
     template <class T>
-    static bool private_detail_te_default_is_borrowed(float, T&& private_detail_te_self)
+    static lifetime private_detail_te_default_get_lifetime(float, T&& private_detail_te_self)
     {
-        return detail::is_borrowed_op(private_detail_te_self);
+        return detail::get_lifetime_op(private_detail_te_self);
     }
 
     template <class T>
@@ -828,25 +902,58 @@ struct operation
     static auto private_detail_te_default_compute(
         char,
         T&& private_detail_te_self,
+        const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
-        -> decltype(private_detail_te_self.compute(input, module_args, std::move(run)))
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
+        -> decltype(private_detail_te_self.compute(output, input, module_args, std::move(run)))
     {
-        return private_detail_te_self.compute(input, module_args, std::move(run));
+        return private_detail_te_self.compute(output, input, module_args, std::move(run));
     }
 
     template <class T>
     static argument private_detail_te_default_compute(
         float,
         T&& private_detail_te_self,
+        const shape& output,
         const std::vector<argument>& input,
         const std::vector<module_ref>& module_args,
-        std::function<std::vector<argument>(
-            module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
     {
-        return detail::compute_op(private_detail_te_self, input, module_args, std::move(run));
+        return detail::compute_op(
+            private_detail_te_self, output, input, module_args, std::move(run));
+    }
+
+    template <class T>
+    static auto private_detail_te_default_compute(
+        char,
+        T&& private_detail_te_self,
+        context& ctx,
+        const shape& output,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
+        -> decltype(private_detail_te_self.compute(ctx, output, input, module_args, std::move(run)))
+    {
+        return private_detail_te_self.compute(ctx, output, input, module_args, std::move(run));
+    }
+
+    template <class T>
+    static argument private_detail_te_default_compute(
+        float,
+        T&& private_detail_te_self,
+        context& ctx,
+        const shape& output,
+        const std::vector<argument>& input,
+        const std::vector<module_ref>& module_args,
+        std::function<std::vector<argument>(module_ref&,
+                                            const std::unordered_map<std::string, argument>&)> run)
+    {
+        return detail::compute_op(
+            private_detail_te_self, ctx, output, input, module_args, std::move(run));
     }
 
     template <class T>
@@ -938,10 +1045,10 @@ struct operation
             return private_detail_te_default_has_finalize(char(0), private_detail_te_value);
         }
 
-        bool is_borrowed() const override
+        lifetime get_lifetime() const override
         {
 
-            return private_detail_te_default_is_borrowed(char(0), private_detail_te_value);
+            return private_detail_te_default_get_lifetime(char(0), private_detail_te_value);
         }
 
         std::ptrdiff_t output_alias(const std::vector<shape>& input) const override
@@ -994,16 +1101,29 @@ struct operation
                 char(0), private_detail_te_value, output, input);
         }
 
-        argument
-        compute(const std::vector<argument>& input,
-                const std::vector<module_ref>& module_args,
-                std::function<std::vector<argument>(
-                    module_ref& mdl, const std::unordered_map<std::string, argument>& inputs)> run)
-            const override
+        argument compute(
+            const shape& output,
+            const std::vector<argument>& input,
+            const std::vector<module_ref>& module_args,
+            std::function<std::vector<argument>(
+                module_ref&, const std::unordered_map<std::string, argument>&)> run) const override
         {
 
             return private_detail_te_default_compute(
-                char(0), private_detail_te_value, input, module_args, std::move(run));
+                char(0), private_detail_te_value, output, input, module_args, std::move(run));
+        }
+
+        argument compute(
+            context& ctx,
+            const shape& output,
+            const std::vector<argument>& input,
+            const std::vector<module_ref>& module_args,
+            std::function<std::vector<argument>(
+                module_ref&, const std::unordered_map<std::string, argument>&)> run) const override
+        {
+
+            return private_detail_te_default_compute(
+                char(0), private_detail_te_value, ctx, output, input, module_args, std::move(run));
         }
 
         value to_value() const override

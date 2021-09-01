@@ -1,3 +1,0 @@
-tensorflow==2.4.0
-onnxruntime
-tokenizers

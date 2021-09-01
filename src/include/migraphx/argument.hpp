@@ -27,28 +27,28 @@ struct argument : raw_data<argument>
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
-        : m_shape(std::move(s)),
-          m_data({[f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); }})
+        : m_shape(std::move(s))
 
     {
+        assign_buffer([f = std::move(d)]() mutable { return reinterpret_cast<char*>(f()); });
     }
     template <class T>
     argument(shape s, T* d)
-        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d); }})
+        : m_shape(std::move(s))
     {
+        assign_buffer([d] { return reinterpret_cast<char*>(d); });
     }
 
     template <class T>
     argument(shape s, std::shared_ptr<T> d)
-        : m_shape(std::move(s)), m_data({[d] { return reinterpret_cast<char*>(d.get()); }})
+        : m_shape(std::move(s))
     {
+        assign_buffer([d] { return reinterpret_cast<char*>(d.get()); });
     }
 
     argument(shape s, std::nullptr_t);
     
     argument(const std::vector<argument>& args);
-
-    static argument load(const shape& s, char* buffer);
 
     /// Provides a raw pointer to the data
     char* data() const;
@@ -60,12 +60,15 @@ struct argument : raw_data<argument>
 
     argument reshape(const shape& s) const;
 
+    argument copy() const;
+
     /// Make copy of the argument that is always sharing the data
     argument share() const;
 
     std::vector<argument> get_sub_objects() const;
 
     private:
+    void assign_buffer(std::function<char*()> d);
     struct data_t
     {
         std::function<char*()> get = nullptr;

@@ -57,20 +57,7 @@ struct parse_pooling : op_parser<parse_pooling>
                 calculate_padding(0, pads, input_dims[2], op.stride[0], 1, op.lengths[0]);
                 calculate_padding(1, pads, input_dims[3], op.stride[1], 1, op.lengths[1]);
 
-                if(pads[0] != pads[2] || pads[1] != pads[3])
-                {
-                    std::vector<int64_t> padding = {0, 0, pads[0], pads[1], 0, 0, pads[2], pads[3]};
-                    l0                           = info.add_instruction(
-                        migraphx::make_op(
-                            "pad",
-                            {{"pads", padding}, {"value", std::numeric_limits<float>::lowest()}}),
-                        l0);
-                }
-                else
-                {
-                    op.padding[0] = pads[0];
-                    op.padding[1] = pads[1];
-                }
+                op.padding = std::vector<size_t>(pads.begin(), pads.end());
             }
         }
         return info.add_instruction(op, l0);

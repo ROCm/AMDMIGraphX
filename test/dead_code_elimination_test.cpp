@@ -1,5 +1,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
@@ -113,15 +114,16 @@ TEST_CASE(depth_test)
 TEST_CASE(undefined_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto one   = mm->add_literal(1);
-    auto two   = mm->add_literal(2);
-    auto undef = mm->add_instruction(migraphx::make_op("undefined"));
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_instruction(sum_op{}, one, two);
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(p);
     EXPECT(std::distance(mm->begin(), mm->end()) == count - 1);
-    EXPECT(not mm->has_instruction(undef));
+    EXPECT(
+        std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "undefined"; }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(result != migraphx::literal{4});
@@ -193,6 +195,26 @@ TEST_CASE(unused_module)
     run_pass(p);
     EXPECT(migraphx::contains(p.get_modules(), m2));
     EXPECT(not migraphx::contains(p.get_modules(), m1));
+}
+
+TEST_CASE(param_not_eliminated)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int32_type, {2, 2}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_parameter("z", s);
+        auto sum = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({sum});
+
+        return p;
+    };
+
+    auto p = create_program();
+    run_pass(p);
+    EXPECT(p == create_program());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

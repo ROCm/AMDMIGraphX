@@ -6,6 +6,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -34,9 +35,9 @@ struct load
     {
         if((offset + s.bytes()) > args[0].get_shape().bytes())
             MIGRAPHX_THROW("Load access is out of bounds");
-        return argument::load(s, args[0].data() + offset);
+        return argument{s, args[0].data() + offset};
     }
-    bool is_borrowed() const { return true; }
+    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 
     friend std::ostream& operator<<(std::ostream& os, const load& op)

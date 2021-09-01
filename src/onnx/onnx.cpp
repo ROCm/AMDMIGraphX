@@ -1,4 +1,5 @@
 #include <migraphx/onnx/onnx_parser.hpp>
+#include <migraphx/onnx/op_parser.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -57,5 +58,10 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
     return parse_onnx_from(options, data, size);
 }
 
+<<<<<<< HEAD
+=======
+std::vector<std::string> get_onnx_operators() { return onnx::get_op_parsers(); }
+
+>>>>>>> origin/develop
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

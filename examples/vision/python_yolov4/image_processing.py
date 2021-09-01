@@ -195,9 +195,10 @@ def draw_bbox(image,
     num_classes = len(classes)
     image_h, image_w, _ = image.shape
     hsv_tuples = [(1.0 * x / num_classes, 1., 1.) for x in range(num_classes)]
-    colors = [colorsys.hsv_to_rgb(*x) for x in hsv_tuples]
-    colors = [(int(x[0] * 255), int(x[1] * 255), int(x[2] * 255))
-              for x in colors]
+    colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+    colors = list(
+        map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
+            colors))
 
     random.seed(0)
     random.shuffle(colors)

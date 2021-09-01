@@ -87,9 +87,11 @@ static std::vector<shape::type_t>& get_quantizable_type()
 //                 zero_point = m.insert_instruction(
 //                     ins, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
 //                 auto q_in =
-//                     m.insert_instruction(ins, make_op("quantizelinear"), input, scale, zero_point);
+//                     m.insert_instruction(ins, make_op("quantizelinear"), input, scale,
+//                     zero_point);
 //                 auto dq_in =
-//                     m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
+//                     m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale,
+//                     zero_point);
 //                 dq_inputs.push_back(dq_in);
 //             }
 //         }
@@ -112,17 +114,17 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
         assert(op_val.contains("ins_index"));
 
         auto param_index = op_val.at("ins_index").to<std::size_t>();
-        auto param = quant_params[param_index];
+        auto param       = quant_params[param_index];
 
         auto input = ins->inputs().front();
-        auto s = input->get_shape();
+        auto s     = input->get_shape();
         if(contains(quantizable_types, s.type()) and s.type() != shape::int8_type)
         {
             auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
             auto scale      = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             auto lens       = s.lens();
-            scale           = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
+            scale =
+                m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
             zero_point = m.insert_instruction(
                 ins, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
             auto q_in =
@@ -161,7 +163,8 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
         //         auto q_in =
         //             m.insert_instruction(ins, make_op("quantizelinear"), in, scale, zero_point);
         //         auto dq_in =
-        //             m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
+        //             m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale,
+        //             zero_point);
         //         converted_inputs.push_back(dq_in);
         //     }
         // }
@@ -182,12 +185,11 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
         std::vector<instruction_ref> new_args;
         for(auto input : inputs)
         {
-            auto new_in        = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
+            auto new_in = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
             new_args.push_back(new_in);
         }
         m.replace_instruction(ins, ins->get_operator(), new_args);
     }
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

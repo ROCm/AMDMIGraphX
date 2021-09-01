@@ -154,8 +154,7 @@ void quantize_int8(program& prog,
 
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
-    std::shared_ptr<std::vector<float>> max_abs_vals =
-        std::make_shared<std::vector<float>>();
+    std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
 
     auto calc_quant_params = [int8_quant_params, max_abs_vals, &t](std::size_t ins_index,
                                                                    std::vector<argument> args) {

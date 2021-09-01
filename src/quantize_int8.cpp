@@ -47,7 +47,7 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
         {
             auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
             auto scale      = m.add_literal(literal({s.type()}, {1.0f / param.first}));
-            auto lens       = s.lens();
+            const auto& lens       = s.lens();
             scale =
                 m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
             zero_point = m.insert_instruction(

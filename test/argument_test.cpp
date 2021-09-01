@@ -98,6 +98,22 @@ TEST_CASE(nested_tuple)
     EXPECT(a1.to_string() != a3.to_string());
 }
 
+TEST_CASE(tuple_construct)
+{
+    migraphx::shape s{{migraphx::shape{migraphx::shape::float_type, {4}},
+                       migraphx::shape{migraphx::shape::int8_type, {3}}}};
+    migraphx::argument a{s};
+    EXPECT(a.get_sub_objects().size() == 2);
+    EXPECT(a.get_shape() == s);
+
+    auto b = a; // NOLINT
+    EXPECT(a.get_shape() == b.get_shape());
+    EXPECT(a.get_sub_objects().size() == 2);
+    EXPECT(a.get_sub_objects()[0] == b.get_sub_objects()[0]);
+    EXPECT(a.get_sub_objects()[1] == b.get_sub_objects()[1]);
+    EXPECT(a == b);
+}
+
 TEST_CASE(tuple_visit)
 {
     auto a1 = make_tuple(3, 3.0);

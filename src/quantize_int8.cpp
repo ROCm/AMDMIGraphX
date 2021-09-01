@@ -45,9 +45,9 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
         auto s     = input->get_shape();
         if(contains(quantizable_types, s.type()) and s.type() != shape::int8_type)
         {
-            auto zero_point = m.add_literal(static_cast<int8_t>(param.second));
-            auto scale      = m.add_literal(literal({s.type()}, {1.0f / param.first}));
-            const auto& lens       = s.lens();
+            auto zero_point  = m.add_literal(static_cast<int8_t>(param.second));
+            auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
+            const auto& lens = s.lens();
             scale =
                 m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
             zero_point = m.insert_instruction(

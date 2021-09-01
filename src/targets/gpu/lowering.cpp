@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -184,6 +185,7 @@ struct miopen_apply
         add_batch_norm_inference_op();
         add_neg_op();
         add_if_op();
+        add_roialign();
     }
 
     void copy_params()
@@ -463,6 +465,22 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+        });
+    }
+
+    void add_roialign()
+    {
+        apply_map.emplace("roialign", [=](instruction_ref ins) {
+            auto s = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+            });
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

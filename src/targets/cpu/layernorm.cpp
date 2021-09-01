@@ -31,7 +31,7 @@ struct dnnl_layernorm : dnnl_op<dnnl_layernorm, dnnl::layer_normalization_forwar
     get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         return {dnnl::prop_kind::forward_inference,
-                m.at(DNNL_ARG_SRC),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
                 1e-12f,
                 dnnl::normalization_flags::none};
     }

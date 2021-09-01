@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 #define MIGRAPHX_GUARD_OPERATORS_ROIALIGN_HPP
 
-#include "migraphx/op/tan.hpp"
 #include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>

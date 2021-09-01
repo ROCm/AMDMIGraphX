@@ -196,6 +196,10 @@ struct miopen_apply
             if(ins->name() != "@param")
                 continue;
 
+            // parameter no outputs, no need to insert copy to gpu
+            if(ins->outputs().empty())
+                continue;
+
             auto pos = std::next(ins);
             auto a   = insert_allocation(pos, ins->get_shape());
             auto c   = mod->insert_instruction(pos, make_op("hip::copy_to_gpu"), ins, a);

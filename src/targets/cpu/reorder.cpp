@@ -27,7 +27,7 @@ struct dnnl_reorder : dnnl_op<dnnl_reorder, dnnl::reorder>
     };
     desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_DST)};
+        return {m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)), m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST))};
     }
 
     auto get_primitive_desc(const desc& d, const dnnl::primitive_attr& attr) const

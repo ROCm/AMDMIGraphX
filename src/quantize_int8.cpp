@@ -1,4 +1,4 @@
-#include "migraphx/operation.hpp"
+#include <migraphx/operation.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
@@ -63,6 +63,7 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
 
 void capture_arguments_pass::apply(module& m) const // NOLINT
 {
+    assert(param_index != nullptr);
     for(auto ins : iterator_for(m))
     {
         if(not contains(ins_names, ins->name()))

@@ -168,6 +168,7 @@ register_migraphx_ops(
     sub
     tanh
     tan
+    topk
     transpose
     unary_not
     undefined

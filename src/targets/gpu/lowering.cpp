@@ -176,6 +176,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("scatter");
         add_extend_op("softmax");
+        add_extend_op("topk");
 
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");

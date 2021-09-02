@@ -503,6 +503,26 @@ struct op : command<op>
     }
 };
 
+struct onnx : command<onnx>
+{
+    bool show_ops = false;
+    void parse(argument_parser& ap)
+    {
+        ap(show_ops,
+           {"--list", "-l"},
+           ap.help("List all onnx operators supported by MIGraphX"),
+           ap.set_value(true));
+    }
+    void run() const
+    {
+        if(show_ops)
+        {
+            for(const auto& name : get_onnx_operators())
+                std::cout << name << std::endl;
+        }
+    }
+};
+
 struct main_command
 {
     static std::string get_command_help()

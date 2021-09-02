@@ -4260,6 +4260,58 @@ TEST_CASE(tanh_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(topk_test)
+{
+    auto create_program = [](int64_t k, int64_t axis, int largest) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        auto data = mm->add_parameter("data", s);
+        auto r    = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", axis}, {"k", k}, {"largest", largest}}), data);
+        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+        mm->add_return({r0, r1});
+
+        return p;
+    };
+
+    auto run_program = [&](int64_t k, int64_t axis, int largest) {
+        auto p = create_program(k, axis, largest);
+        p.compile(migraphx::ref::target{});
+        std::vector<float> data = {
+            2.1, 2.3, 2.0, 2.5, 1.9, 3.3, 0.2, 4.5, 0.1, 0.8, 1.0, 4.5, 2.1, 0.8, 1.5};
+        migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+        migraphx::parameter_map pp;
+        pp["data"] = migraphx::argument(s, data.data());
+        auto rets  = p.eval(pp);
+        std::vector<float> ret_val;
+        rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+        std::vector<int64_t> ret_ind;
+        rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+
+        return std::make_pair(ret_val, ret_ind);
+    };
+
+    // case 1
+    {
+        auto results                = run_program(4, 1, 1);
+        std::vector<float> gold_val = {2.5, 2.3, 2.1, 2, 4.5, 3.3, 0.8, 0.2, 4.5, 2.1, 1.5, 1};
+        EXPECT(results.first == gold_val);
+        std::vector<int64_t> gold_ind = {3, 1, 0, 2, 2, 0, 4, 1, 1, 2, 4, 0};
+        EXPECT(results.second == gold_ind);
+    }
+
+    // case 2
+    {
+        auto results                = run_program(4, 1, 0);
+        std::vector<float> gold_val = {1.9, 2, 2.1, 2.3, 0.1, 0.2, 0.8, 3.3, 0.8, 1, 1.5, 2.1};
+        EXPECT(results.first == gold_val);
+        std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3, 1, 4, 0, 3, 0, 4, 2};
+        EXPECT(results.second == gold_ind);
+    }
+}
+
 TEST_CASE(transpose_test)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 2, 3}};

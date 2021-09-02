@@ -84,6 +84,7 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/topk.cpp
     device/unary_not.cpp
     device/where.cpp
 )
@@ -153,6 +154,7 @@ add_library(migraphx_gpu
     softmax.cpp
     sync_device.cpp
     target.cpp
+    topk.cpp
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
@@ -219,6 +221,7 @@ register_migraphx_gpu_ops(hip_
     sub
     tanh
     tan
+    topk
     unary_not
     where
 )
@@ -294,8 +297,10 @@ else()
 include(TargetFlags)
 target_flags(HIP_COMPILER_FLAGS hip::device)
 # Remove cuda arch flags
-string(REGEX REPLACE "--cuda-gpu-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-string(REGEX REPLACE "--offload-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REPLACE "$<LINK_LANGUAGE:CXX>" "1" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REPLACE "SHELL:" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
 target_compile_definitions(migraphx_gpu PRIVATE 
     "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}" 

@@ -211,10 +211,11 @@ struct roialign
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             using T                 = typename decltype(output)::value_type;
-            auto* batch_indices_ptr = args.at(2).cast<int64_t>();
+            auto& arg_ind = args.at(2);
+            auto batch_indices = make_view(arg_ind.get_shape(), arg_ind.data());
             par_for(n_rois, [&](auto n) {
                 const T* bottom_data     = x.data();
-                const auto roi_batch_ind = batch_indices_ptr[n];
+                const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
                 T roi_start_w = roi[roi_s.index({n, 0})] * static_cast<T>(spatial_scale);
                 T roi_start_h = roi[roi_s.index({n, 1})] * static_cast<T>(spatial_scale);

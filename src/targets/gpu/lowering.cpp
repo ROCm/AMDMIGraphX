@@ -1,4 +1,3 @@
-#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -479,9 +478,10 @@ struct miopen_apply
                 inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
                     return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
                 });
+            cpu_inputs.back() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs.back());
             auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), cpu_out, output);
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
             return mod->replace_instruction(ins, gpu_out);
         });
     }

@@ -186,7 +186,7 @@ def read_class_names(class_file_name):
 
 def draw_bbox(image,
               bboxes,
-              classes=read_class_names("coco.names"),
+              classes=read_class_names("./utilities/coco.names"),
               show_label=True):
     """
     bboxes: [x_min, y_min, x_max, y_max, probability, cls_id] format coordinates.

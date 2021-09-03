@@ -1560,7 +1560,6 @@ TEST_CASE(transpose_shape)
     migraphx::shape output{migraphx::shape::float_type, {2, 2}, {1, 2}};
     expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
     expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
-    expect_shape(output, migraphx::make_op("transpose"), input);
     throws_shape(migraphx::make_op("transpose", {{"permutation", {1, 2}}}), input);
 }
 
@@ -1597,6 +1596,14 @@ TEST_CASE(unary_broadcast_input)
     migraphx::shape ss{migraphx::shape::half_type, {2, 3}, {1, 0}};
     migraphx::shape s{migraphx::shape::half_type, {2, 3}};
     expect_shape(s, migraphx::make_op("sin"), ss);
+}
+
+TEST_CASE(where_broadcast_input)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {3, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

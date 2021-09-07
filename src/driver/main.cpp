@@ -479,7 +479,23 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m);
+        p.perf_report(std::cout, n, m, false, nullptr);
+    }
+};
+
+struct trace : command<trace>
+{
+    compiler c;
+    void parse(argument_parser& ap) { c.parse(ap); } //complained it could not find parse function here
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "Invoking rocTX ... " << std::endl;
+        p.trace(std::cout, m); //add more variables if needed
     }
 };
 

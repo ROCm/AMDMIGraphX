@@ -39,7 +39,7 @@ struct dnnl_eltwise : dnnl_op<dnnl_eltwise, dnnl::eltwise_forward>
     {
         return {dnnl::prop_kind::forward_inference,
                 to_dnnl_algo(algo),
-                m.at(DNNL_ARG_SRC_0),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC_0)),
                 alpha,
                 beta};
     }

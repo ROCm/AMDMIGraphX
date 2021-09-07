@@ -29,6 +29,8 @@ program parse_onnx_buffer(const std::string& buffer, const onnx_options& options
 /// Create a program from an onnx buffer
 program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options);
 
+std::vector<std::string> get_onnx_operators();
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

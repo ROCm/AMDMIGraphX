@@ -2741,43 +2741,6 @@ TEST_CASE(not_test)
     }
 }
 
-TEST_CASE(op_capture)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
-    std::vector<float> d1(s1.elements());
-    std::vector<float> d2(s2.elements());
-    std::iota(d1.begin(), d1.end(), 0.0f);
-    std::iota(d2.begin(), d2.end(), 0.0f);
-
-    auto p1 = mm->add_literal(s1, d1);
-    auto p2 = mm->add_literal(s1, d1);
-    auto pb = mm->add_literal(s2, d2);
-    auto pc = mm->add_literal(s2, d2);
-    auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-    auto ps = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
-    mm->add_instruction(migraphx::make_op("dot"), pa, ps);
-
-    migraphx::program capture_p = p;
-    migraphx::target t          = migraphx::ref::target{};
-    migraphx::capture_arguments(capture_p, t, {"dot"});
-
-    p.compile(migraphx::ref::target{});
-    capture_p.compile(migraphx::ref::target{});
-
-    auto cap_res = capture_p.eval({}).back();
-    auto res     = p.eval({}).back();
-
-    std::vector<float> vec;
-    std::vector<float> cap_vec;
-    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
-    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(vec, cap_vec));
-}
-
 TEST_CASE(pad_test)
 {
     migraphx::program p;
@@ -4376,6 +4339,61 @@ TEST_CASE(unsqueeze_test)
         auto result = p.eval({}).back();
         EXPECT(result.get_shape() == s2);
     }
+}
+
+TEST_CASE(where_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::bool_type, {3, 3}};
+    migraphx::shape sx{migraphx::shape::float_type, {3, 3}};
+
+    std::vector<bool> b{true, true, true, false, false, false, true, false, true};
+    std::vector<float> x(9, 1.0);
+    std::vector<float> y(9, 2.0);
+
+    auto lb = mm->add_literal(migraphx::literal{sb, b});
+    auto lx = mm->add_literal(migraphx::literal{sx, x});
+    auto ly = mm->add_literal(migraphx::literal{sx, y});
+    auto w  = mm->add_instruction(migraphx::make_op("where"), lb, lx, ly);
+    mm->add_return({w});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<float> gold(9);
+    for(int i = 0; i < gold.size(); ++i)
+        gold[i] = b[i] ? x[i] : y[i];
+
+    EXPECT(migraphx::verify_range(result_vec, gold));
+}
+
+TEST_CASE(where_broadcasted_inputs_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::bool_type, {3, 3}};
+
+    std::vector<bool> b{true, true, true, false, false, false, true, false, true};
+
+    auto lb  = mm->add_literal(migraphx::literal{sb, b});
+    auto lx  = mm->add_literal(migraphx::literal(1.0f));
+    auto ly  = mm->add_literal(migraphx::literal(2.0f));
+    auto mbx = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), lx);
+    auto mby = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), ly);
+    auto w   = mm->add_instruction(migraphx::make_op("where"), lb, mbx, mby);
+    mm->add_return({w});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    std::vector<float> gold(9);
+    std::vector<float> x(9, 1.0);
+    std::vector<float> y(9, 2.0);
+    for(int i = 0; i < gold.size(); ++i)
+        gold[i] = b[i] ? x[i] : y[i];
+
+    EXPECT(migraphx::verify_range(result_vec, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

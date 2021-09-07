@@ -506,7 +506,7 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     // Fill the map
     generic_eval(*this, ctx, params, [&](auto ins, auto) {
         ins_vec[ins].reserve(n);
-        return argument{};
+        return argument{ins->get_shape(), nullptr};
     });
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)

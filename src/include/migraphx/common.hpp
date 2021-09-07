@@ -21,6 +21,11 @@ instruction_ref insert_common_op(module& m,
                                  std::vector<instruction_ref> inputs);
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
+instruction_ref mul_with_alpha_beta(module& m,
+                                    const std::vector<instruction_ref>& args,
+                                    float alpha = 1.0,
+                                    float beta  = 0.0);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP

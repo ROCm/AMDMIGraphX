@@ -763,6 +763,22 @@ void program::remove_module(const std::string& name)
                impl->modules.at(name).end(),
                [&](auto&& ins) { return references_instruction(impl->modules, ins, name); }) &&
            "Instruction referenced in another module");
+
+    // if an instruction has an input out side of the current module, need to remove
+    // the instruction from its input's outputs
+    auto& mod = impl->modules.at(name);
+    for(auto ins : iterator_for(mod))
+    {
+        auto inputs = ins->inputs();
+        for(auto in : inputs)
+        {
+            if(not mod.has_instruction(in))
+            {
+                in->remove_output(ins);
+            }
+        }
+    }
+
     impl->modules.erase(name);
 }
 

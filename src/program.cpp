@@ -273,7 +273,7 @@ std::vector<argument> generic_eval(const program& p,
                                    migraphx::dynamic_loader dl,
                                    F trace)
 {
-    
+
     const module* mm = p.get_main_module();
     return generic_eval(mm, ctx, params, {}, trace);
 }
@@ -517,20 +517,20 @@ std::string perf_group(const operation& op)
 
 void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
 {
-    //dynamically load roctx
+    // dynamically load roctx
     std::filesystem::path fpt;
     fpt = "/opt/rocm/lib/libroctx64.so";
     migraphx::dynamic_loader libroctx{fpt};
 
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), true, libroctx, [](auto&&...) { return argument{}; });
+    generic_eval(
+        *this, ctx, std::move(params), true, libroctx, [](auto&&...) { return argument{}; });
 
     auto sym_roctxMarkA         = libroctx.get_function<void(const char*)>("roctxMarkA");
     auto sym_roctxRangeStartA   = libroctx.get_function<uint64_t>("roctxRangeStartA");
     auto sym_roctxRangePushA    = libroctx.get_function<int(const char*)>("roctxRangePushA");
     auto sym_roctxRangePop      = libroctx.get_function<int>("roctxRangePop");
     auto sym_roctxRangeStop     = libroctx.get_function<void(uint64_t>("roctxRangeStop");
-    
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
@@ -739,11 +739,12 @@ void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputItera
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(),
-                 m.end(),
-                 out,
-                 [&](auto&& pp) { return not contains(used, pp.first); },
-                 [](auto&& pp) { return &pp.second; });
+    transform_if(
+        m.begin(),
+        m.end(),
+        out,
+        [&](auto&& pp) { return not contains(used, pp.first); },
+        [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const

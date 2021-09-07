@@ -13,6 +13,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/dynamic_loader.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -263,6 +264,19 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, trace);
 }
 
+template <class F>
+std::vector<argument> generic_eval(const program& p,
+                                   context& ctx,
+                                   std::unordered_map<std::string, argument> params,
+                                   bool roctx_enable,
+                                   migraphx::dynamic_loader dl,
+                                   F trace)
+{
+    
+    const module* mm = p.get_main_module();
+    return generic_eval(mm, ctx, params, {}, trace);
+}
+
 std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
@@ -481,6 +495,24 @@ std::string perf_group(const operation& op)
     if(attr.contains("group"))
         return attr.at("group").to<std::string>();
     return op.name();
+}
+
+void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
+{
+    //dynamically load roctx
+    std::filesystem::path fpt;
+    fpt = "/opt/rocm/lib/libroctx64.so";
+    migraphx::dynamic_loader libroctx{fpt};
+
+    auto& ctx = this->impl->ctx;
+    generic_eval(*this, ctx, std::move(params), true, libroctx, [](auto&&...) { return argument{}; });
+
+    auto sym_roctxMarkA         = libroctx.get_function<void(const char*)>("roctxMarkA");
+    auto sym_roctxRangeStartA   = libroctx.get_function<uint64_t>("roctxRangeStartA");
+    auto sym_roctxRangePushA    = libroctx.get_function<int(const char*)>("roctxRangePushA");
+    auto sym_roctxRangePop      = libroctx.get_function<int>("roctxRangePop");
+    auto sym_roctxRangeStop     = libroctx.get_function<void(uint64_t>("roctxRangeStop");
+    
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const

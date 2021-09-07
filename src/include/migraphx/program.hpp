@@ -67,6 +67,8 @@ struct program
 
     void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
 
+    void trace(std::ostream& os,parameter_map params) const;
+
     value to_value() const;
     void from_value(const value& v);
 

@@ -45,6 +45,7 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 
 std::shared_ptr<void> dynamic_loader::get_symbol(const std::string& name) const
 {
+    dlerror();
     void* symbol = dlsym(impl->handle.get(), name.c_str());
     if(symbol == nullptr)
         MIGRAPHX_THROW("Symbol not found: " + name);

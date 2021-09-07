@@ -47,6 +47,8 @@ add_library(migraphx
     program.cpp
     propagate_constant.cpp
     quantization.cpp
+    quantize_fp16.cpp
+    quantize_int8.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp

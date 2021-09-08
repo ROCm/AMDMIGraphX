@@ -114,7 +114,7 @@ instruction_ref add_common_op(module& m, const operation& op, std::vector<instru
 }
 
 instruction_ref
-mul_with_alpha_beta(module& m, const std::vector<instruction_ref>& args, float alpha, float beta)
+dot_apply_alpha_beta(module& m, const std::vector<instruction_ref>& args, float alpha, float beta)
 {
     auto l1       = args[0];
     auto l2       = args[1];

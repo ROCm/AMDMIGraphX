@@ -483,7 +483,7 @@ TEST_CASE(gemm_3args)
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
         migraphx::shape c_shape{migraphx::shape::float_type, {3, 3}};
         auto cl = mm->add_literal(migraphx::literal{c_shape, c});
-        mm->add_instruction(migraphx::make_op("dot"), al, bl, cl);
+        migraphx::dot_apply_alpha_beta(*mm, {al, bl, cl}, 1, 1);
         std::vector<float> gold = {-1.60947,
                                    0.703083,
                                    -5.46156,

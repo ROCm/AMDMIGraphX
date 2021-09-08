@@ -18,15 +18,6 @@ namespace op {
 
 struct dot
 {
-    float alpha = 1.0;
-    float beta  = 0.0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
-    }
-
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
@@ -76,7 +67,7 @@ struct dot
         else
             result = argument{output_shape};
         visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, alpha, beta); });
+            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1, 0); });
         return result;
     }
 };

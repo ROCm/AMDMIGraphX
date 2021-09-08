@@ -24,7 +24,7 @@ instruction_ref add_common_op(module& m, const operation& op, std::vector<instru
 instruction_ref dot_apply_alpha_beta(module& m,
                                      const std::vector<instruction_ref>& args,
                                      float alpha = 1.0,
-                                     float beta  = 1.0);
+                                     float beta  = 0.0);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

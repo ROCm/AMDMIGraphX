@@ -486,7 +486,7 @@ struct perf : command<perf>
 struct trace : command<trace>
 {
     compiler c;
-    void parse(argument_parser& ap) { c.parse(ap); } //complained it could not find parse function here
+    void parse(argument_parser& ap) { c.parse(ap); }
 
     void run()
     {
@@ -495,7 +495,7 @@ struct trace : command<trace>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Invoking rocTX ... " << std::endl;
-        p.trace(std::cout, m); //add more variables if needed
+        p.trace(std::cout, m);
     }
 };
 

@@ -578,7 +578,6 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-//void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
 void program::trace(std::ostream& os, parameter_map params) const
 {
     //dynamically load roctx

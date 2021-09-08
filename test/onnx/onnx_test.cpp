@@ -2200,10 +2200,7 @@ TEST_CASE(min_test)
     optimize_onnx("min_test.onnx");
 }
 
-TEST_CASE(multinomial_test)
-{
-    optimize_onnx("multinomial_test.onnx");
-}
+TEST_CASE(multinomial_test) { optimize_onnx("multinomial_test.onnx"); }
 
 TEST_CASE(no_pad_test)
 {

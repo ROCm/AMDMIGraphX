@@ -2515,21 +2515,23 @@ def maxpool_same_upper_test():
 
 @onnx_test
 def multinomial_test():
-    sample_size = 10;
-    ax1 = np.array([-2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197])
+    sample_size = 10
+    ax1 = np.array([
+        -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197, -2.197,
+        -2.197
+    ])
     input = helper.make_tensor("input",
-                            data_type=TensorProto.FLOAT,
-                            dims=(1, 10),
-                            vals=ax1.astype(np.float32))
+                               data_type=TensorProto.FLOAT,
+                               dims=(1, 10),
+                               vals=ax1.astype(np.float32))
     i2 = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
-    output = helper.make_tensor_value_info("output", TensorProto.INT32, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
 
-    node = onnx.helper.make_node(
-        'Multinomial',
-        inputs=['input'],
-        sample_size=sample_size,
-        outputs = ['output']
-    )
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 outputs=['output'])
 
     return ([node], [i2], [output], [input])
 

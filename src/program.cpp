@@ -13,7 +13,6 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/context.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>

@@ -1,5 +1,4 @@
 
-#include <migraphx/module_ref.hpp>
 #include <migraphx/ref/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>

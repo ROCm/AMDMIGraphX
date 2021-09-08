@@ -128,8 +128,7 @@ dot_apply_alpha_beta(module& m, const std::vector<instruction_ref>& args, float 
             l1 = m.add_instruction(make_op("convert", {{"target_type", dot_type}}), l1);
         }
     }
-    auto dot_res =
-        m.add_instruction(migraphx::make_op("dot"), l1, l2);
+    auto dot_res = m.add_instruction(migraphx::make_op("dot"), l1, l2);
     if(args.size() == 3)
     {
         if(not float_equal(beta, 0.0f) && args[2]->get_shape().elements() > 0)

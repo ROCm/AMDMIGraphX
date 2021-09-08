@@ -89,7 +89,6 @@ struct match_find_quantizable_ops
                 return;
             if(qop_args.size() == 3)
                 qop_args.pop_back();
-            std::cout << "Inside qdq" << std::endl;
             dq = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }

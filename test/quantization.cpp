@@ -1014,7 +1014,6 @@ TEST_CASE(int8_quantization_dot)
             migraphx::quantize_int8(p, t, cali_data);
         }
         p.compile(t);
-        std::cout << "compiled prog: " << std::endl << p << std::endl;
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
@@ -1042,10 +1041,7 @@ TEST_CASE(int8_quantization_dot)
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
         auto r  = migraphx::dot_apply_alpha_beta(*mm, {pa, pb, pc}, 1, 1);
-        // auto r  = mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1}, {"beta", 1}}), pa,
-        // pb, pc);
         mm->add_return({r});
-        std::cout << "program :" << std::endl << p << std::endl;
         return p;
     };
 
@@ -1062,20 +1058,8 @@ TEST_CASE(int8_quantization_dot)
 
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
-        std::cout << "quant_results:" << std::endl;
-        for(const auto& i : quant_result)
-        {
-            std::cout << i << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "no_quant_results:" << std::endl;
-        for(const auto& i : no_quant_result)
-        {
-            std::cout << i << " ";
-        }
-        std::cout << std::endl;
 
-        EXPECT(migraphx::verify_range(quant_result, no_quant_result, 20000));
+        EXPECT(migraphx::verify_range(quant_result, no_quant_result, 30000));
     }
 }
 

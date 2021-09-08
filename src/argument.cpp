@@ -1,4 +1,3 @@
-#include <iterator>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <unordered_map>

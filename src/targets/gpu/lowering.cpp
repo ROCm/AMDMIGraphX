@@ -38,6 +38,7 @@
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/unary_not.hpp>
+#include <migraphx/gpu/where.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -150,6 +151,7 @@ struct miopen_apply
         add_generic_op("sub");
         add_generic_op("tan");
         add_generic_op("tanh");
+        add_generic_op("where");
 
         add_extend_op("abs");
         add_extend_op("argmax");

@@ -19,7 +19,7 @@ namespace op {
 struct dot
 {
     float alpha = 1.0;
-    float beta  = 1.0;
+    float beta  = 0.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

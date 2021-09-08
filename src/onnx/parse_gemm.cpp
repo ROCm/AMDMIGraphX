@@ -61,7 +61,7 @@ struct parse_gemm : op_parser<parse_gemm>
                       ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
                       : args[1];
 
-        auto ret = info.add_instruction(make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), l1, l2);
+        auto ret = info.add_instruction(make_op("dot"), l1, l2);
 
         if(args.size() == 3)
         {

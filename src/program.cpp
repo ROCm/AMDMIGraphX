@@ -274,16 +274,23 @@ void generic_eval(const program& p,
                                    F make_trace)
 {
     //load library
-    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{dyn_lib_path}; 
+    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{dyn_lib_path};
+
+    std::function<void(const char*)>        sym_roctxMarkA;      
+    std::function<uint64_t(const char*)>    sym_roctxRangeStartA;
+    std::function<int(const char*)>         sym_roctxRangePushA; 
+    std::function<int()>                    sym_roctxRangePop;   
+    std::function<void(uint64_t)>           sym_roctxRangeStop;
+    uint64_t rangeId = 0;  
 
     if (roctx_enable) //Will we ever have other dynamic libraries, should this be more generic?
     {
         std::cout << "rocTX: linking functions" << std::endl;
-        auto sym_roctxMarkA         = lib_loaded.get_function<void(const char*)>("roctxMarkA");
-        auto sym_roctxRangeStartA   = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
-        auto sym_roctxRangePushA    = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
-        auto sym_roctxRangePop      = lib_loaded.get_function<int()>("roctxRangePop");
-        auto sym_roctxRangeStop     = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
+        sym_roctxMarkA         = lib_loaded.get_function<void(const char*)>("roctxMarkA");
+        sym_roctxRangeStartA   = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
+        sym_roctxRangePushA    = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
+        sym_roctxRangePop      = lib_loaded.get_function<int()>("roctxRangePop");
+        sym_roctxRangeStop     = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
     }
     
     const module* mm = p.get_main_module(); //get module from program
@@ -297,7 +304,7 @@ void generic_eval(const program& p,
         const auto& name = ins->name(); //name of current instruction
         if(name != "@literal" || name != "@param" || name != "@outline" || name != "@return")
         {
-            std::cout << "rocTX: Operator: " << name << std::endl;
+            std::cout << "rocTX:\tOperator:\t" << name << std::endl;
             values.resize(ins->inputs().size()); //resize value vector for current input size
             std::transform(
                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
@@ -314,9 +321,10 @@ void generic_eval(const program& p,
             
             if(roctx_enable)
             {
-                //std::cout << "rocTX: Marker start: " << name << std::endl;
-
-
+                std::cout << "rocTX:\tMarker start:\t" << name << std::endl;
+                sym_roctxMarkA(("rocTX:\tMark:\t" + name).c_str()); 
+                rangeId = sym_roctxRangeStartA(("rocTX:\tRangeStart:\t" + name).c_str());
+                sym_roctxRangePushA(("roxTX:\tRangePush:\t" + name).c_str());
             }
             results.emplace(ins, trace(ins, [&] {
                                 return ins->normalized_operator().compute(
@@ -324,8 +332,9 @@ void generic_eval(const program& p,
                             })); //operation computation
             if(roctx_enable)
             {
-                //std::cout << "rocTX: Marker end: " << name << std::endl;
-
+                std::cout << "rocTX:\tMarker end:\t" << name << std::endl;
+                sym_roctxRangePop();
+                sym_roctxRangeStop(rangeId);
             }
         }
     }

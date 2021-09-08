@@ -267,22 +267,22 @@ std::vector<argument> generic_eval(const program& p,
 
 template <class F>
 void generic_eval(const program& p,
-                                   context& ctx,
-                                   std::unordered_map<instruction_ref, argument> results,
-                                   bool roctx_enable,
-                                   std::filesystem::path dyn_lib_path,
-                                   F make_trace)
+                                    context& ctx,
+                                    std::unordered_map<instruction_ref, argument> results,
+                                    bool roctx_enable,
+                                    std::filesystem::path dyn_lib_path,
+                                    F make_trace)
 {
-    //load library
+    // load library
     migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{dyn_lib_path};
-
+    // instantiate variables
     std::function<void(const char*)>        sym_roctxMarkA;      
     std::function<uint64_t(const char*)>    sym_roctxRangeStartA;
     std::function<int(const char*)>         sym_roctxRangePushA; 
     std::function<int()>                    sym_roctxRangePop;   
     std::function<void(uint64_t)>           sym_roctxRangeStop;
     uint64_t rangeId = 0;  
-
+    //check if rocTX enabled
     if (roctx_enable) //Will we ever have other dynamic libraries, should this be more generic?
     {
         std::cout << "rocTX: linking functions" << std::endl;
@@ -579,14 +579,18 @@ std::string perf_group(const operation& op)
 }
 
 //void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
-void program::trace(std::ostream& os) const
+void program::trace(std::ostream& os, parameter_map params) const
 {
     //dynamically load roctx
     std::filesystem::path fpt;
     fpt = "/opt/rocm/lib/libroctx64.so";
 
     os << "Initiating trace via rocTX..." << std::endl;
-    auto& ctx = this->impl->ctx;
+    auto& ctx = this->impl->ctx;    
+    // Run once by itself
+    eval(params);
+    ctx.finish();    
+    
     generic_eval(*this, ctx, {}, true, fpt, always([](auto&&...) { return argument{}; }));
  
 }

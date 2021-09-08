@@ -495,7 +495,7 @@ struct trace : command<trace>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Invoking rocTX ... " << std::endl;
-        p.trace(std::cout); //add more variables if needed
+        p.trace(std::cout, m); //add more variables if needed
     }
 };
 

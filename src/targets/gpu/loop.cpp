@@ -1,5 +1,3 @@
-#include "migraphx/gpu/hip.hpp"
-#include <iterator>
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>

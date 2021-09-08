@@ -1,10 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_LOOP_HPP
 #define MIGRAPHX_GUARD_OPERATORS_LOOP_HPP
 
-#include "migraphx/errors.hpp"
-#include "migraphx/raw_data.hpp"
-#include <array>
-#include <iterator>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>

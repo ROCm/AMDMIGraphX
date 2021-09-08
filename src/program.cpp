@@ -302,7 +302,8 @@ void generic_eval(const program& p,
     for(auto ins : iterator_for(*mm)) //iterate over everything in module
     {
         const auto& name = ins->name(); //name of current instruction
-        if(name != "@literal" || name != "@param" || name != "@outline" || name != "@return")
+        //if((name != "@literal") || (name != "@param") || (name != "@outline") || (name != "@return")// this did not work for param and return. maybe some trailing empty spaces..?
+        if((name.find("@literal") == std::string::npos) && (name.find("@param") == std::string::npos) && (name.find("@liteoutlineral") == std::string::npos) && (name.find("@return") == std::string::npos)) // this works
         {
             std::cout << "rocTX:\tOperator:\t" << name << std::endl;
             values.resize(ins->inputs().size()); //resize value vector for current input size

@@ -309,8 +309,9 @@ struct miopen_apply
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
-            auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
+            auto alpha                        = (name == "dot") ? 1 : op.alpha;
+            auto beta                         = (name == "dot") ? 0 : op.beta;
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
@@ -335,7 +336,7 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{alpha, beta}, int8_x4_format}, refs);
         });
     }
 

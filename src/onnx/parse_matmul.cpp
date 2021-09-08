@@ -66,9 +66,16 @@ struct parse_matmul : op_parser<parse_matmul>
                     make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), l1);
             }
         }
-
-        auto dot_res =
-            info.add_instruction(make_op(opd.op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        instruction_ref dot_res;
+        if(opd.op_name == "dot")
+        {
+            dot_res = info.add_instruction(make_op(opd.op_name), bl0, bl1);
+        }
+        else
+        {
+            dot_res =
+                info.add_instruction(make_op(opd.op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
+        }
         int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {

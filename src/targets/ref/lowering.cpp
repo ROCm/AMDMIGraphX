@@ -518,42 +518,12 @@ struct ref_gemm
         return migraphx::reflect(self.op, f);
     }
     std::string name() const { return "ref::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrices, and C is of the same shape as A * B
-        if(args.size() == 3)
-        {
-            // no need to consider the value of args[2]
-            if(op.beta == 0.0f)
-            {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            }
-            else
-            {
-                visit_all(result, args[2])([&](auto output, auto input) {
-                    std::copy(input.begin(), input.end(), output.begin());
-                });
-            }
-
-            migemm(result, args[0], args[1], op.alpha, op.beta);
-
-            return result;
-        }
-
-        // 2 input arguments
-        migemm(result, args[0], args[1], op.alpha, 0.0f);
+        migemm(result, args[0], args[1], 1.0f, 0.0f);
 
         return result;
     }

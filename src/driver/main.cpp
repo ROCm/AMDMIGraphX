@@ -479,7 +479,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m, false, nullptr);
+        p.perf_report(std::cout, n, m);
     }
 };
 
@@ -495,7 +495,7 @@ struct trace : command<trace>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Invoking rocTX ... " << std::endl;
-        p.trace(std::cout, m); //add more variables if needed
+        p.trace(std::cout); //add more variables if needed
     }
 };
 

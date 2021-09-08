@@ -266,69 +266,69 @@ std::vector<argument> generic_eval(const program& p,
 }
 
 template <class F>
-std::vector<argument> generic_eval(const program& p,
+void generic_eval(const program& p,
                                    context& ctx,
-                                   std::unordered_map<std::string, argument> params,
+                                   std::unordered_map<instruction_ref, argument> results,
                                    bool roctx_enable,
                                    std::filesystem::path dyn_lib_path,
                                    F make_trace)
 {
+    //load library
+    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{dyn_lib_path}; 
 
-    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{dyn_lib_path};
-
-    //if (roctx_enable) //Will we ever have other dynamic libraries, should this be more generic?
-    //{
-    auto sym_roctxMarkA         = lib_loaded.get_function<void(const char*)>("roctxMarkA");
-    auto sym_roctxRangeStartA   = lib_loaded.get_function<uint64_t>("roctxRangeStartA");
-    auto sym_roctxRangePushA    = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
-    auto sym_roctxRangePop      = lib_loaded.get_function<int>("roctxRangePop");
-    auto sym_roctxRangeStop     = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
-    //}
-    
-    const module* mm = p.get_main_module();
-    assert(mm->validate() == mm->end());
-    results.reserve(mm->size() * 2);
-    std::vector<argument> values;
-    values.reserve(16);
-    auto trace = make_trace(mm);
-    for(auto ins : iterator_for(*mm))
+    if (roctx_enable) //Will we ever have other dynamic libraries, should this be more generic?
     {
-        const auto& name = ins->name();
-        do
+        std::cout << "rocTX: linking functions" << std::endl;
+        auto sym_roctxMarkA         = lib_loaded.get_function<void(const char*)>("roctxMarkA");
+        auto sym_roctxRangeStartA   = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
+        auto sym_roctxRangePushA    = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
+        auto sym_roctxRangePop      = lib_loaded.get_function<int()>("roctxRangePop");
+        auto sym_roctxRangeStop     = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
+    }
+    
+    const module* mm = p.get_main_module(); //get module from program
+    assert(mm->validate() == mm->end()); //does what?
+    results.reserve(mm->size() * 2); //to contain at least this many elements for unordered map
+    std::vector<argument> values; //value vector
+    values.reserve(16);
+    auto trace = make_trace(mm); //always function defined in functional.hpp
+    for(auto ins : iterator_for(*mm)) //iterate over everything in module
+    {
+        const auto& name = ins->name(); //name of current instruction
+        if(name != "@literal" || name != "@param" || name != "@outline" || name != "@return")
         {
-            values.resize(ins->inputs().size());
+            std::cout << "rocTX: Operator: " << name << std::endl;
+            values.resize(ins->inputs().size()); //resize value vector for current input size
             std::transform(
                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
                     assert(results.find(i) != results.end());
                     return results[i];
-                });
+                }); //operation is applied to ins input begin and end, then copied to location of values.begin
 
-            const auto& mod_args = ins->module_inputs();
+            const auto& mod_args = ins->module_inputs(); //get arguments
+            
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, make_trace);
+                return generic_eval(smod, ctx, inputs, results, make_trace); //eval the operator
             };
+            
+            if(roctx_enable)
+            {
+                //std::cout << "rocTX: Marker start: " << name << std::endl;
 
+
+            }
             results.emplace(ins, trace(ins, [&] {
                                 return ins->normalized_operator().compute(
                                     ctx, ins->get_shape(), values, mod_args, module_eval);
-                            }));
-        } while (name != "@literal" || name != "@param" || name != "@outline" || name != "@return")
-    }
-    //return {results.at(std::prev(mod->end()))};
-}
+                            })); //operation computation
+            if(roctx_enable)
+            {
+                //std::cout << "rocTX: Marker end: " << name << std::endl;
 
-template <class F>
-std::vector<argument> generic_eval(const program& p,
-                                   context& ctx,
-                                   std::unordered_map<std::string, argument> params,
-                                   bool roctx_enable,
-                                   migraphx::dynamic_loader dl,
-                                   F trace)
-{
-    
-    const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, trace);
+            }
+        }
+    }
 }
 
 std::vector<argument> program::eval(parameter_map params) const
@@ -568,23 +568,17 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
+//void program::trace(std::ostream& os, std::unordered_map<std::string, argument> params) const
+void program::trace(std::ostream& os) const
 {
-
     //dynamically load roctx
     std::filesystem::path fpt;
     fpt = "/opt/rocm/lib/libroctx64.so";
-    migraphx::dynamic_loader libroctx{fpt};
 
+    os << "Initiating trace via rocTX..." << std::endl;
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), true, libroctx, [](auto&&...) { return argument{}; });
-
-    auto sym_roctxMarkA         = libroctx.get_function<void(const char*)>("roctxMarkA");
-    auto sym_roctxRangeStartA   = libroctx.get_function<uint64_t>("roctxRangeStartA");
-    auto sym_roctxRangePushA    = libroctx.get_function<int(const char*)>("roctxRangePushA");
-    auto sym_roctxRangePop      = libroctx.get_function<int>("roctxRangePop");
-    auto sym_roctxRangeStop     = libroctx.get_function<void(uint64_t>("roctxRangeStop");
-    
+    generic_eval(*this, ctx, {}, true, fpt, always([](auto&&...) { return argument{}; }));
+ 
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const

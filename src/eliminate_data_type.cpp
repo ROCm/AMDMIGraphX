@@ -1,5 +1,10 @@
+#include "migraphx/common.hpp"
+#include "migraphx/errors.hpp"
+#include "migraphx/float_equal.hpp"
+#include <cmath>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/op/quant_dot.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
@@ -30,7 +35,23 @@ void eliminate_data_type::apply(module& m) const
         auto attributes = op.attributes();
         if(attributes.contains("general_data_type"))
         {
-            op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+            if(ins->name() == "quant_dot")
+            {
+                // TODO(umang) : rewrite logic to support any alpha or beta values, dot doesn't
+                // accept alpha or beta values.
+                //              it should make use of dot_apply_alpha_beta to achieve same effect
+                float alpha = op.to_value()["alpha"].to<std::float_t>();
+                float beta  = op.to_value()["beta"].to<std::float_t>();
+                if(!float_equal(alpha, 1) or (!float_equal(beta, 0) and ins->inputs().size() > 2))
+                {
+                    MIGRAPHX_THROW("Quant_dot can't be converted into dot");
+                }
+                op = make_op(attributes["general_data_type"].to<std::string>());
+            }
+            else
+            {
+                op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+            }
         }
         auto old_type = ins->get_shape().type();
         auto out      = m.insert_instruction(ins, op, inputs);

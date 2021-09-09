@@ -51,7 +51,7 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(op.name == "dot")
+        if(!std::strcmp(op.name(), "dot"))
         {
             gemm(ctx, output_shape, args, 1, 0, int8_x4_format);
         }

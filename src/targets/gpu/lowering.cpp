@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -310,8 +311,12 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
-            auto alpha                        = (op.name() == "dot") ? 1 : op.alpha;
-            auto beta                         = (op.name() == "dot") ? 0 : op.beta;
+            auto alpha                        = (std::strcmp(op.name(), "dot") == 0)
+                             ? 1
+                             : migraphx::any_cast<op::quant_dot>(op).alpha;
+            auto beta = (std::strcmp(op.name(), "dot") == 0)
+                            ? 0
+                            : migraphx::any_cast<op::quant_dot>(op).beta;
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());

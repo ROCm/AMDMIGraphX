@@ -2,6 +2,7 @@
 #include "migraphx/errors.hpp"
 #include "migraphx/float_equal.hpp"
 #include <cmath>
+#include <cstdint>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/op/quant_dot.hpp>
@@ -37,14 +38,15 @@ void eliminate_data_type::apply(module& m) const
         {
             if(ins->name() == "quant_dot")
             {
-                // TODO(umang) : rewrite logic to support any alpha or beta values, dot doesn't
-                // accept alpha or beta values.
-                //              it should make use of dot_apply_alpha_beta to achieve same effect
-                float alpha = op.to_value()["alpha"].to<std::float_t>();
-                float beta  = op.to_value()["beta"].to<std::float_t>();
-                if(!float_equal(alpha, 1) or (!float_equal(beta, 0) and ins->inputs().size() > 2))
+                // TODO(umang) : rewrite logic to support any alpha or beta values. dot doesn't
+                // accept alpha or beta values. it should make use of dot_apply_alpha_beta to
+                // achieve same effect
+                auto alpha = op.to_value()["alpha"].to<std::int32_t>();
+                auto beta  = op.to_value()["beta"].to<std::int32_t>();
+                if((alpha != 1) or (beta != 0 and ins->inputs().size() > 2))
                 {
-                    MIGRAPHX_THROW("Quant_dot can't be converted into dot");
+                    MIGRAPHX_THROW("quant_dot can't be converted into dot for alpha and beta "
+                                   "values other than 1 and 0 respectively");
                 }
                 op = make_op(attributes["general_data_type"].to<std::string>());
             }

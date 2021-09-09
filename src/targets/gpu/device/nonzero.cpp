@@ -1,4 +1,3 @@
-#include "migraphx/gpu/device/visit.hpp"
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/nonzero.hpp>
@@ -7,6 +6,7 @@
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/float_equal.hpp>
 #include <migraphx/gpu/device/shape.hpp>
+#include <migraphx/gpu/device/visit.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,8 +36,7 @@ argument nonzero(hipStream_t stream,
                 *idx_ptr = index;
             });
         });
-        (void)hipDeviceSynchronize();
-        (void)hipMemcpy(&nonzero_num, idx_ptr, sizeof(int), hipMemcpyDeviceToHost);
+        (void)hipMemcpyAsync(&nonzero_num, idx_ptr, sizeof(int), hipMemcpyDeviceToHost, stream);
     });
 
     result.visit([&](auto output) {

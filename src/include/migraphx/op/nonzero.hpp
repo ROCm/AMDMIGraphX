@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_NONZERO_HPP
 #define MIGRAPHX_GUARD_OPERATORS_NONZERO_HPP
 
-#include "migraphx/shape_for_each.hpp"
+#include <migraphx/shape_for_each.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/float_equal.hpp>

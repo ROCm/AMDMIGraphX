@@ -2356,15 +2356,15 @@ def loop_default_test():
         helper.make_node("Add", ["a_sub_b_in", "a_sub_b_in"],
                          ["user_defined_vals"]),
     ], "body", [
-        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
-        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
-        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, []),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, []),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [])
     ], [
-        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
-        helper.make_tensor_value_info('a_sub_b_in', TensorProto.FLOAT, [1]),
-        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, []),
+        helper.make_tensor_value_info('a_sub_b_in', TensorProto.FLOAT, []),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, []),
         helper.make_tensor_value_info('user_defined_vals', TensorProto.FLOAT,
-                                      [1]),
+                                      []),
     ])
 
     node = helper.make_node(
@@ -2373,10 +2373,10 @@ def loop_default_test():
         outputs=["b_loop", "my_local_loop", "user_defined_vals_loop"],
         body=body)
 
-    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
-    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [])
 
-    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [1])
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [])
     uout = helper.make_tensor_value_info('user_defined_vals_loop',
                                          TensorProto.FLOAT, [2, 1])
 

@@ -89,11 +89,11 @@ TEST_CASE(loop_test)
         CHECK(bool{shapes_before.front() == shapes_after.front()});
 
         migraphx::program_parameters pp;
-        auto param_shapes = p.get_parameter_shapes();
-        auto aas           = param_shapes["a"];
+        auto param_shapes     = p.get_parameter_shapes();
+        auto aas              = param_shapes["a"];
         std::vector<float> xd = {1.0f};
         pp.add("a", migraphx::argument(aas, xd.data()));
-        auto bbs = param_shapes["b"];
+        auto bbs              = param_shapes["b"];
         std::vector<float> yd = {2.0};
         pp.add("b", migraphx::argument(bbs, yd.data()));
 
@@ -106,8 +106,8 @@ TEST_CASE(loop_test)
         std::vector<std::vector<float>> ret;
         ret.push_back({data_ptr, data_ptr + elem_num});
 
-        output = outputs[1];
-        lens    = output.get_shape().lengths();
+        output   = outputs[1];
+        lens     = output.get_shape().lengths();
         elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
         data_ptr = reinterpret_cast<float*>(output.data());
         ret.push_back({data_ptr, data_ptr + elem_num});
@@ -116,7 +116,7 @@ TEST_CASE(loop_test)
     };
 
     {
-        auto result_vector      = run_prog(10);
+        auto result_vector       = run_prog(10);
         std::vector<float> gold0 = {2.0f};
         EXPECT(result_vector.at(0) == gold0);
         std::vector<float> gold1 = {-2, 4, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -124,7 +124,7 @@ TEST_CASE(loop_test)
     }
 
     {
-        auto result_vector      = run_prog(15);
+        auto result_vector       = run_prog(15);
         std::vector<float> gold0 = {2.0f};
         EXPECT(result_vector.at(0) == gold0);
         std::vector<float> gold1 = {-2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};

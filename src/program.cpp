@@ -587,87 +587,30 @@ std::string perf_group(const operation& op)
 
 void program::trace(std::ostream& os, parameter_map params) const
 {
-    int n = 1;
-    // dynamically load roctx
-    std::filesystem::path fpt;
-    fpt = "/opt/rocm/lib/libroctx64.so";
-
-    os << "Initiating trace via rocTX..." << std::endl;
+    int n = 3; //collect marker information n times and average it. TODO: do this parameter later.
+    uint64_t rangeId = 0; //used as rocTX range number
     auto& ctx = this->impl->ctx;
     // Run once by itself
+    os << "rocTX:\tRunning once..." << std::endl;
     eval(params);
-    ctx.finish();
-
-    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt};
-    // instantiate variables
-    std::function<void(const char*)> sym_roctxMarkA;
-    std::function<uint64_t(const char*)> sym_roctxRangeStartA;
-    std::function<int(const char*)> sym_roctxRangePushA;
-    std::function<int()> sym_roctxRangePop;
-    std::function<void(uint64_t)> sym_roctxRangeStop;
-    uint64_t rangeId = 0;
-    // check if rocTX enabled
-    //if(roctx_enable) // Will we ever have other dynamic libraries, should this be more generic?
-    //{
-    std::cout << "rocTX: linking functions" << std::endl;
-    sym_roctxMarkA       = lib_loaded.get_function<void(const char*)>("roctxMarkA");
-    sym_roctxRangeStartA = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
-    sym_roctxRangePushA  = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
-    sym_roctxRangePop    = lib_loaded.get_function<int()>("roctxRangePop");
-    sym_roctxRangeStop   = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
-    //}
-
-    // Run and time entire program
-    std::vector<double> total_vec;
-    total_vec.reserve(n);
-    for(std::size_t i = 0; i < n; i++)
-    {
-        total_vec.push_back(time<milliseconds>([&] {
-            eval(params);
-            ctx.finish();
-        }));
-    }
-
-    // names
-    // std::unordered_map<instruction_ref, std::string> names;
-    // this->print(names, [&](auto ins, auto ins_names) {
-    //     instruction::print(nullptr, ins, ins_names);
-
-    //     // skip return instruction
-    //     // if(ins->name() == "@return")
-    //     //     return;
-
-    //     // double avg     = common_average(ins_vec[ins]);
-    //     // double percent = std::ceil(100.0 * avg / total_instruction_time);
-    //     // os << ": " << avg << "ms, " << percent << "%";
-    //     // os << std::endl;
-    // });
-
-    std::sort(total_vec.begin(), total_vec.end());
-    std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
+    ctx.finish();  
+    // dynamically load roctx
+    os << "rocTX:\tLoading rocTX library..." << std::endl;
+    std::filesystem::path fpt = "/opt/rocm/lib/libroctx64.so";
+    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt}; 
+    // Instantiate variables for functions.
+    os << "rocTX: linking functions" << std::endl;
+    std::function<void(const char*)> sym_roctxMarkA = lib_loaded.get_function<void(const char*)>("roctxMarkA");
+    std::function<uint64_t(const char*)> sym_roctxRangeStartA = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
+    std::function<int(const char*)> sym_roctxRangePushA = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
+    std::function<int()> sym_roctxRangePop = lib_loaded.get_function<int()>("roctxRangePop");
+    std::function<void(uint64_t)> sym_roctxRangeStop = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
+    // Fill the map
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec_roctx;
-    // Fill the map
-    generic_eval(*this, ctx, params, always([&](auto ins, auto) {
-        ins_vec[ins].reserve(n);
-        return argument{};
-    }));
-    // Fill the map
     generic_eval(*this, ctx, params, always([&](auto ins, auto) {
         ins_vec_roctx[ins].reserve(n);
         return argument{};
     }));
-    // Run and time each instruction
-    for(std::size_t i = 0; i < n; i++)
-    {
-        generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
-            argument result;
-            ins_vec[ins].push_back(time<milliseconds>([&] {
-                result = f();
-                ctx.finish();
-            }));
-            return result;
-        }));
-    }
     // Run and time each instruction with markers, once
     sym_roctxMarkA("rocTX: Marker");
     rangeId = sym_roctxRangeStartA("rocTX: RangeStart");

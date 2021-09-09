@@ -30,7 +30,6 @@ struct gpu_loop
     {
         argument arg_src{dst.get_shape(), &src};
         copy_to_gpu(ctx, arg_src, dst);
-        ctx.finish();
     }
 
     void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
@@ -52,7 +51,6 @@ struct gpu_loop
             assert(ss.bytes() + iter * size <= out.get_shape().bytes());
             device::fill(ctx.get_stream().get(), argument(ss, out.data() + iter * size), 0);
         }
-        ctx.finish();
     }
 };
 

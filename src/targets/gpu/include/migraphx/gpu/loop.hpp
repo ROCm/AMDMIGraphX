@@ -4,7 +4,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/op/loop.hpp>
-#include <migraphx/gpu/miopen.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

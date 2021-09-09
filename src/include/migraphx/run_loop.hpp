@@ -101,7 +101,6 @@ argument run_loop(const LoopModel& model,
 
         // copy back cond to be used next iteration
         model.copy(ctx, mod_args.at(0), cond);
-        ctx.finish();
 
         // mod outputs are used as next loop input
         std::copy(mod_args.begin(), mod_args.begin() + dep_num + 1, in_args.begin() + 1);

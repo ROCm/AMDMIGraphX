@@ -175,7 +175,6 @@ void copy_to_gpu(context& ctx, const argument& src, const argument& dst)
     }
     else
     {
-        std::cout << "non_standard_copy_to_gpu" << std::endl;
         gpu_copy(ctx, register_on_gpu(src), dst);
     }
 }
@@ -188,7 +187,6 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
     }
     else
     {
-        std::cout << "non_standard_copy_from_gpu" << std::endl;
         gpu_copy(ctx, src, register_on_gpu(dst));
     }
 }

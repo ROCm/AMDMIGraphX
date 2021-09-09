@@ -287,10 +287,11 @@ std::vector<argument> generic_eval(const program& p,
 //     {
 //         std::cout << "rocTX: linking functions" << std::endl;
 //         sym_roctxMarkA       = lib_loaded.get_function<void(const char*)>("roctxMarkA");
-//         sym_roctxRangeStartA = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
-//         sym_roctxRangePushA  = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
-//         sym_roctxRangePop    = lib_loaded.get_function<int()>("roctxRangePop");
-//         sym_roctxRangeStop   = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
+//         sym_roctxRangeStartA = lib_loaded.get_function<uint64_t(const
+//         char*)>("roctxRangeStartA"); sym_roctxRangePushA  = lib_loaded.get_function<int(const
+//         char*)>("roctxRangePushA"); sym_roctxRangePop    =
+//         lib_loaded.get_function<int()>("roctxRangePop"); sym_roctxRangeStop   =
+//         lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
 //     }
 
 //     const module* mm = p.get_main_module(); // get module from program
@@ -306,8 +307,8 @@ std::vector<argument> generic_eval(const program& p,
 //     {
 //         const auto& name = ins->name(); // name of current instruction
 //         // if((name != "@literal") || (name != "@param") || (name != "@outline") || (name !=
-//         // "@return")// this did not work for param and return. maybe some trailing empty spaces..?
-//         if((name.find("@literal") == std::string::npos) &&
+//         // "@return")// this did not work for param and return. maybe some trailing empty
+//         spaces..? if((name.find("@literal") == std::string::npos) &&
 //            (name.find("@param") == std::string::npos) &&
 //            (name.find("@liteoutlineral") == std::string::npos) &&
 //            (name.find("@return") == std::string::npos)) // this works
@@ -315,10 +316,12 @@ std::vector<argument> generic_eval(const program& p,
 //             std::cout << "rocTX:\tOperator:\t" << name << std::endl;
 //             values.resize(ins->inputs().size()); // resize value vector for current input size
 //             std::transform(
-//                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref i) {
+//                 ins->inputs().begin(), ins->inputs().end(), values.begin(), [&](instruction_ref
+//                 i) {
 //                     assert(results.find(i) != results.end());
 //                     return results[i];
-//                 }); // operation is applied to ins input begin and end, then copied to location of
+//                 }); // operation is applied to ins input begin and end, then copied to location
+//                 of
 //                     // values.begin
 
 //             const auto& mod_args = ins->module_inputs(); // get arguments
@@ -587,24 +590,28 @@ std::string perf_group(const operation& op)
 
 void program::trace(std::ostream& os, parameter_map params) const
 {
-    int n = 3; //collect marker information n times and average it. TODO: do this parameter later.
-    uint64_t rangeId = 0; //used as rocTX range number
-    auto& ctx = this->impl->ctx;
+    int n = 3; // collect marker information n times and average it. TODO: do this parameter later.
+    uint64_t rangeId = 0; // used as rocTX range number
+    auto& ctx        = this->impl->ctx;
     // Run once by itself
     os << "rocTX:\tRunning once..." << std::endl;
     eval(params);
-    ctx.finish();  
+    ctx.finish();
     // dynamically load roctx
     os << "rocTX:\tLoading rocTX library..." << std::endl;
-    std::filesystem::path fpt = "/opt/rocm/lib/libroctx64.so";
-    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt}; 
+    std::filesystem::path fpt           = "/opt/rocm/lib/libroctx64.so";
+    migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt};
     // Instantiate variables for functions.
     os << "rocTX: linking functions" << std::endl;
-    std::function<void(const char*)> sym_roctxMarkA = lib_loaded.get_function<void(const char*)>("roctxMarkA");
-    std::function<uint64_t(const char*)> sym_roctxRangeStartA = lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
-    std::function<int(const char*)> sym_roctxRangePushA = lib_loaded.get_function<int(const char*)>("roctxRangePushA");
+    std::function<void(const char*)> sym_roctxMarkA =
+        lib_loaded.get_function<void(const char*)>("roctxMarkA");
+    std::function<uint64_t(const char*)> sym_roctxRangeStartA =
+        lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
+    std::function<int(const char*)> sym_roctxRangePushA =
+        lib_loaded.get_function<int(const char*)>("roctxRangePushA");
     std::function<int()> sym_roctxRangePop = lib_loaded.get_function<int()>("roctxRangePop");
-    std::function<void(uint64_t)> sym_roctxRangeStop = lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
+    std::function<void(uint64_t)> sym_roctxRangeStop =
+        lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
     // Fill the map
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec_roctx;
     generic_eval(*this, ctx, params, always([&](auto ins, auto) {

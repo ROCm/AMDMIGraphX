@@ -17,21 +17,21 @@
 #include <utility>
 #include <random>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct multinomial
 {
-    int dtype = 6;
+    int dtype          = 6;
     size_t sample_size = 1;
-    float seed = 0.0f; // TODO: auto generate 
+    float seed         = 0.0f; // TODO: auto generate
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
+        return pack(
+            f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
     }
 
     std::string name() const { return "multinomial"; }
@@ -39,12 +39,13 @@ struct multinomial
     {
         check_shapes{inputs, *this}.has(1).only_dims(2);
 
-        if (dtype == 6)
+        if(dtype == 6)
             return {shape::int32_type, {inputs[0].lens()[0], sample_size}};
-        if (dtype == 7)
+        if(dtype == 7)
             return {shape::int64_type, {inputs[0].lens()[0], sample_size}};
-        else 
-            MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) + ". Valid types are 6 (INT32) and 7 (INT64).");
+        else
+            MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) +
+                           ". Valid types are 6 (INT32) and 7 (INT64).");
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -59,17 +60,22 @@ struct multinomial
             result.visit([&](auto output) {
                 par_for(batch_size, [&](auto i) {
                     auto* in_begin = input.data() + (i * class_size);
-                    auto* in_end = in_begin + class_size;
-                    auto max_iter = std::max_element(in_begin, in_end); // ORT checks for is_finite - needed?
-                    
+                    auto* in_end   = in_begin + class_size;
+                    auto max_iter =
+                        std::max_element(in_begin, in_end); // ORT checks for is_finite - needed?
+
                     std::vector<double> cdf(class_size);
-                    std::transform(in_begin, in_end, cdf.begin(), [&](auto logit) { return std::exp(logit - *max_iter); });
-                    std::partial_sum(cdf.begin(), cdf.end(), cdf.begin()); // ORT checks for is_finite - needed?
+                    std::transform(in_begin, in_end, cdf.begin(), [&](auto logit) {
+                        return std::exp(logit - *max_iter);
+                    });
+                    std::partial_sum(
+                        cdf.begin(), cdf.end(), cdf.begin()); // ORT checks for is_finite - needed?
 
                     auto* out_begin = output.data() + (i * sample_size);
-                    auto* out_end = out_begin + sample_size;
+                    auto* out_end   = out_begin + sample_size;
                     std::transform(out_begin, out_end, out_begin, [&](auto) {
-                        auto idx_iter = std::upper_bound(cdf.begin(), cdf.end(), dis(gen) * cdf.back());
+                        auto idx_iter =
+                            std::upper_bound(cdf.begin(), cdf.end(), dis(gen) * cdf.back());
                         return std::distance(cdf.begin(), idx_iter);
                     });
                 });

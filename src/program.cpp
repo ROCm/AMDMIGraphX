@@ -666,8 +666,9 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) { return argument{ins->get_shape(),
-                nullptr}; }));
+    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) {
+        return argument{ins->get_shape(), nullptr};
+    }));
 }
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const

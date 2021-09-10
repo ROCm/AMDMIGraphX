@@ -237,10 +237,10 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         // input not in initializer_data, so it is a real input
         if(!contains(mod_insts, name))
         {
-            // ONNX specification does not have a specification of the
-            // scenaro that a nested subgraph contains a parameter with the
-            // name existed in its parent graph. MIGraphX throws an exception
-            // for this scenario.
+            // ONNX specification does not specify hwo to deal with the
+            // scenario that a nested subgraph contains a parameter with the
+            // name existed in its parent graph. 
+            // In the current implementation, MIGraphX throws an exception for that.
             if(contains(instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +

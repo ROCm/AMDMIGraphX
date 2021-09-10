@@ -33,12 +33,13 @@ void eliminate_data_type::apply(module& m) const
         auto op         = ins->get_operator();
         auto attributes = op.attributes();
         auto old_type   = ins->get_shape().type();
+        auto val = op.to_value();
         if(attributes.contains("general_data_type"))
         {
             if(ins->name() == "quant_dot")
             {
-                auto alpha = op.to_value()["alpha"].to<std::float_t>();
-                auto beta  = op.to_value()["beta"].to<std::float_t>();
+                auto alpha = val.at("alpha").to<std::float_t>();
+                auto beta  = val.at("beta").to<std::float_t>();
                 auto dot_res =
                     migraphx::insert_add_dot_apply_alpha_beta(m, ins, inputs, alpha, beta);
                 auto convert = m.insert_instruction(
@@ -48,7 +49,7 @@ void eliminate_data_type::apply(module& m) const
             }
             else
             {
-                op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+                op = make_op(attributes["general_data_type"].to<std::string>(), val);
             }
         }
         auto out = m.insert_instruction(ins, op, inputs);

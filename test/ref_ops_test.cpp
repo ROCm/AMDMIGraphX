@@ -2705,12 +2705,16 @@ TEST_CASE(multinomial_correctness_test)
     std::vector<int> res_dist(5, 0);
     for(auto& r : result_vec)
         res_dist[r]++;
-    auto dist_sum = std::accumulate(dist.begin(), dist.end(), 0);
+    auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
     std::vector<float> norm(5);
     std::vector<float> res_norm(5);
-    std::transform(dist.begin(), dist.end(), norm.begin(), [&](auto n) { return static_cast<double>(n) / dist_sum; });
-    std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) { return static_cast<double>(n) / res_dist_sum; });
+    std::transform(dist.begin(), dist.end(), norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / dist_sum;
+    });
+    std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / res_dist_sum;
+    });
     EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }
 

@@ -35,8 +35,7 @@ struct gpu_loop
 
     void append(const std::vector<argument>&, const std::vector<argument>&, int) const {}
 
-    void
-    set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const
+    void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const
     {
         if(iter >= max_iterations)
             return;
@@ -70,10 +69,11 @@ struct gpu_loop
 
         const auto& param_names = m.get_parameter_names();
         std::unordered_map<std::string, int> result;
-        for (const auto& name : param_names)
+        for(const auto& name : param_names)
         {
             auto index = get_output_index(name);
-            if (index == -1) continue;
+            if(index == -1)
+                continue;
             result[name] = index;
         }
 

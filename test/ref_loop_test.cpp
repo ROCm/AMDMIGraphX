@@ -10,8 +10,8 @@
 
 #include "test.hpp"
 
-
-static auto run_prog(int64_t iter_num, bool cond, int64_t ini_val) {
+static auto run_prog(int64_t iter_num, bool cond, int64_t ini_val)
+{
     migraphx::shape si{migraphx::shape::int64_type};
     migraphx::shape s{migraphx::shape::int64_type, {1}};
     migraphx::shape sc{migraphx::shape::bool_type};

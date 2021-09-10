@@ -89,8 +89,7 @@ struct loop
             }
         }
 
-        void
-        set_zero(context&, const std::vector<argument>& concatenated_outputs, int iter) const
+        void set_zero(context&, const std::vector<argument>& concatenated_outputs, int iter) const
         {
             if(iter >= max_iterations)
                 return;
@@ -103,10 +102,7 @@ struct loop
             }
         }
 
-        std::unordered_map<std::string, int> get_output_params(const module&) const
-        {
-            return {};
-        }
+        std::unordered_map<std::string, int> get_output_params(const module&) const { return {}; }
     };
 
     argument compute(context& ctx,

@@ -22,8 +22,8 @@ struct rocblas_gemm
 {
     Op op;
     bool int8_x4_format = true;
-    float alpha = 1.0;
-    float beta = 0.0;
+    float alpha         = 1.0;
+    float beta          = 0.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -86,7 +86,6 @@ struct rocblas_gemm
         return shapes.size() - 1;
     }
 };
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

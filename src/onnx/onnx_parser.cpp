@@ -238,12 +238,13 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         if(!contains(mod_insts, name))
         {
             // ONNX specification does not have a specification of the
-            // scenaro that a nested subgraph contains a parameter with the 
+            // scenaro that a nested subgraph contains a parameter with the
             // name existed in its parent graph. MIGraphX throws an exception
             // for this scenario.
             if(contains(instructions, name))
             {
-                MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name + "\" existing in paraent graph!");
+                MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
+                               "\" existing in paraent graph!");
             }
 
             std::vector<std::size_t> dims;

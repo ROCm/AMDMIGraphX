@@ -311,7 +311,7 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
-            auto beta = op.beta;
+            auto beta                         = op.beta;
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
@@ -335,12 +335,16 @@ struct miopen_apply
                 }
             }
 
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format, static_cast<float>(op.alpha), static_cast<float>(beta)}, refs);
-        }); 
+            return mod->replace_instruction(ins,
+                                            rocblas_gemm<Op>{Op{op.alpha, beta},
+                                                             int8_x4_format,
+                                                             static_cast<float>(op.alpha),
+                                                             static_cast<float>(beta)},
+                                            refs);
+        });
     };
-    
 
-    template<> 
+    template <>
     void add_gemm_op<op::dot>(std::string name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -370,8 +374,6 @@ struct miopen_apply
                 ins, rocblas_gemm<op::dot>{op::dot{}, int8_x4_format, 1, 0}, refs);
         });
     }
-
-
 
     void add_quant_convolution_op()
     {

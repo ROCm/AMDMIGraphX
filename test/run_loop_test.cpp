@@ -48,7 +48,8 @@ struct test_loop_op
 
     std::string name() const { return "test_loop_op"; }
 
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs, std::vector<migraphx::module_ref> mods) const
+    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs,
+                                  std::vector<migraphx::module_ref> mods) const
     {
         migraphx::check_shapes{inputs, *this}.standard();
         if(mods.size() != 1)
@@ -62,7 +63,7 @@ struct test_loop_op
         // first two names -- iter_num and cond_var -- are not counted
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<migraphx::shape> ins_out_shapes(mod_out_shapes.begin(),
-                                          mod_out_shapes.begin() + dep_param_num);
+                                                    mod_out_shapes.begin() + dep_param_num);
         mod_out_shapes.erase(mod_out_shapes.begin(), mod_out_shapes.begin() + dep_param_num);
         for(const auto& out_s : mod_out_shapes)
         {
@@ -108,7 +109,9 @@ struct test_loop_op
             }
         }
 
-        void set_zero(migraphx::context&, const std::vector<migraphx::argument>& concatenated_outputs, int iter) const
+        void set_zero(migraphx::context&,
+                      const std::vector<migraphx::argument>& concatenated_outputs,
+                      int iter) const
         {
             if(iter >= max_iterations)
                 return;
@@ -149,12 +152,14 @@ struct test_loop_op
         }
     };
 
-    migraphx::argument compute(migraphx::context& ctx,
-                     const migraphx::shape& out_shape,
-                     const std::vector<migraphx::argument>& args,
-                     const std::vector<migraphx::module_ref>& mods,
-                     const std::function<std::vector<migraphx::argument>(
-                         migraphx::module_ref&, const std::unordered_map<std::string, migraphx::argument>&)>& run) const
+    migraphx::argument
+    compute(migraphx::context& ctx,
+            const migraphx::shape& out_shape,
+            const std::vector<migraphx::argument>& args,
+            const std::vector<migraphx::module_ref>& mods,
+            const std::function<std::vector<migraphx::argument>(
+                migraphx::module_ref&, const std::unordered_map<std::string, migraphx::argument>&)>&
+                run) const
     {
         // wrap up the arguments vector, so ref and gpu impl are the same
         auto cpy_args = args;
@@ -175,8 +180,7 @@ struct test_loop_op
     }
 };
 
-
-static auto create_program(int64_t max_loop_iterations = 10) 
+static auto create_program(int64_t max_loop_iterations = 10)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -199,15 +203,18 @@ static auto create_program(int64_t max_loop_iterations = 10)
     auto eq                 = body->add_instruction(migraphx::make_op("equal"), iter, l);
     auto beq                = body->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
-    auto neq = body->add_instruction(migraphx::make_op("not"), beq);
+    auto neq                     = body->add_instruction(migraphx::make_op("not"), beq);
     std::string out_param_prefix = "loop_module:#output_";
-    auto out0 = body->add_parameter(out_param_prefix+std::to_string(0), neq->get_shape());;
+    auto out0 = body->add_parameter(out_param_prefix + std::to_string(0), neq->get_shape());
+    ;
     auto r_neq = body->add_instruction(copy_op{}, neq, out0);
-    auto out2 = body->add_parameter(out_param_prefix+std::to_string(2), val->get_shape());;
+    auto out2  = body->add_parameter(out_param_prefix + std::to_string(2), val->get_shape());
+    ;
     auto r_val = body->add_instruction(copy_op{}, val, out2);
     body->add_return({r_neq, r_val, r_val});
 
-    auto rl = mm->add_instruction(test_loop_op{max_loop_iterations}, {in_iter, in_cond, in_val}, {body});
+    auto rl =
+        mm->add_instruction(test_loop_op{max_loop_iterations}, {in_iter, in_cond, in_val}, {body});
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl);
     mm->add_return({r0, r1});
@@ -241,7 +248,7 @@ static auto run_prog(migraphx::program p, int64_t iter_num, bool cond, int64_t i
 
 TEST_CASE(loop_test1)
 {
-    auto p = create_program();
+    auto p                         = create_program();
     auto ress                      = run_prog(p, 10, true, 1);
     std::vector<int64_t> gold_last = {19};
     EXPECT(ress.front() == gold_last);
@@ -251,7 +258,7 @@ TEST_CASE(loop_test1)
 
 TEST_CASE(loop_test2)
 {
-    auto p = create_program(12);
+    auto p                         = create_program(12);
     auto ress                      = run_prog(p, 4, true, 1);
     std::vector<int64_t> gold_last = {19};
     EXPECT(ress.front() == gold_last);
@@ -261,7 +268,7 @@ TEST_CASE(loop_test2)
 
 TEST_CASE(loop_test3)
 {
-    auto p = create_program(3);
+    auto p                         = create_program(3);
     auto ress                      = run_prog(p, 3, true, 1);
     std::vector<int64_t> gold_last = {13};
     EXPECT(ress.front() == gold_last);
@@ -271,11 +278,12 @@ TEST_CASE(loop_test3)
 
 TEST_CASE(loop_test4)
 {
-    auto p = create_program(20);
+    auto p                         = create_program(20);
     auto ress                      = run_prog(p, 5, true, 2);
     std::vector<int64_t> gold_last = {20};
     EXPECT(ress.front() == gold_last);
-    std::vector<int64_t> gold_concat = {5, 9, 14, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold_concat = {5, 9, 14, 20, 0, 0, 0, 0, 0, 0,
+                                        0, 0, 0,  0,  0, 0, 0, 0, 0, 0};
     EXPECT(ress.back() == gold_concat);
 }
 

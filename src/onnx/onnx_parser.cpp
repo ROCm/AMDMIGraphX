@@ -239,7 +239,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         {
             // ONNX specification does not specify hwo to deal with the
             // scenario that a nested subgraph contains a parameter with the
-            // name existed in its parent graph. 
+            // name existed in its parent graph.
             // In the current implementation, MIGraphX throws an exception for that.
             if(contains(instructions, name))
             {

@@ -1031,6 +1031,22 @@ def depthtospace_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def depthtospace_crd_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2,8,5,5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2,2,10,10])
+    
+    node = onnx.helper.make_node(
+        'DepthToSpace',
+        inputs=['x'],
+        outputs=['y'],
+        blocksize=2,
+        mode='CRD'
+    )
+
+    return ([node], [x], [y])
+
 
 
 

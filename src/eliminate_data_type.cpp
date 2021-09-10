@@ -35,7 +35,7 @@ void eliminate_data_type::apply(module& m) const
         auto op         = ins->get_operator();
         auto attributes = op.attributes();
         auto old_type   = ins->get_shape().type();
-        auto val = op.to_value();
+        auto val        = op.to_value();
         if(attributes.contains("general_data_type"))
         {
             if(ins->name() == "quant_dot")

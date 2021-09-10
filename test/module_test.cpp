@@ -280,22 +280,17 @@ TEST_CASE(parameter_name_order)
 struct check_for_pass_op
 {
     bool* found = nullptr;
-    std::string name() const
-    {
-        return "check_for_pass_op";
-    }
+    std::string name() const { return "check_for_pass_op"; }
     void apply(migraphx::module& m) const
     {
-        *found |= std::any_of(m.begin(), m.end(), [](auto&& ins) {
-            return ins.name() == "pass";
-        });
+        *found |= std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "pass"; });
     }
 };
 
 TEST_CASE(module_bypass)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
     sub->set_bypass();
     sub->add_instruction(pass_op{});
@@ -308,7 +303,7 @@ TEST_CASE(module_bypass)
 TEST_CASE(module_without_bypass)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm  = p.get_main_module();
     auto* sub = p.create_module("sub");
     sub->add_instruction(pass_op{});
     mm->add_instruction(mod_pass_op{}, {}, {sub});

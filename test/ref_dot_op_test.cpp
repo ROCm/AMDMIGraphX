@@ -362,13 +362,13 @@ TEST_CASE(gemm_mutli_dim1_2_3)
                              0.49759611,  0.10021662,  0.00592602,  0.90862000};
     migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
 
-    auto l1     = mm->add_literal(migraphx::literal{m1_shape, m1});
-    auto l2     = mm->add_literal(migraphx::literal{m2_shape, m2});
-    auto l3     = mm->add_literal(migraphx::literal{m3_shape, m3});
-    float alpha = 0.35;
-    float beta  = 0.41;
-    auto m12_alpha =
-        migraphx::add_dot_apply_alpha_beta(*mm, std::vector<migraphx::instruction_ref>{l1, l2}, alpha);
+    auto l1        = mm->add_literal(migraphx::literal{m1_shape, m1});
+    auto l2        = mm->add_literal(migraphx::literal{m2_shape, m2});
+    auto l3        = mm->add_literal(migraphx::literal{m3_shape, m3});
+    float alpha    = 0.35;
+    float beta     = 0.41;
+    auto m12_alpha = migraphx::add_dot_apply_alpha_beta(
+        *mm, std::vector<migraphx::instruction_ref>{l1, l2}, alpha);
     auto l_beta = mm->add_literal(beta);
     auto b_beta = mm->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", m12_alpha->get_shape().lens()}}), l_beta);
@@ -639,7 +639,8 @@ TEST_CASE(matmul_vm)
         migraphx::shape b_shape{migraphx::shape::float_type, {8, 5}};
         auto bl     = mm->add_literal(migraphx::literal{b_shape, b});
         float alpha = 0.5f;
-        migraphx::add_dot_apply_alpha_beta(*mm, std::vector<migraphx::instruction_ref>{ual, bl}, alpha);
+        migraphx::add_dot_apply_alpha_beta(
+            *mm, std::vector<migraphx::instruction_ref>{ual, bl}, alpha);
         std::vector<float> gold = {-1.89056, -1.70003, -1.0986, -1.65724, -1.90163};
 
         p.compile(migraphx::ref::target{});
@@ -811,7 +812,8 @@ TEST_CASE(matmul_mv)
         auto bl     = mm->add_literal(migraphx::literal{b_shape, b});
         auto ubl    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bl);
         float alpha = 0.3f;
-        migraphx::add_dot_apply_alpha_beta(*mm, std::vector<migraphx::instruction_ref>{al, ubl}, alpha);
+        migraphx::add_dot_apply_alpha_beta(
+            *mm, std::vector<migraphx::instruction_ref>{al, ubl}, alpha);
         std::vector<float> gold = {0.395946, 0.357067, -0.588187};
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

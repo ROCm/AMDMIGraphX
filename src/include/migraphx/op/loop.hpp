@@ -73,7 +73,7 @@ struct loop
 
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
-                    const int iter) const
+                    int iter) const
         {
             assert(iter_state.size() == concatenated_outputs.size());
             for(auto i : range(iter_state.size()))
@@ -90,7 +90,7 @@ struct loop
         }
 
         void
-        set_zero(context&, const std::vector<argument>& concatenated_outputs, const int iter) const
+        set_zero(context&, const std::vector<argument>& concatenated_outputs, int iter) const
         {
             if(iter >= max_iterations)
                 return;
@@ -101,6 +101,11 @@ struct loop
                 auto size = s.bytes() / max_iterations;
                 std::fill(out.data() + iter * size, out.data() + max_iterations * size, 0);
             }
+        }
+
+        std::unordered_map<std::string, int> get_output_params(const module&) const
+        {
+            return {};
         }
     };
 

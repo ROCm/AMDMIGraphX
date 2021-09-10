@@ -1,13 +1,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 
-#include <string>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/ranges.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -20,18 +21,6 @@ argument run_loop(const LoopModel& model,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run)
 {
-    auto get_output_index = [](const std::string& name) {
-        std::string out_prefix = "#output_";
-        auto loc               = name.find(out_prefix);
-        if(loc != std::string::npos)
-        {
-            int index = std::stoi(name.substr(loc + out_prefix.size()));
-            return index;
-        }
-
-        return -1;
-    };
-
     std::vector<std::vector<argument>> results;
     // process argu lists
     auto iter_num = args.at(0).at<int64_t>();
@@ -58,6 +47,8 @@ argument run_loop(const LoopModel& model,
     out_args.insert(out_args.end(), ins_outputs.begin() + dep_num, ins_outputs.end());
     std::vector<argument> scan_outputs(ins_outputs.begin() + dep_num, ins_outputs.end());
 
+    auto out_param_indices = model.get_output_params(*mod);
+
     int64_t iter = 0;
     for(iter = 0; iter < iter_num and cond; ++iter)
     {
@@ -76,14 +67,14 @@ argument run_loop(const LoopModel& model,
                 continue;
             }
 
-            auto output_index = get_output_index(name);
             // it is an input parameter
-            if(output_index == -1)
+            if(not contains(out_param_indices, name))
             {
                 params[name] = in_args.at(input_index++);
             }
             else
             {
+                auto output_index = out_param_indices[name];
                 if(output_index > dep_num)
                 {
                     const auto& arg = out_args.at(output_index);

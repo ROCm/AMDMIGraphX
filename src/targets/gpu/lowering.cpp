@@ -482,7 +482,7 @@ struct miopen_apply
             auto cpu_cond =
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
             auto synced_max_iter =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter);
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
             inputs.at(0)     = synced_max_iter;
             inputs.at(1)     = cpu_cond;
             auto copy_inputs = inputs;

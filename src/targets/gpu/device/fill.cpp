@@ -6,7 +6,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void fill(hipStream_t stream, const argument& result, const unsigned long& val)
+void fill(hipStream_t stream, const argument& result, unsigned long val)
 {
     nary(stream, result)([=]() __device__ { return val; });
 }

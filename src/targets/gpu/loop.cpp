@@ -2,6 +2,7 @@
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/fill.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -32,10 +33,10 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
-    void append(const std::vector<argument>&, const std::vector<argument>&, const int) const {}
+    void append(const std::vector<argument>&, const std::vector<argument>&, int) const {}
 
     void
-    set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, const int iter) const
+    set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const
     {
         if(iter >= max_iterations)
             return;
@@ -51,6 +52,32 @@ struct gpu_loop
             assert(ss.bytes() + iter * size <= out.get_shape().bytes());
             device::fill(ctx.get_stream().get(), argument(ss, out.data() + iter * size), 0);
         }
+    }
+
+    std::unordered_map<std::string, int> get_output_params(const module& m) const
+    {
+        auto get_output_index = [](const std::string& name) {
+            std::string out_prefix = "#output_";
+            auto loc               = name.find(out_prefix);
+            if(loc != std::string::npos)
+            {
+                int index = std::stoi(name.substr(loc + out_prefix.size()));
+                return index;
+            }
+
+            return -1;
+        };
+
+        const auto& param_names = m.get_parameter_names();
+        std::unordered_map<std::string, int> result;
+        for (const auto& name : param_names)
+        {
+            auto index = get_output_index(name);
+            if (index == -1) continue;
+            result[name] = index;
+        }
+
+        return result;
     }
 };
 

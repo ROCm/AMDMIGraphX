@@ -2228,7 +2228,7 @@ migraphx::program inceptionv3(unsigned batch) // NOLINT(readability-function-siz
     auto mx798                    = mm->add_instruction(multibroadcast798, mx0);
     float dot799_alpha            = 1;
     float dot799_beta             = 1;
-    migraphx::dot_apply_alpha_beta(*mm, {mx796, mx797, mx798}, dot799_alpha, dot799_beta);
+    migraphx::add_dot_apply_alpha_beta(*mm, {mx796, mx797, mx798}, dot799_alpha, dot799_beta);
 
     return p;
 }

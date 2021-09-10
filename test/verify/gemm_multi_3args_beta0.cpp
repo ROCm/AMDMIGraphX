@@ -20,7 +20,7 @@ struct gemm_multi_3args_beta0 : verify_program<gemm_multi_3args_beta0>
 
         float alpha = 1.0f;
         float beta  = 0.0f;
-        migraphx::dot_apply_alpha_beta(*mm, {l1, l2, l3}, alpha, beta);
+        migraphx::add_dot_apply_alpha_beta(*mm, {l1, l2, l3}, alpha, beta);
         return p;
     }
 };

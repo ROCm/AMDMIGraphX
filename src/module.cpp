@@ -28,6 +28,7 @@ struct module_impl
     std::unordered_set<instruction*> instruction_set;
     std::string name;
     uint32_t nparams = 0;
+    bool bypass = false;
 
     bool contains(instruction_ref ins) const
     {
@@ -99,6 +100,15 @@ module& module::operator=(module m)
 }
 
 std::string module::name() const { return impl->name; }
+
+bool module::bypass() const
+{
+    return impl->bypass;
+}
+void module::set_bypass(bool b)
+{
+    impl->bypass = b;
+}
 
 void module::assign(const module& m)
 {

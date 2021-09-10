@@ -2056,7 +2056,7 @@ TEST_CASE(loop_test)
     migraphx::shape si{migraphx::shape::int64_type, {1}};
     auto max_iter = mm->add_parameter("max_trip_count", si);
     migraphx::shape sc{migraphx::shape::bool_type, {1}};
-    auto icond = mm->add_parameter("keep_going_inp", sc);
+    auto icond = mm->add_parameter("keep_going_cond", sc);
     migraphx::shape su{migraphx::shape::float_type, {1}};
     auto a = mm->add_parameter("a", su);
     auto b = mm->add_parameter("b", su);

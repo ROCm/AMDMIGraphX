@@ -237,6 +237,15 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         // input not in initializer_data, so it is a real input
         if(!contains(mod_insts, name))
         {
+            // ONNX specification does not have a specification of the
+            // scenaro that a nested subgraph contains a parameter with the 
+            // name existed in its parent graph. MIGraphX throws an exception
+            // for this scenario.
+            if(contains(instructions, name))
+            {
+                MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name + "\" existing in paraent graph!");
+            }
+
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
@@ -248,17 +257,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
     }
 
-    // backup parameters/literals with the same names as that in
-    // the parent module
-    std::unordered_map<std::string, instruction_ref> pmod_insts_bkup;
-    for(auto& ins_p : mod_insts)
-    {
-        if(contains(instructions, ins_p.first))
-        {
-            pmod_insts_bkup[ins_p.first] = instructions[ins_p.first];
-        }
-        instructions[ins_p.first] = ins_p.second;
-    }
+    std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {
@@ -326,9 +325,6 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     // remove instructions added in this mod
     erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
-    std::copy(pmod_insts_bkup.begin(),
-              pmod_insts_bkup.end(),
-              std::inserter(instructions, instructions.end()));
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

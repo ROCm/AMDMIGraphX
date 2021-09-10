@@ -2406,13 +2406,13 @@ def loop_test():
 
     node = helper.make_node(
         "Loop",
-        inputs=["max_trip_count", "keep_going_inp", "b"],
+        inputs=["max_trip_count", "keep_going_cond", "b"],
         outputs=["b_loop", "my_local_loop", "user_defined_vals_loop"],
         body=body)
 
     a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
     b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
-    cond = helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL,
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
                                          [1])
     iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
                                          [1])

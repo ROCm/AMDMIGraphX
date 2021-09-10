@@ -1,7 +1,7 @@
-	loop_test:ê
-¾
+	loop_test:ì
+¿
 max_trip_count
-keep_going_inp
+keep_going_cond
 bb_loopmy_local_loopuser_defined_vals_loop"Loop*ã
 body2×
 
@@ -54,8 +54,8 @@ a_sub_b_in
 max_trip_count
 
 
-Z
-keep_going_inp
+Z
+keep_going_cond
 
 	
 Z

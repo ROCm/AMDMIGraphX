@@ -311,12 +311,10 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
-            auto alpha                        = starts_with(op.name(), "dot")
-                             ? 1
-                             : migraphx::any_cast<op::quant_dot>(op).alpha;
-            auto beta = starts_with(op.name(), "dot") 
-                            ? 0
-                            : migraphx::any_cast<op::quant_dot>(op).beta;
+            auto alpha =
+                starts_with(op.name(), "dot") ? 1 : migraphx::any_cast<op::quant_dot>(op).alpha;
+            auto beta =
+                starts_with(op.name(), "dot") ? 0 : migraphx::any_cast<op::quant_dot>(op).beta;
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());

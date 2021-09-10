@@ -122,7 +122,7 @@ instruction_ref insert_add_dot_apply_alpha_beta(module& m,
     auto l1       = args[0];
     auto l2       = args[1];
     auto dot_type = l1->get_shape().type();
-    if(alpha != 1.0f)
+    if(!float_equal(alpha, 1.0f))
     {
         auto alpha_literal = m.add_literal(alpha);
         l1                 = add_common_op(m, migraphx::make_op("mul"), {alpha_literal, l1});

@@ -4,6 +4,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/value.hpp>
 
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -309,10 +311,7 @@ struct miopen_apply
         apply_map.emplace(name, [=](instruction_ref ins) {
             auto&& op                         = any_cast<Op>(ins->get_operator());
             std::vector<instruction_ref> refs = ins->inputs();
-            auto alpha =
-                starts_with(op.name(), "dot") ? 1 : migraphx::any_cast<op::quant_dot>(op).alpha;
-            auto beta =
-                starts_with(op.name(), "dot") ? 0 : migraphx::any_cast<op::quant_dot>(op).beta;
+            auto beta = op.beta;
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
@@ -336,10 +335,43 @@ struct miopen_apply
                 }
             }
 
+            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format, static_cast<float>(op.alpha), static_cast<float>(beta)}, refs);
+        }); 
+    };
+    
+
+    template<> 
+    void add_gemm_op<op::dot>(std::string name)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            std::vector<instruction_ref> refs = ins->inputs();
+            if(refs.size() == 2)
+            {
+                auto output = insert_allocation(ins, ins->get_shape());
+                refs.push_back(output);
+            }
+            else
+            {
+                auto c_alias = instruction::get_output_alias(refs.back());
+                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
+                {
+                    auto output = insert_allocation(ins, ins->get_shape());
+                    auto copy_out =
+                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
+                    refs.back() = copy_out;
+                    refs.push_back(copy_out);
+                }
+                else
+                {
+                    refs.push_back(refs.back());
+                }
+            }
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{alpha, beta}, int8_x4_format}, refs);
+                ins, rocblas_gemm<op::dot>{op::dot{}, int8_x4_format, 1, 0}, refs);
         });
     }
+
+
 
     void add_quant_convolution_op()
     {

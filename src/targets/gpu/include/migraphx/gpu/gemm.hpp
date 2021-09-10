@@ -1,6 +1,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
 
+#include <migraphx/operation.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -20,6 +22,8 @@ struct rocblas_gemm
 {
     Op op;
     bool int8_x4_format = true;
+    float alpha = 1.0;
+    float beta = 0.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -51,14 +55,7 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(starts_with(op.name(), "dot"))
-        {
-            gemm(ctx, output_shape, args, 1, 0, int8_x4_format);
-        }
-        else
-        {
-            gemm(ctx, output_shape, args, op.alpha, op.beta, int8_x4_format);
-        }
+        gemm(ctx, output_shape, args, alpha, beta, int8_x4_format);
         return args.back();
     }
 
@@ -89,6 +86,7 @@ struct rocblas_gemm
         return shapes.size() - 1;
     }
 };
+
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

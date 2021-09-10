@@ -2687,30 +2687,31 @@ TEST_CASE(mul_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(multinomial_default_test)
+TEST_CASE(multinomial_correctness_test)
 {
     migraphx::program p;
     auto* mm        = p.get_main_module();
-    int sample_size = 20;
-    migraphx::shape s{migraphx::shape::float_type, {2, 5}};
-    std::vector<float> data{
-        1.60944, 0.693147, 2.30259, 2.63906, 1.94591, 2.30259, 2.30259, 1.60944, 1.60944, 3.4012};
+    int sample_size = 100000;
+    migraphx::shape s{migraphx::shape::float_type, {1, 5}};
+    std::vector<int> dist{1500, 2500, 1500, 2500, 2000};
+    std::vector<float> data(5);
+    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
     auto input = mm->add_literal(migraphx::literal(s, data));
     mm->add_instruction(migraphx::make_op("multinomial", {{"sample_size", sample_size}}), input);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
-    std::vector<int32_t> result_vec(10);
+    std::vector<int32_t> result_vec(sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
-    int i = 0;
+    std::vector<int> res_dist(5, 0);
     for(auto& r : result_vec)
-    {
-        std::cout << r;
-        if(++i % sample_size)
-            std::cout << ", ";
-        else
-            std::cout << std::endl;
-    }
-    std::cout << std::endl;
+        res_dist[r]++;
+    auto dist_sum = std::accumulate(dist.begin(), dist.end(), 0);
+    auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
+    std::vector<float> norm(5);
+    std::vector<float> res_norm(5);
+    std::transform(dist.begin(), dist.end(), norm.begin(), [&](auto n) { return static_cast<double>(n) / dist_sum; });
+    std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) { return static_cast<double>(n) / res_dist_sum; });
+    EXPECT(migraphx::verify_range(norm, res_norm, 100000));
 }
 
 TEST_CASE(neg_test)

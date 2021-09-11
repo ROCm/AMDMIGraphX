@@ -62,7 +62,7 @@ struct test_loop_op
         auto mod_out_shapes = mod->get_output_shapes();
         auto dep_param_num  = inputs.size() - 2;
 
-        // first item of the mod output shapes is condition used in loop, 
+        // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<migraphx::shape> ins_out_shapes(mod_out_shapes.begin(),
@@ -164,10 +164,8 @@ static auto create_program(int64_t max_loop_iterations = 10)
     auto neq                     = body->add_instruction(migraphx::make_op("not"), beq);
     std::string out_param_prefix = "loop_module:#output_";
     auto out0 = body->add_parameter(out_param_prefix + std::to_string(0), neq->get_shape());
-    ;
     auto r_neq = body->add_instruction(copy_op{}, neq, out0);
     auto out2  = body->add_parameter(out_param_prefix + std::to_string(2), val->get_shape());
-    ;
     auto r_val = body->add_instruction(copy_op{}, val, out2);
     body->add_return({r_neq, r_val, r_val});
 

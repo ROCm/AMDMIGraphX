@@ -41,7 +41,7 @@ struct loop
         auto mod_out_shapes = mod->get_output_shapes();
         auto dep_param_num  = inputs.size() - 2;
 
-        // first item of the mod output shapes is condition used in loop, 
+        // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
@@ -129,7 +129,7 @@ struct loop
         // add cond and mod outputs to the argument list
         cpy_args.push_back(argument(s_cond));
         cpy_args.push_back(argument(out_shape));
-        
+
         // run loop
         return run_loop(ref_loop{max_iterations}, ctx, cpy_args, mods, run);
     }

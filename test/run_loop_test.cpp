@@ -78,10 +78,7 @@ struct test_loop_op
 
     struct test_loop : public migraphx::op::loop::ref_loop
     {
-        test_loop(int64_t iter_num)
-        {
-            max_iterations = iter_num; 
-        }
+        test_loop(int64_t iter_num) { max_iterations = iter_num; }
 
         std::unordered_map<std::string, int> get_output_params(const migraphx::module& m) const
         {

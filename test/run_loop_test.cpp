@@ -62,7 +62,7 @@ struct test_loop_op
         auto mod_out_shapes = mod->get_output_shapes();
         auto dep_param_num  = inputs.size() - 2;
 
-        // first item of the mod output shapes is condition used in loop, 
+        // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<migraphx::shape> ins_out_shapes(mod_out_shapes.begin(),

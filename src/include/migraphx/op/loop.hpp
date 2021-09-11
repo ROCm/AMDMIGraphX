@@ -40,7 +40,9 @@ struct loop
         const auto& mod     = mods.front();
         auto mod_out_shapes = mod->get_output_shapes();
         auto dep_param_num  = inputs.size() - 2;
-        // first two names -- iter_num and cond_var -- are not counted
+
+        // first item of the mod output shapes is condition used in loop, 
+        // which is not needed to compute output shape
         mod_out_shapes.erase(mod_out_shapes.begin());
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
                                           mod_out_shapes.begin() + dep_param_num);
@@ -123,9 +125,11 @@ struct loop
         cpy_args.push_back({s_iter, &iter});
         cpy_args.push_back({s_cond, &cond});
         cpy_args.insert(cpy_args.end(), args.begin() + 2, args.end());
+
         // add cond and mod outputs to the argument list
         cpy_args.push_back(argument(s_cond));
         cpy_args.push_back(argument(out_shape));
+        
         // run loop
         return run_loop(ref_loop{max_iterations}, ctx, cpy_args, mods, run);
     }

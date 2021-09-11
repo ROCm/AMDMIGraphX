@@ -11,6 +11,7 @@
 #include <migraphx/run_loop.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/op/loop.hpp>
 #include <basic_ops.hpp>
 #include "test.hpp"
 
@@ -75,55 +76,8 @@ struct test_loop_op
         return migraphx::shape(ins_out_shapes);
     }
 
-    struct test_loop
+    struct test_loop : public migraphx::op::loop::ref_loop
     {
-        int64_t max_iterations = 0;
-
-        template <class T>
-        void copy(migraphx::context&, const migraphx::argument& src, T& dst) const
-        {
-            dst = *src.cast<T>();
-        }
-
-        template <class T>
-        void copy(migraphx::context&, T src, const migraphx::argument& dst) const
-        {
-            *dst.cast<T>() = src;
-        }
-
-        void append(const std::vector<migraphx::argument>& iter_state,
-                    const std::vector<migraphx::argument>& concatenated_outputs,
-                    int iter) const
-        {
-            assert(iter_state.size() == concatenated_outputs.size());
-            for(auto i : migraphx::range(iter_state.size()))
-            {
-                const auto& iter_stat = iter_state.at(i);
-                const auto& scan_out  = concatenated_outputs.at(i);
-
-                auto* in_data        = iter_stat.data();
-                auto* out_data       = scan_out.data();
-                std::size_t out_size = iter_stat.get_shape().bytes();
-                assert((iter + 1) * out_size <= scan_out.get_shape().bytes());
-                std::copy(in_data, in_data + out_size, out_data + iter * out_size);
-            }
-        }
-
-        void set_zero(migraphx::context&,
-                      const std::vector<migraphx::argument>& concatenated_outputs,
-                      int iter) const
-        {
-            if(iter >= max_iterations)
-                return;
-
-            for(const auto& out : concatenated_outputs)
-            {
-                auto s    = out.get_shape();
-                auto size = s.bytes() / max_iterations;
-                std::fill(out.data() + iter * size, out.data() + max_iterations * size, 0);
-            }
-        }
-
         std::unordered_map<std::string, int> get_output_params(const migraphx::module& m) const
         {
             auto get_output_index = [](const std::string& name) {
@@ -176,7 +130,7 @@ struct test_loop_op
         cpy_args.push_back(migraphx::argument(s_cond));
         cpy_args.push_back(migraphx::argument(out_shape));
         // run loop
-        return run_loop(test_loop{max_iterations}, ctx, cpy_args, mods, run);
+        return run_loop(test_loop{{max_iterations}}, ctx, cpy_args, mods, run);
     }
 };
 

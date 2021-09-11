@@ -244,7 +244,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
             if(contains(instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
-                               "\" existing in paraent graph!");
+                               "\" existing in parent graph!");
             }
 
             std::vector<std::size_t> dims;

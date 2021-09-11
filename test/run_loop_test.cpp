@@ -163,7 +163,7 @@ static auto create_program(int64_t max_loop_iterations = 10)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), eq);
     auto neq                     = body->add_instruction(migraphx::make_op("not"), beq);
     std::string out_param_prefix = "loop_module:#output_";
-    auto out0 = body->add_parameter(out_param_prefix + std::to_string(0), neq->get_shape());
+    auto out0  = body->add_parameter(out_param_prefix + std::to_string(0), neq->get_shape());
     auto r_neq = body->add_instruction(copy_op{}, neq, out0);
     auto out2  = body->add_parameter(out_param_prefix + std::to_string(2), val->get_shape());
     auto r_val = body->add_instruction(copy_op{}, val, out2);

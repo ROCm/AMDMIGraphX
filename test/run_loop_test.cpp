@@ -78,6 +78,11 @@ struct test_loop_op
 
     struct test_loop : public migraphx::op::loop::ref_loop
     {
+        test_loop(int64_t iter_num)
+        {
+            max_iterations = iter_num; 
+        }
+
         std::unordered_map<std::string, int> get_output_params(const migraphx::module& m) const
         {
             auto get_output_index = [](const std::string& name) {
@@ -130,7 +135,7 @@ struct test_loop_op
         cpy_args.push_back(migraphx::argument(s_cond));
         cpy_args.push_back(migraphx::argument(out_shape));
         // run loop
-        return run_loop(test_loop{{max_iterations}}, ctx, cpy_args, mods, run);
+        return run_loop(test_loop{max_iterations}, ctx, cpy_args, mods, run);
     }
 };
 

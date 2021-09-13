@@ -3,6 +3,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -13,7 +14,7 @@ void eliminate_data_type::apply(module& m) const
     {
         if(ins->name()[0] == '@')
             continue;
-        if(ins->name() == "convert")
+        if(contains({"convert", "get_tuple_elem"}, ins->name()))
             continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {

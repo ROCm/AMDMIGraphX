@@ -3782,6 +3782,63 @@ TEST_CASE(tanh_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(thresholdedrelu_default_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 3}});
+    auto lz  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0}});
+    auto la  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {1.0f}});
+    auto mbz = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lz);
+    auto mba = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), la);
+    auto condition = mm->add_instruction(migraphx::make_op("greater"), x, mba);
+    mm->add_instruction(migraphx::make_op("where"), condition, x, mbz);
+
+    auto prog = optimize_onnx("thresholdedrelu_default_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(thresholdedrelu_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 3}});
+    auto lz  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0}});
+    auto la  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {3.0f}});
+    auto mbz = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lz);
+    auto mba = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), la);
+    auto condition = mm->add_instruction(migraphx::make_op("greater"), x, mba);
+    mm->add_instruction(migraphx::make_op("where"), condition, x, mbz);
+
+    auto prog = optimize_onnx("thresholdedrelu_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(thresholdedrelu_int_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::int32_type, {2, 2, 3}});
+    auto lz  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0}});
+    auto la  = mm->add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {3}});
+    auto mbz = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), lz);
+    auto mba = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), la);
+    auto condition = mm->add_instruction(migraphx::make_op("greater"), x, mba);
+    mm->add_instruction(migraphx::make_op("where"), condition, x, mbz);
+
+    auto prog = optimize_onnx("thresholdedrelu_int_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(tile_test)
 {
     migraphx::program p;
@@ -3838,6 +3895,60 @@ TEST_CASE(transpose_test)
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
 
     auto prog = optimize_onnx("transpose_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(topk_attrk_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 5, 3, 2}};
+    auto data = mm->add_parameter("data", s);
+    auto out  = mm->add_instruction(migraphx::make_op("topk", {{"k", 2}, {"axis", -1}}), data);
+    auto val  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    mm->add_return({val, ind});
+
+    auto prog = migraphx::parse_onnx("topk_attrk_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(topk_neg_axis_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sk{migraphx::shape::int64_type, {1}};
+    mm->add_literal(migraphx::literal(sk, {3}));
+    migraphx::shape s{migraphx::shape::float_type, {3, 4, 5, 6}};
+    auto data = mm->add_parameter("data", s);
+    auto out  = mm->add_instruction(
+        migraphx::make_op("topk", {{"k", 3}, {"axis", -2}, {"largest", 1}}), data);
+    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    mm->add_return({val, ind});
+
+    auto prog = migraphx::parse_onnx("topk_neg_axis_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(topk_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sk{migraphx::shape::int64_type, {1}};
+    mm->add_literal(migraphx::literal(sk, {4}));
+    migraphx::shape s{migraphx::shape::float_type, {2, 5, 3, 2}};
+    auto data = mm->add_parameter("data", s);
+    auto out  = mm->add_instruction(
+        migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 0}}), data);
+    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    mm->add_return({val, ind});
+
+    auto prog = migraphx::parse_onnx("topk_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -3987,32 +4098,14 @@ TEST_CASE(where_test)
     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
 
-    auto int_c = mm->add_instruction(
-        migraphx::make_op("convert",
-                          {{"target_type", migraphx::to_value(migraphx::shape::int32_type)}}),
-        lc);
-    auto lccm = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), int_c);
+    auto lccm =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
     auto lxm =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lx);
     auto lym =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), ly);
 
-    auto concat_data = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), lym, lxm);
-    auto rsp_data =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {32}}}), concat_data);
-
-    std::vector<int> offset(16, 16);
-    std::vector<int> ind(16);
-    std::iota(ind.begin(), ind.end(), 0);
-    migraphx::shape ind_s{migraphx::shape::int32_type, {2, 2, 2, 2}};
-
-    auto lind    = mm->add_literal(migraphx::literal(ind_s, ind));
-    auto loffset = mm->add_literal(migraphx::literal(ind_s, offset));
-
-    auto ins_co  = mm->add_instruction(migraphx::make_op("mul"), loffset, lccm);
-    auto ins_ind = mm->add_instruction(migraphx::make_op("add"), ins_co, lind);
-    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp_data, ins_ind);
+    auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("where_test.onnx");

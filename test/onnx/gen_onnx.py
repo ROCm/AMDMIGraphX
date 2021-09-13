@@ -4127,6 +4127,46 @@ def tanh_test():
 
 
 @onnx_test
+def thresholdedrelu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def thresholdedrelu_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    alpha = 3.0
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=alpha)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def thresholdedrelu_int_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [2, 2, 3])
+    alpha = 3.0
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=alpha)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def tile_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
@@ -4151,6 +4191,61 @@ def tile_test_3x2():
 
 
 @onnx_test
+def topk_attrk_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 2, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 2, 3, 2])
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data'],
+                                 outputs=['val', 'indices'],
+                                 k=2)
+    return ([node], [x], [val, ind])
+
+
+@onnx_test
+def topk_neg_axis_test():
+    k = np.array([3])
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [3, 3, 5, 6])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [3, 3, 5, 6])
+
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 axis=-2,
+                                 sorted=0)
+    return ([node], [x], [val, ind], [k_tensor])
+
+
+@onnx_test
+def topk_test():
+    k = np.array([4])
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 4, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 4, 3, 2])
+
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 largest=0,
+                                 axis=1)
+    return ([node], [x], [val, ind], [k_tensor])
+
+
 def transpose_default_perm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 5, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 5, 1])

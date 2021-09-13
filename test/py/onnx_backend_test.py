@@ -195,6 +195,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_Tanh*')
         backend_test.include(r'.*test_tanh.*')
         backend_test.include(r'.*test_thresholdedrelu.*')
+        backend_test.include(r'.*test_topk.*')
+        backend_test.include(r'.*test_Topk.*')
         backend_test.include(r'.*test_transpose.*')
         backend_test.include(r'.*test_unsqueeze.*')
         backend_test.include(r'.*test_where*')
@@ -287,9 +289,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_softplus_example_cpu')
         backend_test.exclude(r'test_softsign_cpu')
         backend_test.exclude(r'test_softsign_example_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_default_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_example_cpu')
         backend_test.exclude(r'test_Embedding_cpu')
         backend_test.exclude(r'test_Softplus_cpu')
 

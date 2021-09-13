@@ -99,7 +99,9 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     for(auto&& x : p.get_parameter_shapes())
     {
         if(m.count(x.first) == 0)
+        {
             m[x.first] = t.allocate(x.second);
+        }
     }
     validate(t, p, m);
     p.eval(m);

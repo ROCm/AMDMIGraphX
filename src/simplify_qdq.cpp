@@ -92,7 +92,8 @@ struct match_find_quantizable_ops
             dq = m.insert_instruction(
                 qop, migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), qop_args);
         }
-        dq_scale = m.add_literal(static_cast<float>(scale));
+        auto ins_type = qop->get_shape().type();
+        dq_scale      = m.add_literal(literal({ins_type}, {scale}));
 
         auto lens = dq->get_shape().lens();
         auto scale_mb =

@@ -1598,4 +1598,12 @@ TEST_CASE(unary_broadcast_input)
     expect_shape(s, migraphx::make_op("sin"), ss);
 }
 
+TEST_CASE(where_broadcast_input)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {3, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 2}};
+    migraphx::shape s3{migraphx::shape::bool_type, {2, 2}};
+    expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

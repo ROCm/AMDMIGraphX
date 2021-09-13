@@ -16,26 +16,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // implement here
-        // Input tensor of [N,C,H,W].
-
-        /*
-        node = onnx.helper.make_node(
-    'DepthToSpace',
-    inputs=['x'],
-    outputs=['y'],
-    blocksize=2,
-    mode='DCR'
-    */
-        // DCR MODE
-        /*
-         b, c, h, w = x.shape
-        tmp = np.reshape(x, [b, blocksize, blocksize, c // (blocksize**2), h, w])
-        tmp = np.transpose(tmp, [0, 3, 4, 1, 5, 2])
-        y = np.reshape(tmp, [b, c // (blocksize**2), h * blocksize, w * blocksize])
-        */
-
-        auto s = args[0]->get_shape(); // get the shape e.g. float_type, {5}, {1}.
+        auto s = args[0]->get_shape();
         // mode attribute of DepthToSpace
         auto mode = std::string("DCR");
         if(contains(info.attributes, "mode"))

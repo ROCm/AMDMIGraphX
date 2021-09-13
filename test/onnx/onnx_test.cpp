@@ -933,6 +933,22 @@ TEST_CASE(depthtospace_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(depthtospace_simple_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 8, 2, 2}});
+    mm->add_instruction(migraphx::make_op("depthtospace",
+                                                    {
+                                                        {"mode", "DCR"},
+                                                        {"blocksize", 2},
+                                                    }),
+                                  l0);
+
+    auto prog = optimize_onnx("depthtospace_simple_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(depthtospace_crd_test)
 {
     migraphx::program p;

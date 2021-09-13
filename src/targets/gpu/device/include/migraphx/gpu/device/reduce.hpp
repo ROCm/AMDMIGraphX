@@ -12,7 +12,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-
 #ifdef MIGRAPHX_NO_DPP
 template <index_int N,
           class Op,
@@ -141,7 +140,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 #else
 #define MIGRAPHX_REDUCE_THREADS 64
 #endif
-    
+
     using type = decltype(f(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N / MIGRAPHX_REDUCE_THREADS];
     type x = init;

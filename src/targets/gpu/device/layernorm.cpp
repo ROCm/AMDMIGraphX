@@ -87,8 +87,8 @@ __device__ void layernorm(index_int i,
 
     auto mean = [&](auto z) {
         auto m = auto_block_reduce<MaxBlockSize>(
-                   idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
-               value_type(relements);
+                     idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
+                 value_type(relements);
 #if __AMDGCN_WAVEFRONT_SIZE == 32
         __syncthreads();
 #endif

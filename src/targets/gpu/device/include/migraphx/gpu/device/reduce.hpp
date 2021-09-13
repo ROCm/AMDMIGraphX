@@ -141,7 +141,7 @@ __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 #else
     constexpr index_int nthreads = 64;
 #endif
-    using type = decltype(f(deduce_for_stride(fs)));
+    using type                   = decltype(f(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N / nthreads];
     type x = init;
     fs([&](auto i) { x = op(x, f(i)); });

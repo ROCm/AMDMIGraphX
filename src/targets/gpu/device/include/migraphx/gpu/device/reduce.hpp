@@ -135,27 +135,27 @@ template <index_int N,
           MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
 __device__ auto block_reduce(index idx, Op op, T init, ForStride fs, F f)
 {
-#if __AMDGCN_WAVEFRONT_SIZE == 32
-#define MIGRAPHX_REDUCE_THREADS 16
-#else
-#define MIGRAPHX_REDUCE_THREADS 64
-#endif
 
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+    constexpr index_int nthreads = 16;
+#else
+    constexpr index_int nthreads = 64;
+#endif
     using type = decltype(f(deduce_for_stride(fs)));
-    MIGRAPHX_DEVICE_SHARED type buffer[N / MIGRAPHX_REDUCE_THREADS];
+    MIGRAPHX_DEVICE_SHARED type buffer[N / nthreads];
     type x = init;
     fs([&](auto i) { x = op(x, f(i)); });
     dpp_reduce(x, op);
 
-    const auto ldsidx = idx.local / MIGRAPHX_REDUCE_THREADS;
-    if((idx.local % MIGRAPHX_REDUCE_THREADS) == MIGRAPHX_REDUCE_THREADS - 1)
+    const auto ldsidx = idx.local / nthreads;
+    if((idx.local % nthreads) == nthreads - 1)
     {
         buffer[ldsidx] = x;
     }
     __syncthreads();
 
     type y = init;
-    for(index_int i = 0; i < idx.nlocal() / MIGRAPHX_REDUCE_THREADS; i++)
+    for(index_int i = 0; i < idx.nlocal() / nthreads; i++)
     {
         y = op(y, buffer[i]);
     }

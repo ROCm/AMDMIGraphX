@@ -172,6 +172,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_reduce.*')
         backend_test.include(r'.*test_ReLU*')
         backend_test.include(r'.*test_relu.*')
+        backend_test.include(r'.*test_RoiAlign*')
+        backend_test.include(r'.*test_roialign.*')
         backend_test.include(r'.*test_scatter.*')
         backend_test.include(r'.*test_Scatter.*')
         backend_test.include(r'.*test_selu.*')

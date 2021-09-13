@@ -22,7 +22,7 @@ struct parse_roialign : op_parser<parse_roialign>
         {
             coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
         }
-        if(contains({"half_pixel", "output_half_pixel"}, coord_trans_mode))
+        if(not contains({"half_pixel", "output_half_pixel"}, coord_trans_mode))
         {
             MIGRAPHX_THROW("coordinate_transformation_mode \"" + coord_trans_mode +
                            "\": invalid value!");
@@ -46,7 +46,7 @@ struct parse_roialign : op_parser<parse_roialign>
             output_width = info.attributes.at("output_width").i();
         }
 
-        int64_t sampling_ratio = 1;
+        int64_t sampling_ratio = 0;
         if(contains(info.attributes, "sampling_ratio"))
         {
             sampling_ratio = info.attributes.at("sampling_ratio").i();
@@ -59,7 +59,8 @@ struct parse_roialign : op_parser<parse_roialign>
         }
 
         return info.add_instruction(make_op("roialign",
-                                            {{"mode", mode},
+                                            {{"coordinate_transformation_mode", coord_trans_mode},
+                                             {"mode", mode},
                                              {"output_height", output_height},
                                              {"output_width", output_width},
                                              {"sampling_ratio", sampling_ratio},

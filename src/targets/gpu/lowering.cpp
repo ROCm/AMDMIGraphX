@@ -482,8 +482,8 @@ struct miopen_apply
                 inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
                     return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
                 });
-            cpu_inputs.back() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs.back());
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
             auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
             auto gpu_out =
                 mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);

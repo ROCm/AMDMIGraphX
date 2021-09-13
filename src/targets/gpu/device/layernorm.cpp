@@ -86,10 +86,13 @@ __device__ void layernorm(index_int i,
     const bool in_range    = idx.local < relements_v;
 
     auto mean = [&](auto z) {
-        return auto_block_reduce<MaxBlockSize>(
+        auto m = auto_block_reduce<MaxBlockSize>(
                    idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
                value_type(relements);
-
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+        __syncthreads();
+#endif
+        return m;
     };
 
     // m = x - mean(x)

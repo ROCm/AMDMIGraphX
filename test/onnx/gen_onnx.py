@@ -1030,6 +1030,7 @@ def depthtospace_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def depthtospace_simple_test():
 

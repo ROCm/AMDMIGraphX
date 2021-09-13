@@ -23,7 +23,7 @@ namespace op {
 
 struct multinomial
 {
-    int dtype          = 6;
+    int dtype = 6;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -49,17 +49,18 @@ struct multinomial
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        size_t batch_size = output_shape.lens().front();
-        size_t class_size = args[0].get_shape().lens().back();
+        size_t batch_size  = output_shape.lens().front();
+        size_t class_size  = args[0].get_shape().lens().back();
         size_t sample_size = output_shape.lens().back();
 
         visit_all(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
-                    auto idx = args[1].get_shape().multi(i);
+                    auto idx       = args[1].get_shape().multi(i);
                     auto cdf_begin = cdf.data() + (idx[0] * class_size);
-                    auto cdf_end = cdf_begin + class_size;
-                    auto sample_iter = std::upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
+                    auto cdf_end   = cdf_begin + class_size;
+                    auto sample_iter =
+                        std::upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
                     output[i] = std::distance(cdf_begin, sample_iter);
                 });
             });

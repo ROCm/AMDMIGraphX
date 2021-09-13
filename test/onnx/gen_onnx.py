@@ -2531,7 +2531,7 @@ def min_test():
 
 @onnx_test
 def multinomial_test():
-    sample_size = 10;
+    sample_size = 10
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
     output = helper.make_tensor_value_info("output", TensorProto.INT32,
                                            [1, 10])

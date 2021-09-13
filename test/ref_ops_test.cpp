@@ -2691,13 +2691,15 @@ TEST_CASE(mul_test)
 TEST_CASE(multinomial_correctness_test)
 {
     migraphx::program p;
-    auto* mm        = p.get_main_module();
+    auto* mm = p.get_main_module();
 
     size_t sample_size = 100000;
     std::mt19937 gen(0.0f);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
-    std::transform(rand_samples.begin(), rand_samples.end(), rand_samples.begin(), [&](auto){ return dis(gen); });
+    std::transform(rand_samples.begin(), rand_samples.end(), rand_samples.begin(), [&](auto) {
+        return dis(gen);
+    });
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
     auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
@@ -2706,13 +2708,15 @@ TEST_CASE(multinomial_correctness_test)
     std::vector<float> data(5);
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
     auto input = mm->add_literal(migraphx::literal(s, data));
-    
+
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    auto mb_maxes = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5}}}), maxes);
+    auto mb_maxes =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5}}}), maxes);
     auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
-    cdf = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf = mm->add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
-    
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();

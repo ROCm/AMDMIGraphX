@@ -31,11 +31,15 @@ struct parse_multinomial : op_parser<parse_multinomial>
             seed = parser.parse_value(info.attributes.at("seed")).at<float>();
 
         // Compute cumulative density function
-        auto maxes = info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
-        auto mb_maxes = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}), maxes);
+        auto maxes =
+            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
+        auto mb_maxes = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
+            maxes);
         auto cdf = info.add_instruction(migraphx::make_op("sub"), args[0], mb_maxes);
-        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
-        cdf = info.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+        cdf      = info.add_instruction(migraphx::make_op("exp"), cdf);
+        cdf      = info.add_instruction(
+            migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
         // Pre-compute random distribution
         std::mt19937 gen(seed);
@@ -44,10 +48,13 @@ struct parse_multinomial : op_parser<parse_multinomial>
         migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
 
         std::vector<float> random_dist(batch_size * sample_size);
-        std::transform(random_dist.begin(), random_dist.end(), random_dist.begin(), [&](auto){ return dis(gen); });
+        std::transform(random_dist.begin(), random_dist.end(), random_dist.begin(), [&](auto) {
+            return dis(gen);
+        });
         auto dist_lit = info.add_literal(migraphx::literal{dist_shape, random_dist});
 
-        return info.add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, dist_lit);
+        return info.add_instruction(
+            migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, dist_lit);
     }
 };
 

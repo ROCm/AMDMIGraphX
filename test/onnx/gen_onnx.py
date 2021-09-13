@@ -3441,10 +3441,9 @@ def roialign_default_test():
     bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 1, 1])
 
-    node = onnx.helper.make_node(
-        'RoiAlign',
-        inputs=['x', 'rois', 'batch_ind'],
-        outputs=['y'])
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'])
 
     return ([node], [x, roi, bi], [y])
 
@@ -3464,8 +3463,7 @@ def roialign_test():
         output_height=5,
         output_width=5,
         sampling_ratio=3,
-        coordinate_transformation_mode="output_half_pixel"
-    )
+        coordinate_transformation_mode="output_half_pixel")
 
     return ([node], [x, roi, bi], [y])
 

@@ -108,8 +108,9 @@ struct roialign
                                         static_cast<T>(ix + .5) * bin_size_w /
                                             static_cast<T>(roi_bin_grid_w));
 
-            T x = xx;
-            T y = yy;
+            T x = (coord_trans_mode == "output_half_pixel") ? static_cast<T>(xx - 0.5f) : xx;
+            T y = (coord_trans_mode == "output_half_pixel") ? static_cast<T>(yy - 0.5f) : yy;
+
             // deal with: inverse elements are out of feature map boundary
             if(y < -1.0 || y > height || x < -1.0 || x > width)
             {

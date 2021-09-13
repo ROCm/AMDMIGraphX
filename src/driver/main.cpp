@@ -23,7 +23,9 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/dynamic_loader.hpp>
 
+#include <variant>
 #include <fstream>
 
 namespace migraphx {
@@ -483,6 +485,50 @@ struct perf : command<perf>
     }
 };
 
+// migraphx::dynamic_loader dynamic_lib_loader_fpt(std::string fpt)
+// {
+//     migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt};
+//     return lib_loaded;
+// }
+
+// template <typename T>
+// T buildFunc(migraphx::dynamic_loader dynlib, std::string funcname)
+// {
+//     return dynlib.get_function<T>(funcname);  
+// }
+
+struct roctx_loader
+{
+    migraphx::dynamic_loader lib = migraphx::dynamic_loader{"libroctx64.so"};
+    
+    std::function<void(const char*)> sym_roctxMarkA = lib.get_function<void(const char*)>("roctxMarkA");
+    std::function<uint64_t(const char*)> sym_roctxRangeStartA = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
+    std::function<int(const char*)> sym_roctxRangePushA = lib.get_function<int(const char*)>("roctxRangePushA");
+    std::function<int()> sym_roctxRangePop = lib.get_function<int()>("roctxRangePop");
+    std::function<void(uint64_t)> sym_roctxRangeStop = lib.get_function<void(uint64_t)>("roctxRangeStop"); 
+
+    void call_marker(const char* text)
+    {
+        sym_roctxMarkA(text);
+    }
+    uint64_t call_range_start(const char* text)
+    {
+        return sym_roctxRangeStartA(text);
+    }
+    void call_range_push(const char* text)
+    {
+        sym_roctxRangePushA(text);
+    }
+    void call_range_pop()
+    {
+        sym_roctxRangePop();
+    }
+    void call_range_stp(uint64_t range_no)
+    {
+        sym_roctxRangeStop(range_no);
+    }
+};
+
 struct trace : command<trace>
 {
     compiler c;
@@ -494,8 +540,9 @@ struct trace : command<trace>
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
-        std::cout << "Invoking rocTX ... " << std::endl;
-        p.trace(std::cout, m);
+        std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
+        roctx_loader tx_loader;
+        p.trace(std::cout, m, tx_loader);
     }
 };
 

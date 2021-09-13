@@ -13,10 +13,20 @@ struct parse_roialign : op_parser<parse_roialign>
     std::vector<op_desc> operators() const { return {{"RoiAlign"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
+        std::string coord_trans_mode = "half_pixel";
+        if(contains(info.attributes, "coordinate_transformation_mode"))
+        {
+            coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
+        }
+        if(contains({"half_pixel", "output_half_pixel"}, coord_trans_mode))
+        {
+            MIGRAPHX_THROW("coordinate_transformation_mode \"" + coord_trans_mode + "\": invalid value!");
+        }
+
         std::string mode = "avg";
         if(contains(info.attributes, "mode"))
         {
@@ -41,7 +51,7 @@ struct parse_roialign : op_parser<parse_roialign>
             sampling_ratio = info.attributes.at("sampling_ratio").i();
         }
 
-        float spatial_scale = 1;
+        float spatial_scale = 1.0f;
         if(contains(info.attributes, "spatial_scale"))
         {
             spatial_scale = info.attributes.at("spatial_scale").f();

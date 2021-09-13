@@ -17,6 +17,7 @@ namespace op {
 
 struct roialign
 {
+    std::string coord_trans_mode = "half_pixel";
     std::string mode       = "avg";
     int64_t output_height  = 1;
     int64_t output_width   = 1;
@@ -26,7 +27,8 @@ struct roialign
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mode, "mode"),
+        return pack(f(self.coord_trans_mode, "coordinate_transformation_mode"),
+                    f(self.mode, "mode"),
                     f(self.output_height, "output_height"),
                     f(self.output_width, "output_width"),
                     f(self.sampling_ratio, "sampling_ratio"),
@@ -38,12 +40,29 @@ struct roialign
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3).standard();
-        auto lens0 = inputs.at(0).lens();
-        auto lens1 = inputs.at(1).lens();
+        auto x_lens = inputs.at(0).lens();
+        auto roi_lens = inputs.at(1).lens();
+        auto bi_lens = inputs.at(2).lens();
         auto type  = inputs.at(0).type();
 
-        std::vector<std::size_t> out_lens = lens0;
-        out_lens[0]                       = lens1[0];
+        // check input correct
+        if(bi_lens.size() != 1)
+        {
+            MIGRAPHX_THROW("ROIALIGN: batch indices should be 1 dimension!");
+        }
+
+        if(roi_lens.size() != 2 or roi_lens.at(1) != 4)
+        {
+            MIGRAPHX_THROW("ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
+        }
+
+        if(roi_lens.front() != bi_lens.front())
+        {
+            MIGRAPHX_THROW("ROIALIGN: rois and batch indices inputs should have the same number!");
+        }
+
+        std::vector<std::size_t> out_lens = x_lens;
+        out_lens[0]                       = roi_lens[0];
         out_lens[2]                       = output_height;
         out_lens[3]                       = output_width;
 

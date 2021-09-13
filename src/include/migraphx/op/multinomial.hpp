@@ -24,20 +24,18 @@ namespace op {
 struct multinomial
 {
     int dtype          = 6;
-    size_t sample_size = 1;
-    float seed         = 0.0f; // TODO: auto generate
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.dtype, "dtype"), f(self.sample_size, "sample_size"), f(self.seed, "seed"));
+        return pack(f(self.dtype, "dtype"));
     }
 
     std::string name() const { return "multinomial"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).only_dims(2);
+        check_shapes{inputs, *this}.has(2).only_dims(2);
+        size_t sample_size = inputs.back().lens().back();
 
         if(dtype == 6)
             return {shape::int32_type, {inputs[0].lens()[0], sample_size}};
@@ -50,34 +48,19 @@ struct multinomial
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        std::mt19937 gen(seed);
-        std::uniform_real_distribution<> dis(0.0, 1.0);
         argument result{output_shape};
-        size_t batch_size = output_shape.lens().at(0);
-        size_t class_size = args[0].get_shape().lens().at(1);
+        size_t batch_size = output_shape.lens().front();
+        size_t class_size = args[0].get_shape().lens().back();
+        size_t sample_size = output_shape.lens().back();
 
-        args[0].visit([&](auto input) {
+        visit_all(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
-                par_for(batch_size, [&](auto i) {
-                    auto* in_begin = input.data() + (i * class_size);
-                    auto* in_end   = in_begin + class_size;
-                    auto max_iter =
-                        std::max_element(in_begin, in_end); // ORT checks for is_finite - needed?
-
-                    std::vector<double> cdf(class_size);
-                    std::transform(in_begin, in_end, cdf.begin(), [&](auto logit) {
-                        return std::exp(logit - *max_iter);
-                    });
-                    std::partial_sum(
-                        cdf.begin(), cdf.end(), cdf.begin()); // ORT checks for is_finite - needed?
-
-                    auto* out_begin = output.data() + (i * sample_size);
-                    auto* out_end   = out_begin + sample_size;
-                    std::transform(out_begin, out_end, out_begin, [&](auto) {
-                        auto idx_iter =
-                            std::upper_bound(cdf.begin(), cdf.end(), dis(gen) * cdf.back());
-                        return std::distance(cdf.begin(), idx_iter);
-                    });
+                par_for(batch_size * sample_size, [&](auto i) {
+                    auto idx = args[1].get_shape().multi(i);
+                    auto cdf_begin = cdf.data() + (idx[0] * class_size);
+                    auto cdf_end = cdf_begin + class_size;
+                    auto sample_iter = std::upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
+                    output[i] = std::distance(cdf_begin, sample_iter);
                 });
             });
         });

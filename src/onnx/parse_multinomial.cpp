@@ -26,62 +26,28 @@ struct parse_multinomial : op_parser<parse_multinomial>
         if(contains(info.attributes, "sample_size"))
             sample_size = parser.parse_value(info.attributes.at("sample_size")).at<int>();
 
-        float seed = 0.0; // generate randomly if not specified
+        float seed = 0.0; // TODO: auto generate
         if(contains(info.attributes, "seed"))
             seed = parser.parse_value(info.attributes.at("seed")).at<float>();
 
-        auto input_lens = args[0]->get_shape().lens();
-        if(input_lens.size() != 2)
-            MIGRAPHX_THROW("Incorrect shape for input tensor. Expected {batch_size, class_size}");
+        // Compute cumulative density function
+        auto maxes = info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
+        auto mb_maxes = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}), maxes);
+        auto cdf = info.add_instruction(migraphx::make_op("sub"), args[0], mb_maxes);
+        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
+        cdf = info.add_instruction(migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-        std::vector<double> logits;
-        std::vector<std::vector<int32_t>> output;
-        auto args0 = args[0]->eval();
-        args0.visit([&](auto input) { logits.assign(input.begin(), input.end()); });
+        // Pre-compute random distribution
+        std::mt19937 gen(seed);
+        std::uniform_real_distribution<> dis(0.0, 1.0);
+        size_t batch_size = args[0]->get_shape().lens().front();
+        migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
 
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<double> dist(0.0, 1.0);
+        std::vector<float> random_dist(batch_size * sample_size);
+        std::transform(random_dist.begin(), random_dist.end(), random_dist.begin(), [&](auto){ return dis(gen); });
+        auto dist_lit = info.add_literal(migraphx::literal{dist_shape, random_dist});
 
-        for(size_t i = 0; i < input_lens[0]; ++i)
-        {
-            std::vector<double> cdf(input_lens[1], 0);
-            double maxx = std::numeric_limits<float>::lowest();
-            for(size_t j = 0; j < input_lens[1]; ++j)
-            {
-                auto idx = (i * input_lens[0]) + input_lens[1];
-                maxx     = std::max(maxx, logits[idx]);
-            }
-
-            for(size_t j = 0; j < input_lens[1]; ++j)
-            {
-                auto idx = (i * input_lens[0]) + input_lens[1];
-                cdf[j]   = std::exp(logits[idx] - maxx);
-            }
-
-            double running_total = 0;
-            for(size_t j = 0; j < input_lens[1]; ++j)
-            {
-                running_total += cdf[j];
-                cdf[j] = running_total;
-            }
-
-            for(size_t j = 0; j < sample_size; ++j)
-            {
-                double to_find = dist(gen) * running_total;
-                auto iter      = std::upper_bound(cdf.begin(), cdf.end(), to_find);
-                output[i][j]   = static_cast<int64_t>(std::distance(cdf.begin(), iter));
-                std::cout << output[i][j] << ", ";
-            }
-            std::cout << std::endl;
-        }
-
-        std::vector<int32_t> output_1d;
-        for(auto& row : output)
-            for(auto& it : row)
-                output_1d.push_back(it);
-        shape output_shape{shape::int32_type, {input_lens[0], sample_size}};
-        return info.add_literal(migraphx::literal(output_shape, output_1d));
+        return info.add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, dist_lit);
     }
 };
 

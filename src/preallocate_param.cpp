@@ -10,6 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void preallocate_param::apply(module& m) const
 {
+    auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "@param")
@@ -19,7 +20,9 @@ void preallocate_param::apply(module& m) const
         std::string id = m.name() + ":" + param;
         auto r         = m.insert_instruction(ins, model.preallocate(ins->get_shape(), id));
         m.replace_instruction(ins, r);
+        m.move_instruction(ins, m.end());
     }
+    m.remove_instructions(std::next(last), m.end());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -169,6 +169,12 @@ void copy(Range&& r, Iterator it)
     std::copy(r.begin(), r.end(), it);
 }
 
+template <class Range, class Iterator, class F>
+void transform(Range&& r, Iterator it, F f)
+{
+    std::transform(r.begin(), r.end(), it, f);
+}
+
 template <class Range>
 auto reverse(Range& r)
 {

@@ -7,19 +7,6 @@ namespace match = migraphx::match;
 
 MIGRAPHX_PRED_MATCHER(throws, migraphx::instruction_ref) { MIGRAPHX_THROW("Matcher throws"); }
 
-template <class M>
-migraphx::match::matcher_result find_match(migraphx::module& modl, M&& m)
-{
-    migraphx::match::matcher_result result;
-    for(auto ins : migraphx::iterator_for(modl))
-    {
-        result = migraphx::match::match_instruction(modl, ins, m);
-        if(result.result != modl.end())
-            return result;
-    }
-    return result;
-}
-
 void match1()
 {
     migraphx::module mm;

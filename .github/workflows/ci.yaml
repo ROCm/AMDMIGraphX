@@ -131,6 +131,22 @@ jobs:
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+
+  pyflakes:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Install pyflakes
+      run: pip install pyflakes==2.3.1
+
+    - name: Run pyflakes
+      run: pyflakes examples/ tools/ src/ test/ doc/
+
   linux:
 
     runs-on: ${{ matrix.os }}
@@ -145,16 +161,12 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-16.04
           - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
           - release
           - codecov
-        exclude:
-          - os: ubuntu-16.04
-            configuration: debug
 
     steps:
     - uses: actions/checkout@v2
@@ -209,7 +221,7 @@ jobs:
         rbuild build -d cget -s gh -t check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
-          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer ${{matrix.os != 'ubuntu-16.04' && '-fsanitize-address-use-after-scope' || ''}} -fsanitize=undefined,address -fno-sanitize-recover=undefined,address" \
+          -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
           -DCMAKE_EXE_LINKER_FLAGS='-fuse-ld=gold' \
           -DCMAKE_SHARED_LINKER_FLAGS='-fuse-ld=gold'

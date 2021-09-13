@@ -16,7 +16,7 @@ struct test_add_broadcast5 : verify_program<test_add_broadcast5>
         auto x  = mm->add_parameter("x", {migraphx::shape::float_type, {2, 4, 8}});
         auto y  = mm->add_parameter("y", {migraphx::shape::float_type, {4}});
         auto by = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", x->get_shape().lens()}}), y);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), y);
         mm->add_instruction(migraphx::make_op("add"), x, by);
         return p;
     }

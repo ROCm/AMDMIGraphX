@@ -125,9 +125,10 @@ void module::assign(const module& m)
         else if(ins->name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
-            copy_ins =
-                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
+            copy_ins    = impl->insert(impl->instructions.end(),
+                                    {builtin::param{name, order}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {

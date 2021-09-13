@@ -197,4 +197,24 @@ TEST_CASE(unused_module)
     EXPECT(not migraphx::contains(p.get_modules(), m1));
 }
 
+TEST_CASE(param_not_eliminated)
+{
+    auto create_program = [] {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::int32_type, {2, 2}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", s);
+        mm->add_parameter("z", s);
+        auto sum = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({sum});
+
+        return p;
+    };
+
+    auto p = create_program();
+    run_pass(p);
+    EXPECT(p == create_program());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

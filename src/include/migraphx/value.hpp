@@ -393,6 +393,31 @@ struct value
         return result;
     }
 
+    template <class To>
+    To get(const std::string& pkey, const To& default_value) const
+    {
+        const auto* v = find(pkey);
+        if(v == this->end())
+            return default_value;
+        return v->to<To>();
+    }
+
+    template <class To>
+    std::vector<To> get(const std::string& pkey, const std::vector<To>& default_value) const
+    {
+        const auto* v = find(pkey);
+        if(v == this->end())
+            return default_value;
+        return v->to_vector<To>();
+    }
+
+    template <class To>
+    std::vector<To> get(const std::string& pkey,
+                        const std::initializer_list<To>& default_value) const
+    {
+        return get<std::vector<To>>(pkey, default_value);
+    }
+
     friend bool operator==(const value& x, const value& y);
     friend bool operator!=(const value& x, const value& y);
     friend bool operator<(const value& x, const value& y);

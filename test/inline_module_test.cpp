@@ -175,6 +175,7 @@ TEST_CASE(inline_else_test)
         auto l2                 = mm->add_literal(s, rand);
         mm->add_parameter("x", s);
         auto y = mm->add_parameter("y", s);
+        mm->add_parameter("e", s);
         auto r = mm->add_instruction(migraphx::make_op("mul"), y, l2);
         mm->add_return({r});
 
@@ -364,19 +365,19 @@ TEST_CASE(inline_tuple_true_test)
 
         auto* then_mod = p.create_module("If_6_if");
         auto m1        = then_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l1);
         auto add0 = then_mod->add_instruction(migraphx::make_op("add"), x, m1);
         auto m2   = then_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l2);
         auto mul0 = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
         then_mod->add_return({add0, mul0});
 
         auto* else_mod = p.create_module("If_6_else");
         auto me1       = else_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
         auto mul1 = else_mod->add_instruction(migraphx::make_op("mul"), x, me1);
         auto me2  = else_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l3);
         auto add1 = else_mod->add_instruction(migraphx::make_op("add"), y, me2);
         else_mod->add_return({mul1, add1});
 
@@ -401,10 +402,10 @@ TEST_CASE(inline_tuple_true_test)
         auto y = mm->add_parameter("y", sy);
 
         auto m1 =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l1);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, m1);
         auto m2 =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l2);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), y, m2);
         mm->add_return({add, mul});
 
@@ -434,19 +435,19 @@ TEST_CASE(inline_tuple_false_test)
 
         auto* then_mod = p.create_module("If_6_if");
         auto m1        = then_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l1);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l1);
         auto add0 = then_mod->add_instruction(migraphx::make_op("add"), x, m1);
         auto m2   = then_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l2);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l2);
         auto mul0 = then_mod->add_instruction(migraphx::make_op("mul"), y, m2);
         then_mod->add_return({add0, mul0});
 
         auto* else_mod = p.create_module("If_6_else");
         auto me1       = else_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
         auto mul1 = else_mod->add_instruction(migraphx::make_op("mul"), x, me1);
         auto me2  = else_mod->add_instruction(
-            migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l3);
         auto add1 = else_mod->add_instruction(migraphx::make_op("add"), y, me2);
         else_mod->add_return({mul1, add1});
 
@@ -473,10 +474,10 @@ TEST_CASE(inline_tuple_false_test)
         auto y = mm->add_parameter("y", sy);
 
         auto m1 =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {1, 4}}}), l3);
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4}}}), l3);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), x, m1);
         auto m2 =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"output_lens", {3, 4}}}), l3);
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 4}}}), l3);
         auto add = mm->add_instruction(migraphx::make_op("add"), y, m2);
         mm->add_return({mul, add});
 

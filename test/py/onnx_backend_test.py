@@ -4,7 +4,6 @@ if sys.version_info < (3, 0):
 
 import argparse
 import os
-import platform
 import unittest
 import onnx
 import onnx.backend.test
@@ -173,6 +172,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_reduce.*')
         backend_test.include(r'.*test_ReLU*')
         backend_test.include(r'.*test_relu.*')
+        backend_test.include(r'.*test_scatter.*')
+        backend_test.include(r'.*test_Scatter.*')
         backend_test.include(r'.*test_selu.*')
         backend_test.include(r'.*test_shape.*')
         backend_test.include(r'.*test_Sigmoid*')
@@ -194,6 +195,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_Tanh*')
         backend_test.include(r'.*test_tanh.*')
         backend_test.include(r'.*test_thresholdedrelu.*')
+        backend_test.include(r'.*test_topk.*')
+        backend_test.include(r'.*test_Topk.*')
         backend_test.include(r'.*test_transpose.*')
         backend_test.include(r'.*test_unsqueeze.*')
         backend_test.include(r'.*test_where*')
@@ -276,6 +279,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_mean_one_input_cpu')
         backend_test.exclude(r'test_mean_two_inputs_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
+        backend_test.exclude(r'test_scatternd_*')
 
         # all reduce ops have dynamic axes inputs
         backend_test.exclude(r'test_size_cpu')
@@ -285,9 +289,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_softplus_example_cpu')
         backend_test.exclude(r'test_softsign_cpu')
         backend_test.exclude(r'test_softsign_example_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_default_cpu')
-        backend_test.exclude(r'test_thresholdedrelu_example_cpu')
         backend_test.exclude(r'test_Embedding_cpu')
         backend_test.exclude(r'test_Softplus_cpu')
 

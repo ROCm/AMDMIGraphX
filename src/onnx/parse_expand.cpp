@@ -24,8 +24,7 @@ struct parse_expand : op_parser<parse_expand>
         std::vector<std::size_t> dims;
         arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims);
-        return info.add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}),
-                                    args[0]);
+        return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), args[0]);
     }
 };
 

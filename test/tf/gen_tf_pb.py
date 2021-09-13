@@ -1,9 +1,7 @@
 # This script generates tf pb files for MIGraphX tf operator tests.
 # To generate an individual pb file, you can use the following
 # command: python -c "import gen_tf_pb; gen_tf_pb.{test_name}_test()"
-import numpy as np
 import tensorflow as tf
-from tensorflow.core.framework import attr_value_pb2
 
 
 def tf_test(op_test):

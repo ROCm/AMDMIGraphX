@@ -29,11 +29,11 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
         {
             auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
             x_scale         = info.add_instruction(
-                make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}), args[1]);
+                make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}), args[1]);
         }
         else
         {
-            x_scale = info.add_instruction(make_op("multibroadcast", {{"output_lens", input_lens}}),
+            x_scale = info.add_instruction(make_op("multibroadcast", {{"out_lens", input_lens}}),
                                            args[1]);
         }
 
@@ -44,13 +44,13 @@ struct parse_dequantizelinear : op_parser<parse_dequantizelinear>
             {
                 auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
                 x_zero_point    = info.add_instruction(
-                    make_op("broadcast", {{"axis", tuned_axis}, {"dims", input_lens}}),
+                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
                     x_zero_point);
             }
             else
             {
                 x_zero_point = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", input_lens}}), x_zero_point);
+                    make_op("multibroadcast", {{"out_lens", input_lens}}), x_zero_point);
             }
 
             return info.add_instruction(

@@ -85,7 +85,7 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         auto bias_bcast = mod->add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"dims", curr_ins->get_shape().lens()}}),
+            make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
             args[2]);
         return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }

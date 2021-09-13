@@ -1,4 +1,5 @@
 
+#include "migraphx/common.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
@@ -16,9 +17,8 @@ struct test_gemm_copy : verify_program<test_gemm_copy>
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto dr = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
+        auto dr = migraphx::add_dot_apply_alpha_beta(*mm, {pa, pb, pc}, 1, 1);
         mm->add_instruction(migraphx::make_op("add"), dr, dr);
-
         return p;
     }
 };

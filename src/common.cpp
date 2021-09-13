@@ -125,7 +125,7 @@ instruction_ref insert_add_dot_apply_alpha_beta(module& m,
     if(!float_equal(alpha, 1.0f))
     {
         auto alpha_literal = m.add_literal(alpha);
-        l1                 = add_common_op(m, migraphx::make_op("mul"), {alpha_literal, l1});
+        l1                 = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, l1});
         if(l1->get_shape().type() != dot_type)
         {
             l1 = m.insert_instruction(pos, make_op("convert", {{"target_type", dot_type}}), l1);

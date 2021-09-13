@@ -24,7 +24,8 @@ struct parse_roialign : op_parser<parse_roialign>
         }
         if(contains({"half_pixel", "output_half_pixel"}, coord_trans_mode))
         {
-            MIGRAPHX_THROW("coordinate_transformation_mode \"" + coord_trans_mode + "\": invalid value!");
+            MIGRAPHX_THROW("coordinate_transformation_mode \"" + coord_trans_mode +
+                           "\": invalid value!");
         }
 
         std::string mode = "avg";

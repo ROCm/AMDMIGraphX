@@ -18,11 +18,11 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    std::string mode       = "avg";
-    int64_t output_height  = 1;
-    int64_t output_width   = 1;
-    int64_t sampling_ratio = 0;
-    float spatial_scale    = 1.0f;
+    std::string mode             = "avg";
+    int64_t output_height        = 1;
+    int64_t output_width         = 1;
+    int64_t sampling_ratio       = 0;
+    float spatial_scale          = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -40,10 +40,10 @@ struct roialign
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3).standard();
-        auto x_lens = inputs.at(0).lens();
+        auto x_lens   = inputs.at(0).lens();
         auto roi_lens = inputs.at(1).lens();
-        auto bi_lens = inputs.at(2).lens();
-        auto type  = inputs.at(0).type();
+        auto bi_lens  = inputs.at(2).lens();
+        auto type     = inputs.at(0).type();
 
         // check input correct
         if(bi_lens.size() != 1)
@@ -53,7 +53,8 @@ struct roialign
 
         if(roi_lens.size() != 2 or roi_lens.at(1) != 4)
         {
-            MIGRAPHX_THROW("ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
+            MIGRAPHX_THROW(
+                "ROIALIGN: rois should be 2 dimensions, and the second dim should be 4!");
         }
 
         if(roi_lens.front() != bi_lens.front())

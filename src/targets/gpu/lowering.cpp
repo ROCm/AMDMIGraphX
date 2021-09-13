@@ -184,7 +184,7 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
-        add_gemm_op<op::dot>("dot");
+        add_gemm_dot_op("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
         add_convolution_op();
         add_deconvolution_op();
@@ -346,8 +346,7 @@ struct miopen_apply
         });
     };
 
-    template <>
-    void add_gemm_op<op::dot>(std::string name)
+    void add_gemm_dot_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();

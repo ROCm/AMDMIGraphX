@@ -2237,8 +2237,8 @@ TEST_CASE(multinomial_int64_test)
     migraphx::program p;
     auto* mm           = p.get_main_module();
     size_t sample_size = 10;
-    int dtype = 7;
-    float seed = 1.0f;
+    int dtype          = 7;
+    float seed         = 1.0f;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);

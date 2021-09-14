@@ -21,7 +21,7 @@ instruction_ref insert_common_op(module& m,
                                  std::vector<instruction_ref> inputs);
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
-instruction_ref insert_add_dot_apply_alpha_beta(module& m,
+instruction_ref insert_dot_apply_alpha_beta(module& m,
                                                 instruction_ref pos,
                                                 const std::vector<instruction_ref>& args,
                                                 float alpha = 1.0,

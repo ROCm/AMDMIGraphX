@@ -113,7 +113,7 @@ instruction_ref add_common_op(module& m, const operation& op, std::vector<instru
     return insert_common_op(m, m.end(), op, std::move(inputs));
 }
 
-instruction_ref insert_add_dot_apply_alpha_beta(module& m,
+instruction_ref insert_dot_apply_alpha_beta(module& m,
                                                 instruction_ref pos,
                                                 const std::vector<instruction_ref>& args,
                                                 float alpha,
@@ -163,7 +163,7 @@ instruction_ref add_dot_apply_alpha_beta(module& m,
                                          float alpha,
                                          float beta)
 {
-    return insert_add_dot_apply_alpha_beta(m, m.end(), args, alpha, beta);
+    return insert_dot_apply_alpha_beta(m, m.end(), args, alpha, beta);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -3463,6 +3463,7 @@ def roialign_test():
         output_height=5,
         output_width=5,
         sampling_ratio=3,
+        mode="avg",
         coordinate_transformation_mode="output_half_pixel")
 
     return ([node], [x, roi, bi], [y])

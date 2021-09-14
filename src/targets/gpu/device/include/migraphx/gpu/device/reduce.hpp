@@ -239,7 +239,7 @@ void reduce_standard_impl(hipStream_t stream,
     hip_visit_all(result, arg)([&](auto output, auto input) {
         auto nelements = result.get_shape().elements();
 
-        const index_int max_block_size = 128;
+        const index_int max_block_size = 256;
         const index_int block_size     = compute_block_size(relements, max_block_size);
         gs_launch(stream, nelements * block_size, block_size)([=](auto i, auto idx) __device__ {
             const auto out_idx  = i / block_size;

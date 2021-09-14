@@ -9,7 +9,7 @@ struct test_multinomial : verify_program<test_multinomial>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm           = p.get_main_module();
         size_t sample_size = 10;
         std::mt19937 gen(0.0f);
         std::uniform_real_distribution<> dis(0.0, 1.0);

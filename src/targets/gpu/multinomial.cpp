@@ -18,10 +18,11 @@ shape hip_multinomial::compute_shape(const std::vector<shape>& inputs) const
         return {shape::int64_type, {inputs[0].lens()[0], sample_size}};
     else
         MIGRAPHX_THROW("Invalid output type: " + std::to_string(op.dtype) +
-                        ". Valid types are 6 (INT32) and 7 (INT64).");
+                       ". Valid types are 6 (INT32) and 7 (INT64).");
 }
 
-argument hip_multinomial::compute(context& ctx, const shape&, const std::vector<argument>& args) const
+argument
+hip_multinomial::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     device::multinomial(ctx.get_stream().get(), args.back(), args.front(), args[1]);
     return args.back();

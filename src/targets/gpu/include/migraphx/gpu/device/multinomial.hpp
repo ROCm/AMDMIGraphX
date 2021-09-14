@@ -10,7 +10,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void multinomial(hipStream_t stream, const argument& result, const argument& arg0, const argument& arg1);
+void multinomial(hipStream_t stream,
+                 const argument& result,
+                 const argument& arg0,
+                 const argument& arg1);
 
 } // namespace device
 } // namespace gpu

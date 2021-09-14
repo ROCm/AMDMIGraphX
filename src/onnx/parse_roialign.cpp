@@ -15,7 +15,7 @@ struct parse_roialign : op_parser<parse_roialign>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         std::string coord_trans_mode = "half_pixel";
         if(contains(info.attributes, "coordinate_transformation_mode"))

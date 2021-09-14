@@ -99,8 +99,10 @@ struct roialign
             auto iy    = idx[2];
             auto ix    = idx[3];
             auto index = comp_s.index(idx);
-            const float yy = roi_start_h + ph * bin_size_h + (iy + .5f) * bin_size_h / roi_bin_grid_h;
-            const float xx = roi_start_w + pw * bin_size_w + (ix + .5f) * bin_size_w / roi_bin_grid_w;
+            const float yy =
+                roi_start_h + ph * bin_size_h + (iy + .5f) * bin_size_h / roi_bin_grid_h;
+            const float xx =
+                roi_start_w + pw * bin_size_w + (ix + .5f) * bin_size_w / roi_bin_grid_w;
 
             float x = (coord_trans_mode == "output_half_pixel") ? (xx - 0.5f) : xx;
             float y = (coord_trans_mode == "output_half_pixel") ? (yy - 0.5f) : yy;
@@ -225,11 +227,11 @@ struct roialign
         auto roi_s            = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
-            using type            = typename decltype(output)::value_type;
+            using type         = typename decltype(output)::value_type;
             auto& arg_ind      = args.at(2);
             auto batch_indices = make_view(arg_ind.get_shape(), arg_ind.data());
             par_for(n_rois, [&](auto n) {
-                const type* bottom_data     = x.data();
+                const type* bottom_data  = x.data();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
                 float roi_start_w = static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale);
@@ -238,8 +240,10 @@ struct roialign
                 float roi_end_h   = static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale);
 
                 // Force malformed ROIs to be 1x1
-                float roi_width  = (roi_end_w - roi_start_w) > 1.0f ? (roi_end_w - roi_start_w) : 1.0f;
-                float roi_height = (roi_end_h - roi_start_h) > 1.0f ? (roi_end_h - roi_start_h) : 1.0f;
+                float roi_width =
+                    (roi_end_w - roi_start_w) > 1.0f ? (roi_end_w - roi_start_w) : 1.0f;
+                float roi_height =
+                    (roi_end_h - roi_start_h) > 1.0f ? (roi_end_h - roi_start_h) : 1.0f;
                 float bin_size_h = static_cast<float>(roi_height / pooled_height);
                 float bin_size_w = static_cast<float>(roi_width / pooled_width);
 
@@ -256,7 +260,7 @@ struct roialign
                 // we want to precalculate indices and weights shared by all channels,
                 // this is the key point of optimization
                 std::vector<pos_weight> pre_calc(roi_bin_grid_h * roi_bin_grid_w * pooled_width *
-                                                    pooled_height);
+                                                 pooled_height);
                 std::vector<int64_t> lens = {
                     pooled_height, pooled_width, roi_bin_grid_h, roi_bin_grid_w};
                 std::vector<std::size_t> comp_lens(lens.begin(), lens.end());

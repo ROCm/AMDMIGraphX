@@ -70,7 +70,8 @@ TEST_CASE(dot_apply_alpha_beta_double)
                                                alpha_broadcast);
         auto x_alpha_double = m2.add_instruction(migraphx::make_op("mul"), alpha_double, x);
         auto dot_res        = m2.add_instruction(migraphx::make_op("dot"), x_alpha_double, y);
-        auto z_broadcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), z);
+        auto z_broadcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}), z);
         auto beta_literal   = m2.add_literal(2.0f);
         auto beta_broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", z_broadcast->get_shape().lens()}}),

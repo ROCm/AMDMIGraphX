@@ -40,10 +40,9 @@ void eliminate_data_type::apply(module& m) const
         {
             if(ins->name() == "quant_dot")
             {
-                auto alpha = val.at("alpha").to<std::float_t>();
-                auto beta  = val.at("beta").to<std::float_t>();
-                auto dot_res =
-                    migraphx::insert_dot_apply_alpha_beta(m, ins, inputs, alpha, beta);
+                auto alpha   = val.at("alpha").to<std::float_t>();
+                auto beta    = val.at("beta").to<std::float_t>();
+                auto dot_res = migraphx::insert_dot_apply_alpha_beta(m, ins, inputs, alpha, beta);
                 auto convert = m.insert_instruction(
                     ins, make_op("convert", {{"target_type", old_type}}), dot_res);
                 m.replace_instruction(ins, convert);

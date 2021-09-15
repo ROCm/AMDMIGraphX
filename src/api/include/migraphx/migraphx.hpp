@@ -494,6 +494,25 @@ struct module
     void print() const { call(&migraphx_module_print, mm); }
 };
 
+struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
+{
+    compile_options() { this->make_handle(&migraphx_compile_options_create); }
+
+    compile_options(migraphx_compile_options* p, own) { this->set_handle(p, own()); }
+
+    // set offload_copy
+    void set_offload_copy(bool value)
+    {
+        call(&migraphx_compile_options_set_offload_copy, this->get_handle_ptr(), value);
+    }
+
+    // set fast_math
+    void set_fast_math(bool value)
+    {
+        call(&migraphx_compile_options_set_fast_math, this->get_handle_ptr(), value);
+    }
+};
+
 /// A program represents the all computation graphs to be compiled and executed
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {
@@ -504,16 +523,21 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     program(migraphx_program* p, borrow) { this->set_handle(p, borrow{}); }
 
     /// Compile the program for a specific target to be ran on
-    void compile(const target& ptarget, migraphx_compile_options poptions) const
+    void compile(const target& ptarget, const compile_options& poptions) const
     {
-        call(
-            &migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), &poptions);
+        call(&migraphx_program_compile,
+             this->get_handle_ptr(),
+             ptarget.get_handle_ptr(),
+             poptions.get_handle_ptr());
     }
 
     /// Compile the program for a specific target to be ran on
     void compile(const target& ptarget) const
     {
-        call(&migraphx_program_compile, this->get_handle_ptr(), ptarget.get_handle_ptr(), nullptr);
+        call(&migraphx_program_compile,
+             this->get_handle_ptr(),
+             ptarget.get_handle_ptr(),
+             migraphx::compile_options{}.get_handle_ptr());
     }
 
     /// Return the shapes for the input parameters

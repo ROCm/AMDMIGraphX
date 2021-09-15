@@ -54,13 +54,6 @@ typedef struct
     bool fast_math;
 } migraphx_compile_options;
 
-/// Options for saving and loading files
-typedef struct
-{
-    /// Format to be used for file. It can either be json or msgpack
-    const char* format;
-} migraphx_file_options;
-
 <% generate_c_header() %>
 
 #ifdef __cplusplus

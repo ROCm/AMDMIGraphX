@@ -1,3 +1,4 @@
+#include <migraphx/operation.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -81,12 +82,7 @@ migraphx::compile_options to_compile_options(const migraphx_compile_options& opt
     return result;
 }
 
-migraphx::file_options to_file_options(const migraphx_file_options& options)
-{
-    migraphx::file_options result{};
-    result.format = options.format;
-    return result;
-}
+void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)
 {

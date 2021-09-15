@@ -26,7 +26,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
         if(contains(info.attributes, "sample_size"))
             sample_size = parser.parse_value(info.attributes.at("sample_size")).at<int>();
 
-        float seed = 0.0; 
+        float seed = 0.0;
         if(contains(info.attributes, "seed"))
             seed = parser.parse_value(info.attributes.at("seed")).at<float>();
 

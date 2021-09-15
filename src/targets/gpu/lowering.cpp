@@ -334,12 +334,13 @@ struct miopen_apply
                 }
             }
 
-            return mod->replace_instruction(ins,
-                                            rocblas_gemm<op::quant_dot>{op::quant_dot{op.alpha, beta},
-                                                             int8_x4_format,
-                                                             static_cast<float>(op.alpha),
-                                                             static_cast<float>(beta)},
-                                            refs);
+            return mod->replace_instruction(
+                ins,
+                rocblas_gemm<op::quant_dot>{op::quant_dot{op.alpha, beta},
+                                            int8_x4_format,
+                                            static_cast<float>(op.alpha),
+                                            static_cast<float>(beta)},
+                refs);
         });
     };
 

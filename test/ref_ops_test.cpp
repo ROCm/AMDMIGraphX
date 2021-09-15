@@ -2688,7 +2688,7 @@ TEST_CASE(mul_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(multinomial_correctness_test)
+TEST_CASE(multinomial_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

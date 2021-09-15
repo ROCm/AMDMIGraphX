@@ -2793,43 +2793,6 @@ TEST_CASE(not_test)
     }
 }
 
-TEST_CASE(op_capture)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s1{migraphx::shape::float_type, {3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 6}};
-    std::vector<float> d1(s1.elements());
-    std::vector<float> d2(s2.elements());
-    std::iota(d1.begin(), d1.end(), 0.0f);
-    std::iota(d2.begin(), d2.end(), 0.0f);
-
-    auto p1 = mm->add_literal(s1, d1);
-    auto p2 = mm->add_literal(s1, d1);
-    auto pb = mm->add_literal(s2, d2);
-    auto pc = mm->add_literal(s2, d2);
-    auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-    auto ps = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
-    mm->add_instruction(migraphx::make_op("dot"), pa, ps);
-
-    migraphx::program capture_p = p;
-    migraphx::target t          = migraphx::ref::target{};
-    migraphx::capture_arguments(capture_p, t, {"dot"});
-
-    p.compile(migraphx::ref::target{});
-    capture_p.compile(migraphx::ref::target{});
-
-    auto cap_res = capture_p.eval({}).back();
-    auto res     = p.eval({}).back();
-
-    std::vector<float> vec;
-    std::vector<float> cap_vec;
-    cap_res.visit([&](auto output) { cap_vec.assign(output.begin(), output.end()); });
-    res.visit([&](auto output) { vec.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify_range(vec, cap_vec));
-}
-
 TEST_CASE(pad_test)
 {
     migraphx::program p;

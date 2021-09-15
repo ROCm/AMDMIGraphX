@@ -26,7 +26,7 @@ struct dequantizelinear
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.same_dims();
-        return {shape::float_type, inputs[0].lens(), inputs[0].strides()};
+        return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

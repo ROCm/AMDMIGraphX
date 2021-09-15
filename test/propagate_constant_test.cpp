@@ -118,10 +118,10 @@ TEST_CASE(const_dot)
         migraphx::shape s{migraphx::shape::float_type, {2, 2}};
         std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
 
-        auto l = m1.add_literal(migraphx::literal(s, vec));
+        auto l  = m1.add_literal(migraphx::literal(s, vec));
         auto dl = m1.add_instruction(migraphx::make_op("dot"), l, l);
-        auto x = m1.add_parameter("x", s);
-        auto r = m1.add_instruction(migraphx::make_op("add"), dl, x);
+        auto x  = m1.add_parameter("x", s);
+        auto r  = m1.add_instruction(migraphx::make_op("add"), dl, x);
         m1.add_return({r});
     }
 

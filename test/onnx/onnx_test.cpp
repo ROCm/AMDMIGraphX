@@ -2206,6 +2206,7 @@ TEST_CASE(multinomial_test)
     migraphx::program p;
     auto* mm           = p.get_main_module();
     size_t sample_size = 10;
+    float seed = 0.0f;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
@@ -2216,7 +2217,7 @@ TEST_CASE(multinomial_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    std::mt19937 gen(0.0f);
+    std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
     std::transform(rand_samples.begin(), rand_samples.end(), rand_samples.begin(), [&](auto) {

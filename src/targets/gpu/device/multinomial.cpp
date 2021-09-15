@@ -11,6 +11,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+template<class T1, class T2>
+void __device__ set_output(T1& cdf, T1& dist, T2& output, const size_t& i, size_t& j, const size_t& n)
+{
+    for(; j < n; ++j)
+    {
+        if(cdf[j] > (dist[i] * cdf[n - 1]))
+        {
+            output[i] = j;
+            return;
+        }
+    }
+}
+
 void multinomial(hipStream_t stream,
                  const argument& result,
                  const argument& arg0,
@@ -25,15 +38,9 @@ void multinomial(hipStream_t stream,
             hip_visit_views(out)([&](auto output) {
                 gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
                     auto idx = output.get_shape().multi(i);
-                    size_t k = (idx.front() + 1) * class_size;
-                    for(size_t j = idx.front() * class_size; j < k; ++j)
-                    {
-                        if(cdf[j] > (dist[i] * cdf[k - 1]))
-                        {
-                            output[i] = j;
-                            break;
-                        }
-                    }
+                    size_t j = idx.front() * class_size;
+                    size_t n = (idx.front() + 1) * class_size;
+                    set_output(cdf, dist, output, i, j, n);
                 });
             });
         });

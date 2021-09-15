@@ -57,9 +57,9 @@ struct multinomial
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
                     auto idx       = args[1].get_shape().multi(i);
-                    auto cdf_begin = cdf.data() + (idx[0] * class_size);
-                    auto cdf_end   = cdf_begin + class_size;
-                    auto sample_iter =
+                    auto* cdf_begin = cdf.data() + (idx[0] * class_size);
+                    auto* cdf_end   = cdf_begin + class_size;
+                    auto* sample_iter =
                         std::upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
                     output[i] = std::distance(cdf_begin, sample_iter);
                 });

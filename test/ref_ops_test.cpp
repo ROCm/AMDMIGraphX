@@ -2694,7 +2694,7 @@ TEST_CASE(multinomial_test)
     auto* mm = p.get_main_module();
 
     size_t sample_size = 100000;
-    float seed = 0.0f;
+    float seed         = 0.0f;
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);

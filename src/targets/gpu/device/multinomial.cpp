@@ -11,8 +11,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<class T1, class T2>
-void __device__ set_output(T1& cdf, T1& dist, T2& output, const size_t& i, size_t& j, const size_t& n)
+template <class T1, class T2>
+void __device__
+set_output(T1& cdf, T1& dist, T2& output, const size_t& i, size_t& j, const size_t& n)
 {
     for(; j < n; ++j)
     {

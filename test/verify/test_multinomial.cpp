@@ -11,7 +11,7 @@ struct test_multinomial : verify_program<test_multinomial>
         migraphx::program p;
         auto* mm           = p.get_main_module();
         size_t sample_size = 10;
-        float seed = 0.0f;
+        float seed         = 0.0f;
         std::mt19937 gen(seed);
         std::uniform_real_distribution<> dis(0.0, 1.0);
         std::vector<float> rand_samples(sample_size);

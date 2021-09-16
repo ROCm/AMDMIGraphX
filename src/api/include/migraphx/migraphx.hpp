@@ -599,7 +599,7 @@ struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
 };
 
 /// Load a saved migraphx program from a file
-inline program load(const char* filename, file_options options)
+inline program load(const char* filename, const file_options& options)
 {
     return program(make<migraphx_program>(&migraphx_load, filename, options.get_handle_ptr()),
                    own{});
@@ -614,7 +614,7 @@ inline program load(const char* filename)
 }
 
 /// Save a program to a file
-inline void save(const program& p, const char* filename, file_options options)
+inline void save(const program& p, const char* filename, const file_options& options)
 {
     call(&migraphx_save, p.get_handle_ptr(), filename, options.get_handle_ptr());
 }

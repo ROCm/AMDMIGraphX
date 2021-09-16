@@ -243,6 +243,11 @@ def onnx_options(h):
         api.params(value='size_t'),
         invoke='migraphx::set_default_dim_value($@)',
     )
+    h.method(
+        'set_default_loop_iterations',
+        api.params(value='int64_t'),
+        invoke='migraphx::set_default_loop_iterations($@)',
+    )
 
 
 api.add_function('migraphx_parse_onnx',

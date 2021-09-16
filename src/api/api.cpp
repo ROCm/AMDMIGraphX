@@ -93,6 +93,11 @@ void set_default_dim_value(onnx_options& options, size_t value)
     options.default_dim_value = value;
 }
 
+void set_default_loop_iterations(onnx_options& options, int64_t value)
+{
+    options.max_loop_iterations = value;
+}
+
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
@@ -840,6 +845,17 @@ migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_default_dim_value((onnx_options->object), (value));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
+                                                  int64_t value)
+{
+    return migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_default_loop_iterations((onnx_options->object), (value));
     });
 }
 

@@ -647,6 +647,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     {
         call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
     }
+
+    /// Set default max iteration number for the loop operator
+    void set_default_loop_iterations(int64_t value)
+    {
+        call(&migraphx_onnx_options_set_default_loop_iterations, this->get_handle_ptr(), value);
+    }
 };
 
 /// Parse an onnx file into a migraphx program

@@ -247,6 +247,10 @@ migraphx_status migraphx_file_options_set_file_format(migraphx_file_options_t fi
                                                       const char* format);
 
 migraphx_status
+migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
+                                                  int64_t value);
+
+migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);
 
 migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,

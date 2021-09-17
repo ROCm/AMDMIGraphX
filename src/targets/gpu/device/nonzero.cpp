@@ -1,6 +1,7 @@
 #include <migraphx/gpu/device/nonzero.hpp>
 #include <migraphx/gpu/device/float_equal.hpp>
 #include <migraphx/gpu/device/scan.hpp>
+#include <migraphx/gpu/device/fill.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>
 
 namespace migraphx {
@@ -22,13 +23,16 @@ argument nonzero(hipStream_t stream,
             [=](auto i) __device__ { idx[i] = (float_equal(in_ptr[i], 0)) ? 0 : 1; });
     });
 
+    // set all output values to 0
+    fill(stream, result, 0);
+
     // call the prefix_sum function to do a prefix_sum to compute
     // index in the output. Only 1 block can be used since we have
     // only one prefix sum
     const index_int block_size = 256;
     arg_idx.visit([&](auto in_idx) {
         auto* ptr = device_cast(in_idx.data());
-        gs_launch(stream, 1, block_size)([=](auto, auto idx) __device__ {
+        gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
             block_scan<block_size>(idx,
                                    sum{},
                                    0,
@@ -43,10 +47,11 @@ argument nonzero(hipStream_t stream,
         auto* out_ptr = device_cast(output.data());
         hip_visit_all(arg_data.get_shape())([&](auto si) {
             gs_launch(stream, elem_num)([=](auto i) __device__ {
-                auto index = si.multi(idx[i]);
+                auto out_idx = idx[i] - 1;
+                auto index = si.multi(out_idx);
                 for(std::size_t j = 0; j < index.size(); ++j)
                 {
-                    out_ptr[j * elem_num + i] = index[j];
+                    out_ptr[j * elem_num + out_idx] = index[j];
                 }
             });
         });

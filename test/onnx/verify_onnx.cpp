@@ -305,7 +305,7 @@ TEST_CASE(nonzero_dynamic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0, 0, 1, 0, 1, 0};
+    std::vector<float> gold = {0, 0, 1, 0, 0, 1, 0, 0};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

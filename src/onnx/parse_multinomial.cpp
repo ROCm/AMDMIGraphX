@@ -18,13 +18,13 @@ struct parse_multinomial : op_parser<parse_multinomial>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        int dtype = 6; 
+        int dtype                 = 6;
         shape::type_t output_type = shape::type_t::int32_type;
         if(contains(info.attributes, "dtype"))
             dtype = parser.parse_value(info.attributes.at("dtype")).at<int>();
-        if (dtype == 7)
+        if(dtype == 7)
             output_type = shape::type_t::int64_type;
-        else if (dtype != 6)
+        else if(dtype != 6)
             MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 6 (INT32) and 7 (INT64).");
 

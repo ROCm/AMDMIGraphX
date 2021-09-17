@@ -2241,9 +2241,9 @@ TEST_CASE(multinomial_dtype_error_test)
 TEST_CASE(multinomial_int64_test)
 {
     migraphx::program p;
-    auto* mm           = p.get_main_module();
-    size_t sample_size = 10;
-    float seed         = 1.0f;
+    auto* mm                      = p.get_main_module();
+    size_t sample_size            = 10;
+    float seed                    = 1.0f;
     migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});

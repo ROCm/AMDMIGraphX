@@ -48,7 +48,7 @@ argument nonzero(hipStream_t stream,
         hip_visit_all(arg_data.get_shape())([&](auto si) {
             gs_launch(stream, elem_num)([=](auto i) __device__ {
                 auto out_idx = idx[i] - 1;
-                auto index = si.multi(out_idx);
+                auto index   = si.multi(out_idx);
                 for(std::size_t j = 0; j < index.size(); ++j)
                 {
                     out_ptr[j * elem_num + out_idx] = index[j];

@@ -32,20 +32,18 @@ struct nonzero
         auto elem_num = args.front().get_shape().elements();
         std::vector<int64_t> vec_idx(elem_num);
         args.front().visit([&](auto data) {
-            par_for(elem_num, [&](auto i) {
-                vec_idx[i] = (float_equal(data[i], 0)) ? 0 : 1;
-            });
+            par_for(elem_num, [&](auto i) { vec_idx[i] = (float_equal(data[i], 0)) ? 0 : 1; });
         });
 
         std::partial_sum(vec_idx.begin(), vec_idx.end(), vec_idx.begin());
 
-        auto s = args.front().get_shape();
+        auto s        = args.front().get_shape();
         auto out_lens = output_shape.lens();
         argument result{output_shape};
         result.visit([&](auto output) {
             std::fill(output.begin(), output.end(), 0);
             par_for(elem_num, [&](auto i) {
-                auto nz = static_cast<std::size_t>(vec_idx[i] - 1);
+                auto nz  = static_cast<std::size_t>(vec_idx[i] - 1);
                 auto idx = s.multi(nz);
                 for(std::size_t j = 0; j < idx.size(); ++j)
                 {

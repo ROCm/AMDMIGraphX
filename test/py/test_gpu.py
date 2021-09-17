@@ -53,7 +53,7 @@ def test_neg_int64():
     print(r)
 
 
-def test_nonzero_dynamic():
+def test_nonzero():
     p = migraphx.parse_onnx("nonzero_dynamic_test.onnx")
     print(p)
     print("Compiling ...")
@@ -114,4 +114,4 @@ test_sub_uint64()
 test_neg_int64()
 test_fp16_imagescaler()
 test_if_pl()
-test_nonzero_dynamic()
+test_nonzero()

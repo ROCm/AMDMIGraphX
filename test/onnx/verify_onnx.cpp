@@ -290,7 +290,7 @@ TEST_CASE(lessorequal_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-TEST_CASE(nonzero_dynamic_test)
+TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
     p.compile(migraphx::ref::target{});

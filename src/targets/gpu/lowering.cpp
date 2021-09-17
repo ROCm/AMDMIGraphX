@@ -475,14 +475,13 @@ struct miopen_apply
     void add_nonzero_op()
     {
         apply_map.emplace("nonzero", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto inputs = ins->inputs();
-            shape s_idx{shape::int64_type, {1}};
+            auto input = ins->inputs().front();
+            const auto& in_lens = input->get_shape().lens();
+            shape idx_s{shape::int64_type, in_lens};
             auto idx = mod->insert_instruction(
-                ins, make_op("hip::allocate", {{"shape", to_value(s_idx)}}));
-            auto output = insert_allocation(ins, s);
-            return mod->replace_instruction(
-                ins, make_op("gpu::nonzero"), ins->inputs().front(), idx, output);
+                ins, make_op("hip::allocate", {{"shape", to_value(idx_s)}}));
+            auto output = insert_allocation(ins, ins->get_shape());
+            return mod->replace_instruction(ins, make_op("gpu::nonzero"), input, idx, output);
         });
     }
 

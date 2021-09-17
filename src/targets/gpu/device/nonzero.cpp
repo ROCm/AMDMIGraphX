@@ -1,12 +1,7 @@
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
 #include <migraphx/gpu/device/nonzero.hpp>
-#include <migraphx/gpu/device/tensor.hpp>
-#include <migraphx/gpu/device/launch.hpp>
-#include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/float_equal.hpp>
-#include <migraphx/gpu/device/shape.hpp>
-#include <migraphx/gpu/device/visit.hpp>
+#include <migraphx/gpu/device/scan.hpp>
+#include <migraphx/gpu/device/reduce_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -19,43 +14,46 @@ argument nonzero(hipStream_t stream,
                  const argument& arg_data)
 {
     auto elem_num = arg_data.get_shape().elements();
-    int nonzero_num;
-    visit_all(result, arg_idx)([&](auto output, auto idx) {
-        auto* idx_ptr = reinterpret_cast<int*>(device_cast(idx.data()));
-        auto* out_ptr = device_cast(output.data());
-        arg_data.visit([&](auto input) {
-            const auto* input_ptr = device_cast(input.data());
-            (void)hipMemset(idx_ptr, 0, sizeof(int));
-            gs_launch(stream, 1, 1)([=](auto) __device__ {
-                int index = 0;
-                for(std::size_t i = 0; i < elem_num; ++i)
-                    if(not float_equal(input_ptr[i], 0))
-                    {
-                        out_ptr[index++] = i;
-                    }
-                *idx_ptr = index;
+    // check nonzero elements
+    arg_data.visit([&](auto input) {
+        const auto* in_ptr = device_cast(input.data());
+        auto* idx = arg_idx.cast<int64_t>();
+            gs_launch(stream, elem_num)([=](auto i) __device__ {
+                idx[i] = (float_equal(in_ptr[i], 0)) ? 0 : 1;
             });
         });
-        (void)hipMemcpyAsync(&nonzero_num, idx_ptr, sizeof(int), hipMemcpyDeviceToHost, stream);
+
+    // call the prefix_sum function to do a prefix_sum to compute
+    // index in the output. Only 1 block can be used since we have 
+    // only one prefix sum
+    const index_int block_size = 256;
+    arg_idx.visit([&](auto in_idx) {
+        auto* ptr = device_cast(in_idx.data());
+        gs_launch(stream, 1, block_size)([=](auto, auto idx) __device__ {
+            block_scan<block_size>(idx,
+                                    sum{},
+                                    0,
+                                    elem_num,
+                                    [&](auto j) { return ptr[j]; },
+                                    [&](auto j, auto x) { ptr[j] = x; });
+        });
     });
 
     result.visit([&](auto output) {
+        auto* idx = arg_idx.cast<int64_t>();
         auto* out_ptr = device_cast(output.data());
         hip_visit_all(arg_data.get_shape())([&](auto si) {
-            gs_launch(stream, nonzero_num)([=](auto i) __device__ {
-                auto index = si.multi(out_ptr[i]);
+            gs_launch(stream, elem_num)([=](auto i) __device__ {
+                auto index = si.multi(idx[i]);
                 for(std::size_t j = 0; j < index.size(); ++j)
                 {
-                    out_ptr[j * nonzero_num + i] = index[j];
+                    out_ptr[j * elem_num + i] = index[j];
                 }
             });
         });
     });
 
-    auto out_lens = result.get_shape().lens();
-    out_lens[1]   = nonzero_num;
-    shape out_s{result.get_shape().type(), out_lens};
-    return result.reshape(out_s);
+    return result;
 }
 
 } // namespace device

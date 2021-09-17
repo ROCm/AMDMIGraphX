@@ -49,6 +49,7 @@
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>
 #include <migraphx/op/logsoftmax.hpp>
+#include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/lstm.hpp>
 #include <migraphx/op/max.hpp>

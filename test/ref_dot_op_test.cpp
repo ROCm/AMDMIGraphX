@@ -6,7 +6,6 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
 
 #include "test.hpp"
 #include <migraphx/half.hpp>
@@ -212,8 +211,7 @@ TEST_CASE(gemm_mutli_dim_2_beta0)
     auto l3     = mm->add_literal(migraphx::literal{m3_shape, m3});
     float alpha = 1.0f;
     float beta  = 0.0f;
-    migraphx::add_dot_apply_alpha_beta(
-        *mm, std::vector<migraphx::instruction_ref>{l1, l2, l3}, alpha, beta);
+    mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> m;
@@ -276,8 +274,7 @@ TEST_CASE(gemm_beta_0)
 
     float alpha = 1.0f;
     float beta  = 0.0f;
-    migraphx::add_dot_apply_alpha_beta(
-        *mm, std::vector<migraphx::instruction_ref>{l1, l2, l3}, alpha, beta);
+    mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> m;
@@ -362,13 +359,13 @@ TEST_CASE(gemm_mutli_dim1_2_3)
                              0.49759611,  0.10021662,  0.00592602,  0.90862000};
     migraphx::shape m3_shape{migraphx::shape::float_type, {2, 3, 2, 2}};
 
-    auto l1        = mm->add_literal(migraphx::literal{m1_shape, m1});
-    auto l2        = mm->add_literal(migraphx::literal{m2_shape, m2});
-    auto l3        = mm->add_literal(migraphx::literal{m3_shape, m3});
-    float alpha    = 0.35;
-    float beta     = 0.41;
-    auto m12_alpha = migraphx::add_dot_apply_alpha_beta(
-        *mm, std::vector<migraphx::instruction_ref>{l1, l2}, alpha);
+    auto l1     = mm->add_literal(migraphx::literal{m1_shape, m1});
+    auto l2     = mm->add_literal(migraphx::literal{m2_shape, m2});
+    auto l3     = mm->add_literal(migraphx::literal{m3_shape, m3});
+    float alpha = 0.35;
+    float beta  = 0.41;
+    auto m12_alpha =
+        mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2);
     auto l_beta = mm->add_literal(beta);
     auto b_beta = mm->add_instruction(
         migraphx::make_op("scalar", {{"scalar_bcst_dims", m12_alpha->get_shape().lens()}}), l_beta);
@@ -421,8 +418,7 @@ TEST_CASE(gemm_mutli_3args)
     auto l3     = mm->add_literal(migraphx::literal{m3_shape, m3});
     float alpha = 0.35;
     float beta  = 0.41;
-    migraphx::add_dot_apply_alpha_beta(
-        *mm, std::vector<migraphx::instruction_ref>{l1, l2, l3}, alpha, beta);
+    mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> m;
@@ -483,7 +479,7 @@ TEST_CASE(gemm_3args)
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
         migraphx::shape c_shape{migraphx::shape::float_type, {3, 3}};
         auto cl = mm->add_literal(migraphx::literal{c_shape, c});
-        migraphx::add_dot_apply_alpha_beta(*mm, {al, bl, cl}, 1, 1);
+        mm->add_instruction(migraphx::make_op("dot"), al, bl, cl);
         std::vector<float> gold = {-1.60947,
                                    0.703083,
                                    -5.46156,
@@ -565,8 +561,7 @@ TEST_CASE(matmul_vv_inner_product)
         auto ual    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), al);
         auto ubl    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bl);
         float alpha = 0.32f;
-        migraphx::add_dot_apply_alpha_beta(
-            *mm, std::vector<migraphx::instruction_ref>{ual, ubl}, alpha);
+        mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}}), ual, ubl);
         std::vector<float> gold = {-0.4590752};
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -639,8 +634,7 @@ TEST_CASE(matmul_vm)
         migraphx::shape b_shape{migraphx::shape::float_type, {8, 5}};
         auto bl     = mm->add_literal(migraphx::literal{b_shape, b});
         float alpha = 0.5f;
-        migraphx::add_dot_apply_alpha_beta(
-            *mm, std::vector<migraphx::instruction_ref>{ual, bl}, alpha);
+        mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}}), ual, bl);
         std::vector<float> gold = {-1.89056, -1.70003, -1.0986, -1.65724, -1.90163};
 
         p.compile(migraphx::ref::target{});
@@ -724,8 +718,7 @@ TEST_CASE(matmul_vm)
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 1, 6}}}), ual);
         migraphx::shape b_shape{migraphx::shape::float_type, {3, 6, 4}};
         auto bl = mm->add_literal(migraphx::literal{b_shape, b});
-        migraphx::add_dot_apply_alpha_beta(
-            *mm, std::vector<migraphx::instruction_ref>{bual, bl}, 0.21f);
+        mm->add_instruction(migraphx::make_op("dot", {{"alpha", 0.21f}}), bual, bl);
         std::vector<float> gold = {0.25812,
                                    -0.247582,
                                    0.480051,
@@ -812,8 +805,7 @@ TEST_CASE(matmul_mv)
         auto bl     = mm->add_literal(migraphx::literal{b_shape, b});
         auto ubl    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), bl);
         float alpha = 0.3f;
-        migraphx::add_dot_apply_alpha_beta(
-            *mm, std::vector<migraphx::instruction_ref>{al, ubl}, alpha);
+        mm->add_instruction(migraphx::make_op("dot", {{"alpha", alpha}}), al, ubl);
         std::vector<float> gold = {0.395946, 0.357067, -0.588187};
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

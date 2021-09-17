@@ -6,7 +6,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/common.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_int8.hpp>
 #include <migraphx/quantize_fp16.hpp>
@@ -557,8 +556,10 @@ TEST_CASE(dot_float)
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
+        auto pc = mm->add_parameter("c", sc);
 
-        auto r = migraphx::add_dot_apply_alpha_beta(*mm, {pa, pb});
+        auto r = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), pa, pb, pc);
         mm->add_return({r});
 
         return p;
@@ -572,6 +573,7 @@ TEST_CASE(dot_float)
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
         auto pa      = mm->add_parameter("a", sa);
         auto pb      = mm->add_parameter("b", sb);
+        auto pc      = mm->add_parameter("c", sc);
         auto zp_a    = mm->add_literal(static_cast<int8_t>(0));
         auto scale_a = mm->add_literal(10.0f);
         scale_a      = mm->add_instruction(
@@ -590,7 +592,16 @@ TEST_CASE(dot_float)
         auto qb  = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
         auto dqb = mm->add_instruction(migraphx::make_op("dequantizelinear"), qb, scale_b, zp_b);
 
-        auto r = migraphx::add_dot_apply_alpha_beta(*mm, {dqa, dqb});
+        auto zp_c    = mm->add_literal(static_cast<int8_t>(100));
+        auto scale_c = mm->add_literal(10.0f);
+        scale_c      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}), scale_c);
+        zp_c = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sc.lens()}}),
+                                   zp_c);
+        auto qc  = mm->add_instruction(migraphx::make_op("quantizelinear"), pc, scale_c, zp_c);
+        auto dqc = mm->add_instruction(migraphx::make_op("dequantizelinear"), qc, scale_c, zp_c);
+        auto r   = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1}, {"beta", 0}}), dqa, dqb, dqc);
         mm->add_return({r});
 
         return p;
@@ -602,8 +613,9 @@ TEST_CASE(dot_float)
         migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
         migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
         migraphx::shape sc{migraphx::shape::float_type, {2, 8}};
-        auto pa      = mm->add_parameter("a", sa);
-        auto pb      = mm->add_parameter("b", sb);
+        auto pa = mm->add_parameter("a", sa);
+        auto pb = mm->add_parameter("b", sb);
+        mm->add_parameter("c", sc);
         auto zp      = mm->add_literal(static_cast<int8_t>(0));
         auto scale   = mm->add_literal(10.0f);
         auto scale_a = mm->add_instruction(
@@ -637,7 +649,6 @@ TEST_CASE(dot_float)
         p,
         {migraphx::quantize_int8_pass{{"dot"}, quant_params}, migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
-
     EXPECT(p == qp);
 
     optimize_prog_int8(p);
@@ -654,7 +665,8 @@ TEST_CASE(dot_double_2args)
         migraphx::shape sb{migraphx::shape::double_type, {16, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        auto r  = migraphx::add_dot_apply_alpha_beta(*mm, {pa, pb});
+        auto r  = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), pa, pb);
         mm->add_return({r});
 
         return p;
@@ -684,7 +696,8 @@ TEST_CASE(dot_double_2args)
                                    zp_b);
         auto qb  = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
         auto dqb = mm->add_instruction(migraphx::make_op("dequantizelinear"), qb, scale_b, zp_b);
-        auto r   = migraphx::add_dot_apply_alpha_beta(*mm, {dqa, dqb});
+        auto r   = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), dqa, dqb);
         mm->add_return({r});
         return p;
     };
@@ -740,7 +753,8 @@ TEST_CASE(dot_half_1arg)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::half_type, {9, 9}};
         auto x = mm->add_parameter("x", s);
-        auto r = migraphx::add_dot_apply_alpha_beta(*mm, {x, x});
+        auto r =
+            mm->add_instruction(migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), x, x);
         mm->add_return({r});
 
         return p;
@@ -768,7 +782,8 @@ TEST_CASE(dot_half_1arg)
                                    zp_b);
         auto qb  = mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_b, zp_b);
         auto dqb = mm->add_instruction(migraphx::make_op("dequantizelinear"), qb, scale_b, zp_b);
-        auto r   = migraphx::add_dot_apply_alpha_beta(*mm, {dqa, dqb});
+        auto r   = mm->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), dqa, dqb);
         mm->add_return({r});
         return p;
     };
@@ -1040,8 +1055,9 @@ TEST_CASE(int8_quantization_dot)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto r  = migraphx::add_dot_apply_alpha_beta(*mm, {pa, pb, pc}, 1, 1);
+        auto r  = mm->add_instruction(migraphx::make_op("dot"), pa, pb, pc);
         mm->add_return({r});
+
         return p;
     };
 
@@ -1059,7 +1075,7 @@ TEST_CASE(int8_quantization_dot)
         std::vector<float> no_quant_result;
         run_prog(p, ref_t, m, no_quant_result);
 
-        EXPECT(migraphx::verify_range(quant_result, no_quant_result, 30000));
+        EXPECT(migraphx::verify_range(quant_result, no_quant_result));
     }
 }
 
@@ -1126,7 +1142,8 @@ TEST_CASE(int8_subgraph)
         auto w = mm->add_parameter("w", sw);
 
         auto* then_mod = p.create_module("If_6_if");
-        auto out1      = migraphx::add_dot_apply_alpha_beta(*then_mod, {a, b});
+        auto out1      = then_mod->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 1.0f}, {"beta", 0.0f}}), a, b);
         then_mod->add_return({out1});
 
         auto* else_mod = p.create_module("If_6_else");

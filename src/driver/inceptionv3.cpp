@@ -1,7 +1,6 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/common.hpp>
 #include "models.hpp"
 
 namespace migraphx {
@@ -2226,9 +2225,10 @@ migraphx::program inceptionv3(unsigned batch) // NOLINT(readability-function-siz
     migraphx::op::multibroadcast multibroadcast798;
     multibroadcast798.output_lens = {batch, 1000};
     auto mx798                    = mm->add_instruction(multibroadcast798, mx0);
-    float dot799_alpha            = 1;
-    float dot799_beta             = 1;
-    migraphx::add_dot_apply_alpha_beta(*mm, {mx796, mx797, mx798}, dot799_alpha, dot799_beta);
+    migraphx::op::dot dot799;
+    dot799.alpha = 1;
+    dot799.beta  = 1;
+    mm->add_instruction(dot799, mx796, mx797, mx798);
 
     return p;
 }

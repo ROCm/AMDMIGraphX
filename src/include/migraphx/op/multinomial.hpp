@@ -23,7 +23,7 @@ namespace op {
 
 struct multinomial
 {
-    int dtype = 6;
+    shape::type_t dtype = shape::type_t::int32_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -37,13 +37,7 @@ struct multinomial
         check_shapes{inputs, *this}.has(2).only_dims(2);
         size_t sample_size = inputs.back().lens().back();
 
-        if(dtype == 6)
-            return {shape::int32_type, {inputs[0].lens()[0], sample_size}};
-        if(dtype == 7)
-            return {shape::int64_type, {inputs[0].lens()[0], sample_size}};
-        else
-            MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) +
-                           ". Valid types are 6 (INT32) and 7 (INT64).");
+        return {dtype, {inputs.front().lens().front(), sample_size}};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

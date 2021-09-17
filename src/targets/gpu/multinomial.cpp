@@ -7,18 +7,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-shape hip_multinomial::compute_shape(const std::vector<shape>& inputs) const
+shape hip_multinomial::compute_shape(std::vector<shape> inputs) const
 {
-    check_shapes{inputs, *this}.has(3).only_dims(2);
-    size_t sample_size = inputs.back().lens().back();
-
-    if(op.dtype == 6)
-        return {shape::int32_type, {inputs[0].lens()[0], sample_size}};
-    if(op.dtype == 7)
-        return {shape::int64_type, {inputs[0].lens()[0], sample_size}};
-    else
-        MIGRAPHX_THROW("Invalid output type: " + std::to_string(op.dtype) +
-                       ". Valid types are 6 (INT32) and 7 (INT64).");
+    inputs.pop_back();
+    return op.compute_shape(inputs);
 }
 
 argument

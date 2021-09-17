@@ -18,9 +18,15 @@ struct parse_multinomial : op_parser<parse_multinomial>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        int dtype = 6; // 6=in32, 7=int64
+        int dtype = 6; 
+        shape::type_t output_type = shape::type_t::int32_type;
         if(contains(info.attributes, "dtype"))
             dtype = parser.parse_value(info.attributes.at("dtype")).at<int>();
+        if (dtype == 7)
+            output_type = shape::type_t::int64_type;
+        else if (dtype != 6)
+            MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) +
+                           ". Valid types are 6 (INT32) and 7 (INT64).");
 
         size_t sample_size = 1;
         if(contains(info.attributes, "sample_size"))
@@ -55,7 +61,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
         auto dist_lit = info.add_literal(migraphx::literal{dist_shape, random_dist});
 
         return info.add_instruction(
-            migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, dist_lit);
+            migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, dist_lit);
     }
 };
 

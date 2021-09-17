@@ -2233,13 +2233,18 @@ TEST_CASE(multinomial_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(multinomial_dtype_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("multinomial_dtype_error_test.onnx"); }));
+}
+
 TEST_CASE(multinomial_int64_test)
 {
     migraphx::program p;
     auto* mm           = p.get_main_module();
     size_t sample_size = 10;
-    int dtype          = 7;
     float seed         = 1.0f;
+    migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);

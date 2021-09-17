@@ -2547,6 +2547,23 @@ def multinomial_test():
 
 
 @onnx_test
+def multinomial_dtype_error_test():
+    sample_size = 10
+    dtype = 0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT64,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 dtype=dtype,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def multinomial_int64_test():
     sample_size = 10
     dtype = 7

@@ -111,4 +111,33 @@ TEST_CASE(const_scalar)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(const_dot)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
+
+        auto l  = m1.add_literal(migraphx::literal(s, vec));
+        auto dl = m1.add_instruction(migraphx::make_op("dot"), l, l);
+        auto x  = m1.add_parameter("x", s);
+        auto r  = m1.add_instruction(migraphx::make_op("add"), dl, x);
+        m1.add_return({r});
+    }
+
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        std::vector<float> vec = {3.0f, 6.0f, 3.0f, 6.0f};
+
+        auto x = m2.add_parameter("x", s);
+        auto l = m2.add_literal(migraphx::literal(s, vec));
+        auto r = m2.add_instruction(migraphx::make_op("add"), l, x);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

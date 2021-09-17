@@ -1,6 +1,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/common.hpp>
 #include "models.hpp"
 
 namespace migraphx {
@@ -1228,10 +1229,9 @@ migraphx::program resnet50(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::multibroadcast multibroadcast442;
     multibroadcast442.output_lens = {batch, 1000};
     auto mx442                    = mm->add_instruction(multibroadcast442, mx0);
-    migraphx::op::dot dot443;
-    dot443.alpha = 1;
-    dot443.beta  = 1;
-    mm->add_instruction(dot443, mx440, mx441, mx442);
+    float dot443_alpha            = 1;
+    float dot443_beta             = 1;
+    migraphx::add_dot_apply_alpha_beta(*mm, {mx440, mx441, mx442}, dot443_alpha, dot443_beta);
     return p;
 }
 

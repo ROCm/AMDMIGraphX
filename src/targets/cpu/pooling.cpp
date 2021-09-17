@@ -125,7 +125,7 @@ template struct cpu_pooling<max_pool>;
 
 struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::pooling>
 {
-    std::vector<int> arg_map(int) const { return {DNNL_ARG_SRC}; }
+    std::vector<int> arg_map(int) const { return {MIGRAPHX_DNNL_PREFIX(ARG_SRC)}; }
 
     dnnl::pooling_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
@@ -135,8 +135,8 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
         std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());
         return {dnnl::prop_kind::forward_inference,
                 algo,
-                m.at(DNNL_ARG_SRC),
-                m.at(DNNL_ARG_DST),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
                 to_dnnl_dims(op.stride),
                 to_dnnl_dims(op.lengths),
                 to_dnnl_dims(padding_l),

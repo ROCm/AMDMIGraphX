@@ -49,6 +49,7 @@
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>
 #include <migraphx/op/logsoftmax.hpp>
+#include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/lstm.hpp>
 #include <migraphx/op/max.hpp>
@@ -95,11 +96,13 @@
 #include <migraphx/op/sub.hpp>
 #include <migraphx/op/tanh.hpp>
 #include <migraphx/op/tan.hpp>
+#include <migraphx/op/topk.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
+#include <migraphx/op/where.hpp>
 
 #endif

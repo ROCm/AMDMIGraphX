@@ -18,6 +18,8 @@ struct onnx_options
     bool skip_unknown_operators = false;
     /// Print program if an error occurs
     bool print_program_on_error = false;
+    /// Max iter num for the loop operator
+    int64_t max_loop_iterations = 10;
 };
 
 /// Create a program from an onnx file
@@ -28,6 +30,8 @@ program parse_onnx_buffer(const std::string& buffer, const onnx_options& options
 
 /// Create a program from an onnx buffer
 program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options);
+
+std::vector<std::string> get_onnx_operators();
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -224,23 +224,24 @@ std::vector<value>& get_array_throw(const std::shared_ptr<value_base_impl>& x)
     return *a;
 }
 
-value* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key)
+template <class T>
+T* find_impl(const std::shared_ptr<value_base_impl>& x, const std::string& key, T* end)
 {
     auto* a = if_array_impl(x);
     if(a == nullptr)
-        return nullptr;
+        return end;
     auto* lookup = x->if_object();
     if(lookup == nullptr)
-        return nullptr;
+        return end;
     auto it = lookup->find(key);
     if(it == lookup->end())
-        return a->data() + a->size();
+        return end;
     return std::addressof((*a)[it->second]);
 }
 
-value* value::find(const std::string& pkey) { return find_impl(x, pkey); }
+value* value::find(const std::string& pkey) { return find_impl(x, pkey, this->end()); }
 
-const value* value::find(const std::string& pkey) const { return find_impl(x, pkey); }
+const value* value::find(const std::string& pkey) const { return find_impl(x, pkey, this->end()); }
 bool value::contains(const std::string& pkey) const
 {
     const auto* it = find(pkey);

@@ -131,6 +131,22 @@ jobs:
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
+
+  pyflakes:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.6
+    - name: Install pyflakes
+      run: pip install pyflakes==2.3.1
+
+    - name: Run pyflakes
+      run: pyflakes examples/ tools/ src/ test/ doc/
+
   linux:
 
     runs-on: ${{ matrix.os }}
@@ -145,16 +161,12 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-16.04
           - ubuntu-18.04
           - ubuntu-20.04
         configuration:
           - debug
           - release
           - codecov
-        exclude:
-          - os: ubuntu-16.04
-            configuration: debug
 
     steps:
     - uses: actions/checkout@v2

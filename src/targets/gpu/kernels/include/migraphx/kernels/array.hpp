@@ -2,7 +2,8 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ARRAY_HPP
 
 #include <migraphx/kernels/types.hpp>
-#include <type_traits>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
 
@@ -41,8 +42,16 @@ template <class T, index_int N>
 struct array
 {
     T d[N];
-    constexpr T& operator[](index_int i) { return d[i]; }
-    constexpr const T& operator[](index_int i) const { return d[i]; }
+    constexpr T& operator[](index_int i)
+    {
+        MIGRAPHX_ASSERT(i < N);
+        return d[i];
+    }
+    constexpr const T& operator[](index_int i) const
+    {
+        MIGRAPHX_ASSERT(i < N);
+        return d[i];
+    }
 
     constexpr T& front() { return d[0]; }
     constexpr const T& front() const { return d[0]; }
@@ -53,7 +62,7 @@ struct array
     constexpr T* data() { return d; }
     constexpr const T* data() const { return d; }
 
-    constexpr std::integral_constant<index_int, N> size() const { return {}; }
+    constexpr index_constant<N> size() const { return {}; }
 
     constexpr T* begin() { return d; }
     constexpr const T* begin() const { return d; }
@@ -142,6 +151,18 @@ struct array
         result[0] += overflow;
         return result;
     }
+
+    template <class Stream>
+    friend constexpr const Stream& operator<<(const Stream& ss, const array& a)
+    {
+        for(index_int i = 0; i < N; i++)
+        {
+            if(i > 0)
+                ss << ", ";
+            ss << a[i];
+        }
+        return ss;
+    }
 };
 
 template <class T, T... xs>
@@ -150,6 +171,18 @@ struct integral_const_array : array<T, sizeof...(xs)>
     using base_array = array<T, sizeof...(xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({xs...}) {}
 };
+
+template <class T, T... xs, class F>
+constexpr auto transform(integral_const_array<T, xs...>, F f)
+{
+    return integral_const_array<T, f(xs)...>{};
+}
+
+template <class T, T... xs, class U, U... ys, class F>
+constexpr auto transform(integral_const_array<T, xs...>, integral_const_array<U, ys...>, F f)
+{
+    return integral_const_array<T, f(xs, ys)...>{};
+}
 
 template <index_int... Ns>
 using index_ints = integral_const_array<index_int, Ns...>;

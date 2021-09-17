@@ -19,7 +19,7 @@ struct shape
 
     constexpr index_int elements() const { return lens.product(); }
 
-    constexpr index_int element_space() const { return strides.dot(lens - 1); }
+    constexpr index_int element_space() const { return strides.dot(lens - 1) + 1; }
 
     constexpr bool packed() const { return elements() == element_space(); }
     constexpr bool broadcasted() const { return strides.product() == 0; }
@@ -91,6 +91,15 @@ struct shape
         }
         result[0] = tidx;
         return result;
+    }
+
+    constexpr shape get_shape() const { return *this; }
+
+    template <class Stream>
+    friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)
+    {
+        ss << "{" << s.lens << "}, {" << s.strides << "}";
+        return ss;
     }
 };
 

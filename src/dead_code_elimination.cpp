@@ -60,7 +60,8 @@ void dead_code_elimination::apply(module& m) const
                 leaf->clear_arguments();
                 assert(bidistance(m, last, leaf) < 0);
                 assert(leaf != ins);
-                m.move_instruction(leaf, m.end());
+                if(leaf->name() != "@param")
+                    m.move_instruction(leaf, m.end());
                 for(auto arg : args)
                     self(arg);
             }

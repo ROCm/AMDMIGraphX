@@ -2,6 +2,9 @@
 
 #if defined(__GNUC__) && __GNUC__ <= 5
 namespace std {
+#ifdef MIGRAPHX_ENABLE_ZENDNN
+namespace dnnl = zendnn;
+#endif
 template <>
 struct hash<dnnl::algorithm>
 {

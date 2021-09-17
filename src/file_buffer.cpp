@@ -6,7 +6,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<char> read_buffer(const std::string& filename)
+template <class T>
+T generic_read_file(const std::string& filename)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     std::streamsize size = is.tellg();
@@ -14,10 +15,20 @@ std::vector<char> read_buffer(const std::string& filename)
         MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(0, std::ios::beg);
 
-    std::vector<char> buffer(size);
-    if(!is.read(buffer.data(), size))
+    T buffer(size, 0);
+    if(!is.read(&buffer[0], size))
         MIGRAPHX_THROW("Error reading file: " + filename);
     return buffer;
+}
+
+std::vector<char> read_buffer(const std::string& filename)
+{
+    return generic_read_file<std::vector<char>>(filename);
+}
+
+std::string read_string(const std::string& filename)
+{
+    return generic_read_file<std::string>(filename);
 }
 
 void write_buffer(const std::string& filename, const char* buffer, std::size_t size)

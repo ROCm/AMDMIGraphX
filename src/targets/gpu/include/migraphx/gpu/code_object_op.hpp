@@ -51,6 +51,7 @@ struct code_object_op
         os << "symbol_name=" << op.symbol_name << ",";
         os << "global=" << op.global << ",";
         os << "local=" << op.local << ",";
+        os << "]";
         return os;
     }
 };

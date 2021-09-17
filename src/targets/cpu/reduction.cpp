@@ -37,7 +37,11 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
 
     dnnl::reduction::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        return {to_dnnl_algo(algo), m.at(DNNL_ARG_SRC), m.at(DNNL_ARG_DST), 0, 0};
+        return {to_dnnl_algo(algo),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_SRC)),
+                m.at(MIGRAPHX_DNNL_PREFIX(ARG_DST)),
+                0,
+                0};
     }
 };
 

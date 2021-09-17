@@ -47,10 +47,13 @@ add_library(migraphx
     program.cpp
     propagate_constant.cpp
     quantization.cpp
+    quantize_fp16.cpp
+    quantize_int8.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
     remap.cpp
+    simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
@@ -119,6 +122,7 @@ register_migraphx_ops(
     logical_or
     logical_xor
     logsoftmax
+    loop
     lrn
     lstm
     max
@@ -165,11 +169,13 @@ register_migraphx_ops(
     sub
     tanh
     tan
+    topk
     transpose
     unary_not
     undefined
     unknown
     unsqueeze
+    where
 )
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
 register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)

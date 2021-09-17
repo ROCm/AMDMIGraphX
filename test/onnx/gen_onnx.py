@@ -2347,6 +2347,84 @@ def logsoftmax_nonstd_input_test():
 
 
 @onnx_test
+def loop_default_test():
+    body = helper.make_graph([
+        helper.make_node("Add", ["a", "b_in"], ["my_local"]),
+        helper.make_node("Sub", ["a", "b_in"], ["a_sub_b_in"]),
+        helper.make_node("Greater", ["my_local", "a_sub_b_in"],
+                         ["keep_going"]),
+        helper.make_node("Add", ["a_sub_b_in", "a_sub_b_in"],
+                         ["user_defined_vals"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, []),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, []),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, []),
+        helper.make_tensor_value_info('a_sub_b_in', TensorProto.FLOAT, []),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, []),
+        helper.make_tensor_value_info('user_defined_vals', TensorProto.FLOAT,
+                                      []),
+    ])
+
+    node = helper.make_node(
+        "Loop",
+        inputs=["", "", "b"],
+        outputs=["b_loop", "my_local_loop", "user_defined_vals_loop"],
+        body=body)
+
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [])
+
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [])
+    uout = helper.make_tensor_value_info('user_defined_vals_loop',
+                                         TensorProto.FLOAT, [2, 1])
+
+    return ([node], [a, b], [b_loop, uout])
+
+
+@onnx_test
+def loop_test():
+    body = helper.make_graph([
+        helper.make_node("Add", ["a", "b_in"], ["my_local"]),
+        helper.make_node("Sub", ["a", "b_in"], ["a_sub_b_in"]),
+        helper.make_node("Greater", ["my_local", "a_sub_b_in"],
+                         ["keep_going"]),
+        helper.make_node("Add", ["a_sub_b_in", "a_sub_b_in"],
+                         ["user_defined_vals"]),
+    ], "body", [
+        helper.make_tensor_value_info('iteration_num', TensorProto.INT64, [1]),
+        helper.make_tensor_value_info('keep_going_inp', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('b_in', TensorProto.FLOAT, [1])
+    ], [
+        helper.make_tensor_value_info('keep_going', TensorProto.BOOL, [1]),
+        helper.make_tensor_value_info('a_sub_b_in', TensorProto.FLOAT, [1]),
+        helper.make_tensor_value_info('my_local', TensorProto.FLOAT, [1]),
+        helper.make_tensor_value_info('user_defined_vals', TensorProto.FLOAT,
+                                      [1]),
+    ])
+
+    node = helper.make_node(
+        "Loop",
+        inputs=["max_trip_count", "keep_going_cond", "b"],
+        outputs=["b_loop", "my_local_loop", "user_defined_vals_loop"],
+        body=body)
+
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT, [1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT, [1])
+    cond = helper.make_tensor_value_info('keep_going_cond', TensorProto.BOOL,
+                                         [1])
+    iter = helper.make_tensor_value_info('max_trip_count', TensorProto.INT64,
+                                         [1])
+
+    b_loop = helper.make_tensor_value_info('b_loop', TensorProto.FLOAT, [1])
+    uout = helper.make_tensor_value_info('user_defined_vals_loop',
+                                         TensorProto.FLOAT, [2, 1])
+
+    return ([node], [iter, cond, a, b], [b_loop, uout])
+
+
+@onnx_test
 def lrn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 28, 24, 24])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 28, 24, 24])
@@ -4127,6 +4205,46 @@ def tanh_test():
 
 
 @onnx_test
+def thresholdedrelu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def thresholdedrelu_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    alpha = 3.0
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=alpha)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def thresholdedrelu_int_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [2, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [2, 2, 3])
+    alpha = 3.0
+
+    node = onnx.helper.make_node('ThresholdedRelu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=alpha)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def tile_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.INT64, [2])
@@ -4148,6 +4266,90 @@ def tile_test_3x2():
 
     return ([node], [x, y], [z],
             [helper.make_tensor('y', TensorProto.INT64, [2], [3, 2])])
+
+
+@onnx_test
+def topk_attrk_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 2, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 2, 3, 2])
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data'],
+                                 outputs=['val', 'indices'],
+                                 k=2)
+    return ([node], [x], [val, ind])
+
+
+@onnx_test
+def topk_neg_axis_test():
+    k = np.array([3])
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [3, 3, 5, 6])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [3, 3, 5, 6])
+
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 axis=-2,
+                                 sorted=0)
+    return ([node], [x], [val, ind], [k_tensor])
+
+
+@onnx_test
+def topk_test():
+    k = np.array([4])
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 5, 3, 2])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 4, 3, 2])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                        [2, 4, 3, 2])
+
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 largest=0,
+                                 axis=1)
+    return ([node], [x], [val, ind], [k_tensor])
+
+
+def transpose_default_perm_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 5, 2, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 5, 1])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def transpose_invalid_perm_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 4, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
+
+    node = onnx.helper.make_node(
+        'Transpose',
+        perm=[0, 2, 1],
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
 
 
 @onnx_test

@@ -263,6 +263,20 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     return result;
 }
 
+/// Find first instance of a matching instruction in a module
+template <class M>
+match::matcher_result find_match(module& modl, M&& m)
+{
+    match::matcher_result result;
+    for(auto ins : iterator_for(modl))
+    {
+        result = match::match_instruction(modl, ins, m);
+        if(result.result != modl.end())
+            return result;
+    }
+    return result;
+}
+
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MATCHES)
 
 /// Find matches for an instruction in the module

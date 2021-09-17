@@ -35,7 +35,7 @@ struct load
     {
         if((offset + s.bytes()) > args[0].get_shape().bytes())
             MIGRAPHX_THROW("Load access is out of bounds");
-        return argument::load(s, args[0].data() + offset);
+        return argument{s, args[0].data() + offset};
     }
     lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }

@@ -16,11 +16,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void eliminate_data_type::apply(module& m) const
 {
+    static const std::vector<std::string> skip_op_names = {
+        "convert", "get_tuple_elem", "if", "loop"};
     for(auto ins : iterator_for(m))
     {
         if(ins->name()[0] == '@')
             continue;
-        if(contains({"convert", "get_tuple_elem"}, ins->name()))
+        if(contains(skip_op_names, ins->name()))
             continue;
         auto inputs = ins->inputs();
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto i) {

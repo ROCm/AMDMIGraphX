@@ -697,6 +697,52 @@ struct find_conv_bias_relu
         apply_conv_bias<miopen_conv_bias_relu>(*ctx, p, std::move(r));
     }
 };
+
+struct find_gemm_add
+{
+    auto matcher() const
+    {
+        return match::name("gpu::add")(
+            match::all_of[match::inputs()](match::standard_shape()),
+            match::either_arg(0, 1)(match::used_once().bind("c"),
+                                    match::name("gpu::gemm")(match::nargs(3)).bind("gemm")));
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins      = r.result;
+        auto gemm_ins = r.instructions["gemm"];
+        auto c_ins    = r.instructions["c"];
+
+        auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
+
+        // Already fused gemm
+        if(not float_equal(gemm.op.beta, 0))
+            return;
+
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
+               return not i->get_shape().standard();
+           }))
+            return;
+
+        auto inputs = gemm_ins->inputs();
+        inputs.pop_back();
+
+        auto copy_ins = c_ins;
+
+        // Insert copy
+        if(ins == p.end() or c_ins->outputs().size() > 1 or c_ins->inputs().empty())
+        {
+            copy_ins = p.insert_instruction(ins, hip_copy{}, c_ins, ins->inputs().back());
+        }
+        inputs.push_back(copy_ins);
+        inputs.push_back(copy_ins);
+
+        gemm.op.beta = 1;
+        p.replace_instruction(ins, gemm, inputs);
+    }
+};
+
 struct find_commutative_broadcast
 {
     auto matcher() const
@@ -732,7 +778,7 @@ void fuse_ops::apply(module& p) const
                         find_add_unary{"gpu::tanh", hip_add_tanh{}, hip_triadd_tanh{}},
                         find_add_clip{});
     run_passes(p, {dead_code_elimination{}});
-    match::find_matches(p, find_triadd_layernorm{}, find_commutative_broadcast{});
+    match::find_matches(p, find_triadd_layernorm{}, find_gemm_add{}, find_commutative_broadcast{});
 }
 
 } // namespace gpu

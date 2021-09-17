@@ -1,7 +1,6 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/common.hpp>
 #include "models.hpp"
 
 namespace migraphx {
@@ -145,10 +144,10 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::multibroadcast multibroadcast42;
     multibroadcast42.output_lens = {batch, 4096};
     auto mx42                    = mm->add_instruction(multibroadcast42, mx4);
-    float dot43_alpha            = 1;
-    float dot43_beta             = 1;
-    auto mx43 =
-        migraphx::add_dot_apply_alpha_beta(*mm, {mx40, mx41, mx42}, dot43_alpha, dot43_beta);
+    migraphx::op::dot dot43;
+    dot43.alpha = 1;
+    dot43.beta  = 1;
+    auto mx43   = mm->add_instruction(dot43, mx40, mx41, mx42);
     migraphx::op::relu relu44;
     auto mx44 = mm->add_instruction(relu44, mx43);
     migraphx::op::identity identity45;
@@ -159,10 +158,10 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::multibroadcast multibroadcast47;
     multibroadcast47.output_lens = {batch, 4096};
     auto mx47                    = mm->add_instruction(multibroadcast47, mx2);
-    float dot48_alpha            = 1;
-    float dot48_beta             = 1;
-    auto mx48 =
-        migraphx::add_dot_apply_alpha_beta(*mm, {mx45, mx46, mx47}, dot48_alpha, dot48_beta);
+    migraphx::op::dot dot48;
+    dot48.alpha = 1;
+    dot48.beta  = 1;
+    auto mx48   = mm->add_instruction(dot48, mx45, mx46, mx47);
     migraphx::op::relu relu49;
     auto mx49 = mm->add_instruction(relu49, mx48);
     migraphx::op::transpose transpose50;
@@ -171,9 +170,10 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::multibroadcast multibroadcast51;
     multibroadcast51.output_lens = {batch, 1000};
     auto mx51                    = mm->add_instruction(multibroadcast51, mx0);
-    float dot52_alpha            = 1;
-    float dot52_beta             = 1;
-    migraphx::add_dot_apply_alpha_beta(*mm, {mx49, mx50, mx51}, dot52_alpha, dot52_beta);
+    migraphx::op::dot dot52;
+    dot52.alpha = 1;
+    dot52.beta  = 1;
+    mm->add_instruction(dot52, mx49, mx50, mx51);
     return p;
 }
 

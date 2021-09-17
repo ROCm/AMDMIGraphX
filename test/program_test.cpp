@@ -4,7 +4,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <sstream>
-#include <migraphx/common.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 
@@ -161,7 +160,9 @@ TEST_CASE(program_copy)
         auto para1 = mm1->add_parameter("m1", s1);
         auto para2 = mm1->add_parameter("m2", s2);
         auto para3 = mm1->add_parameter("m3", s3);
-        migraphx::add_dot_apply_alpha_beta(*mm1, {para1, para2, para3}, 0.31f, 0.28f);
+        mm1->add_instruction(
+            migraphx::make_op("dot", {{"alpha", 0.31f}, {"beta", 0.28f}}), para1, para2, para3);
+
         migraphx::program p2{};
         p2 = p1;
         EXPECT(p2 == p1);

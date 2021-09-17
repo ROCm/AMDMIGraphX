@@ -27,7 +27,7 @@ alpha_beta get_alpha_beta(const operation& op)
 
 struct find_dot_add
 {
-    auto matcher() const { return match::name("quant_dot")(match::nargs(3)); }
+    auto matcher() const { return match::name("dot", "quant_dot")(match::nargs(3)); }
 
     void apply(module& p, const match::matcher_result& r) const
     {
@@ -58,7 +58,7 @@ struct find_dot_add
 
 struct find_dot_alpha
 {
-    auto matcher() const { return match::name("quant_dot")(match::nargs(2)); }
+    auto matcher() const { return match::name("dot", "quant_dot")(match::nargs(2)); }
 
     void apply(module& p, const match::matcher_result& r) const
     {

@@ -122,6 +122,7 @@ register_migraphx_ops(
     logical_or
     logical_xor
     logsoftmax
+    loop
     lrn
     lstm
     max

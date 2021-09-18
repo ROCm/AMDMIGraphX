@@ -169,12 +169,26 @@ void gpu_copy(context& ctx, const argument& src, const argument& dst)
 
 void copy_to_gpu(context& ctx, const argument& src, const argument& dst)
 {
-    gpu_copy(ctx, register_on_gpu(src), dst);
+    if(src.get_shape() == dst.get_shape() and dst.get_shape().packed())
+    {
+        hip_async_copy(ctx, src, dst, hipMemcpyHostToDevice);
+    }
+    else
+    {
+        gpu_copy(ctx, register_on_gpu(src), dst);
+    }
 }
 
 void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 {
-    gpu_copy(ctx, src, register_on_gpu(dst));
+    if(src.get_shape() == dst.get_shape() and dst.get_shape().packed())
+    {
+        hip_async_copy(ctx, src, dst, hipMemcpyDeviceToHost);
+    }
+    else
+    {
+        gpu_copy(ctx, src, register_on_gpu(dst));
+    }
 }
 
 argument get_preallocation(context& ctx, const std::string& id)

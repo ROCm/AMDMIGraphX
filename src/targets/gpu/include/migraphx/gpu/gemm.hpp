@@ -21,6 +21,7 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
+    float beta = 0;
     bool int8_x4_format = true;
 
     template <class Self, class F>
@@ -55,7 +56,7 @@ struct rocblas_gemm
     {
         if(this->name() == "gpu::gemm")
         {
-            gemm(ctx, output_shape, args, 1.0f, 0.0f, int8_x4_format);
+            gemm(ctx, output_shape, args, 1.0f, beta, int8_x4_format);
         }
         else
         {

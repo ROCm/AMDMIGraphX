@@ -1127,27 +1127,6 @@ TEST_CASE(quant_dot_2args)
     }
 }
 
-TEST_CASE(quant_dot_3args)
-{
-    {
-        migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
-        migraphx::shape s_m2{migraphx::shape::int8_type, {4, 8}};
-        migraphx::shape s_m3{migraphx::shape::int32_type, {2, 8}};
-        expect_shape(migraphx::shape{migraphx::shape::int32_type, {2, 8}},
-                     migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 1}}),
-                     s_m1,
-                     s_m2,
-                     s_m3);
-    }
-
-    {
-        migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
-        migraphx::shape s_m2{migraphx::shape::int8_type, {4, 8}};
-        migraphx::shape s_m3{migraphx::shape::int8_type, {2, 8}};
-        throws_shape(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 2}}), s_m1, s_m2, s_m3);
-    }
-}
-
 template <class T>
 void test_reduce_ops()
 {

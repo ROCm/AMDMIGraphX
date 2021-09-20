@@ -9,6 +9,7 @@
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -24,10 +25,11 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * struct marker
  * {
- *      void trace_ins() ;
- *      void trace_prog() ;
- *      void trace_ins_finish() ;
- *      void trace_prog_finish() ;
+ *      void mark(std::string st) ;
+ *      uint64_t range_start(std::string st) ;
+ *      void range_stop(uint64_t range_num) ;
+ *      void trace_ins_start(std::string st) ;
+ *      void trace_ins_end() ;
  * };
  *
  */
@@ -95,28 +97,34 @@ struct marker
             return private_detail_te_get_handle().type();
     }
 
-    void trace_ins()
+    void mark(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_ins();
+        (*this).private_detail_te_get_handle().mark(std::move(st));
     }
 
-    void trace_prog()
+    uint64_t range_start(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_prog();
+        return (*this).private_detail_te_get_handle().range_start(std::move(st));
     }
 
-    void trace_ins_finish()
+    void range_stop(uint64_t range_num)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_ins_finish();
+        (*this).private_detail_te_get_handle().range_stop(std::move(range_num));
     }
 
-    void trace_prog_finish()
+    void trace_ins_start(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_prog_finish();
+        (*this).private_detail_te_get_handle().trace_ins_start(std::move(st));
+    }
+
+    void trace_ins_end()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().trace_ins_end();
     }
 
     friend bool is_shared(const marker& private_detail_x, const marker& private_detail_y)
@@ -132,10 +140,11 @@ struct marker
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void trace_ins()         = 0;
-        virtual void trace_prog()        = 0;
-        virtual void trace_ins_finish()  = 0;
-        virtual void trace_prog_finish() = 0;
+        virtual void mark(std::string st)            = 0;
+        virtual uint64_t range_start(std::string st) = 0;
+        virtual void range_stop(uint64_t range_num)  = 0;
+        virtual void trace_ins_start(std::string st) = 0;
+        virtual void trace_ins_end()                 = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -166,13 +175,27 @@ struct marker
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void trace_ins() override { private_detail_te_value.trace_ins(); }
+        void mark(std::string st) override { private_detail_te_value.mark(std::move(st)); }
 
-        void trace_prog() override { private_detail_te_value.trace_prog(); }
+        uint64_t range_start(std::string st) override
+        {
 
-        void trace_ins_finish() override { private_detail_te_value.trace_ins_finish(); }
+            return private_detail_te_value.range_start(std::move(st));
+        }
 
-        void trace_prog_finish() override { private_detail_te_value.trace_prog_finish(); }
+        void range_stop(uint64_t range_num) override
+        {
+
+            private_detail_te_value.range_stop(std::move(range_num));
+        }
+
+        void trace_ins_start(std::string st) override
+        {
+
+            private_detail_te_value.trace_ins_start(std::move(st));
+        }
+
+        void trace_ins_end() override { private_detail_te_value.trace_ins_end(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

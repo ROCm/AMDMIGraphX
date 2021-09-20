@@ -501,52 +501,26 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::trace(std::ostream& os, parameter_map params) const
+void program::trace(std::ostream& os, parameter_map params, marker m) const
 {
-    //int n = 1; // collect marker information n times and average it. TODO: do this parameter later
-               // enabling to parse roctx output txt file.
-    //uint64_t rangeId = 0; // used as rocTX range number
-    
     auto& ctx        = this->impl->ctx;
     // Run once by itself
     os << "rocTX:\tRunning once..." << std::endl;
     eval(params);
     ctx.finish();
-    // // dynamically load roctx
-    // os << "rocTX:\tLoading rocTX library..." << std::endl;
-    // std::filesystem::path fpt           = "/opt/rocm/lib/libroctx64.so";
-    // migraphx::dynamic_loader lib_loaded = migraphx::dynamic_loader{fpt};
-    // // Instantiate variables for functions.
-    // os << "rocTX: linking functions" << std::endl;
-    // std::function<void(const char*)> sym_roctxMarkA =
-    //     lib_loaded.get_function<void(const char*)>("roctxMarkA");
-    // std::function<uint64_t(const char*)> sym_roctxRangeStartA =
-    //     lib_loaded.get_function<uint64_t(const char*)>("roctxRangeStartA");
-    // std::function<int(const char*)> sym_roctxRangePushA =
-    //     lib_loaded.get_function<int(const char*)>("roctxRangePushA");
-    // std::function<int()> sym_roctxRangePop = lib_loaded.get_function<int()>("roctxRangePop");
-    // std::function<void(uint64_t)> sym_roctxRangeStop =
-    //     lib_loaded.get_function<void(uint64_t)>("roctxRangeStop");
-    // // Fill the map
-    // std::unordered_map<instruction_ref, std::vector<double>> ins_vec_roctx;
-    // generic_eval(*this, ctx, params, always([&](auto ins, auto) {
-    //     ins_vec_roctx[ins].reserve(n);
-    //     return argument{};
-    // }));
-    // // Run and time each instruction with markers, once
-    // sym_roctxMarkA("rocTX: Marker");
-    // rangeId = sym_roctxRangeStartA("rocTX: RangeStart");
-    // generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
-    //     argument result;
-    //     std::cout << "rocTX:\tMarker start:\t" << ins->name() << std::endl;
-    //     ins_vec_roctx[ins].push_back(time<milliseconds>([&] {
-    //         sym_roctxRangePushA(("roxTX: RangePush: " + ins->name()).c_str());
-    //         result = f();
-    //         sym_roctxRangePop();
-    //     }));
-    //     return result;
-    // }));
-    // sym_roctxRangeStop(rangeId);
+    
+    m.mark("Marker demo: marked.");
+    uint64_t range_id = m.range_start("Marker demo: range started");
+
+    generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
+        argument result;
+        std::cout << "rocTX:\tMarker start:\t" << ins->name() << std::endl;
+        m.trace_ins_start(("Marker start: " + ins->name()).c_str());
+        result = f();
+        m.trace_ins_end();
+        return result;
+    }));
+    m.range_stop(range_id);
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const

@@ -15,10 +15,7 @@ struct auto_print
         get_handler(name) = [&x] { std::cout << x << std::endl; };
     }
 
-    ~auto_print()
-    {
-        get_handler(name) = [] {};
-    }
+    ~auto_print();
 };
 
 #endif

@@ -45,8 +45,9 @@ struct parse_onehot : op_parser<parse_onehot>
         std::vector<int64_t> perm(n_rank - 1);
         std::iota(perm.begin(), perm.end(), 0);
         perm.insert(perm.begin() + tuned_axis, n_rank - 1);
-        auto tr_out = info.add_instruction(make_op("transpose", {{"dims", perm}}), gather_out);
-        auto lens   = tr_out->get_shape().lens();
+        auto tr_out =
+            info.add_instruction(make_op("transpose", {{"permutation", perm}}), gather_out);
+        auto lens = tr_out->get_shape().lens();
 
         auto off_val = info.add_instruction(
             make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[2]);
@@ -54,9 +55,9 @@ struct parse_onehot : op_parser<parse_onehot>
             make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[2]);
         auto diff = info.add_instruction(make_op("sub"), on_val, off_val);
         auto unsq_off_val =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), off_val);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), off_val);
         auto unsq_diff_val =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", lens}}), diff);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), diff);
         auto l_mul = info.add_instruction(make_op("mul"), tr_out, unsq_diff_val);
         return info.add_instruction(make_op("add"), l_mul, unsq_off_val);
     }

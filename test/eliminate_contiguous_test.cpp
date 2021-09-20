@@ -17,7 +17,7 @@ TEST_CASE(standard_op)
     migraphx::module m;
 
     auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
     m.add_instruction(pass_standard_op{}, c);
     auto count = std::distance(m.begin(), m.end());
@@ -30,7 +30,7 @@ TEST_CASE(standard_op_const)
     migraphx::module m;
 
     auto l = m.add_literal(get_2x2());
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
     m.add_instruction(pass_standard_op{}, c);
     run_pass(m);
@@ -42,7 +42,7 @@ TEST_CASE(non_standard_op)
     migraphx::module m;
 
     auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
     m.add_instruction(pass_op{}, c);
     auto count = std::distance(m.begin(), m.end());
@@ -55,7 +55,7 @@ TEST_CASE(non_standard_op_const)
     migraphx::module m;
 
     auto l = m.add_literal(get_2x2());
-    auto t = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
     m.add_instruction(pass_op{}, c);
     run_pass(m);
@@ -67,7 +67,7 @@ TEST_CASE(transpose_gem)
     migraphx::module m;
 
     auto l  = m.add_literal(get_2x2());
-    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c  = m.add_instruction(migraphx::make_op("contiguous"), t);
     auto ic = m.add_instruction(migraphx::make_op("identity"), c);
     m.add_instruction(migraphx::make_op("dot"), ic, l);
@@ -81,7 +81,7 @@ TEST_CASE(transpose_standard_op)
     migraphx::module m;
 
     auto l  = m.add_parameter("x", {migraphx::shape::float_type, {2, 2}});
-    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c  = m.add_instruction(migraphx::make_op("contiguous"), t);
     auto sn = m.add_instruction(migraphx::make_op("sin"), c);
     m.add_instruction(pass_standard_op{}, sn);
@@ -95,7 +95,7 @@ TEST_CASE(transpose_standard_op_const)
     migraphx::module m;
 
     auto l  = m.add_literal(get_2x2());
-    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto t  = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c  = m.add_instruction(migraphx::make_op("contiguous"), t);
     auto sn = m.add_instruction(migraphx::make_op("sin"), c);
     m.add_instruction(pass_standard_op{}, sn);
@@ -123,12 +123,40 @@ TEST_CASE(non_standard_return_input)
     migraphx::module m;
 
     auto l  = m.add_literal(get_2x2());
-    auto tl = m.add_instruction(migraphx::make_op("transpose", {{"dims", {1, 0}}}), l);
+    auto tl = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l);
     auto c  = m.add_instruction(migraphx::make_op("contiguous"), tl);
     m.add_return({c});
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(std::distance(m.begin(), m.end()) == count);
+}
+
+TEST_CASE(non_standard_flatten_op)
+{
+    migraphx::module m;
+
+    auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 6, 6, 6}});
+    auto t = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), l);
+    auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
+    m.add_instruction(migraphx::make_op("flatten"), c);
+    auto count = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == count);
+}
+
+TEST_CASE(standard_flatten_op)
+{
+    migraphx::module m;
+
+    auto l = m.add_parameter("x", {migraphx::shape::float_type, {2, 6, 6, 6}});
+    auto t = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), l);
+    auto c = m.add_instruction(migraphx::make_op("contiguous"), t);
+    m.add_instruction(migraphx::make_op("flatten"), c);
+    auto count = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -82,9 +82,6 @@ class MIGraphXBackend(Backend):
         elif isinstance(model, migraphx.program):
             return MIGraphXBackendRep(model, cls._input_names)
         elif isinstance(model, (str, bytes)):
-            for k, v in kwargs.items():
-                if hasattr(options, k):
-                    setattr(options, k, v)
             if device is not None and not cls.supports_device(device):
                 raise RuntimeError(
                     "Incompatible device expected '{0}', got '{1}'".format(

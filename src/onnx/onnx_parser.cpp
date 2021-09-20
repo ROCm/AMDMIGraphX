@@ -6,6 +6,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/file_buffer.hpp>
@@ -84,73 +85,18 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         auto bias_bcast = mod->add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"dims", curr_ins->get_shape().lens()}}),
+            make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
             args[2]);
         return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
 
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1)
-{
-    // Example:
-    // s0 = (3,2,4,5) and s1 = (2,1,1)
-    //
-    // In this case we need to broadcast (:,1,1) portion of
-    // s1 plus broadcast the 1st dimension of s1
-    // giving output_lens = (3,2,4,5)
-    //
-    // Another example:
-    // s0 = (3,2,1,5) and s1 = (2,7,5)
-    // In this case we need to broadcast the (:,:,1:,:) axis
-    // of s0 plus the 1st dimension of s1 giving
-    // output_lens = (3,2,7,5)
-    if(s0.size() > s1.size())
-    {
-        s0.swap(s1);
-    }
-
-    std::vector<std::size_t> out_lens(s1);
-    auto offset = s1.size() - s0.size();
-    std::transform(
-        s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
-            if(a != b and a != 1 and b != 1)
-            {
-                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + to_string_range(s0) + "} and {" +
-                               to_string_range(s1) + "} mismatch!");
-            }
-            return std::max(a, b);
-        });
-
-    return out_lens;
-}
-
 instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::string& op_name,
                                                                     instruction_ref arg0,
                                                                     instruction_ref arg1) const
 {
-    if(arg0->get_shape().lens() != arg1->get_shape().lens())
-    {
-        // Get lengths for both arguments
-        auto s0       = arg0->get_shape().lens();
-        auto s1       = arg1->get_shape().lens();
-        auto out_lens = compute_broadcasted_lens(s0, s1);
-
-        auto l0 = arg0;
-        if(arg0->get_shape().lens() != out_lens)
-            l0 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg0);
-
-        auto l1 = arg1;
-        if(arg1->get_shape().lens() != out_lens)
-            l1 = add_instruction(make_op("multibroadcast", {{"output_lens", out_lens}}), arg1);
-
-        return add_instruction(make_op(op_name), l0, l1);
-    }
-    else
-    {
-        return add_instruction(make_op(op_name), {arg0, arg1});
-    }
+    return add_common_op(*mod, make_op(op_name), {arg0, arg1});
 }
 
 instruction_ref
@@ -278,27 +224,41 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
 
 void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 {
+    std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
-        instructions[f.name()] = mod->add_literal(parse_tensor(f));
+        // backup instructions in parent mod
+        mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
     }
 
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
         // input not in initializer_data, so it is a real input
-        if(!contains(instructions, name))
+        if(!contains(mod_insts, name))
         {
+            // ONNX specification does not specify hwo to deal with the
+            // scenario that a nested subgraph contains a parameter with the
+            // name existed in its parent graph.
+            // In the current implementation, MIGraphX throws an exception for that.
+            if(contains(instructions, name))
+            {
+                MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
+                               "\" existing in parent graph!");
+            }
+
             std::vector<std::size_t> dims;
             if(map_input_dims.count(name) > 0)
             {
                 dims = map_input_dims.at(name);
             }
 
-            shape s            = parse_type(input.type(), dims);
-            instructions[name] = mod->add_parameter(name, s);
+            shape s         = parse_type(input.type(), dims);
+            mod_insts[name] = mod->add_parameter(name, s);
         }
     }
+
+    std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {
@@ -363,6 +323,9 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
 
     // add the return instuction
     mod->add_return(output_ins);
+
+    // remove instructions added in this mod
+    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

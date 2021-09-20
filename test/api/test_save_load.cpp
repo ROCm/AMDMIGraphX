@@ -22,8 +22,8 @@ TEST_CASE(load_save_json)
     std::string filename = "migraphx_api_load_save.json";
     auto p1              = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto s1              = p1.get_output_shapes();
-    migraphx_file_options options;
-    options.format = "json";
+    migraphx::file_options options;
+    options.set_file_format("json");
 
     migraphx::save(p1, filename.c_str(), options);
     auto p2 = migraphx::load(filename.c_str(), options);

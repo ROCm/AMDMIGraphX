@@ -125,9 +125,10 @@ void module::assign(const module& m)
         else if(ins->name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
-            copy_ins =
-                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
+            copy_ins    = impl->insert(impl->instructions.end(),
+                                    {builtin::param{name, order}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {
@@ -334,7 +335,6 @@ shape module::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-
         return ins->get_shape();
     else
         return {};
@@ -430,7 +430,6 @@ instruction_ref module::validate() const
             bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
                 return contains(impl->instructions, *in);
             });
-
             return !i.valid(impl->instructions.begin(), check_order);
         });
 }
@@ -440,17 +439,19 @@ bool is_borrowed(instruction_ref ins)
     auto alias = instruction::get_output_alias(ins, true);
     if(alias == ins)
         return false;
-    if(alias->get_operator().is_borrowed())
+    lifetime l = alias->get_operator().get_lifetime();
+    if(l == lifetime::borrow)
         return true;
     return is_borrowed(alias);
 }
 
-bool is_param_alias(instruction_ref ins)
+bool is_global(instruction_ref ins)
 {
-    return instruction::get_output_alias(ins)->name() == "@param";
+    const auto& op = instruction::get_output_alias(ins)->get_operator();
+    return op.name() == "@param" or op.get_lifetime() == lifetime::global;
 }
 
-bool is_dangling(instruction_ref ins) { return not is_param_alias(ins) and is_borrowed(ins); }
+bool is_dangling(instruction_ref ins) { return not is_global(ins) and is_borrowed(ins); }
 
 instruction_ref module::find_dangling_reference() const
 {

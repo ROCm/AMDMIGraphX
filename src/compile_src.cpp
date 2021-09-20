@@ -32,7 +32,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         }
     }
 
-    params += " -o" + out;
+    params += " -o " + out;
 
     td.execute(compiler, params);
 

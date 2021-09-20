@@ -63,6 +63,7 @@ struct onnx_parser
     std::size_t default_dim_value = 1;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     bool skip_unknown_operators = false;
+    int64_t max_loop_iterations = 10;
     int64_t opset_version       = 13;
 
     std::unordered_map<std::string, op_func> ops;
@@ -83,9 +84,6 @@ struct onnx_parser
 };
 
 shape::type_t get_type(int dtype);
-
-std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
-                                                  std::vector<std::size_t> s1);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

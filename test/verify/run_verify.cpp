@@ -1,6 +1,7 @@
 #include "run_verify.hpp"
 #include "auto_print.hpp"
 #include "verify_program.hpp"
+#include "test.hpp"
 #include <migraphx/env.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
@@ -26,7 +27,7 @@ std::future<typename std::result_of<Function()>::type> detach_async(Function&& f
         std::packaged_task<result_type()> task(std::forward<Function>(f));
         auto fut = task.get_future();
         std::thread(std::move(task)).detach();
-        return std::move(fut);
+        return fut;
     }
     return std::async(std::launch::deferred, std::forward<Function>(f));
 }
@@ -98,7 +99,9 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     for(auto&& x : p.get_parameter_shapes())
     {
         if(m.count(x.first) == 0)
+        {
             m[x.first] = t.allocate(x.second);
+        }
     }
     validate(t, p, m);
     p.eval(m);
@@ -108,7 +111,7 @@ std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_ta
     std::transform(
         tres.begin(), tres.end(), res.begin(), [&](auto& argu) { return t.copy_from(argu); });
 
-    return std::make_pair(p, res);
+    return std::make_pair(std::move(p), res);
 }
 
 template <class T>
@@ -121,7 +124,6 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
-    std::cout << "[   RUN    ] " << name << std::endl;
     auto_print::set_terminate_handler(name);
     std::vector<std::pair<std::string, result_future>> results;
     std::vector<std::string> target_names;
@@ -180,25 +182,27 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
                 std::cout << tname << ":\n" << cp << std::endl;
                 std::cout << std::endl;
             }
+            EXPECT(passed);
         }
     }
     std::set_terminate(nullptr);
-    std::cout << "[ COMPLETE ] " << name << std::endl;
 }
 
 void run_verify::run(int argc, const char* argv[]) const
 {
-    std::set<std::string> args(argv + 1, argv + argc);
-    const auto& ps = get_programs();
-    for(auto&& p : ps)
+    std::unordered_map<std::string, std::vector<std::string>> labels;
+    for(auto&& p : get_programs())
     {
-        if(not args.empty())
-        {
-            if(args.count(p.name) == 0 and args.count(p.section) == 0)
-                continue;
-        }
-        verify(p.name, p.get_program());
+        labels[p.section].push_back(p.name);
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program()); });
     }
+    test::driver d{};
+    d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
+        if(labels.count(name) > 0)
+            return labels.at(name);
+        return {name};
+    };
+    d.run(argc, argv);
 }
 
 void run_verify::disable_parallel_for(const std::string& name) { info[name].parallel = false; }

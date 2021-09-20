@@ -2,45 +2,15 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
-#include <migraphx/rank.hpp>
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-template <class HipDeviceProp>
-std::string get_arch_name(rank<0>, const HipDeviceProp& props)
-{
-    return "gfx" + std::to_string(props.gcnArch);
-}
-
-template <class HipDeviceProp>
-auto get_arch_name(rank<1>, const HipDeviceProp& props) -> decltype(std::string(props.gcnArchName))
-{
-    return std::string(props.gcnArchName);
-}
-
-int get_device_id()
-{
-    int device;
-    auto status = hipGetDevice(&device);
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("No device");
-    return device;
-}
-
-std::string get_device_name()
-{
-    hipDeviceProp_t props{};
-    auto status = hipGetDeviceProperties(&props, get_device_id());
-    if(status != hipSuccess)
-        MIGRAPHX_THROW("Failed to get device properties");
-    return get_arch_name(rank<1>{}, props);
-}
 
 template <class T>
 std::string generate_index_ints(const std::vector<T>& v)
@@ -98,6 +68,31 @@ __content__
     return replace_string(args_hpp, "__content__", inner);
 }
 
+const std::vector<std::string>& compiler_warnings()
+{
+    static std::vector<std::string> warnings = {"-Weverything",
+                                                "-Wno-c++98-compat",
+                                                "-Wno-c++98-compat-pedantic",
+                                                "-Wno-conversion",
+                                                "-Wno-double-promotion",
+                                                "-Wno-exit-time-destructors",
+                                                "-Wno-extra-semi",
+                                                "-Wno-extra-semi-stmt",
+                                                "-Wno-float-conversion",
+                                                "-Wno-gnu-anonymous-struct",
+                                                "-Wno-gnu-zero-variadic-macro-arguments",
+                                                "-Wno-missing-prototypes",
+                                                "-Wno-nested-anon-types",
+                                                "-Wno-padded",
+                                                "-Wno-shorten-64-to-32",
+                                                "-Wno-sign-conversion",
+                                                "-Wno-sign-compare",
+                                                "-Wno-unused-command-line-argument",
+                                                "-Wno-weak-vtables",
+                                                "-Wno-c99-extensions"};
+    return warnings;
+}
+
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
     std::vector<src_file> srcs;
@@ -112,10 +107,14 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
                    });
     srcs.push_back(src_file{fs::path{"main.cpp"},
                             std::make_pair(content.data(), content.data() + content.size())});
-    auto args_hpp = generate_args_hpp(options.inputs);
+    auto args_hpp =
+        generate_args_hpp(options.reduced_inputs.empty() ? options.inputs : options.reduced_inputs);
     srcs.push_back(src_file{fs::path{"args.hpp"},
                             std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
-    options.params += " -I.";
+    options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
+    options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
+    options.params += " " + join_strings(compiler_warnings(), " ");
+    options.params += " -Werror";
     auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

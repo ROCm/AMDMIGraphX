@@ -6,6 +6,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/lifetime.hpp>
 #include <cmath>
 #include <utility>
 
@@ -29,7 +30,7 @@ struct broadcast
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "dims"));
+        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "out_lens"));
     }
 
     std::string name() const { return "broadcast"; }
@@ -66,7 +67,7 @@ struct broadcast
     {
         return args[0].reshape(output_shape);
     }
-    bool is_borrowed() const { return true; }
+    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

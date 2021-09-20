@@ -17,7 +17,7 @@ struct test_triadd_broadcast : verify_program<test_triadd_broadcast>
         auto y  = mm->add_parameter("y", {migraphx::shape::float_type, {2, 2}});
         auto z  = mm->add_parameter("z", {migraphx::shape::float_type, {2, 2, 3}});
         auto by = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 0}, {"dims", x->get_shape().lens()}}), y);
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", x->get_shape().lens()}}), y);
         auto sum = mm->add_instruction(migraphx::make_op("add"), x, by);
         mm->add_instruction(migraphx::make_op("add"), sum, z);
         return p;

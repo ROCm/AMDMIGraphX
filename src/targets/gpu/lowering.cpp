@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
@@ -37,6 +38,7 @@
 #include <migraphx/gpu/quant_convolution.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/unary_not.hpp>
+#include <migraphx/gpu/where.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -149,6 +151,7 @@ struct miopen_apply
         add_generic_op("sub");
         add_generic_op("tan");
         add_generic_op("tanh");
+        add_generic_op("where");
 
         add_extend_op("abs");
         add_extend_op("argmax");
@@ -163,6 +166,7 @@ struct miopen_apply
         add_extend_op("lrn");
         add_extend_op("pad");
         add_extend_op("pooling");
+        add_extend_op("prefix_scan_sum");
         add_extend_op("reduce_max");
         add_extend_op("reduce_mean");
         add_extend_op("reduce_min");
@@ -172,7 +176,9 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
+        add_extend_op("scatter");
         add_extend_op("softmax");
+        add_extend_op("topk");
 
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
@@ -182,6 +188,7 @@ struct miopen_apply
         add_batch_norm_inference_op();
         add_neg_op();
         add_if_op();
+        add_loop_op();
     }
 
     void copy_params()
@@ -192,6 +199,10 @@ struct miopen_apply
         for(auto ins : iterator_for(*mod))
         {
             if(ins->name() != "@param")
+                continue;
+
+            // parameter no outputs, no need to insert copy to gpu
+            if(ins->outputs().empty())
                 continue;
 
             auto pos = std::next(ins);
@@ -420,7 +431,7 @@ struct miopen_apply
         });
     }
 
-    // replace the if operator with gpu_if operator
+    // add input and output argument for the if operator
     void add_if_op()
     {
         apply_map.emplace("if", [=](instruction_ref ins) {
@@ -459,9 +470,48 @@ struct miopen_apply
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
         });
     }
+
+    // replace the loop operator with gpu_loop operator
+    void add_loop_op()
+    {
+        apply_map.emplace("loop", [=](instruction_ref ins) {
+            std::vector<instruction_ref> inputs = ins->inputs();
+            // copy max_iter from gpu to cpu
+            auto cpu_max_iter =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(0));
+            auto cpu_cond =
+                mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
+            auto synced_max_iter =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
+            inputs.at(0)     = synced_max_iter;
+            inputs.at(1)     = cpu_cond;
+            auto copy_inputs = inputs;
+            std::transform(
+                copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
+                    return mod->insert_instruction(
+                        ins, make_op("hip::allocate", {{"shape", to_value(in->get_shape())}}));
+                });
+
+            auto mod_args = ins->module_inputs();
+            auto output   = insert_allocation(ins, ins->get_shape());
+
+            const auto* sub_mod = mod_args.front();
+            auto cond_out       = mod->insert_instruction(
+                ins,
+                make_op("hip::allocate",
+                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+            // add cond and mod outputs to the argument list
+            inputs.push_back(cond_out);
+            inputs.push_back(output);
+
+            return mod->replace_instruction(
+                ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
 };
 
 void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

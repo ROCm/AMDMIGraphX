@@ -55,7 +55,7 @@ struct find_mul_conv
 
         auto new_a = p.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 0}, {"dims", w_ins->get_shape().lens()}}),
+            make_op("broadcast", {{"axis", 0}, {"out_lens", w_ins->get_shape().lens()}}),
             a_ins->inputs().front());
         auto new_mul  = p.insert_instruction(ins, make_op("mul"), new_a, w_ins);
         auto new_conv = p.insert_instruction(
@@ -120,7 +120,7 @@ struct find_mul_slice_conv
 
         auto new_a = p.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 0}, {"dims", slice_w_ins->get_shape().lens()}}),
+            make_op("broadcast", {{"axis", 0}, {"out_lens", slice_w_ins->get_shape().lens()}}),
             a_ins->inputs().front());
         auto new_mul = p.insert_instruction(ins, make_op("mul"), new_a, slice_w_ins);
 
@@ -989,8 +989,8 @@ struct find_split_transpose
         }
 
         // insert an transpose instruction
-        auto tr =
-            p.insert_instruction(std::next(input), make_op("transpose", {{"dims", perm}}), input);
+        auto tr = p.insert_instruction(
+            std::next(input), make_op("transpose", {{"permutation", perm}}), input);
 
         // compute the axis in the slice
         auto axis = any_cast<op::slice>(slc->get_operator()).axes.front();

@@ -8,6 +8,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+#ifndef MIGRAPHX_WORKAROUND_NAVI_DPP_SYNC
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+#define MIGRAPHX_WORKAROUND_NAVI_DPP_SYNC 1
+#else
+#define MIGRAPHX_WORKAROUND_NAVI_DPP_SYNC 0
+#endif
+#endif
+
 template <class T>
 struct vector_type
 {
@@ -89,7 +97,7 @@ __device__ void layernorm(index_int i,
         auto m = auto_block_reduce<MaxBlockSize>(
                      idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
                  value_type(relements);
-#if __AMDGCN_WAVEFRONT_SIZE == 32
+#if MIGRAPHX_WORKAROUND_NAVI_DPP_SYNC
         __syncthreads();
 #endif
         return m;

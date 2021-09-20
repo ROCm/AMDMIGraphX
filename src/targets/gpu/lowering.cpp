@@ -307,7 +307,7 @@ struct miopen_apply
         });
     }
 
-    template<typename Op>
+    template <typename Op>
     void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -333,8 +333,7 @@ struct miopen_apply
                     refs.push_back(refs.back());
                 }
             }
-            return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, int8_x4_format}, refs);
+            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, int8_x4_format}, refs);
         });
     }
 

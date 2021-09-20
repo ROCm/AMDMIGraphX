@@ -541,10 +541,7 @@ struct ref_quant_gemm
     }
 
     std::string name() const { return "ref::quant_dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {

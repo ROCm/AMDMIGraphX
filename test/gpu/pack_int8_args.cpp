@@ -75,11 +75,11 @@ TEST_CASE(quant_dot)
         }
         auto gemm_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m3_shape)}}));
-        auto gemm = m.add_instruction(
-            migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
-            l1,
-            packa,
-            gemm_alloc);
+        auto gemm =
+            m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
+                              l1,
+                              packa,
+                              gemm_alloc);
 
         auto beta_broadcast = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", m3_shape.lens()}}), beta);
@@ -182,11 +182,11 @@ TEST_CASE(quant_dot_trans)
             migraphx::make_op("gpu::convert", {{"target_type", conta->get_shape().type()}}),
             tl1_alpha_int32,
             tl1_alpha_int8_alloc);
-        auto gemm = m.add_instruction(
-            migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
-            tl1_alpha_int8,
-            packb,
-            output);
+        auto gemm =
+            m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
+                              tl1_alpha_int8,
+                              packb,
+                              output);
         m.add_return({gemm});
 
         return m;
@@ -262,11 +262,11 @@ TEST_CASE(quant_dot_pad)
         auto gemm_alloc = m.add_instruction(
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s3)}}));
 
-        auto gemm = m.add_instruction(
-            migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
-            pl1,
-            packa,
-            gemm_alloc);
+        auto gemm =
+            m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
+                              pl1,
+                              packa,
+                              gemm_alloc);
 
         auto beta_broadcast =
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), beta);
@@ -397,11 +397,11 @@ TEST_CASE(quant_dot_trans_pad)
             tl1_alpha_int32,
             tl1_alpha_int8_alloc);
 
-        auto gemm = m.add_instruction(
-            migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
-            tl1_alpha_int8,
-            packb,
-            output);
+        auto gemm =
+            m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
+                              tl1_alpha_int8,
+                              packb,
+                              output);
         m.add_return({gemm});
 
         return m;

@@ -53,9 +53,12 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::gemm") {
+        if(this->name() == "gpu::gemm")
+        {
             gemm(ctx, output_shape, args, 1.0f, 0.0f, int8_x4_format);
-        } else {
+        }
+        else
+        {
             gemm(ctx, output_shape, args, int32_t(1), int32_t(0), int8_x4_format);
         }
         return args.back();

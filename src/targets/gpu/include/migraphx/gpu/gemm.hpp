@@ -22,8 +22,6 @@ struct rocblas_gemm
 {
     Op op;
     bool int8_x4_format = true;
-    float alpha         = 1.0;
-    float beta          = 0.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -55,7 +53,11 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        gemm(ctx, output_shape, args, alpha, beta, int8_x4_format);
+        if(this->name() == "gpu::gemm") {
+            gemm(ctx, output_shape, args, 1.0f, 0.0f, int8_x4_format);
+        } else {
+            gemm(ctx, output_shape, args, int32_t(1), int32_t(0), int8_x4_format);
+        }
         return args.back();
     }
 

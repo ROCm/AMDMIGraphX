@@ -39,21 +39,7 @@ void eliminate_data_type::apply(module& m) const
         auto val        = op.to_value();
         if(attributes.contains("general_data_type"))
         {
-            if(ins->name() == "quant_dot")
-            {
-                auto alpha = val.at("alpha").to<float>();
-                auto beta  = val.at("beta").to<float>();
-                auto dot_res =
-                    migraphx::insert_dot_apply_alpha_beta(m, ins, inputs, "dot", alpha, beta);
-                auto convert = m.insert_instruction(
-                    ins, make_op("convert", {{"target_type", old_type}}), dot_res);
-                m.replace_instruction(ins, convert);
-                return;
-            }
-            else
-            {
-                op = make_op(attributes["general_data_type"].to<std::string>(), val);
-            }
+            op = make_op(attributes["general_data_type"].to<std::string>(), val);
         }
         auto out = m.insert_instruction(ins, op, inputs);
         auto convert =

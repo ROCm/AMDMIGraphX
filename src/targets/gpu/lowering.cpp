@@ -184,8 +184,8 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
-        add_gemm_op("dot");
-        add_int8_gemm_op("quant_dot");
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
         add_convolution_op();
         add_deconvolution_op();
         add_quant_convolution_op();
@@ -307,45 +307,7 @@ struct miopen_apply
         });
     }
 
-    void add_int8_gemm_op(const std::string& name)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<op::quant_dot>(ins->get_operator());
-            std::vector<instruction_ref> refs = ins->inputs();
-            auto beta                         = op.beta;
-            if(refs.size() == 2)
-            {
-                auto output = insert_allocation(ins, ins->get_shape());
-                beta        = 0;
-                refs.push_back(output);
-            }
-            else
-            {
-                auto c_alias = instruction::get_output_alias(refs.back());
-                if(ins == last or refs.back()->outputs().size() > 1 or c_alias->inputs().empty())
-                {
-                    auto output = insert_allocation(ins, ins->get_shape());
-                    auto copy_out =
-                        mod->insert_instruction(ins, make_op("hip::copy"), refs.back(), output);
-                    refs.back() = copy_out;
-                    refs.push_back(copy_out);
-                }
-                else
-                {
-                    refs.push_back(refs.back());
-                }
-            }
-
-            return mod->replace_instruction(
-                ins,
-                rocblas_gemm<op::quant_dot>{op::quant_dot{op.alpha, beta},
-                                            int8_x4_format,
-                                            static_cast<float>(op.alpha),
-                                            static_cast<float>(beta)},
-                refs);
-        });
-    };
-
+    template<typename Op>
     void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -372,7 +334,7 @@ struct miopen_apply
                 }
             }
             return mod->replace_instruction(
-                ins, rocblas_gemm<op::dot>{op::dot{}, int8_x4_format, 1, 0}, refs);
+                ins, rocblas_gemm<Op>{Op{}, int8_x4_format}, refs);
         });
     }
 

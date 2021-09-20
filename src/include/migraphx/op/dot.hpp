@@ -31,6 +31,11 @@ struct dot
             MIGRAPHX_THROW("DOT: dot only accept 2 or more dims operands");
         }
 
+        if(inputs.size() != 2)
+        {
+            MIGRAPHX_THROW("DOT: only accepts two input args");
+        }
+
         // only handle the case that the batch size of a and b are the same
         if(!std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
@@ -49,23 +54,13 @@ struct dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
-        {
-            MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
-                           to_string_range(inputs.at(2).lens()) +
-                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
-        }
-
         return {t, out_lens};
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         argument result;
-        if(args.size() == 3)
-            result = args[2];
-        else
-            result = argument{output_shape};
+        result = argument{output_shape};
         visit_all(result, args[0], args[1])(
             [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1, 0); });
         return result;

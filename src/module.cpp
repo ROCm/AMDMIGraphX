@@ -345,7 +345,6 @@ shape module::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-
         return ins->get_shape();
     else
         return {};
@@ -441,7 +440,6 @@ instruction_ref module::validate() const
             bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
                 return contains(impl->instructions, *in);
             });
-
             return !i.valid(impl->instructions.begin(), check_order);
         });
 }

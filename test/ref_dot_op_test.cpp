@@ -1320,7 +1320,6 @@ TEST_CASE(quant_dot_2args_general)
         auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         mm->add_instruction(migraphx::make_op("quant_dot"), tl1, l2);
 
-
         std::vector<int> gold = {
             210, 228, 246, 264, 282, 240, 262, 284, 306, 328, 270, 296, 322, 348, 374};
 
@@ -1347,7 +1346,7 @@ TEST_CASE(quant_dot_2args_general)
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
 
-        migraphx::add_dot_apply_alpha_beta<int32_t>(*mm, {l1, tl2}, "quant_dot", 2); 
+        migraphx::add_dot_apply_alpha_beta<int32_t>(*mm, {l1, tl2}, "quant_dot", 2);
 
         std::vector<int> gold = {
             28, 76, 124, 172, 220, 76, 252, 428, 604, 780, 124, 428, 732, 1036, 1340};

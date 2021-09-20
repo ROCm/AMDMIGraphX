@@ -144,10 +144,10 @@ TEST_CASE(dot)
         auto zero   = m2.add_literal(std::int8_t{0});
         auto scale1 = m2.add_literal(0.25f);
 
-        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
-        auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
+        auto q1  = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
+        auto q2  = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
-        auto d3 = add_quantize_op(m2, "dequantizelinear", dot, scale1);
+        auto d3  = add_quantize_op(m2, "dequantizelinear", dot, scale1);
         m2.add_return({d3});
     }
 
@@ -253,8 +253,8 @@ TEST_CASE(dot_add)
         auto zero   = m2.add_literal(std::int8_t{0});
         auto scale1 = m2.add_literal(0.25f);
 
-        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
-        auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
+        auto q1  = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
+        auto q2  = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
         auto d3  = add_quantize_op(m2, "dequantizelinear", dot, scale1);
         auto add = m2.add_instruction(migraphx::make_op("add"), d3, ab);
@@ -508,18 +508,18 @@ TEST_CASE(conv_pooling_dot)
         auto d5  = add_quantize_op(m2, "dequantizelinear", c1, scale1);
         auto bc1 = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
-        auto a1 = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
-        auto ap = m2.add_instruction(migraphx::make_op("pooling",
+        auto a1  = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
+        auto ap  = m2.add_instruction(migraphx::make_op("pooling",
                                                        {{"mode", "average"},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},
                                                         {"ceil_mode", 0}}),
                                      a1);
-        auto fl = m2.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
-        auto q4 = add_quantize_op(m2, "quantizelinear", fl, scale, zero);
+        auto fl  = m2.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
+        auto q4  = add_quantize_op(m2, "quantizelinear", fl, scale, zero);
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q4, db);
-        auto d9 = add_quantize_op(m2, "dequantizelinear", dot, scale2);
+        auto d9  = add_quantize_op(m2, "dequantizelinear", dot, scale2);
         auto mb1 =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1000}}}), d3);
         auto a2 = m2.add_instruction(migraphx::make_op("add"), d9, mb1);

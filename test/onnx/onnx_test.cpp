@@ -1419,9 +1419,9 @@ TEST_CASE(gemm_half_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), t_a);
     t_a = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), t_a);
     std::vector<std::size_t> lens = {1, 1, 6, 7};
-    auto dot                      = migraphx::add_dot_apply_alpha_beta<float>(*mm, {t_a, l1}, "dot", 1.0f, 0.0f);
-    l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);
-    l2 = mm->add_instruction(
+    auto dot = migraphx::add_dot_apply_alpha_beta<float>(*mm, {t_a, l1}, "dot", 1.0f, 0.0f);
+    l2       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);
+    l2       = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l2);
     auto b_l  = mm->add_literal(beta);
     auto b_b  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), b_l);

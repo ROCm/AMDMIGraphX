@@ -616,8 +616,7 @@ TEST_CASE(dot_float)
         auto zp_b =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), zp);
         auto quant_b = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
-        auto quant   = mm->add_instruction(
-            migraphx::make_op("quant_dot"), quant_a, quant_b);
+        auto quant   = mm->add_instruction(migraphx::make_op("quant_dot"), quant_a, quant_b);
         std::vector<float> vec(sc.elements(), 100.0f);
         auto dc = mm->add_literal(100.0f);
         auto mdc =
@@ -709,9 +708,8 @@ TEST_CASE(dot_double_2args)
             migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), scale_b);
         auto zp_b =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sb.lens()}}), zp);
-        auto qb   = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
-        auto qdot = mm->add_instruction(
-            migraphx::make_op("quant_dot"), qa, qb);
+        auto qb    = mm->add_instruction(migraphx::make_op("quantizelinear"), pb, scale_b, zp_b);
+        auto qdot  = mm->add_instruction(migraphx::make_op("quant_dot"), qa, qb);
         auto scale = mm->add_literal(50.0);
         scale      = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}), scale);
@@ -785,8 +783,8 @@ TEST_CASE(dot_half_1arg)
                                     scale);
         zp =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", sa.lens()}}), zp);
-        auto qx   = mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
-        auto qdot = mm->add_instruction(migraphx::make_op("quant_dot"), qx, qx);
+        auto qx       = mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
+        auto qdot     = mm->add_instruction(migraphx::make_op("quant_dot"), qx, qx);
         auto dq_scale = mm->add_literal(migraphx::literal({sa.type()}, {100.0}));
         dq_scale      = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", qdot->get_shape().lens()}}),
@@ -1162,11 +1160,10 @@ TEST_CASE(int8_subgraph)
             migraphx::make_op("multibroadcast", {{"out_lens", sy.lens()}}), s1);
         auto zpb = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sy.lens()}}), zp1);
-        auto qb = then_mod->add_instruction(migraphx::make_op("quantizelinear"), b, sb, zpb);
-        auto qdot =
-            then_mod->add_instruction(migraphx::make_op("quant_dot"), qa, qb);
-        auto so = then_mod->add_literal(100.0f);
-        so      = then_mod->add_instruction(
+        auto qb   = then_mod->add_instruction(migraphx::make_op("quantizelinear"), b, sb, zpb);
+        auto qdot = then_mod->add_instruction(migraphx::make_op("quant_dot"), qa, qb);
+        auto so   = then_mod->add_literal(100.0f);
+        so        = then_mod->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sout.lens()}}), so);
         auto r = then_mod->add_instruction(migraphx::make_op("dequantizelinear"), qdot, so);
         then_mod->add_return({r});

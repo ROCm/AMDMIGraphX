@@ -113,9 +113,5 @@ instruction_ref add_common_op(module& m, const operation& op, std::vector<instru
     return insert_common_op(m, m.end(), op, std::move(inputs));
 }
 
-
-
-
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -503,12 +503,12 @@ std::string perf_group(const operation& op)
 
 void program::trace(std::ostream& os, parameter_map params, marker m) const
 {
-    auto& ctx        = this->impl->ctx;
+    auto& ctx = this->impl->ctx;
     // Run once by itself
     os << "rocTX:\tRunning once..." << std::endl;
     eval(params);
     ctx.finish();
-    
+
     m.mark("Marker demo: marked.");
     uint64_t range_id = m.range_start("Marker demo: range started");
 

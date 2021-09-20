@@ -3,6 +3,7 @@
 #include <vector>
 #include <random>
 #include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>

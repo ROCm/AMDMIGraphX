@@ -1,7 +1,7 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 

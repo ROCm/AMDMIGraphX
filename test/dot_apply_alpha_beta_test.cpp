@@ -1,5 +1,5 @@
 #include "migraphx/instruction.hpp"
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 #include <test.hpp>

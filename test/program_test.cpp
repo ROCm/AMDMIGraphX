@@ -4,7 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <sstream>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 

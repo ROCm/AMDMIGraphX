@@ -1,7 +1,7 @@
 #include <migraphx/operators.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include "models.hpp"
 
 namespace migraphx {

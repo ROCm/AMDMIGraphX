@@ -2,7 +2,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/target.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/rocblas.hpp>

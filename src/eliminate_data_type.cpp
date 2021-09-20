@@ -1,4 +1,5 @@
-#include "migraphx/common.hpp"
+#include <migraphx/apply_alpha_beta.hpp>
+#include <migraphx/common.hpp>
 #include "migraphx/errors.hpp"
 #include "migraphx/float_equal.hpp"
 #include <cmath>

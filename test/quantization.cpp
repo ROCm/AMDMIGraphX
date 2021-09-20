@@ -6,7 +6,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_int8.hpp>
 #include <migraphx/quantize_fp16.hpp>

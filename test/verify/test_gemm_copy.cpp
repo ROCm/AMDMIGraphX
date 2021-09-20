@@ -1,5 +1,5 @@
 
-#include "migraphx/common.hpp"
+#include <migraphx/apply_alpha_beta.hpp>
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>

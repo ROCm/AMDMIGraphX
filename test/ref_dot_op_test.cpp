@@ -6,7 +6,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 
 #include "test.hpp"
 #include <migraphx/half.hpp>

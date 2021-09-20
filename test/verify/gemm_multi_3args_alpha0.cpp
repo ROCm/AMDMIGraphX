@@ -3,7 +3,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 struct gemm_multi_3args_alpha0 : verify_program<gemm_multi_3args_alpha0>
 {
     migraphx::program create_program() const

@@ -50,6 +50,12 @@ struct module_impl
         return emplace(pos, ins);
     }
 
+    void clear()
+    {
+        instructions.clear();
+        instruction_set.clear();
+    }
+
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
 
     void push_back(const instruction& ins) { insert(instructions.end(), ins); }
@@ -106,16 +112,16 @@ void module::set_bypass(bool b) { impl->bypass = b; }
 
 void module::assign(const module& m)
 {
-    // clean the current module
+    // copy the impl
     if(!impl)
-    {
         impl = std::make_unique<module_impl>();
-    }
-    else if(!impl->instructions.empty())
+    *impl = *m.impl;
+    
+    // clear instructions
+    if(!impl->instructions.empty())
     {
-        impl->instructions.clear();
+        impl->clear();
     }
-    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))

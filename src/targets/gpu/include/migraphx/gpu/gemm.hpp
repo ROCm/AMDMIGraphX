@@ -21,7 +21,7 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
-    float beta = 0;
+    float beta          = 0;
     bool int8_x4_format = true;
 
     template <class Self, class F>

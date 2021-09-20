@@ -68,5 +68,5 @@ instruction_ref add_dot_apply_alpha_beta(module& m,
 }
 
 } // namespace MIGRAPHX_INLINE_NS
-} // namespace MIGRAPHX
+} // namespace migraphx
 #endif // MIGRAPHX_GUARD_APPLY_ALPHA_BETA_HPP

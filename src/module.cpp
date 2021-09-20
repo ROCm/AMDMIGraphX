@@ -116,7 +116,7 @@ void module::assign(const module& m)
     if(!impl)
         impl = std::make_unique<module_impl>();
     *impl = *m.impl;
-    
+
     // clear instructions
     if(!impl->instructions.empty())
     {

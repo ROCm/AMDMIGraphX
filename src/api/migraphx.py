@@ -250,6 +250,14 @@ def onnx_options(h):
     )
 
 
+@auto_handle()
+def file_options(h):
+    h.constructor('create')
+    h.method('set_file_format',
+             api.params(format='const char*'),
+             invoke='migraphx::set_file_format($@)')
+
+
 api.add_function('migraphx_parse_onnx',
                  api.params(name='const char*',
                             options='migraphx::onnx_options'),

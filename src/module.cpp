@@ -54,6 +54,7 @@ struct module_impl
     {
         instructions.clear();
         instruction_set.clear();
+        nparams = 0;
     }
 
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }

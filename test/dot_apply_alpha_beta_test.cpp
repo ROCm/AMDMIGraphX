@@ -11,7 +11,7 @@ TEST_CASE(dot_apply_alpha_beta_half)
         auto x       = m1.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto y       = m1.add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto z       = m1.add_parameter("z", migraphx::shape{migraphx::shape::half_type, {2, 2}});
-        auto dot_res = migraphx::insert_dot_apply_alpha_beta(m1, m1.end(), {x, y, z}, 3, 2);
+        auto dot_res = migraphx::insert_dot_apply_alpha_beta(m1, m1.end(), {x, y, z}, "dot", 3.0f, 2.0f);
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;
@@ -52,7 +52,7 @@ TEST_CASE(dot_apply_alpha_beta_double)
         auto x       = m1.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto y       = m1.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
         auto z       = m1.add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 1}});
-        auto dot_res = migraphx::add_dot_apply_alpha_beta(m1, {x, y, z}, 3, 2);
+        auto dot_res = migraphx::add_dot_apply_alpha_beta<float>(m1, {x, y, z}, "dot", 3, 2);
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;

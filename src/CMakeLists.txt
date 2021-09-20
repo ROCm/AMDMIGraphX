@@ -14,7 +14,6 @@ add_library(migraphx
     convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
-    decompose.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp

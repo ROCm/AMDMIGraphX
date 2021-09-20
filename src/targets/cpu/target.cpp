@@ -3,7 +3,6 @@
 #include <migraphx/check_context.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/decompose.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -50,8 +49,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             rewrite_quantization{},
             dead_code_elimination{},
             eliminate_data_type{unsupported_types, shape::type_t::float_type},
-            dead_code_elimination{},
-            decompose{},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},

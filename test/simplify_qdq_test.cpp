@@ -132,7 +132,7 @@ TEST_CASE(dot)
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto q2  = add_quantize_op(m1, "quantizelinear", t2, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m1, {d1, d2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m1, {d1, d2}, "dot");
         m1.add_return({dot});
     }
 
@@ -146,8 +146,7 @@ TEST_CASE(dot)
 
         auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
         auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
-        auto dot =
-            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
         auto d3 = add_quantize_op(m2, "dequantizelinear", dot, scale1);
         m2.add_return({d3});
     }
@@ -172,7 +171,7 @@ TEST_CASE(dot_non_zero_point)
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto q2  = add_quantize_op(m1, "quantizelinear", t2, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m1, {d1, d2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m1, {d1, d2}, "dot");
         m1.add_return({dot});
     }
 
@@ -180,7 +179,7 @@ TEST_CASE(dot_non_zero_point)
     {
         auto t1  = m2.add_parameter("t1", sh1);
         auto t2  = m2.add_parameter("t2", sh2);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m2, {t1, t2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m2, {t1, t2}, "dot");
         m2.add_return({dot});
     }
 
@@ -204,7 +203,7 @@ TEST_CASE(dot_uint8)
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto q2  = add_quantize_op(m1, "quantizelinear", t2, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m1, {d1, d2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m1, {d1, d2}, "dot");
         m1.add_return({dot});
     }
 
@@ -212,7 +211,7 @@ TEST_CASE(dot_uint8)
     {
         auto t1  = m2.add_parameter("t1", sh1);
         auto t2  = m2.add_parameter("t2", sh2);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m2, {t1, t2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m2, {t1, t2}, "dot");
         m2.add_return({dot});
     }
 
@@ -238,7 +237,7 @@ TEST_CASE(dot_add)
         auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto q2  = add_quantize_op(m1, "quantizelinear", t2, scale, zero);
         auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m1, {d1, d2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m1, {d1, d2}, "dot");
         auto q3  = add_quantize_op(m1, "quantizelinear", dot, scale, zero);
         auto d3  = add_quantize_op(m1, "dequantizelinear", q3, scale, zero);
         auto add = m1.add_instruction(migraphx::make_op("add"), d3, ab);
@@ -256,8 +255,7 @@ TEST_CASE(dot_add)
 
         auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
         auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
-        auto dot =
-            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q1, q2);
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
         auto d3  = add_quantize_op(m2, "dequantizelinear", dot, scale1);
         auto add = m2.add_instruction(migraphx::make_op("add"), d3, ab);
         m2.add_return({add});
@@ -475,7 +473,7 @@ TEST_CASE(conv_pooling_dot)
         auto fl  = m1.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
         auto q4  = add_quantize_op(m1, "quantizelinear", fl, scale, zero);
         auto d8  = add_quantize_op(m1, "dequantizelinear", q4, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(m1, {d8, d4});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(m1, {d8, d4}, "dot");
         auto q5  = add_quantize_op(m1, "quantizelinear", dot, scale, zero);
         auto d9  = add_quantize_op(m1, "dequantizelinear", q5, scale, zero);
         auto mb1 =
@@ -520,8 +518,7 @@ TEST_CASE(conv_pooling_dot)
                                      a1);
         auto fl = m2.add_instruction(migraphx::make_op("flatten", {{"axis", 1}}), ap);
         auto q4 = add_quantize_op(m2, "quantizelinear", fl, scale, zero);
-        auto dot =
-            m2.add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 0}}), q4, db);
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q4, db);
         auto d9 = add_quantize_op(m2, "dequantizelinear", dot, scale2);
         auto mb1 =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1000}}}), d3);
@@ -582,7 +579,7 @@ TEST_CASE(mobilenet_snippet)
         auto rs  = mm.add_instruction(migraphx::make_op("reshape", {{"dims", {1, -1}}}), d7);
         auto q4  = add_quantize_op(mm, "quantizelinear", rs, scale, zero);
         auto d8  = add_quantize_op(mm, "dequantizelinear", q4, scale, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(mm, {d8, d4});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(mm, {d8, d4}, "dot");
         auto q5  = add_quantize_op(mm, "quantizelinear", dot, scale, zero);
         auto d9  = add_quantize_op(mm, "dequantizelinear", q5, scale, zero);
         auto mb1 =
@@ -694,7 +691,7 @@ TEST_CASE(dot_correctness)
         auto d1  = add_quantize_op(*m1, "dequantizelinear", q1, scale_a, zero);
         auto q2  = add_quantize_op(*m1, "quantizelinear", b, scale_b, zero);
         auto d2  = add_quantize_op(*m1, "dequantizelinear", q2, scale_b, zero);
-        auto dot = migraphx::add_dot_apply_alpha_beta(*m1, {d1, d2});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(*m1, {d1, d2}, "dot");
         m1->add_return({dot});
 
         run_pass(*m1);
@@ -705,7 +702,7 @@ TEST_CASE(dot_correctness)
         auto* m2 = p2.get_main_module();
         auto a   = m2->add_parameter("a", sh1);
         auto b   = m2->add_parameter("b", sh2);
-        auto dot = migraphx::add_dot_apply_alpha_beta(*m2, {a, b});
+        auto dot = migraphx::add_dot_apply_alpha_beta<float>(*m2, {a, b}, "dot");
         m2->add_return({dot});
     }
 

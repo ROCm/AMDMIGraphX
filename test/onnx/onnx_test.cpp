@@ -2683,9 +2683,9 @@ TEST_CASE(quantizelinear_neg_axis_test)
 
 TEST_CASE(randomuniform_test)
 {
-    float high  = 1.0;
-    float low = 0.0;
-    float seed  = 0.0;
+    float high = 1.0;
+    float low  = 0.0;
+    float seed = 0.0;
     std::vector<int> shape_attr{2, 3, 4};
 
     migraphx::program p;
@@ -2717,9 +2717,9 @@ TEST_CASE(randomuniform_shape_error_test)
 
 TEST_CASE(randomuniformlike_test)
 {
-    float high  = 10.0;
-    float low = 1.0;
-    float seed  = 0.0;
+    float high = 10.0;
+    float low  = 1.0;
+    float seed = 0.0;
     std::vector<int> shape_attr{2, 3, 4};
 
     migraphx::program p;
@@ -2742,9 +2742,9 @@ TEST_CASE(randomuniformlike_test)
 
 TEST_CASE(randomuniformlike_dtype_fallback_test)
 {
-    float high  = 100.0;
-    float low = 10.0;
-    float seed  = 0.0;
+    float high = 100.0;
+    float low  = 10.0;
+    float seed = 0.0;
     std::vector<int> shape_attr{2, 3, 4};
 
     migraphx::program p;

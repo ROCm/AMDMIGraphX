@@ -8,7 +8,7 @@ TEST_CASE(load_and_run)
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
-    options.set_offload_copy(true);
+    options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
@@ -31,7 +31,7 @@ TEST_CASE(if_pl_test)
         auto p             = migraphx::parse_onnx("if_pl_test.onnx");
         auto shapes_before = p.get_output_shapes();
         migraphx::compile_options options;
-        options.set_offload_copy(true);
+        options.set_offload_copy();
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 1);
@@ -82,7 +82,7 @@ TEST_CASE(loop_test)
         auto p             = migraphx::parse_onnx("loop_default_test.onnx", parse_options);
         auto shapes_before = p.get_output_shapes();
         migraphx::compile_options options;
-        options.set_offload_copy(true);
+        options.set_offload_copy();
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 2);

@@ -500,13 +500,17 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 
     compile_options(migraphx_compile_options* p, own) { this->set_handle(p, own()); }
 
-    // set offload_copy
+    /// For targets with offloaded memory(such as the gpu), this will insert
+    /// instructions during compilation to copy the input parameters to the
+    /// offloaded memory and to copy the final result from the offloaded
+    /// memory back to main memory.
     void set_offload_copy(bool value = true)
     {
         call(&migraphx_compile_options_set_offload_copy, this->get_handle_ptr(), value);
     }
 
-    // set fast_math
+    /// Optimize math functions to use faster approximate versions. There may
+    /// be slight accuracy degredation when enabled.
     void set_fast_math(bool value = true)
     {
         call(&migraphx_compile_options_set_fast_math, this->get_handle_ptr(), value);

@@ -31,32 +31,30 @@ argument nonzero(hipStream_t stream,
     // index in the output. Only 1 block can be used since we have
     // only one prefix sum
     const index_int block_size = 256;
-    auto out_elem_num = result.get_shape().elements();
+    auto out_elem_num          = result.get_shape().elements();
     hip_visit_all(arg_data, arg_data.get_shape())([&](auto input, auto si) {
-        auto* out_ptr = result.cast<int64_t>();
+        auto* out_ptr    = result.cast<int64_t>();
         const auto* data = device_cast(input.data());
         // arg_idx.visit([&](auto in_idx) {
         //     auto* ptr = device_cast(in_idx.data());
-            gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
-                idx.local_stride(out_elem_num, [&](auto j) {
-                    out_ptr[j] = 0;
-                });
+        gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
+            idx.local_stride(out_elem_num, [&](auto j) { out_ptr[j] = 0; });
 
-                block_scan<block_size>(idx,
-                                    sum{},
-                                    0,
-                                    elem_num,
-                                    [&](auto j) { return float_equal(data[j], 0) ? 0 : 1; },
-                                    [&](auto, auto x) {
-                                        auto out_idx = x - 1;
-                                        auto index = si.multi(out_idx);
-                                        for(std::size_t k = 0; k < index.size(); ++k)
-                                        {
-                                            // output after nz_elem_num should be set to 0
-                                            out_ptr[k * elem_num + out_idx] = index[k];
-                                        }
-                                    });
-            });
+            block_scan<block_size>(idx,
+                                   sum{},
+                                   0,
+                                   elem_num,
+                                   [&](auto j) { return float_equal(data[j], 0) ? 0 : 1; },
+                                   [&](auto, auto x) {
+                                       auto out_idx = x - 1;
+                                       auto index   = si.multi(out_idx);
+                                       for(std::size_t k = 0; k < index.size(); ++k)
+                                       {
+                                           // output after nz_elem_num should be set to 0
+                                           out_ptr[k * elem_num + out_idx] = index[k];
+                                       }
+                                   });
+        });
         // });
     });
 

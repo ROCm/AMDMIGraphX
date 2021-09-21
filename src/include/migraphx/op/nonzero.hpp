@@ -37,8 +37,8 @@ struct nonzero
 
         std::partial_sum(vec_idx.begin(), vec_idx.end(), vec_idx.begin());
 
-        auto s        = args.front().get_shape();
-        auto out_lens = output_shape.lens();
+        auto s           = args.front().get_shape();
+        auto out_lens    = output_shape.lens();
         auto nz_elem_num = vec_idx.back();
         argument result{output_shape};
         result.visit([&](auto output) {

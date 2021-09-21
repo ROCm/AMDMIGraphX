@@ -21,37 +21,32 @@ struct nonzero
     {
         check_shapes{inputs, *this}.has(1).standard();
         auto elem_num                     = inputs[0].elements();
-        auto idx_num                      = inputs[0].lens().size();
-        std::vector<std::size_t> out_lens = {idx_num, elem_num};
+        auto dim_num                      = inputs[0].lens().size();
+        std::vector<std::size_t> out_lens = {dim_num, elem_num};
 
         return {shape::int64_type, out_lens};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        auto elem_num = args.front().get_shape().elements();
-        std::vector<int64_t> vec_idx(elem_num);
-        args.front().visit([&](auto data) {
-            par_for(elem_num, [&](auto i) { vec_idx[i] = (float_equal(data[i], 0)) ? 0 : 1; });
+        std::vector<std::vector<std::size_t>> vec_idx;
+        auto s = args.front().get_shape();
+        args.front().visit([&](auto v) {
+            shape_for_each(s, [&](auto idx) {
+                if(not float_equal(v[s.index(idx)], 0))
+                {
+                    vec_idx.push_back(idx);
+                }
+            });
         });
 
-        std::partial_sum(vec_idx.begin(), vec_idx.end(), vec_idx.begin());
-
-        auto s           = args.front().get_shape();
-        auto out_lens    = output_shape.lens();
-        auto nz_elem_num = vec_idx.back();
         argument result{output_shape};
         result.visit([&](auto output) {
-            par_for(elem_num, [&](auto i) {
-                auto nz  = static_cast<std::size_t>(vec_idx[i] - 1);
-                auto idx = s.multi(nz);
-                for(std::size_t j = 0; j < idx.size(); ++j)
+            std::fill(output.begin(), output.end(), 0);
+            par_for(vec_idx.size(), [&](auto i) {
+                for(std::size_t j = 0; j < vec_idx.front().size(); ++j)
                 {
-                    if(i >= nz_elem_num)
-                    {
-                        output[output_shape.index({j, i})] = 0;
-                    }
-                    output[output_shape.index({j, nz})] = idx[j];
+                    output[output_shape.index({j, i})] = vec_idx[i][j];
                 }
             });
         });

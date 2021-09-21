@@ -517,7 +517,6 @@ void program::trace(std::ostream& os, parameter_map params, marker m) const
 
     generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;
-        std::cout << "rocTX:\tMarker start:\t" << ins->name() << std::endl;
         m.trace_ins_start(("Marker start: " + ins->name()).c_str());
         result = f();
         m.trace_ins_end();

@@ -20,7 +20,7 @@ struct quant_dot_3args_5 : verify_program<quant_dot_3args_5>
         auto l2 = mm->add_parameter("b", m2_shape);
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
-        migraphx::add_dot_apply_alpha_beta<int32_t>(*mm, {tl1, tl2}, "quant_dot", 3);
+        migraphx::add_apply_alpha_beta<int32_t>(*mm, {tl1, tl2}, "quant_dot", 3);
         return p;
     }
 };

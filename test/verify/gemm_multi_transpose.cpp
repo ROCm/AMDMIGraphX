@@ -20,7 +20,7 @@ struct gemm_multi_transpose : verify_program<gemm_multi_transpose>
 
         float alpha = 1.0f;
         float beta  = 1.0f;
-        migraphx::add_dot_apply_alpha_beta<float>(*mm, {l1, tl2}, "dot", alpha, beta);
+        migraphx::add_apply_alpha_beta<float>(*mm, {l1, tl2}, "dot", alpha, beta);
         return p;
     }
 };

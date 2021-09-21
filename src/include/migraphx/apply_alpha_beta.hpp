@@ -10,7 +10,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 template <typename T = float>
-instruction_ref insert_dot_apply_alpha_beta(module& m,
+instruction_ref insert_apply_alpha_beta(module& m,
                                             instruction_ref pos,
                                             const std::vector<instruction_ref>& args,
                                             std::string op_name,
@@ -58,13 +58,13 @@ instruction_ref insert_dot_apply_alpha_beta(module& m,
 }
 
 template <typename T = float>
-instruction_ref add_dot_apply_alpha_beta(module& m,
+instruction_ref add_apply_alpha_beta(module& m,
                                          const std::vector<instruction_ref>& args,
                                          std::string op_name,
                                          T alpha = 1.0f,
                                          T beta  = 0.0f)
 {
-    return insert_dot_apply_alpha_beta(m, m.end(), args, op_name, alpha, beta);
+    return insert_apply_alpha_beta(m, m.end(), args, op_name, alpha, beta);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

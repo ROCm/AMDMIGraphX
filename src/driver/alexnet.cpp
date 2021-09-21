@@ -148,7 +148,7 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     float dot43_alpha            = 1;
     float dot43_beta             = 1;
     auto mx43 =
-        migraphx::add_dot_apply_alpha_beta(*mm, {mx40, mx41, mx42}, "dot", dot43_alpha, dot43_beta);
+        migraphx::add_apply_alpha_beta(*mm, {mx40, mx41, mx42}, "dot", dot43_alpha, dot43_beta);
     migraphx::op::relu relu44;
     auto mx44 = mm->add_instruction(relu44, mx43);
     migraphx::op::identity identity45;
@@ -162,7 +162,7 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     float dot48_alpha            = 1;
     float dot48_beta             = 1;
     auto mx48 =
-        migraphx::add_dot_apply_alpha_beta(*mm, {mx45, mx46, mx47}, "dot", dot48_alpha, dot48_beta);
+        migraphx::add_apply_alpha_beta(*mm, {mx45, mx46, mx47}, "dot", dot48_alpha, dot48_beta);
     migraphx::op::relu relu49;
     auto mx49 = mm->add_instruction(relu49, mx48);
     migraphx::op::transpose transpose50;
@@ -173,7 +173,7 @@ migraphx::program alexnet(unsigned batch) // NOLINT(readability-function-size)
     auto mx51                    = mm->add_instruction(multibroadcast51, mx0);
     float dot52_alpha            = 1;
     float dot52_beta             = 1;
-    migraphx::add_dot_apply_alpha_beta(*mm, {mx49, mx50, mx51}, "dot", dot52_alpha, dot52_beta);
+    migraphx::add_apply_alpha_beta(*mm, {mx49, mx50, mx51}, "dot", dot52_alpha, dot52_beta);
     return p;
 }
 

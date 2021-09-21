@@ -475,7 +475,7 @@ struct miopen_apply
     void add_nonzero_op()
     {
         apply_map.emplace("nonzero", [=](instruction_ref ins) {
-            auto input          = ins->inputs().front();
+            auto input    = ins->inputs().front();
             const auto& s = input->get_shape();
             shape idx_s{shape::int64_type, {s.lens()}};
             auto idx = mod->insert_instruction(

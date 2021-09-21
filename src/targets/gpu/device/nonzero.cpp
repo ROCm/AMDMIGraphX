@@ -14,9 +14,9 @@ argument nonzero(hipStream_t stream,
                  const argument& arg_idx,
                  const argument& arg_data)
 {
-    auto s = arg_data.get_shape();
+    auto s        = arg_data.get_shape();
     auto elem_num = s.elements();
-    auto n_dim = s.lens().size();
+    auto n_dim    = s.lens().size();
 
     // call the prefix_sum function to do a prefix_sum to compute
     // index in the output. Only 1 block can be used since we have
@@ -24,7 +24,7 @@ argument nonzero(hipStream_t stream,
     const index_int block_size = 256;
     arg_data.visit([&](auto input) {
         const auto* in_ptr = device_cast(input.data());
-        auto* ptr     = arg_idx.cast<int64_t>();
+        auto* ptr          = arg_idx.cast<int64_t>();
         gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
             block_scan<block_size>(idx,
                                    sum{},

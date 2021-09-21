@@ -513,10 +513,11 @@ void program::trace(std::ostream& os, parameter_map params, marker m) const
     ctx.finish();
 
     m.mark("Marker demo: marked.");
-    size_t range_id = m.range_start("Marker demo: range started");
+    uint64_t range_id = m.range_start("Marker demo: range started");
 
     generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;
+        std::cout << "rocTX:\tMarker start:\t" << ins->name() << std::endl;
         m.trace_ins_start(("Marker start: " + ins->name()).c_str());
         result = f();
         m.trace_ins_end();

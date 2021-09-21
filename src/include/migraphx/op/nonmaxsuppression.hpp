@@ -35,22 +35,6 @@ struct nonmaxsuppression
         return {shape::int64_type, out_lens};
     }
 
-    struct PrepareContext
-    {
-        const float* boxes_data_  = nullptr;
-        int64_t boxes_size_       = 0ll;
-        const float* scores_data_ = nullptr;
-        int64_t scores_size_      = 0ll;
-
-        // The below are ptrs since they can be device specific
-        const int64_t* max_output_boxes_per_class_ = nullptr;
-        const float* score_threshold_              = nullptr;
-        const float* iou_threshold_                = nullptr;
-        int64_t num_batches_                       = 0;
-        int64_t num_classes_                       = 0;
-        int num_boxes_                             = 0;
-    };
-
     struct BoxInfoPtr
     {
         float score_{};

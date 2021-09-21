@@ -30,7 +30,6 @@ argument nonzero(hipStream_t stream, const argument& result, const argument& arg
                                        auto index   = si.multi(out_idx);
                                        for(std::size_t k = 0; k < index.size(); ++k)
                                        {
-                                           // output after nz_elem_num should be set to 0
                                            out_ptr[k * elem_num + out_idx] = index[k];
                                        }
                                    });

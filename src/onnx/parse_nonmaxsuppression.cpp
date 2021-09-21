@@ -21,7 +21,8 @@ namespace onnx {
 //         {
 //             cpb = info.attributes.at("center_point_box").i();
 //         }
-//         return info.add_instruction(make_op("nonmaxsuppression", {{"center_point_box", cpb}}), args);
+//         return info.add_instruction(make_op("nonmaxsuppression", {{"center_point_box", cpb}}),
+//         args);
 //     }
 // };
 

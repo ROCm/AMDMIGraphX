@@ -12,7 +12,6 @@ namespace device {
 
 argument nonzero(hipStream_t stream,
                  const argument& result,
-                 const argument& arg_idx,
                  const argument& arg_data);
 
 } // namespace device

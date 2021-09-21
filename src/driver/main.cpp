@@ -516,7 +516,7 @@ class roctx_mark
         return sym_roctxRangeStartA(range_string.c_str());
     }
 
-    void range_stop(size_t range_id) { return sym_roctxRangeStop(range_id); }
+    void range_stop(uint64_t range_id) { return sym_roctxRangeStop(range_id); }
 
     void trace_ins_start(std::string in_string) { sym_roctxRangePushA(in_string.c_str()); }
 

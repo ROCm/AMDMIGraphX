@@ -94,14 +94,15 @@ TEST_CASE(quant_dot_apply_alpha_beta)
         auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
         auto y = m1.add_parameter("y", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
         auto z = m1.add_parameter("z", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
-        auto dot_res = migraphx::insert_apply_alpha_beta<int32_t>(m1, m1.end(), {x, y, z}, "quant_dot", 3, 2);
+        auto dot_res =
+            migraphx::insert_apply_alpha_beta<int32_t>(m1, m1.end(), {x, y, z}, "quant_dot", 3, 2);
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;
     {
 
         auto i8              = migraphx::shape::int8_type;
-        auto i32              = migraphx::shape::int32_type;
+        auto i32             = migraphx::shape::int32_type;
         auto x               = m2.add_parameter("x", migraphx::shape{i8, {2, 2}});
         auto y               = m2.add_parameter("y", migraphx::shape{i8, {2, 2}});
         auto z               = m2.add_parameter("z", migraphx::shape{i32, {2, 2}});
@@ -113,13 +114,13 @@ TEST_CASE(quant_dot_apply_alpha_beta)
         auto x_alpha_i32 = m2.add_instruction(migraphx::make_op("mul"), alpha_broadcast, x_i32);
         auto x_i8 =
             m2.add_instruction(migraphx::make_op("convert", {{"target_type", i8}}), x_alpha_i32);
-        auto dot_res      = m2.add_instruction(migraphx::make_op("quant_dot"), x_i8, y);
-        auto beta_literal = m2.add_literal(int32_t(2));
+        auto dot_res        = m2.add_instruction(migraphx::make_op("quant_dot"), x_i8, y);
+        auto beta_literal   = m2.add_literal(int32_t(2));
         auto beta_broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", z->get_shape().lens()}}),
             beta_literal);
         auto z_beta_i32 = m2.add_instruction(migraphx::make_op("mul"), z, beta_broadcast);
-        auto z_add = m2.add_instruction(migraphx::make_op("add"), dot_res, z_beta_i32);
+        auto z_add      = m2.add_instruction(migraphx::make_op("add"), dot_res, z_beta_i32);
         m2.add_instruction(migraphx::make_op("identity"), z_add);
     }
     EXPECT(m1 == m2);

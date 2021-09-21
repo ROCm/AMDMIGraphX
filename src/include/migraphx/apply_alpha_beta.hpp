@@ -11,11 +11,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 template <typename T = float>
 instruction_ref insert_apply_alpha_beta(module& m,
-                                            instruction_ref pos,
-                                            const std::vector<instruction_ref>& args,
-                                            std::string op_name,
-                                            T alpha = 1.0f,
-                                            T beta  = 0.0f)
+                                        instruction_ref pos,
+                                        const std::vector<instruction_ref>& args,
+                                        std::string op_name,
+                                        T alpha = 1.0f,
+                                        T beta  = 0.0f)
 {
     auto l1       = args[0];
     auto l2       = args[1];
@@ -59,10 +59,10 @@ instruction_ref insert_apply_alpha_beta(module& m,
 
 template <typename T = float>
 instruction_ref add_apply_alpha_beta(module& m,
-                                         const std::vector<instruction_ref>& args,
-                                         std::string op_name,
-                                         T alpha = 1.0f,
-                                         T beta  = 0.0f)
+                                     const std::vector<instruction_ref>& args,
+                                     std::string op_name,
+                                     T alpha = 1.0f,
+                                     T beta  = 0.0f)
 {
     return insert_apply_alpha_beta(m, m.end(), args, op_name, alpha, beta);
 }

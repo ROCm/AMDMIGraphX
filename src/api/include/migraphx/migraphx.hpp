@@ -501,13 +501,13 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     compile_options(migraphx_compile_options* p, own) { this->set_handle(p, own()); }
 
     // set offload_copy
-    void set_offload_copy(bool value)
+    void set_offload_copy(bool value = true)
     {
         call(&migraphx_compile_options_set_offload_copy, this->get_handle_ptr(), value);
     }
 
     // set fast_math
-    void set_fast_math(bool value)
+    void set_fast_math(bool value = true)
     {
         call(&migraphx_compile_options_set_fast_math, this->get_handle_ptr(), value);
     }

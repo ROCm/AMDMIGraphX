@@ -1,5 +1,4 @@
 #include <migraphx/eliminate_data_type.hpp>
-#include <migraphx/common.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>

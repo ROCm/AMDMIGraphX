@@ -1,9 +1,6 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP
 
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/module.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/instruction_ref.hpp>

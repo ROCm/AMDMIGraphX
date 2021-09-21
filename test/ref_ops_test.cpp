@@ -2720,8 +2720,7 @@ TEST_CASE(nonzero_test)
     std::cout << "result = " << result << std::endl;
     std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int64_t> gold = {0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
-                                 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 1, 2, 0, 1, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

@@ -135,7 +135,6 @@ struct miopen_apply
         add_generic_op("max");
         add_generic_op("min");
         add_generic_op("mul");
-        add_generic_op("nonzero");
         add_generic_op("not");
         add_generic_op("pow");
         add_generic_op("prelu");
@@ -189,6 +188,7 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
+        add_nonzero_op();
         add_quant_convolution_op();
     }
 
@@ -469,6 +469,19 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
+        });
+    }
+
+    void add_nonzero_op()
+    {
+        apply_map.emplace("nonzero", [=](instruction_ref ins) {
+            auto input          = ins->inputs().front();
+            const auto& s = input->get_shape();
+            shape idx_s{shape::int64_type, {s.lens()}};
+            auto idx = mod->insert_instruction(
+                ins, make_op("hip::allocate", {{"shape", to_value(idx_s)}}));
+            auto output = insert_allocation(ins, ins->get_shape());
+            return mod->replace_instruction(ins, make_op("gpu::nonzero"), input, idx, output);
         });
     }
 

@@ -39,14 +39,18 @@ struct nonzero
 
         auto s        = args.front().get_shape();
         auto out_lens = output_shape.lens();
+        auto nz_elem_num = vec_idx.back();
         argument result{output_shape};
         result.visit([&](auto output) {
-            std::fill(output.begin(), output.end(), 0);
             par_for(elem_num, [&](auto i) {
                 auto nz  = static_cast<std::size_t>(vec_idx[i] - 1);
                 auto idx = s.multi(nz);
                 for(std::size_t j = 0; j < idx.size(); ++j)
                 {
+                    if(i >= nz_elem_num)
+                    {
+                        output[output_shape.index({j, i})] = 0;
+                    }
                     output[output_shape.index({j, nz})] = idx[j];
                 }
             });

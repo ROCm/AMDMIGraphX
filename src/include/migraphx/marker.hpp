@@ -27,7 +27,7 @@ inline namespace MIGRAPHX_INLINE_NS {
  * {
  *      void mark(std::string st) ;
  *      size_t range_start(std::string st) ;
- *      void range_stop(size_t range_num) ;
+ *      void range_stop(std::size_t range_num) ;
  *      void trace_ins_start(std::string st) ;
  *      void trace_ins_end() ;
  * };
@@ -109,10 +109,10 @@ struct marker
         return (*this).private_detail_te_get_handle().range_start(std::move(st));
     }
 
-    void range_stop(size_t range_num)
+    void range_stop(std::size_t range_num)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().range_stop(std::move(range_num));
+        (*this).private_detail_te_get_handle().range_stop(range_num);
     }
 
     void trace_ins_start(std::string st)
@@ -140,11 +140,11 @@ struct marker
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void mark(std::string st)            = 0;
-        virtual size_t range_start(std::string st)   = 0;
-        virtual void range_stop(size_t range_num)    = 0;
-        virtual void trace_ins_start(std::string st) = 0;
-        virtual void trace_ins_end()                 = 0;
+        virtual void mark(std::string st)              = 0;
+        virtual size_t range_start(std::string st)     = 0;
+        virtual void range_stop(std::size_t range_num) = 0;
+        virtual void trace_ins_start(std::string st)   = 0;
+        virtual void trace_ins_end()                   = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -183,10 +183,10 @@ struct marker
             return private_detail_te_value.range_start(std::move(st));
         }
 
-        void range_stop(size_t range_num) override
+        void range_stop(std::size_t range_num) override
         {
 
-            private_detail_te_value.range_stop(std::move(range_num));
+            private_detail_te_value.range_stop(range_num);
         }
 
         void trace_ins_start(std::string st) override

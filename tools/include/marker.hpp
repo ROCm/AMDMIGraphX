@@ -24,7 +24,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 interface('marker',
            virtual('mark', st = 'std::string', returns = 'void'),
            virtual('range_start', st = 'std::string', returns = 'size_t'),
-           virtual('range_stop', range_num = 'size_t', returns = 'void'),
+           virtual('range_stop', range_num = 'std::size_t', returns = 'void'),
            virtual('trace_ins_start', st = 'std::string', returns = 'void'),
            virtual('trace_ins_end', returns = 'void')
         ) %>

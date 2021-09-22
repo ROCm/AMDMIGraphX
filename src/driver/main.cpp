@@ -490,37 +490,37 @@ class roctx_mark
 {
     private:
     migraphx::dynamic_loader lib;
-    std::function<void(const char*)> sym_roctxMarkA;
-    std::function<uint64_t(const char*)> sym_roctxRangeStartA;
-    std::function<void(uint64_t)> sym_roctxRangeStop;
+    std::function<void(const char*)>sym_roctx_mark;
+    std::function<uint64_t(const char*)>sym_roctx_range_start;
+    std::function<void(uint64_t)>sym_roctx_range_stop;
 
-    std::function<int(const char*)> sym_roctxRangePushA;
-    std::function<int()> sym_roctxRangePop;
+    std::function<int(const char*)>sym_roctx_range_push;
+    std::function<int()>sym_roctx_range_pop;
 
     public:
     void initalize_roctx()
     {
         lib                  = migraphx::dynamic_loader{"libroctx64.so"};
-        sym_roctxMarkA       = lib.get_function<void(const char*)>("roctxMarkA");
-        sym_roctxRangeStartA = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
-        sym_roctxRangeStop   = lib.get_function<void(uint64_t)>("roctxRangeStop");
+        sym_roctx_mark       = lib.get_function<void(const char*)>("roctxMarkA");
+        sym_roctx_range_start = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
+        sym_roctx_range_stop   = lib.get_function<void(uint64_t)>("roctxRangeStop");
 
-        sym_roctxRangePushA = lib.get_function<int(const char*)>("roctxRangePushA");
-        sym_roctxRangePop   = lib.get_function<int()>("roctxRangePop");
+        sym_roctx_range_push = lib.get_function<int(const char*)>("roctxRangePushA");
+        sym_roctx_range_pop   = lib.get_function<int()>("roctxRangePop");
     }
 
-    void mark(std::string mark_string) { sym_roctxMarkA(mark_string.c_str()); }
+    void mark(std::string const mark_string) { sym_roctx_mark(mark_string.c_str()); }
 
-    uint64_t range_start(std::string range_string)
+    uint64_t range_start(std::string const range_string)
     {
-        return sym_roctxRangeStartA(range_string.c_str());
+        return sym_roctx_range_start(range_string.c_str());
     }
 
-    void range_stop(uint64_t range_id) { return sym_roctxRangeStop(range_id); }
+    void range_stop(uint64_t range_id) { return sym_roctx_range_stop(range_id); }
 
-    void trace_ins_start(std::string in_string) { sym_roctxRangePushA(in_string.c_str()); }
+    void trace_ins_start(std::string const in_string) { sym_roctx_range_push(in_string.c_str()); }
 
-    void trace_ins_end() { sym_roctxRangePop(); }
+    void trace_ins_end() { sym_roctx_range_pop(); }
 };
 
 struct trace : command<trace>

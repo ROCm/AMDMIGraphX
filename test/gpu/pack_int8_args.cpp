@@ -392,16 +392,16 @@ TEST_CASE(quant_dot_trans_pad)
             tl1_alpha_int32,
             tl1_alpha_int8_alloc);
 
-        auto pa = conta;
+        auto pa = tl1_alpha_int8;
         if(int8_x4)
         {
             pa = m.add_instruction(
                 migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 0, 3, 0, 0, 0, 0}}}),
-                conta,
+                tl1_alpha_int8,
                 pta);
         }
 
-        auto packb = contb;
+        auto packb = pb;
         if(int8_x4)
         {
             auto allocpb = m.add_instruction(
@@ -409,11 +409,8 @@ TEST_CASE(quant_dot_trans_pad)
             packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pb, allocpb);
         }
 
-        auto gemm =
-            m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
-                              tl1_alpha_int8,
-                              packb,
-                              output);
+        auto gemm = m.add_instruction(
+            migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}), pa, packb, output);
         m.add_return({gemm});
 
         return m;

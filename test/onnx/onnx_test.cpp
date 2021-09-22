@@ -2693,8 +2693,8 @@ TEST_CASE(randomnormal_test)
 
     migraphx::shape s{migraphx::shape::double_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::normal_distribution<> d{mean, scale};
+    std::mt19937 gen(seed);
+    std::normal_distribution<> d(mean, scale);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 
@@ -2727,8 +2727,8 @@ TEST_CASE(randomnormallike_test)
 
     migraphx::shape s{migraphx::shape::half_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::normal_distribution<> d{mean, scale};
+    std::mt19937 gen(seed);
+    std::normal_distribution<> d(mean, scale);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 
@@ -2753,8 +2753,8 @@ TEST_CASE(randomnormallike_dtype_fallback_test)
     migraphx::shape s{migraphx::shape::float_type, shape_attr};
     migraphx::shape s2{migraphx::shape::int32_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::normal_distribution<> d{mean, scale};
+    std::mt19937 gen(seed);
+    std::normal_distribution<> d(mean, scale);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 
@@ -2778,8 +2778,8 @@ TEST_CASE(randomuniform_test)
 
     migraphx::shape s{migraphx::shape::double_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::uniform_real_distribution<> d{low, high};
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> d(low, high);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 
@@ -2812,8 +2812,8 @@ TEST_CASE(randomuniformlike_test)
 
     migraphx::shape s{migraphx::shape::half_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::uniform_real_distribution<> d{low, high};
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> d(low, high);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 
@@ -2838,8 +2838,8 @@ TEST_CASE(randomuniformlike_dtype_fallback_test)
     migraphx::shape s{migraphx::shape::float_type, shape_attr};
     migraphx::shape s2{migraphx::shape::int32_type, shape_attr};
     std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen{seed};
-    std::uniform_real_distribution<> d{low, high};
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> d(low, high);
     std::transform(
         rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
 

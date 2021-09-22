@@ -26,8 +26,8 @@ struct test_multinomial : verify_program<test_multinomial>
         auto input = mm->add_parameter("input", s);
 
         auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-        auto mb_maxes =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 5}}}), maxes);
+        auto mb_maxes = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 5}}}), maxes);
         auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
         cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
         cdf      = mm->add_instruction(

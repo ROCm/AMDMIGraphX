@@ -38,9 +38,9 @@ void multinomial(hipStream_t stream,
         result.visit([&](auto out) {
             hip_visit_views(out)([&](auto output) {
                 gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
-                    auto idx = output.get_shape().multi(i);
+                    auto idx     = output.get_shape().multi(i);
                     size_t begin = idx.front() * class_size;
-                    size_t end = (idx.front() + 1) * class_size;
+                    size_t end   = (idx.front() + 1) * class_size;
                     set_output(cdf, dist, output, i, begin, end);
                 });
             });

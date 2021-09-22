@@ -68,8 +68,8 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
                            ": cannot deduce shape without shape attribute or argument.");
         }
 
-        std::mt19937 gen{seed};
-        std::normal_distribution<> d{mean, scale};
+        std::mt19937 gen(seed);
+        std::normal_distribution<> d(mean, scale);
         std::vector<double> rand_vals(out_shape.elements());
         std::transform(
             rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });

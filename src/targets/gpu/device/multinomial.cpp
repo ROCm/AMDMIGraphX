@@ -13,13 +13,13 @@ namespace device {
 
 template <class T1, class T2>
 void __device__
-set_output(T1& cdf, T1& dist, T2& output, const size_t& i, size_t& j, const size_t& n)
+set_output(T1& cdf, T1& dist, T2& output, const size_t& i, const size_t& begin, const size_t& end)
 {
-    for(; j < n; ++j)
+    for(auto j = begin; j < end; ++j)
     {
-        if(cdf[j] > (dist[i] * cdf[n - 1]))
+        if(cdf[j] > (dist[i] * cdf[end - 1]))
         {
-            output[i] = j;
+            output[i] = j - begin;
             return;
         }
     }
@@ -39,9 +39,9 @@ void multinomial(hipStream_t stream,
             hip_visit_views(out)([&](auto output) {
                 gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
                     auto idx = output.get_shape().multi(i);
-                    size_t j = idx.front() * class_size;
-                    size_t n = (idx.front() + 1) * class_size;
-                    set_output(cdf, dist, output, i, j, n);
+                    size_t begin = idx.front() * class_size;
+                    size_t end = (idx.front() + 1) * class_size;
+                    set_output(cdf, dist, output, i, begin, end);
                 });
             });
         });

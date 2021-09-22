@@ -2948,6 +2948,96 @@ def quantizelinear_neg_axis_test():
 
 
 @onnx_test
+def randomnormal_test():
+    dtype = 11
+    mean = 10.0
+    scale = 1.5
+    seed = 0.0
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.DOUBLE,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 mean=mean,
+                                 scale=scale,
+                                 seed=seed,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormal_dtype_error_test():
+    dtype = 6
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.INT32,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormal_shape_error_test():
+    dtype = 1
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormallike_test():
+    dtype = 10
+    mean = 10.0
+    scale = 1.5
+    seed = 0.0
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormalLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 mean=mean,
+                                 scale=scale,
+                                 seed=seed)
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def randomnormallike_dtype_fallback_test():
+    seed = 0
+    input = helper.make_tensor_value_info('input', TensorProto.INT32,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormalLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 seed=seed)
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def randomuniform_test():
     dtype = 11
     mean = 10.0

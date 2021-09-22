@@ -140,9 +140,9 @@ inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
     {                                              \
     };
 
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, gpu_half)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, gpu_half)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, gpu_half)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
 
 } // namespace device
 } // namespace gpu

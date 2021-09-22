@@ -490,23 +490,23 @@ class roctx_mark
 {
     private:
     migraphx::dynamic_loader lib;
-    std::function<void(const char*)>sym_roctx_mark;
-    std::function<uint64_t(const char*)>sym_roctx_range_start;
-    std::function<void(uint64_t)>sym_roctx_range_stop;
+    std::function<void(const char*)> sym_roctx_mark;
+    std::function<uint64_t(const char*)> sym_roctx_range_start;
+    std::function<void(uint64_t)> sym_roctx_range_stop;
 
-    std::function<int(const char*)>sym_roctx_range_push;
-    std::function<int()>sym_roctx_range_pop;
+    std::function<int(const char*)> sym_roctx_range_push;
+    std::function<int()> sym_roctx_range_pop;
 
     public:
     void initalize_roctx()
     {
-        lib                  = migraphx::dynamic_loader{"libroctx64.so"};
-        sym_roctx_mark       = lib.get_function<void(const char*)>("roctxMarkA");
+        lib                   = migraphx::dynamic_loader{"libroctx64.so"};
+        sym_roctx_mark        = lib.get_function<void(const char*)>("roctxMarkA");
         sym_roctx_range_start = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
-        sym_roctx_range_stop   = lib.get_function<void(uint64_t)>("roctxRangeStop");
+        sym_roctx_range_stop  = lib.get_function<void(uint64_t)>("roctxRangeStop");
 
         sym_roctx_range_push = lib.get_function<int(const char*)>("roctxRangePushA");
-        sym_roctx_range_pop   = lib.get_function<int()>("roctxRangePop");
+        sym_roctx_range_pop  = lib.get_function<int()>("roctxRangePop");
     }
 
     void mark(std::string const mark_string) { sym_roctx_mark(mark_string.c_str()); }

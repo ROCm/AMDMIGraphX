@@ -35,30 +35,28 @@ argument nonzero(hipStream_t stream,
         });
     });
 
-    result.visit([&](auto output) {
-        auto* idx     = arg_idx.cast<int64_t>();
-        auto* out_ptr = device_cast(output.data());
-        hip_visit_all(s)([&](auto si) {
-            gs_launch(stream, elem_num)([=](auto i) __device__ {
-                auto nz_elem_num = idx[elem_num - 1];
-                if(i >= nz_elem_num)
+    auto* idx     = arg_idx.cast<int64_t>();
+    auto* out_ptr = result.cast<int64_t>();
+    hip_visit_all(s)([&](auto si) {
+        gs_launch(stream, elem_num)([=](auto i) __device__ {
+            auto nz_elem_num = idx[elem_num - 1];
+            if(i >= nz_elem_num)
+            {
+                for(std::size_t j = 0; j < n_dim; ++j)
                 {
-                    for(std::size_t j = 0; j < n_dim; ++j)
-                    {
-                        out_ptr[j * elem_num + i] = 0;
-                    }
+                    out_ptr[j * elem_num + i] = 0;
                 }
+            }
 
-                if((i == 0 and idx[i] == 0) or (i > 0 and idx[i] == idx[i - 1]))
-                    return;
+            if((i == 0 and idx[i] == 0) or (i > 0 and idx[i] == idx[i - 1]))
+                return;
 
-                auto out_idx = idx[i] - 1;
-                auto index   = si.multi(i);
-                for(std::size_t j = 0; j < index.size(); ++j)
-                {
-                    out_ptr[j * elem_num + out_idx] = index[j];
-                }
-            });
+            auto out_idx = idx[i] - 1;
+            auto index   = si.multi(i);
+            for(std::size_t j = 0; j < index.size(); ++j)
+            {
+                out_ptr[j * elem_num + out_idx] = index[j];
+            }
         });
     });
 

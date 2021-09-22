@@ -38,8 +38,6 @@ namespace device {
 
 // __device__ static constexpr float_equal_fn float_equal{};
 
-
-
 template <class... Ts>
 using common_type = typename std::common_type<Ts...>::type;
 
@@ -47,8 +45,8 @@ template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 __device__ bool float_equal(T x, T y)
 {
     return std::isfinite(x) and std::isfinite(y) and
-            std::nextafter(x, std::numeric_limits<T>::lowest()) <= y and
-            std::nextafter(x, std::numeric_limits<T>::max()) >= y;
+           std::nextafter(x, std::numeric_limits<T>::lowest()) <= y and
+           std::nextafter(x, std::numeric_limits<T>::max()) >= y;
 }
 
 template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>

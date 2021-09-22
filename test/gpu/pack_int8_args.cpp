@@ -60,11 +60,13 @@ TEST_CASE(quant_dot)
         migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
         migraphx::shape m3_shape{migraphx::shape::int32_type, {5, 7}};
 
-        auto l1     = m.add_parameter("a", m1_shape);
-        auto l2     = m.add_parameter("b", m2_shape);
-        auto l3     = m.add_parameter("c", m3_shape);
-        auto beta   = m.add_literal(1);
-        auto output = m.add_parameter("test:#output_0", m3_shape);
+        auto l1         = m.add_parameter("a", m1_shape);
+        auto l2         = m.add_parameter("b", m2_shape);
+        auto l3         = m.add_parameter("c", m3_shape);
+        auto beta       = m.add_literal(1);
+        auto output     = m.add_parameter("test:#output_0", m3_shape);
+        auto gemm_alloc = m.add_instruction(
+            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m3_shape)}}));
 
         auto packa = l2;
         if(int8_x4)
@@ -73,8 +75,6 @@ TEST_CASE(quant_dot)
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m2_shape)}}));
             packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), l2, alloc);
         }
-        auto gemm_alloc = m.add_instruction(
-            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(m3_shape)}}));
         auto gemm =
             m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
                               l1,
@@ -148,13 +148,6 @@ TEST_CASE(quant_dot_trans)
             migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
         auto contb = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl2, allocb);
 
-        auto packb = contb;
-        if(int8_x4)
-        {
-            auto allocpb = m.add_instruction(
-                migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
-            packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), contb, allocpb);
-        }
         auto alpha_broadcast = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", conta->get_shape().lens()}}), alpha);
         auto alpha_alloc = m.add_instruction(migraphx::make_op(
@@ -182,6 +175,15 @@ TEST_CASE(quant_dot_trans)
             migraphx::make_op("gpu::convert", {{"target_type", conta->get_shape().type()}}),
             tl1_alpha_int32,
             tl1_alpha_int8_alloc);
+
+        auto packb = contb;
+        if(int8_x4)
+        {
+            auto allocpb = m.add_instruction(
+                migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ts2)}}));
+            packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), contb, allocpb);
+        }
+
         auto gemm =
             m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
                               tl1_alpha_int8,
@@ -252,15 +254,15 @@ TEST_CASE(quant_dot_pad)
                 po2);
         }
 
+        auto gemm_alloc = m.add_instruction(
+            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s3)}}));
+
         if(int8_x4)
         {
             auto alloc = m.add_instruction(
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
             packa = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pl2, alloc);
         }
-
-        auto gemm_alloc = m.add_instruction(
-            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s3)}}));
 
         auto gemm =
             m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),
@@ -356,18 +358,7 @@ TEST_CASE(quant_dot_trans_pad)
                 migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
         }
         auto contb = m.add_instruction(migraphx::make_op("gpu::contiguous"), tl2, tb);
-        auto packb = contb;
-        if(int8_x4)
-        {
-            auto pb = m.add_instruction(
-                migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 3, 0, 0, 0, 0, 0}}}),
-                contb,
-                ptb);
 
-            auto allocpb = m.add_instruction(
-                migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
-            packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pb, allocpb);
-        }
         auto alpha_broadcast = m.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", pa->get_shape().lens()}}), alpha);
         auto alpha_alloc = m.add_instruction(
@@ -396,6 +387,19 @@ TEST_CASE(quant_dot_trans_pad)
             migraphx::make_op("gpu::convert", {{"target_type", pa->get_shape().type()}}),
             tl1_alpha_int32,
             tl1_alpha_int8_alloc);
+
+        auto packb = contb;
+        if(int8_x4)
+        {
+            auto pb = m.add_instruction(
+                migraphx::make_op("gpu::pad", {{"mode", 0}, {"pads", {0, 0, 3, 0, 0, 0, 0, 0}}}),
+                contb,
+                ptb);
+
+            auto allocpb = m.add_instruction(
+                migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(ps2)}}));
+            packb = m.add_instruction(migraphx::make_op("gpu::int8_gemm_pack_a"), pb, allocpb);
+        }
 
         auto gemm =
             m.add_instruction(migraphx::make_op("gpu::quant_gemm", {{"int8_x4_format", int8_x4}}),

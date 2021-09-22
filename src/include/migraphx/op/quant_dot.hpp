@@ -18,7 +18,6 @@ namespace op {
 
 struct quant_dot
 {
-
     value attributes() const { return {{"general_data_type", "dot"}}; }
 
     std::string name() const { return "quant_dot"; }
@@ -31,11 +30,6 @@ struct quant_dot
         if(t != shape::int8_type)
         {
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t");
-        }
-
-        if(inputs.size() != 2)
-        {
-            MIGRAPHX_THROW("QUANT_DOT: only accepts two inputs args");
         }
 
         if(!std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
@@ -61,6 +55,18 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
+        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
+        {
+            MIGRAPHX_THROW("QUANT_DOT: dimension mismatch, operand C: {" +
+                           to_string_range(inputs.at(2).lens()) +
+                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
+        }
+
+        if(inputs.size() == 3 && inputs.at(2).type() != shape::int32_type)
+        {
+            MIGRAPHX_THROW("QUANT_DOT: operand C type must be int32");
+        }
+
         return {shape::int32_type, out_lens};
     }
 };

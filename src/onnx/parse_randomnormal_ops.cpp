@@ -26,7 +26,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         bool use_dtype = false;
         if(contains(info.attributes, "dtype"))
         {
-            dtype     = parser.parse_value(info.attributes.at("dtype")).at<int>();
+            dtype     = info.attributes.at("dtype").i();
             use_dtype = true;
         }
         shape::type_t out_type = get_type(dtype);
@@ -36,17 +36,17 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
 
         float mean = 0.0;
         if(contains(info.attributes, "mean"))
-            mean = parser.parse_value(info.attributes.at("mean")).at<float>();
+            mean = info.attributes.at("mean").f();
 
         float scale = 1.0;
         if(contains(info.attributes, "scale"))
-            scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+            scale = info.attributes.at("scale").f();
 
         float seed = static_cast<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count());
         if(contains(info.attributes, "seed"))
-            seed = parser.parse_value(info.attributes.at("seed")).at<float>();
-
+            seed = info.attributes.at("seed").f();
+            
         shape out_shape;
         if(contains(info.attributes, "shape"))
         {

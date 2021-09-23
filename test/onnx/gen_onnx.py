@@ -3040,8 +3040,8 @@ def randomnormallike_dtype_fallback_test():
 @onnx_test
 def randomuniform_test():
     dtype = 11
-    mean = 10.0
-    scale = 1.5
+    high = 1.0
+    low = 0.0
     seed = 0.0
     shape = [2, 3, 4]
     output = helper.make_tensor_value_info('output', TensorProto.DOUBLE,
@@ -3051,8 +3051,8 @@ def randomuniform_test():
                                  inputs=[],
                                  outputs=['output'],
                                  dtype=dtype,
-                                 mean=mean,
-                                 scale=scale,
+                                 high=high,
+                                 low=low,
                                  seed=seed,
                                  shape=shape)
 
@@ -3092,8 +3092,8 @@ def randomuniform_shape_error_test():
 @onnx_test
 def randomuniformlike_test():
     dtype = 10
-    mean = 10.0
-    scale = 1.5
+    high = 10.0
+    low = 1.0
     seed = 0.0
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
                                           [2, 3, 4])
@@ -3104,8 +3104,8 @@ def randomuniformlike_test():
                                  inputs=['input'],
                                  outputs=['output'],
                                  dtype=dtype,
-                                 mean=mean,
-                                 scale=scale,
+                                 high=high,
+                                 low=low,
                                  seed=seed)
 
     return ([node], [input], [output])

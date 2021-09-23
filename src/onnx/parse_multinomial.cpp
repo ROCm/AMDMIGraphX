@@ -18,7 +18,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        int dtype                 = 6;
+        int dtype = 6;
         if(contains(info.attributes, "dtype"))
             dtype = info.attributes.at("dtype").i();
         shape::type_t output_type = get_type(dtype);

@@ -14,7 +14,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
     std::vector<op_desc> operators() const { return {{"Multinomial"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
+                          const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {

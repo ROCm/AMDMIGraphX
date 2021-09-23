@@ -46,7 +46,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
             std::chrono::high_resolution_clock::now().time_since_epoch().count());
         if(contains(info.attributes, "seed"))
             seed = info.attributes.at("seed").f();
-            
+
         shape out_shape;
         if(contains(info.attributes, "shape"))
         {

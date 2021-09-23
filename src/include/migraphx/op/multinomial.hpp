@@ -37,6 +37,9 @@ struct multinomial
         check_shapes{inputs, *this}.has(2).only_dims(2);
         size_t sample_size = inputs.back().lens().back();
 
+        if(not contains({shape::int32_type, shape::int64_type}, dtype))
+            MIGRAPHX_THROW("Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
+
         return {dtype, {inputs.front().lens().front(), sample_size}};
     }
 

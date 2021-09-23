@@ -19,23 +19,18 @@ struct parse_multinomial : op_parser<parse_multinomial>
                           std::vector<instruction_ref> args) const
     {
         int dtype                 = 6;
-        shape::type_t output_type = shape::type_t::int32_type;
         if(contains(info.attributes, "dtype"))
-            dtype = parser.parse_value(info.attributes.at("dtype")).at<int>();
-        if(dtype == 7)
-            output_type = shape::type_t::int64_type;
-        else if(dtype != 6)
-            MIGRAPHX_THROW("Invalid output type: " + std::to_string(dtype) +
-                           ". Valid types are 6 (INT32) and 7 (INT64).");
+            dtype = info.attributes.at("dtype").i();
+        shape::type_t output_type = get_type(dtype);
 
         size_t sample_size = 1;
         if(contains(info.attributes, "sample_size"))
-            sample_size = parser.parse_value(info.attributes.at("sample_size")).at<int>();
+            sample_size = info.attributes.at("sample_size").i();
 
         float seed = static_cast<float>(
             std::chrono::high_resolution_clock::now().time_since_epoch().count());
         if(contains(info.attributes, "seed"))
-            seed = parser.parse_value(info.attributes.at("seed")).at<float>();
+            seed = info.attributes.at("seed").f();
 
         // Compute cumulative density function
         auto maxes =

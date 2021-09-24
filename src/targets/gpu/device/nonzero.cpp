@@ -8,9 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument nonzero(hipStream_t stream,
-                 const argument& result,
-                 const argument& arg_data)
+argument nonzero(hipStream_t stream, const argument& result, const argument& arg_data)
 {
     auto s            = arg_data.get_shape();
     auto elem_num     = s.elements();

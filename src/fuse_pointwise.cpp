@@ -13,16 +13,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 void create_pointwise_modules(module_pass_manager& mpm)
 {
     std::size_t n = 0;
-    for(auto ins:iterator_for(mpm.get_module()))
+    for(auto ins : iterator_for(mpm.get_module()))
     {
-        if (not ins->get_operator().attributes().get("pointwise", false))
+        if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
         auto* pm = mpm.create_module("pointwise" + std::to_string(n++));
         pm->set_bypass();
         std::vector<instruction_ref> inputs;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto input) {
-            return pm->add_parameter("x" + std::to_string(inputs.size()), shape{input->get_shape().type()});
-        });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&](auto input) {
+                           return pm->add_parameter("x" + std::to_string(inputs.size()),
+                                                    shape{input->get_shape().type()});
+                       });
         pm->add_instruction(ins->get_operator(), inputs);
 
         mpm.get_module().replace_instruction(ins, make_op("pointwise"), ins->inputs(), {pm});

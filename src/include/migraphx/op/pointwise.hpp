@@ -22,19 +22,19 @@ struct pointwise
         {
             MIGRAPHX_THROW("should have one submodule.");
         }
-        auto* pm = mods.front();
+        auto* pm    = mods.front();
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
-        for(auto i:range(pnames.size()))
+        for(auto i : range(pnames.size()))
         {
             auto s1 = pm->get_parameter(pnames[i])->get_shape();
             auto s2 = inputs[i];
-            if (s1.type() != s2.type())
+            if(s1.type() != s2.type())
                 MIGRAPHX_THROW("Mismatch type");
         }
 
-        if (pm->get_output_shapes().size() != 1)
+        if(pm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("submodule should have only one output.");
 
         auto type = pm->get_output_shapes().front().type();
@@ -49,26 +49,23 @@ struct pointwise
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
         argument output{output_shape};
-        auto* pm = mods.front();
+        auto* pm    = mods.front();
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
 
         par_for(output_shape.elements(), [&](auto i) {
             std::unordered_map<std::string, argument> params;
 
-            std::transform(pnames.begin(),
-                       pnames.end(),
-                       args.begin() + 1,
-                       std::inserter(params, params.end()),
-                       [&](auto&& name, auto&& arg) { 
-                        return std::make_pair(name, arg.element(i)); 
-                        });
+            std::transform(
+                pnames.begin(),
+                pnames.end(),
+                args.begin() + 1,
+                std::inserter(params, params.end()),
+                [&](auto&& name, auto&& arg) { return std::make_pair(name, arg.element(i)); });
 
             auto results = run(pm, params);
             assert(results.size() == 1);
-            visit_all(output, results.front())([&](auto out, auto x) {
-                out[i] = x.front();
-            });
+            visit_all(output, results.front())([&](auto out, auto x) { out[i] = x.front(); });
         });
         return output;
     }

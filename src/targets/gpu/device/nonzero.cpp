@@ -14,8 +14,8 @@ argument nonzero(hipStream_t stream,
                  const argument& arg_idx,
                  const argument& arg_data)
 {
-    auto s        = arg_data.get_shape();
-    auto elem_num = s.elements();
+    auto s            = arg_data.get_shape();
+    auto elem_num     = s.elements();
     auto out_elem_num = result.get_shape().elements();
     // auto n_dim    = s.lens().size();
 
@@ -27,26 +27,24 @@ argument nonzero(hipStream_t stream,
         const auto* in_ptr = device_cast(input.data());
         auto* ptr          = result.cast<int64_t>();
         gs_launch(stream, block_size, block_size)([=](auto, auto idx) __device__ {
-            idx.local_stride(out_elem_num, [&](auto j) {
-                ptr[j] = 0;
-            });
+            idx.local_stride(out_elem_num, [&](auto j) { ptr[j] = 0; });
 
             block_scan<block_size>(idx,
                                    sum{},
                                    0,
                                    elem_num,
                                    [&](auto j) { return (float_equal(in_ptr[j], 0)) ? 0 : 1; },
-                                   [&](auto j, auto x) { 
+                                   [&](auto j, auto x) {
                                        auto out_loc = x - 1;
                                        if(float_equal(in_ptr[j], 0))
-                                         return;
+                                           return;
 
-                                        auto index = si.multi(j);
-                                        for(size_t k = 0; k < index.size(); ++k)
-                                        {
-                                            ptr[k * elem_num + out_loc] = index[k];
-                                        }
-                                    });
+                                       auto index = si.multi(j);
+                                       for(size_t k = 0; k < index.size(); ++k)
+                                       {
+                                           ptr[k * elem_num + out_loc] = index[k];
+                                       }
+                                   });
         });
     });
 

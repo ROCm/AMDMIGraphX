@@ -1,6 +1,7 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_APPLY_ALPHA_BETA_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_APPLY_ALPHA_BETA_HPP
 
+#include "migraphx/errors.hpp"
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/make_op.hpp>
@@ -17,6 +18,10 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         T alpha = 1.0f,
                                         T beta  = 0.0f)
 {
+    if(!(op_name == "dot" or op_name == "quant_dot"))
+        MIGRAPHX_THROW("Alpha and Beta calculation can be only be applied to either dot or "
+                       "quant_dot operator");
+
     auto l1       = args[0];
     auto l2       = args[1];
     auto dot_type = l1->get_shape().type();

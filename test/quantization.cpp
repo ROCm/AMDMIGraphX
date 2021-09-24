@@ -737,7 +737,7 @@ TEST_CASE(dot_half_1arg)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::half_type, {9, 9}};
         auto x = mm->add_parameter("x", s);
-        auto r = migraphx::add_apply_alpha_beta<float>(*mm, {x, x}, "dot");
+        auto r = mm->add_instruction(migraphx::make_op("dot"), x, x);
         mm->add_return({r});
 
         return p;
@@ -765,7 +765,7 @@ TEST_CASE(dot_half_1arg)
                                    zp_b);
         auto qb  = mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_b, zp_b);
         auto dqb = mm->add_instruction(migraphx::make_op("dequantizelinear"), qb, scale_b, zp_b);
-        auto r   = migraphx::add_apply_alpha_beta<float>(*mm, {dqa, dqb}, "dot");
+        auto r   = mm->add_instruction(migraphx::make_op("dot"), dqa, dqb);
         mm->add_return({r});
         return p;
     };

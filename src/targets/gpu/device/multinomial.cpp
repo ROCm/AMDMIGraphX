@@ -15,7 +15,8 @@ template <class Iterator, class T>
 constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
 {
     Iterator it;
-    typename std::iterator_traits<Iterator>::difference_type count, step;
+    typename std::iterator_traits<Iterator>::difference_type count;
+    typename std::iterator_traits<Iterator>::difference_type step;
     count = std::distance(first, last);
 
     while(count > 0)

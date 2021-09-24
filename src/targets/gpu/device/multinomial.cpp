@@ -10,19 +10,26 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
-
-template <class T1, class T2>
-void __device__
-set_output(T1& cdf, T1& dist, T2& output, const size_t& i, const size_t& begin, const size_t& end)
+    
+template<class Iterator, class T>
+constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
 {
-    for(auto j = begin; j < end; ++j)
-    {
-        if(cdf[j] > (dist[i] * cdf[end - 1]))
-        {
-            output[i] = j - begin;
-            return;
-        }
+    Iterator it;
+    typename std::iterator_traits<Iterator>::difference_type count, step;
+    count = std::distance(first, last);
+ 
+    while (count > 0) {
+        it = first; 
+        step = count / 2; 
+        std::advance(it, step);
+        if (!(value < *it)) {
+            first = ++it;
+            count -= step + 1;
+        } 
+        else
+            count = step;
     }
+    return first;
 }
 
 void multinomial(hipStream_t stream,
@@ -39,9 +46,11 @@ void multinomial(hipStream_t stream,
             hip_visit_views(out)([&](auto output) {
                 gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
                     auto idx     = output.get_shape().multi(i);
-                    size_t begin = idx.front() * class_size;
-                    size_t end   = (idx.front() + 1) * class_size;
-                    set_output(cdf, dist, output, i, begin, end);
+                    auto cdf_begin = cdf.data() + (idx.front() * class_size);
+                    auto cdf_end   = cdf_begin + class_size;
+                    auto* sample_iter =
+                        upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
+                    output[i] = std::distance(cdf_begin, sample_iter);
                 });
             });
         });

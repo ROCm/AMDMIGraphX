@@ -50,9 +50,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
         migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};
 
         std::vector<float> random_dist(batch_size * sample_size);
-        std::transform(random_dist.begin(), random_dist.end(), random_dist.begin(), [&](auto) {
-            return dis(gen);
-        });
+        std::generate(random_dist.begin(), random_dist.end(), [&]() { return dis(gen); });
         auto dist_lit = info.add_literal(migraphx::literal{dist_shape, random_dist});
 
         return info.add_instruction(

@@ -2296,9 +2296,7 @@ TEST_CASE(multinomial_test)
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
-    std::transform(rand_samples.begin(), rand_samples.end(), rand_samples.begin(), [&](auto) {
-        return dis(gen);
-    });
+    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
     auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
@@ -2334,9 +2332,7 @@ TEST_CASE(multinomial_int64_test)
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(0.0, 1.0);
     std::vector<float> rand_samples(sample_size);
-    std::transform(rand_samples.begin(), rand_samples.end(), rand_samples.begin(), [&](auto) {
-        return dis(gen);
-    });
+    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
     auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 

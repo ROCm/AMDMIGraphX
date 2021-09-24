@@ -13,7 +13,7 @@ shape hip_nonzero::compute_shape(std::vector<shape> inputs) const
 
 argument hip_nonzero::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::nonzero(ctx.get_stream().get(), args.back(), args.at(1), args.front());
+    return device::nonzero(ctx.get_stream().get(), args.back(), args.front());
 }
 
 } // namespace gpu

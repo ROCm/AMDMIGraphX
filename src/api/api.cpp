@@ -1,4 +1,3 @@
-#include <migraphx/operation.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -74,13 +73,9 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 
 target get_target(const std::string& name) { return make_target(name); }
 
-migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
-{
-    migraphx::compile_options result{};
-    result.offload_copy = options.offload_copy;
-    result.fast_math    = options.fast_math;
-    return result;
-}
+void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
+
+void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
 
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 
@@ -329,6 +324,16 @@ struct migraphx_file_options
     {
     }
     migraphx::file_options object;
+};
+
+extern "C" struct migraphx_compile_options;
+struct migraphx_compile_options
+{
+    template <class... Ts>
+    migraphx_compile_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::compile_options object;
 };
 
 extern "C" struct migraphx_tf_options;
@@ -689,17 +694,16 @@ extern "C" migraphx_status migraphx_program_get_main_module(migraphx_module_t* o
 
 extern "C" migraphx_status migraphx_program_compile(migraphx_program_t program,
                                                     migraphx_target_t target,
-                                                    migraphx_compile_options* options)
+                                                    migraphx_compile_options_t options)
 {
     return migraphx::try_([&] {
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         if(target == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
-        (program->object)
-            .compile((target->object),
-                     (options == nullptr ? migraphx::compile_options{}
-                                         : migraphx::to_compile_options(*options)));
+        if(options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
+        (program->object).compile((target->object), (options->object));
     });
 }
 
@@ -853,6 +857,17 @@ migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options
     });
 }
 
+extern "C" migraphx_status
+migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
+                                                  int64_t value)
+{
+    return migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_default_loop_iterations((onnx_options->object), (value));
+    });
+}
+
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
     return migraphx::try_([&] { destroy((file_options)); });
@@ -876,13 +891,39 @@ migraphx_file_options_set_file_format(migraphx_file_options_t file_options, cons
 }
 
 extern "C" migraphx_status
-migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
-                                                  int64_t value)
+migraphx_compile_options_destroy(migraphx_compile_options_t compile_options)
+{
+    return migraphx::try_([&] { destroy((compile_options)); });
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_create(migraphx_compile_options_t* compile_options)
 {
     return migraphx::try_([&] {
-        if(onnx_options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::set_default_loop_iterations((onnx_options->object), (value));
+        *compile_options =
+            object_cast<migraphx_compile_options_t>(allocate<migraphx::compile_options>());
+    });
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_offload_copy(migraphx_compile_options_t compile_options, bool value)
+{
+    return migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_offload_copy((compile_options->object), (value));
+    });
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_options, bool value)
+{
+    return migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_fast_math((compile_options->object), (value));
     });
 }
 

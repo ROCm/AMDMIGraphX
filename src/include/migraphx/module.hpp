@@ -46,6 +46,9 @@ struct module
 
     std::string name() const;
 
+    bool bypass() const;
+    void set_bypass(bool b = true);
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {

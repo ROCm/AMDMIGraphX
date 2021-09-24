@@ -71,8 +71,7 @@ struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
         std::mt19937 gen(seed);
         std::uniform_real_distribution<> d(high, low);
         std::vector<double> rand_vals(out_shape.elements());
-        std::transform(
-            rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+        std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
         return info.add_literal(literal{out_shape, rand_vals});
     }

@@ -2695,8 +2695,7 @@ TEST_CASE(randomnormal_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::normal_distribution<> d(mean, scale);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_literal(migraphx::literal{s, rand_vals});
 
@@ -2729,8 +2728,7 @@ TEST_CASE(randomnormallike_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::normal_distribution<> d(mean, scale);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_parameter("input", s);
     mm->add_literal(migraphx::literal{s, rand_vals});
@@ -2755,8 +2753,7 @@ TEST_CASE(randomnormallike_dtype_fallback_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::normal_distribution<> d(mean, scale);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_parameter("input", s2);
     mm->add_literal(migraphx::literal{s, rand_vals});
@@ -2780,8 +2777,7 @@ TEST_CASE(randomuniform_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> d(low, high);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_literal(migraphx::literal{s, rand_vals});
 
@@ -2814,8 +2810,7 @@ TEST_CASE(randomuniformlike_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> d(low, high);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_parameter("input", s);
     mm->add_literal(migraphx::literal{s, rand_vals});
@@ -2840,8 +2835,7 @@ TEST_CASE(randomuniformlike_dtype_fallback_test)
     std::vector<double> rand_vals(s.elements());
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> d(low, high);
-    std::transform(
-        rand_vals.begin(), rand_vals.end(), rand_vals.begin(), [&](auto) { return d(gen); });
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
 
     mm->add_parameter("input", s2);
     mm->add_literal(migraphx::literal{s, rand_vals});

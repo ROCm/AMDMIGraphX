@@ -24,7 +24,7 @@ struct nonmaxsuppression
         return pack(f(self.center_point_box, "center_point_box"));
     }
 
-    std::string name() const { return "nonmaxsuppresion"; }
+    std::string name() const { return "nonmaxsuppression"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

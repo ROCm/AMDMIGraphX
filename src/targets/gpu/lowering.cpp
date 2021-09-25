@@ -529,7 +529,6 @@ struct miopen_apply
             return mod->replace_instruction(ins, gpu_out);
         });
     }
-
 };
 
 void lowering::apply(module& m) const { miopen_apply{&m, this}.apply(); }

@@ -41,26 +41,6 @@ typedef enum {
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
-/// Options to be passed when compiling
-typedef struct
-{
-    /// For targets with offloaded memory(such as the gpu), this will insert
-    /// instructions during compilation to copy the input parameters to the
-    /// offloaded memory and to copy the final result from the offloaded
-    /// memory back to main memory.
-    bool offload_copy;
-    /// Optimize math functions to use faster approximate versions. There may
-    /// be slight accuracy degredation when enabled.
-    bool fast_math;
-} migraphx_compile_options;
-
-/// Options for saving and loading files
-typedef struct
-{
-    /// Format to be used for file. It can either be json or msgpack
-    const char* format;
-} migraphx_file_options;
-
 typedef struct migraphx_shape* migraphx_shape_t;
 typedef const struct migraphx_shape* const_migraphx_shape_t;
 
@@ -93,6 +73,12 @@ typedef const struct migraphx_operation* const_migraphx_operation_t;
 
 typedef struct migraphx_onnx_options* migraphx_onnx_options_t;
 typedef const struct migraphx_onnx_options* const_migraphx_onnx_options_t;
+
+typedef struct migraphx_file_options* migraphx_file_options_t;
+typedef const struct migraphx_file_options* const_migraphx_file_options_t;
+
+typedef struct migraphx_compile_options* migraphx_compile_options_t;
+typedef const struct migraphx_compile_options* const_migraphx_compile_options_t;
 
 typedef struct migraphx_tf_options* migraphx_tf_options_t;
 typedef const struct migraphx_tf_options* const_migraphx_tf_options_t;
@@ -200,7 +186,7 @@ migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,
 
 migraphx_status migraphx_program_compile(migraphx_program_t program,
                                          migraphx_target_t target,
-                                         migraphx_compile_options* options);
+                                         migraphx_compile_options_t options);
 
 migraphx_status migraphx_program_get_parameter_shapes(migraphx_program_parameter_shapes_t* out,
                                                       migraphx_program_t program);
@@ -228,10 +214,10 @@ migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
 migraphx_status migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operation);
 
 migraphx_status
-migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options* options);
+migraphx_load(migraphx_program_t* out, const char* name, migraphx_file_options_t options);
 
 migraphx_status
-migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options* options);
+migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t options);
 
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 
@@ -242,6 +228,27 @@ migraphx_status migraphx_onnx_options_set_input_parameter_shape(
 
 migraphx_status migraphx_onnx_options_set_default_dim_value(migraphx_onnx_options_t onnx_options,
                                                             size_t value);
+
+migraphx_status
+migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_options,
+                                                  int64_t value);
+
+migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options);
+
+migraphx_status migraphx_file_options_create(migraphx_file_options_t* file_options);
+
+migraphx_status migraphx_file_options_set_file_format(migraphx_file_options_t file_options,
+                                                      const char* format);
+
+migraphx_status migraphx_compile_options_destroy(migraphx_compile_options_t compile_options);
+
+migraphx_status migraphx_compile_options_create(migraphx_compile_options_t* compile_options);
+
+migraphx_status
+migraphx_compile_options_set_offload_copy(migraphx_compile_options_t compile_options, bool value);
+
+migraphx_status migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_options,
+                                                       bool value);
 
 migraphx_status
 migraphx_parse_onnx(migraphx_program_t* out, const char* name, migraphx_onnx_options_t options);

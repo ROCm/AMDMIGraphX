@@ -41,26 +41,6 @@ typedef enum {
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
-/// Options to be passed when compiling
-typedef struct
-{
-    /// For targets with offloaded memory(such as the gpu), this will insert
-    /// instructions during compilation to copy the input parameters to the
-    /// offloaded memory and to copy the final result from the offloaded
-    /// memory back to main memory.
-    bool offload_copy;
-    /// Optimize math functions to use faster approximate versions. There may
-    /// be slight accuracy degredation when enabled.
-    bool fast_math;
-} migraphx_compile_options;
-
-/// Options for saving and loading files
-typedef struct
-{
-    /// Format to be used for file. It can either be json or msgpack
-    const char* format;
-} migraphx_file_options;
-
 <% generate_c_header() %>
 
 #ifdef __cplusplus

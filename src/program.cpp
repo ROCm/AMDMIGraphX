@@ -193,6 +193,7 @@ std::vector<argument> generic_eval(const module* mod,
     auto trace = make_trace(mod);
     for(auto ins : iterator_for(*mod))
     {
+        assert(results.find(ins) == results.end());
         const auto& name = ins->name();
         if(name == "@literal")
         {
@@ -241,7 +242,8 @@ std::vector<argument> generic_eval(const module* mod,
             const auto& mod_args = ins->module_inputs();
             auto module_eval     = [&](module_ref smod,
                                    const std::unordered_map<std::string, argument>& inputs) {
-                return generic_eval(smod, ctx, inputs, results, make_trace);
+                auto ssctx = ctx;
+                return generic_eval(smod, ssctx, inputs, results, make_trace);
             };
 
             results.emplace(ins, trace(ins, [&] {
@@ -250,6 +252,7 @@ std::vector<argument> generic_eval(const module* mod,
                             }));
         }
         assert(results.find(ins) != results.end());
+        assert(results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -522,8 +525,9 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
     // Fill the map
     generic_eval(*this, ctx, params, always([&](auto ins, auto) {
         ins_vec[ins].reserve(n);
-        return argument{};
+        return argument{ins->get_shape(), nullptr};
     }));
+
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
@@ -663,7 +667,9 @@ void program::print_cpp(std::ostream& os) const
 void program::dry_run(std::unordered_map<std::string, argument> params) const
 {
     auto& ctx = this->impl->ctx;
-    generic_eval(*this, ctx, std::move(params), always([](auto&&...) { return argument{}; }));
+    generic_eval(*this, ctx, std::move(params), always([](auto ins, auto&&...) {
+        return argument{ins->get_shape(), nullptr};
+    }));
 }
 
 void program::annotate(std::ostream& os, const std::function<void(instruction_ref)>& a) const

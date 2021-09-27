@@ -125,7 +125,7 @@ rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             ls -lR
-            dpkg -i --force-depends ./build/*.deb
+            dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh
         '''
     }

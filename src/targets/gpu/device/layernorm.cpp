@@ -98,7 +98,7 @@ __device__ void layernorm(index_int i,
                      idx, sum{}, value_type(0), relements_v, [=](auto) { return z; }) /
                  value_type(relements);
 #if MIGRAPHX_WORKAROUND_NAVI_DPP_SYNC
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
 #endif
         return m;
     };

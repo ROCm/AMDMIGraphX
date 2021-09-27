@@ -124,6 +124,7 @@ def onnxnode(name, body) {
 rocmtest onnx: onnxnode('rocmtest') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
+            apt install half
             ls -lR
             dpkg -i ./build/*.deb
             cd /onnxruntime && ./build_and_test_onnxrt.sh

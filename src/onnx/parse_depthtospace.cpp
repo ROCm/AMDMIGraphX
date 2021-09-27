@@ -29,20 +29,27 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
         {
             blocksize = info.attributes.at("blocksize").i();
         }
+        if(blocksize < 1)
+        {
+            MIGRAPHX_THROW("DepthToSpace: blocksize is less than 1");
+        }
         // calculate dimensions
         auto lens1 = s.lens();
         auto lens2 = s.lens();
-        lens2[1]   = lens2[1] / std::pow(blocksize, 2);
-        lens2[2]   = lens2[2] * blocksize;
-        lens2[3]   = lens2[3] * blocksize;
+        if((static_cast<int64_t>(lens2[1]) % static_cast<int64_t>(std::pow(blocksize, 2))) == 0)
+            lens2[1]   = lens2[1] / std::pow(blocksize, 2);
+        else
+            MIGRAPHX_THROW("DepthToSpace: div by blocksize quotient not int ");
         lens1.push_back(lens1[2]);
         lens1.push_back(lens1[3]);
+        lens2[2]   = lens2[2] * blocksize;
+        lens2[3]   = lens2[3] * blocksize;
         lens1[2] = blocksize;
         std::vector<int64_t> perm;
         if(mode == "DCR")
         {
-            lens1[1] = blocksize;
             lens1[3] = lens1[1] / std::pow(blocksize, 2);
+            lens1[1] = blocksize;
             perm = {0, 3, 4, 1, 5, 2};
         }
         else if(mode == "CRD")

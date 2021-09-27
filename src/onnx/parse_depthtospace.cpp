@@ -35,36 +35,30 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
         lens2[1]   = lens2[1] / std::pow(blocksize, 2);
         lens2[2]   = lens2[2] * blocksize;
         lens2[3]   = lens2[3] * blocksize;
+        lens1.push_back(lens1[2]);
+        lens1.push_back(lens1[3]);
+        lens1[2] = blocksize;
+        std::vector<int64_t> perm;
         if(mode == "DCR")
         {
-            lens1.push_back(lens1[2]);
-            lens1.push_back(lens1[3]);
-            lens1[3] = lens1[1] / std::pow(blocksize, 2);
             lens1[1] = blocksize;
-            lens1[2] = blocksize;
-
-            auto temp1 = info.add_instruction(make_op("reshape", {{"dims", lens1}}), args[0]);
-            auto temp2 = info.add_instruction(
-                make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), temp1);
-            return info.add_instruction(make_op("reshape", {{"dims", lens2}}),
-                                        info.make_contiguous(temp2));
+            lens1[3] = lens1[1] / std::pow(blocksize, 2);
+            perm = {0, 3, 4, 1, 5, 2};
         }
         else if(mode == "CRD")
         {
-            lens1.push_back(lens1[2]);
-            lens1.push_back(lens1[3]);
             lens1[1] = lens1[1] / std::pow(blocksize, 2);
-            lens1[2] = blocksize;
             lens1[3] = blocksize;
-
-            auto temp1 = info.add_instruction(make_op("reshape", {{"dims", lens1}}), args[0]);
-            auto temp2 = info.add_instruction(
-                make_op("transpose", {{"permutation", {0, 1, 4, 2, 5, 3}}}), temp1);
-            return info.add_instruction(make_op("reshape", {{"dims", lens2}}),
-                                        info.make_contiguous(temp2));
+            perm = {0, 1, 4, 2, 5, 3};
         }
         else
             MIGRAPHX_THROW("DepthToSpace: mode attribute cannot be read.");
+        
+        auto temp1 = info.add_instruction(make_op("reshape", {{"dims", lens1}}), args[0]);
+        auto temp2 = info.add_instruction(
+                make_op("transpose", {{"permutation", perm}}), temp1);
+        return info.add_instruction(make_op("reshape", {{"dims", lens2}}),
+                                        info.make_contiguous(temp2));
     }
 };
 

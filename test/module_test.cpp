@@ -1,6 +1,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <sstream>
@@ -274,6 +275,41 @@ TEST_CASE(parameter_name_order)
     auto m1     = mm;
     auto names1 = m1.get_parameter_names();
     EXPECT(param_names == names1);
+}
+
+struct check_for_pass_op
+{
+    bool* found = nullptr;
+    std::string name() const { return "check_for_pass_op"; }
+    void apply(migraphx::module& m) const
+    {
+        *found |= std::any_of(m.begin(), m.end(), [](auto&& ins) { return ins.name() == "pass"; });
+    }
+};
+
+TEST_CASE(module_bypass)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    sub->set_bypass();
+    sub->add_instruction(pass_op{});
+    mm->add_instruction(mod_pass_op{}, {}, {sub});
+    bool found = false;
+    migraphx::run_passes(p, {check_for_pass_op{&found}});
+    EXPECT(not found);
+}
+
+TEST_CASE(module_without_bypass)
+{
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto* sub = p.create_module("sub");
+    sub->add_instruction(pass_op{});
+    mm->add_instruction(mod_pass_op{}, {}, {sub});
+    bool found = false;
+    migraphx::run_passes(p, {check_for_pass_op{&found}});
+    EXPECT(found);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -23,14 +23,15 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
         return pm->add_parameter("x" + std::to_string(params.size()),
                                  migraphx::shape{input->get_shape().type()});
     });
-    f(pm, params);
+    auto r = f(pm, params);
+    pm->add_return({r});
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
 }
 
 auto single_pointwise(std::string name)
 {
     return
-        [=](auto* pm, const auto& inputs) { pm->add_instruction(migraphx::make_op(name), inputs); };
+        [=](auto* pm, const auto& inputs) { return pm->add_instruction(migraphx::make_op(name), inputs); };
 }
 
 TEST_CASE(simple)

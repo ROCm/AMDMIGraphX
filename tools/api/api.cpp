@@ -1,4 +1,3 @@
-#include <migraphx/operation.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
 #include <migraphx/shape.hpp>
@@ -74,13 +73,9 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 
 target get_target(const std::string& name) { return make_target(name); }
 
-migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
-{
-    migraphx::compile_options result{};
-    result.offload_copy = options.offload_copy;
-    result.fast_math    = options.fast_math;
-    return result;
-}
+void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
+
+void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
 
 void set_file_format(file_options& options, const char* format) { options.format = format; }
 

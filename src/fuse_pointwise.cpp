@@ -37,7 +37,7 @@ void create_pointwise_modules(module_pass_manager& mpm)
 instruction_ref get_return(module_ref m)
 {
     auto last = std::prev(m->end());
-    if (last->name() == "@return")
+    if(last->name() == "@return")
         return last->inputs().front();
     return last;
 }
@@ -53,17 +53,18 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
 
     std::vector<instruction_ref> inputs = ins->inputs();
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    for(auto i:range(output->inputs().size()))
+    for(auto i : range(output->inputs().size()))
     {
         auto input = output->inputs()[i];
         auto param = xm->get_parameter("x" + std::to_string(i));
-        if (input == ins)
+        if(input == ins)
         {
             map_ins[param] = last->inputs().front();
         }
         else
         {
-            map_ins[param] = pm->add_parameter("x" + std::to_string(inputs.size()), input->get_shape());
+            map_ins[param] =
+                pm->add_parameter("x" + std::to_string(inputs.size()), input->get_shape());
             inputs.push_back(input);
         }
     }
@@ -75,14 +76,14 @@ void find_pointwise_modules(module& m)
 {
     for(auto ins : iterator_for(m))
     {
-        if (ins->name() != "pointwise")
+        if(ins->name() != "pointwise")
             continue;
-        if (ins->outputs().empty())
+        if(ins->outputs().empty())
             continue;
         auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
             return i->name() == "pointwise" and i->outputs().size() == 1;
         });
-        if (it == ins->inputs().end())
+        if(it == ins->inputs().end())
             continue;
         auto new_inputs = append_pointwise_module(*it, ins);
         m.replace_instruction(*it, (*it)->get_operator(), new_inputs, (*it)->module_inputs());
@@ -94,12 +95,11 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
-    for(int i=0;i<8;i++)
+    for(int i = 0; i < 8; i++)
     {
         find_pointwise_modules(mpm.get_module());
         mpm.run_pass(dead_code_elimination{});
     }
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

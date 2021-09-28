@@ -30,8 +30,9 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
 
 auto single_pointwise(std::string name)
 {
-    return
-        [=](auto* pm, const auto& inputs) { return pm->add_instruction(migraphx::make_op(name), inputs); };
+    return [=](auto* pm, const auto& inputs) {
+        return pm->add_instruction(migraphx::make_op(name), inputs);
+    };
 }
 
 TEST_CASE(simple)

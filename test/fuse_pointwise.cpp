@@ -35,7 +35,7 @@ auto single_pointwise(std::string name)
     };
 }
 
-TEST_CASE(simple)
+TEST_CASE(single)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
@@ -60,6 +60,35 @@ TEST_CASE(simple)
         auto pass = mm->add_instruction(pass_op{}, add1);
         auto add2 = add_pointwise(p2, "pointwise1", {pass, z}, single_pointwise("add"));
         mm->add_return({add2});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(double_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto fadd = add_pointwise(p2, "pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+        });
+        mm->add_return({fadd});
     }
     EXPECT(p1 == p2);
 }

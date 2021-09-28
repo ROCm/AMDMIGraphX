@@ -96,7 +96,10 @@ struct module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
-    std::vector<instruction_ref> insert_module_instructions(instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    std::vector<instruction_ref>
+    insert_module_instructions(instruction_ref ins,
+                               module_ref m,
+                               std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)

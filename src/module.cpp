@@ -302,12 +302,13 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-std::vector<instruction_ref> module::insert_module_instructions(instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref> module::insert_module_instructions(
+    instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     std::vector<instruction_ref> mod_outputs;
     for(auto sins : iterator_for(*m))
     {
-        if (contains(map_ins, sins))
+        if(contains(map_ins, sins))
             continue;
         instruction_ref copy_ins = this->end();
         if(sins->name() == "@literal")
@@ -346,7 +347,7 @@ std::vector<instruction_ref> module::insert_module_instructions(instruction_ref 
         map_ins[sins] = copy_ins;
         // mod_outputs   = {copy_ins};
     }
-    if (mod_outputs.empty())
+    if(mod_outputs.empty())
         mod_outputs = {map_ins.at(std::prev(m->end()))};
     return mod_outputs;
 }

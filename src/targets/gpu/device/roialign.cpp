@@ -230,7 +230,6 @@ argument roialign(hipStream_t stream,
             });
         });
     });
-    // });
 
     return result;
 }

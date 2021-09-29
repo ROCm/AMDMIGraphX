@@ -34,10 +34,11 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
             MIGRAPHX_THROW("DepthToSpace: blocksize is less than 1");
         }
         // calculate dimensions
-        auto lens1 = s.lens();
-        auto lens2 = s.lens();
-        if((static_cast<int64_t>(lens2[1]) % static_cast<int64_t>(std::pow(blocksize, 2))) == 0)
-            lens2[1] = lens2[1] / std::pow(blocksize, 2);
+        auto lens1            = s.lens();
+        auto lens2            = s.lens();
+        unsigned long divisor = std::pow(blocksize, 2);
+        if((lens2[1] % divisor) == 0)
+            lens2[1] = lens2[1] / divisor;
         else
             MIGRAPHX_THROW("DepthToSpace: div by blocksize quotient not int ");
         lens1.push_back(lens1[2]);
@@ -48,13 +49,13 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
         std::vector<int64_t> perm;
         if(mode == "DCR")
         {
-            lens1[3] = lens1[1] / std::pow(blocksize, 2);
+            lens1[3] = lens1[1] / divisor;
             lens1[1] = blocksize;
             perm     = {0, 3, 4, 1, 5, 2};
         }
         else if(mode == "CRD")
         {
-            lens1[1] = lens1[1] / std::pow(blocksize, 2);
+            lens1[1] = lens1[1] / divisor;
             lens1[3] = blocksize;
             perm     = {0, 1, 4, 2, 5, 3};
         }

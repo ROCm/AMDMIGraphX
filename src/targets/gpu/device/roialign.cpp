@@ -6,11 +6,6 @@
 #include <migraphx/gpu/device/types.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>
 
-// #include <migraphx/gpu/device/launch.hpp>
-// #include <migraphx/gpu/device/visit.hpp>
-// #include <migraphx/gpu/device/multi_index.hpp>
-// #include <migraphx/gpu/device/reduce_ops.hpp>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

@@ -97,7 +97,6 @@ bilinear_interpolate(const T* data, const int height, const int width, float y, 
     T val12 = pooling.op(w1 * v1, w2 * v2);
     T val34 = pooling.op(w3 * v3, w4 * v4);
 
-
     return pooling.op(val12, val34);
 }
 
@@ -142,12 +141,12 @@ argument roialign(hipStream_t stream,
                   int64_t sampling_ratio,
                   float spatial_scale)
 {
-    auto out_shape     = result.get_shape();
-    auto out_size      = out_shape.elements();
+    auto out_shape      = result.get_shape();
+    auto out_size       = out_shape.elements();
     auto pooling_height = out_shape.lens()[2];
-    auto pooling_width = out_shape.lens()[3];
+    auto pooling_width  = out_shape.lens()[3];
 
-    const auto& x_lens        = args.at(0).get_shape().lens();
+    const auto& x_lens = args.at(0).get_shape().lens();
     auto channel_num   = x_lens[1];
     auto height        = x_lens[2];
     auto width         = x_lens[3];
@@ -172,7 +171,7 @@ argument roialign(hipStream_t stream,
                 int pw   = idx[3];
 
                 const auto* offset_rois = rios + n * roi_colum_num;
-                const int64_t batch_ind        = ind[n];
+                const int64_t batch_ind = ind[n];
 
                 float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
                 float roi_start_h = static_cast<float>(offset_rois[1] * spatial_scale);
@@ -188,11 +187,10 @@ argument roialign(hipStream_t stream,
                 float bin_size_w = roi_width / pooling_width;
                 float bin_size_h = roi_height / pooling_height;
 
-                const auto* offset_x =
-                    x + ((batch_ind * channel_num + c) * height * width);
+                const auto* offset_x = x + ((batch_ind * channel_num + c) * height * width);
 
                 // We use roi_bin_grid to sample the grid and mimic integral
-                int roi_bin_grid_h = 
+                int roi_bin_grid_h =
                     (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_height / pooling_height);
                 int roi_bin_grid_w =
                     (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);

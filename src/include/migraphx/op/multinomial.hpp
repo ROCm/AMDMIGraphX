@@ -23,7 +23,7 @@ struct multinomial
     std::string name() const { return "multinomial"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).only_dims(2);
+        check_shapes{inputs, *this}.has(2).only_dims(2).standard();
         size_t sample_size = inputs.back().lens().back();
 
         if(not contains({shape::int32_type, shape::int64_type}, dtype))
@@ -44,10 +44,10 @@ struct multinomial
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
                     auto idx        = args[1].get_shape().multi(i);
-                    auto* cdf_begin = cdf.data() + (idx[0] * class_size);
-                    auto* cdf_end   = cdf_begin + class_size;
-                    auto* sample_iter =
-                        std::upper_bound(cdf_begin, cdf_end, dist[i] * *(cdf_end - 1));
+                    auto cdf_begin = cdf.begin() + (idx[0] * class_size);
+                    auto cdf_end   = cdf_begin + class_size;
+                    auto sample_iter =
+                        std::upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                     output[i] = std::distance(cdf_begin, sample_iter);
                 });
             });

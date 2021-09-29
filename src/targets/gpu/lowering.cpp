@@ -330,7 +330,8 @@ struct miopen_apply
                     refs.push_back(refs.back());
                 }
             }
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 0, int8_x4_format}, refs);
+            return mod->replace_instruction(
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
         });
     }
 

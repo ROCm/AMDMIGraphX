@@ -18,45 +18,41 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         T alpha = 1.0f,
                                         T beta  = 0.0f)
 {
-    if(!(op_name == "dot" or op_name == "quant_dot"))
-        MIGRAPHX_THROW("Alpha and Beta calculation can be only be applied to either dot or "
-                       "quant_dot operator");
-
-    auto l1       = args[0];
-    auto l2       = args[1];
-    auto dot_type = l1->get_shape().type();
-    if(!float_equal(static_cast<float>(alpha), 1.0f))
+    auto a        = args[0];
+    auto b        = args[1];
+    auto dot_type = a->get_shape().type();
+    if(!float_equal(alpha, 1.0f))
     {
         auto alpha_literal = m.add_literal(alpha);
-        l1 = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, l1});
-        if(l1->get_shape().type() != dot_type)
+        a                  = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, a});
+        if(a->get_shape().type() != dot_type)
         {
-            l1 = m.insert_instruction(pos, make_op("convert", {{"target_type", dot_type}}), l1);
+            a = m.insert_instruction(pos, make_op("convert", {{"target_type", dot_type}}), a);
         }
     }
-    auto dot_res = m.insert_instruction(pos, migraphx::make_op(op_name), l1, l2);
+    auto dot_res = m.insert_instruction(pos, migraphx::make_op(op_name), a, b);
     if(args.size() == 3)
     {
-        if(not float_equal(static_cast<float>(beta), 0.0f) && args[2]->get_shape().elements() > 0)
+        if(not float_equal(beta, 0.0f) && args[2]->get_shape().elements() > 0)
         {
-            auto out_lens   = l1->get_shape().lens();
-            out_lens.back() = l2->get_shape().lens().back();
-            auto l3         = args[2];
-            auto l3_lens    = l3->get_shape().lens();
-            dot_type        = l3->get_shape().type();
-            if(!std::equal(out_lens.begin(), out_lens.end(), l3_lens.begin(), l3_lens.end()))
+            auto out_lens   = a->get_shape().lens();
+            out_lens.back() = b->get_shape().lens().back();
+            auto c          = args[2];
+            auto c_lens     = c->get_shape().lens();
+            dot_type        = c->get_shape().type();
+            if(!std::equal(out_lens.begin(), out_lens.end(), c_lens.begin(), c_lens.end()))
             {
-                l3 = m.insert_instruction(
+                c = m.insert_instruction(
                     pos, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), args[2]);
             }
             auto beta_literal = m.add_literal(beta);
-            auto beta_l3 = insert_common_op(m, pos, migraphx::make_op("mul"), {l3, beta_literal});
-            if(beta_l3->get_shape().type() != dot_type)
+            auto beta_c = insert_common_op(m, pos, migraphx::make_op("mul"), {c, beta_literal});
+            if(beta_c->get_shape().type() != dot_type)
             {
-                beta_l3 = m.insert_instruction(
-                    pos, migraphx::make_op("convert", {{"target_type", dot_type}}), beta_l3);
+                beta_c = m.insert_instruction(
+                    pos, migraphx::make_op("convert", {{"target_type", dot_type}}), beta_c);
             }
-            return m.insert_instruction(pos, migraphx::make_op("add"), dot_res, beta_l3);
+            return m.insert_instruction(pos, migraphx::make_op("add"), dot_res, beta_c);
         }
     }
     return dot_res;

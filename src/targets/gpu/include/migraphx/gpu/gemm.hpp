@@ -21,6 +21,7 @@ template <class Op>
 struct rocblas_gemm
 {
     Op op;
+    float alpha         = 1;
     float beta          = 0;
     bool int8_x4_format = true;
 
@@ -28,7 +29,9 @@ struct rocblas_gemm
     static auto reflect(Self& self, F f)
     {
         return pack_join(migraphx::reflect(self.op, f),
-                         pack(f(self.int8_x4_format, "int8_x4_format")));
+                         pack(f(self.alpha, "alpha"),
+                              f(self.beta, "beta"),
+                              f(self.int8_x4_format, "int8_x4_format")));
     }
 
     std::string name() const
@@ -56,11 +59,11 @@ struct rocblas_gemm
     {
         if(this->name() == "gpu::gemm")
         {
-            gemm(ctx, output_shape, args, 1.0f, beta, int8_x4_format);
+            gemm(ctx, output_shape, args, alpha, beta, int8_x4_format);
         }
         else
         {
-            gemm(ctx, output_shape, args, int32_t(1), int32_t(0), int8_x4_format);
+            gemm(ctx, output_shape, args, int32_t(alpha), int32_t(beta), int8_x4_format);
         }
         return args.back();
     }

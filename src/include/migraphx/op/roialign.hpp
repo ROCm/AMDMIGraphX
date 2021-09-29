@@ -221,7 +221,7 @@ struct roialign
         int64_t channels      = out_lens[1];
         int64_t pooled_height = out_lens[2];
         int64_t pooled_width  = out_lens[3];
-        auto x_lens           = args.at(0).get_shape().lens();
+        const auto& x_lens    = args.at(0).get_shape().lens();
         auto height           = x_lens[2];
         auto width            = x_lens[3];
         auto roi_s            = args.at(1).get_shape();

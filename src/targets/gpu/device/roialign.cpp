@@ -60,38 +60,23 @@ bilinear_interpolate(const T* data, const int height, const int width, float y, 
         return 0;
     }
 
-    if(y <= 0)
-    {
-        y = 0;
-    }
-    if(x <= 0)
-    {
-        x = 0;
-    }
-
-    int y_low = static_cast<int>(y);
-    int x_low = static_cast<int>(x);
+    y          = (y <= 0) ? 0 : y;
+    x          = (x <= 0) ? 0 : x;
+    auto y_low = static_cast<int>(y);
+    auto x_low = static_cast<int>(x);
     int y_high;
     int x_high;
 
+    y_high = y_low + 1;
     if(y_low >= height - 1)
     {
-        y_high = y_low = height - 1;
-        y              = y_low;
-    }
-    else
-    {
-        y_high = y_low + 1;
+        y = y_high = y_low = height - 1;
     }
 
+    x_high = x_low + 1;
     if(x_low >= width - 1)
     {
-        x_high = x_low = width - 1;
-        x              = x_low;
-    }
-    else
-    {
-        x_high = x_low + 1;
+        x = x_high = x_low = width - 1;
     }
 
     float ly = y - y_low;
@@ -111,6 +96,7 @@ bilinear_interpolate(const T* data, const int height, const int width, float y, 
 
     T val12 = pooling.op(w1 * v1, w2 * v2);
     T val34 = pooling.op(w3 * v3, w4 * v4);
+
 
     return pooling.op(val12, val34);
 }
@@ -153,17 +139,19 @@ argument roialign(hipStream_t stream,
                   const std::vector<argument>& args,
                   const std::string& coord_trans_mode,
                   const std::string& pooling_mode,
-                  int64_t pooling_height,
-                  int64_t pooling_width,
                   int64_t sampling_ratio,
                   float spatial_scale)
 {
     auto out_shape     = result.get_shape();
     auto out_size      = out_shape.elements();
-    auto x_lens        = args.at(0).get_shape().lens();
+    auto pooling_height = out_shape.lens()[2];
+    auto pooling_width = out_shape.lens()[3];
+
+    const auto& x_lens        = args.at(0).get_shape().lens();
     auto channel_num   = x_lens[1];
     auto height        = x_lens[2];
     auto width         = x_lens[3];
+
     auto roi_colum_num = args.at(1).get_shape().lens()[1];
 
     float roi_offset    = (coord_trans_mode == "output_half_pixel") ? -0.5f : 0.0f;
@@ -171,42 +159,41 @@ argument roialign(hipStream_t stream,
 
     hip_visit_all(result, args.at(0), out_shape)([&](auto output, auto in_x, auto out_s) {
         args.at(1).visit([&](auto in_rios) {
-            const auto* ind  = args.at(2).cast<int64_t>();
-            const auto* x    = device_cast(in_x.data());
+            const auto* x    = in_x.data();
             const auto* rios = device_cast(in_rios.data());
+            const auto* ind  = args.at(2).data();
             auto* out_ptr    = device_cast(output.data());
 
             gs_launch(stream, out_size)([=](auto i) __device__ {
                 auto idx = out_s.multi(i);
-                int pw   = idx[3];
-                int ph   = idx[2];
-                int c    = idx[1];
                 int n    = idx[0];
+                int c    = idx[1];
+                int ph   = idx[2];
+                int pw   = idx[3];
 
-                const auto* offset_bottom_rois = rios + n * roi_colum_num;
+                const auto* offset_rois = rios + n * roi_colum_num;
                 const int64_t batch_ind        = ind[n];
 
-                float roi_start_w = static_cast<float>(offset_bottom_rois[0]) * spatial_scale;
-                float roi_start_h = static_cast<float>(offset_bottom_rois[1]) * spatial_scale;
-                float roi_end_w   = static_cast<float>(offset_bottom_rois[2]) * spatial_scale;
-                float roi_end_h   = static_cast<float>(offset_bottom_rois[3]) * spatial_scale;
+                float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
+                float roi_start_h = static_cast<float>(offset_rois[1] * spatial_scale);
+                float roi_end_w   = static_cast<float>(offset_rois[2] * spatial_scale);
+                float roi_end_h   = static_cast<float>(offset_rois[3] * spatial_scale);
 
                 float roi_width  = roi_end_w - roi_start_w;
-                float roi_height = roi_end_h - roi_start_w;
+                float roi_height = roi_end_h - roi_start_h;
 
                 roi_width  = roi_width > 1.0f ? roi_width : 1.0f;
                 roi_height = roi_height > 1.0f ? roi_height : 1.0f;
 
-                float bin_size_w = roi_width / static_cast<float>(pooling_width);
-                float bin_size_h = roi_height / static_cast<float>(pooling_height);
+                float bin_size_w = roi_width / pooling_width;
+                float bin_size_h = roi_height / pooling_height;
 
                 const auto* offset_x =
-                    x + static_cast<int64_t>((batch_ind * channel_num + c) * height * width);
+                    x + ((batch_ind * channel_num + c) * height * width);
 
                 // We use roi_bin_grid to sample the grid and mimic integral
-                int roi_bin_grid_h = (sampling_ratio > 0)
-                                         ? sampling_ratio
-                                         : ceilf(roi_height / pooling_height); // e.g., = 2
+                int roi_bin_grid_h = 
+                    (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_height / pooling_height);
                 int roi_bin_grid_w =
                     (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);
 
@@ -231,8 +218,8 @@ argument roialign(hipStream_t stream,
                     out_ptr[i] = calc_pooling(offset_x,
                                               roi_start_h,
                                               roi_start_w,
-                                              roi_height,
-                                              roi_width,
+                                              bin_size_h,
+                                              bin_size_w,
                                               ph,
                                               pw,
                                               roi_bin_grid_h,
@@ -245,6 +232,7 @@ argument roialign(hipStream_t stream,
             });
         });
     });
+    // });
 
     return result;
 }

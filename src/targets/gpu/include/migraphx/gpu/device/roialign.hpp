@@ -15,8 +15,6 @@ argument roialign(hipStream_t stream,
                   const std::vector<argument>& args,
                   const std::string& coord_trans_mode,
                   const std::string& pooling_mode,
-                  int64_t pooling_height,
-                  int64_t pooling_width,
                   int64_t sampling_ratio,
                   float spatial_scale);
 

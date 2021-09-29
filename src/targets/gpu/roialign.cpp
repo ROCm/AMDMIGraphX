@@ -17,14 +17,11 @@ argument hip_roialign::compute(context& ctx, const shape&, const std::vector<arg
     auto result = args.back();
     std::vector<argument> in_args(args);
     in_args.pop_back();
-
     return device::roialign(ctx.get_stream().get(),
                             args.back(),
                             in_args,
                             op.coord_trans_mode,
                             op.mode,
-                            op.output_height,
-                            op.output_width,
                             op.sampling_ratio,
                             op.spatial_scale);
 }

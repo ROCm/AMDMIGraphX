@@ -22,7 +22,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         T alpha = 1.0f,
                                         T beta  = 0.0f)
 {
-    return insert_apply_alpha_beta(m, pos, args, op_name, literal{alpha}, literal{beta});
+    return insert_apply_alpha_beta(m, pos, args, op_name, literal{T{alpha}}, literal{T{beta}});
 }
 
 template <typename T = float>

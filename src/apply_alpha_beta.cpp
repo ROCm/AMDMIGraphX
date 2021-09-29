@@ -16,7 +16,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto a          = args[0];
     auto b          = args[1];
     auto input_type = a->get_shape().type();
-    if(!float_equal(alpha, 1.0))
+    if(!float_equal(alpha.at<float>(0), 1.0))
     {
         auto alpha_literal = m.add_literal(alpha);
         a                  = insert_common_op(m, pos, migraphx::make_op("mul"), {alpha_literal, a});
@@ -28,7 +28,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
     auto dot_res = m.insert_instruction(pos, migraphx::make_op(op_name), a, b);
     if(args.size() == 3)
     {
-        if(not float_equal(beta, 0.0) && args[2]->get_shape().elements() > 0)
+        if(not float_equal(beta.at<float>(0), 0.0) && args[2]->get_shape().elements() > 0)
         {
             auto out_lens   = a->get_shape().lens();
             out_lens.back() = b->get_shape().lens().back();

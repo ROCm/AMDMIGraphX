@@ -43,7 +43,7 @@ struct multinomial
         visit_all(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
                 par_for(batch_size * sample_size, [&](auto i) {
-                    auto idx        = args[1].get_shape().multi(i);
+                    auto idx       = args[1].get_shape().multi(i);
                     auto cdf_begin = cdf.begin() + (idx[0] * class_size);
                     auto cdf_end   = cdf_begin + class_size;
                     auto sample_iter =

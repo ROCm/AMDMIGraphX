@@ -48,11 +48,12 @@ void multinomial(hipStream_t stream,
         result.visit([&](auto out) {
             hip_visit_views(out)([&](auto output) {
                 gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
-                    auto idx          = output.get_shape().multi(i);
-                    auto cdf_begin    = cdf.begin() + (idx.front() * class_size);
-                    auto cdf_end      = cdf_begin + class_size;
-                    auto sample_iter = upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
-                    output[i]         = std::distance(cdf_begin, sample_iter);
+                    auto idx       = output.get_shape().multi(i);
+                    auto cdf_begin = cdf.begin() + (idx.front() * class_size);
+                    auto cdf_end   = cdf_begin + class_size;
+                    auto sample_iter =
+                        upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
+                    output[i] = std::distance(cdf_begin, sample_iter);
                 });
             });
         });

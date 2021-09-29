@@ -190,7 +190,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_quant_convolution_op();
-        //add_roialign();
+        // add_roialign();
     }
 
     void copy_params()

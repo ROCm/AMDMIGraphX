@@ -1,7 +1,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
-#include <migraphx/apply_alpha_beta.hpp> 
+#include <migraphx/apply_alpha_beta.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -13,8 +13,8 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         literal alpha,
                                         literal beta)
 {
-    auto a        = args[0];
-    auto b        = args[1];
+    auto a          = args[0];
+    auto b          = args[1];
     auto input_type = a->get_shape().type();
     if(!float_equal(alpha, 1.0))
     {
@@ -34,7 +34,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
             out_lens.back() = b->get_shape().lens().back();
             auto c          = args[2];
             auto c_lens     = c->get_shape().lens();
-            input_type        = c->get_shape().type();
+            input_type      = c->get_shape().type();
             if(out_lens != c_lens)
             {
                 c = m.insert_instruction(
@@ -52,7 +52,6 @@ instruction_ref insert_apply_alpha_beta(module& m,
     }
     return dot_res;
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

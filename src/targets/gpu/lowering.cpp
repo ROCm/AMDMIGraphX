@@ -140,6 +140,7 @@ struct miopen_apply
         add_generic_op("prelu");
         add_generic_op("recip");
         add_generic_op("relu");
+        add_generic_op("roialign");
         add_generic_op("round");
         add_generic_op("rsqrt");
         add_generic_op("sigmoid");
@@ -189,7 +190,7 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_quant_convolution_op();
-        add_roialign();
+        //add_roialign();
     }
 
     void copy_params()

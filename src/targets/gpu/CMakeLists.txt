@@ -72,6 +72,7 @@ add_library(migraphx_device
     device/relu.cpp
     device/reverse.cpp
     device/rnn_variable_seq_lens.cpp
+    device/roialign.cpp
     device/round.cpp
     device/rsqrt.cpp
     device/scatter.cpp
@@ -151,6 +152,7 @@ add_library(migraphx_gpu
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
+    roialign.cpp
     scatter.cpp
     schedule_model.cpp
     softmax.cpp
@@ -211,6 +213,7 @@ register_migraphx_gpu_ops(hip_
     reduce_sum
     relu
     reverse
+    roialign
     round
     rsqrt
     scatter

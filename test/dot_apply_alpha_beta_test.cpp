@@ -95,7 +95,7 @@ TEST_CASE(quant_dot_apply_alpha_beta)
         auto y = m1.add_parameter("y", migraphx::shape{migraphx::shape::int8_type, {2, 2}});
         auto z = m1.add_parameter("z", migraphx::shape{migraphx::shape::int32_type, {2, 2}});
         auto dot_res =
-            migraphx::insert_apply_alpha_beta<int32_t>(m1, m1.end(), {x, y, z}, "quant_dot", 3, 2);
+            migraphx::insert_apply_alpha_beta(m1, m1.end(), {x, y, z}, "quant_dot", migraphx::literal{int32_t{3}}, migraphx::literal{int32_t{2}});
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;

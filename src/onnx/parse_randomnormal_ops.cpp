@@ -30,7 +30,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
             use_dtype = true;
         }
         shape::type_t out_type = get_type(dtype);
-        if(valid_types.find(out_type) == valid_types.end())
+        if(not contains(valid_types, out_type))
             MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(dtype) +
                            ". Valid types are 1 (float), 10 (half), and 11 (double).");
 
@@ -57,7 +57,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         }
         else if(args.size() == 1)
         {
-            if(valid_types.find(args[0]->get_shape().type()) == valid_types.end())
+            if(not contains(valid_types, args[0]->get_shape().type()))
                 use_dtype = true;
             out_shape =
                 use_dtype ? shape{out_type, args[0]->get_shape().lens()} : args[0]->get_shape();

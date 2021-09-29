@@ -1017,6 +1017,51 @@ def deconv_stride_test():
 
 
 @onnx_test
+def depthtospace_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 8, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 10, 10])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='DCR')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def depthtospace_simple_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 8, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 4, 6])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='DCR')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def depthtospace_crd_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 8, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 10, 10])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='CRD')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def dequantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])

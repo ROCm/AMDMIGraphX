@@ -292,6 +292,7 @@ std::vector<argument> program::eval(parameter_map params) const
 #endif
 
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    target tgt = make_target(this->impl->target_name);
 
     if(trace_level > 0)
     {
@@ -309,8 +310,8 @@ std::vector<argument> program::eval(parameter_map params) const
                                 double t2 = t.record<milliseconds>();
                                 std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
                                 if(trace_level > 1 and ins->name().front() != '@' and
-                                   ins->name() != "load")
-                                    std::cout << "Output: " << result << std::endl;
+                                   ins->name() != "load" and not result.empty())
+                                       std::cout << "Output: " << tgt.copy_from(result) << std::endl;
                                 return result;
                             }));
     }

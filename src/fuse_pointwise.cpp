@@ -64,11 +64,11 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
         else
         {
             map_ins[param] =
-                pm->add_parameter("x" + std::to_string(inputs.size()), input->get_shape());
+                pm->add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
             inputs.push_back(input);
         }
     }
-    pm->insert_module_instructions(last, xm, map_ins);
+    pm->replace_return(pm->insert_module_instructions(last, xm, map_ins));
     return inputs;
 }
 

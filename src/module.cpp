@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -380,6 +381,20 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
     assert(result->valid(begin()));
 
     return result;
+}
+
+instruction_ref module::replace_return(std::vector<instruction_ref> args)
+{
+    auto last = std::prev(this->end());
+    // If there is no return then add a return
+    if (last->name() != "@return")
+        return this->add_return(args);
+
+    shape r = compute_shape(last->get_operator(), args);
+    instruction::replace(last, last->get_operator(), r, std::move(args));
+    assert(last->valid(begin()));
+
+    return last;
 }
 
 shape module::get_parameter_shape(std::string name) const

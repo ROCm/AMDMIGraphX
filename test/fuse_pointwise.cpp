@@ -1,3 +1,4 @@
+#include "migraphx/dead_code_elimination.hpp"
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -7,7 +8,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::fuse_pointwise{}}); }
+void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}}); }
 
 template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
@@ -90,7 +91,7 @@ TEST_CASE(double_add)
         });
         mm->add_return({fadd});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

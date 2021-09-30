@@ -50,6 +50,8 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         shape out_shape;
         if(contains(info.attributes, "shape"))
         {
+            // RandomNormal:
+            // output type and shape must come from attributes
             std::vector<int> out_lens;
             literal ls = parser.parse_value(info.attributes.at("shape"));
             ls.visit([&](auto s) { out_lens.assign(s.begin(), s.end()); });
@@ -57,6 +59,9 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         }
         else if(args.size() == 1)
         {
+            // RandomNormalLike:
+            // output type and shape are the same as the input's by default
+            // dtype is used instead when attribute is set or input type is not valid
             if(not contains(valid_types, args[0]->get_shape().type()))
                 use_dtype = true;
             out_shape =

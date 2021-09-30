@@ -10,8 +10,8 @@ instruction_ref insert_apply_alpha_beta(module& m,
                                         instruction_ref pos,
                                         const std::vector<instruction_ref>& args,
                                         const std::string& op_name,
-                                        literal alpha,
-                                        literal beta)
+                                        const literal& alpha,
+                                        const literal& beta)
 {
     auto a          = args[0];
     auto b          = args[1];

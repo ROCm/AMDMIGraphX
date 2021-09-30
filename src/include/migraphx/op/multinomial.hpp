@@ -23,7 +23,7 @@ struct multinomial
     std::string name() const { return "multinomial"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).only_dims(2).standard();
+        check_shapes{inputs, *this}.has(2).only_dims(2);
         size_t sample_size = inputs.back().lens().back();
 
         if(not contains({shape::int32_type, shape::int64_type}, dtype))

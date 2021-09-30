@@ -60,9 +60,6 @@ struct nonmaxsuppression
         }
     }
 
-#define HelperMin(a, b) std::min(a, b)
-#define HelperMax(a, b) std::max(a, b)
-
     inline bool SuppressByIOU(const float* boxes_data,
                               int64_t box_index1,
                               int64_t box_index2,
@@ -90,15 +87,15 @@ struct nonmaxsuppression
             MaxMin(box1[1], box1[3], x1_min, x1_max);
             MaxMin(box2[1], box2[3], x2_min, x2_max);
 
-            intersection_x_min = HelperMax(x1_min, x2_min);
-            intersection_x_max = HelperMin(x1_max, x2_max);
+            intersection_x_min = std::max(x1_min, x2_min);
+            intersection_x_max = std::min(x1_max, x2_max);
             if(intersection_x_max <= intersection_x_min)
                 return false;
 
             MaxMin(box1[0], box1[2], y1_min, y1_max);
             MaxMin(box2[0], box2[2], y2_min, y2_max);
-            intersection_y_min = HelperMax(y1_min, y2_min);
-            intersection_y_max = HelperMin(y1_max, y2_max);
+            intersection_y_min = std::max(y1_min, y2_min);
+            intersection_y_max = std::min(y1_max, y2_max);
             if(intersection_y_max <= intersection_y_min)
                 return false;
         }
@@ -115,8 +112,8 @@ struct nonmaxsuppression
             x2_min = box2[0] - box2_width_half;
             x2_max = box2[0] + box2_width_half;
 
-            intersection_x_min = HelperMax(x1_min, x2_min);
-            intersection_x_max = HelperMin(x1_max, x2_max);
+            intersection_x_min = std::max(x1_min, x2_min);
+            intersection_x_max = std::min(x1_max, x2_max);
             if(intersection_x_max <= intersection_x_min)
                 return false;
 
@@ -125,8 +122,8 @@ struct nonmaxsuppression
             y2_min = box2[1] - box2_height_half;
             y2_max = box2[1] + box2_height_half;
 
-            intersection_y_min = HelperMax(y1_min, y2_min);
-            intersection_y_max = HelperMin(y1_max, y2_max);
+            intersection_y_min = std::max(y1_min, y2_min);
+            intersection_y_max = std::min(y1_max, y2_max);
             if(intersection_y_max <= intersection_y_min)
                 return false;
         }

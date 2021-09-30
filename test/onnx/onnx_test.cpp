@@ -2783,29 +2783,9 @@ TEST_CASE(randomnormallike_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(randomnormallike_dtype_fallback_test)
+TEST_CASE(randomnormallike_type_error_test)
 {
-    float mean  = 10.0;
-    float scale = 1.5;
-    float seed  = 0.0;
-    std::vector<int> shape_attr{2, 3, 4};
-
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape s{migraphx::shape::float_type, shape_attr};
-    migraphx::shape s2{migraphx::shape::int32_type, shape_attr};
-    std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen(seed);
-    std::normal_distribution<> d(mean, scale);
-    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
-
-    mm->add_parameter("input", s2);
-    mm->add_literal(migraphx::literal{s, rand_vals});
-
-    auto prog = optimize_onnx("randomnormallike_dtype_fallback_test.onnx");
-
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormallike_type_error_test.onnx"); }));
 }
 
 TEST_CASE(randomuniform_test)
@@ -2865,29 +2845,9 @@ TEST_CASE(randomuniformlike_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(randomuniformlike_dtype_fallback_test)
+TEST_CASE(randomuniformlike_type_error_test)
 {
-    float high = 100.0;
-    float low  = 10.0;
-    float seed = 0.0;
-    std::vector<int> shape_attr{2, 3, 4};
-
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape s{migraphx::shape::float_type, shape_attr};
-    migraphx::shape s2{migraphx::shape::int32_type, shape_attr};
-    std::vector<double> rand_vals(s.elements());
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> d(low, high);
-    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
-
-    mm->add_parameter("input", s2);
-    mm->add_literal(migraphx::literal{s, rand_vals});
-
-    auto prog = optimize_onnx("randomuniformlike_dtype_fallback_test.onnx");
-
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomuniformlike_type_error_test.onnx"); }));
 }
 
 TEST_CASE(range_test)

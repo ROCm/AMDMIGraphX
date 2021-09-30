@@ -3067,7 +3067,7 @@ def randomnormallike_test():
 
 
 @onnx_test
-def randomnormallike_dtype_fallback_test():
+def randomnormallike_type_error_test():
     seed = 0
     input = helper.make_tensor_value_info('input', TensorProto.INT32,
                                           [2, 3, 4])
@@ -3157,7 +3157,7 @@ def randomuniformlike_test():
 
 
 @onnx_test
-def randomuniformlike_dtype_fallback_test():
+def randomuniformlike_type_error_test():
     seed = 0
     input = helper.make_tensor_value_info('input', TensorProto.INT32,
                                           [2, 3, 4])

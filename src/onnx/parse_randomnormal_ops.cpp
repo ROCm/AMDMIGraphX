@@ -61,9 +61,10 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         {
             // RandomNormalLike:
             // output type and shape are the same as the input's by default
-            // dtype is used instead when attribute is set or input type is not valid
+            // dtype is used instead when attribute is set
             if(not contains(valid_types, args[0]->get_shape().type()))
-                use_dtype = true;
+                MIGRAPHX_THROW(opd.op_name + ": invalid output type: " + std::to_string(args[0]->get_shape().type()) +
+                           ". Valid types are float, half, and double.");
             out_shape =
                 use_dtype ? shape{out_type, args[0]->get_shape().lens()} : args[0]->get_shape();
         }

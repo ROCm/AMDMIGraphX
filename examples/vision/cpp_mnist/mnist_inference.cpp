@@ -99,8 +99,8 @@ int main(int argc, char** argv)
 
     if(GPU)
     {
-        migraphx_compile_options comp_opts;
-        comp_opts.offload_copy = true;
+        migraphx::compile_options comp_opts;
+        comp_opts.set_offload_copy();
         prog.compile(targ, comp_opts);
     }
     else

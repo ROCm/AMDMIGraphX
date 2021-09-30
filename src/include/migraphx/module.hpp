@@ -114,7 +114,7 @@ struct module
     instruction_ref add_parameter(std::string name, shape s);
 
     instruction_ref add_return(std::vector<instruction_ref> args);
-    
+
     instruction_ref replace_return(std::vector<instruction_ref> args);
 
     std::vector<std::string> get_parameter_names() const;

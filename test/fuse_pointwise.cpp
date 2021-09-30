@@ -8,7 +8,10 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::program& p) { migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}}); }
+void run_pass(migraphx::program& p)
+{
+    migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+}
 
 template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,

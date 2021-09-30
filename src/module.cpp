@@ -387,7 +387,7 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
     auto last = std::prev(this->end());
     // If there is no return then add a return
-    if (last->name() != "@return")
+    if(last->name() != "@return")
         return this->add_return(args);
 
     shape r = compute_shape(last->get_operator(), args);

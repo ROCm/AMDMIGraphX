@@ -166,6 +166,10 @@ struct shape
 
         std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
+        auto is_integral() const { return std::is_integral<type>{}; }
+        auto is_signed() const { return std::is_signed<type>{}; }
+        auto is_unsigned() const { return std::is_unsigned<type>{}; }
+
         template <class U>
         type* from(U* buffer, std::size_t n = 0) const
         {

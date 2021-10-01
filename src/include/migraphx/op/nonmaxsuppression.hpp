@@ -203,34 +203,35 @@ struct nonmaxsuppression
 
             int64_t box_idx = 0;
             transform_if(scores.begin() + score_offset,
-                            scores.begin() + score_offset + box_num,
-                            std::back_inserter(cand_boxes),
-                            [&](auto sc) {
-                                box_idx++;
-                                return sc >= score_threshold;
-                            },
-                            [&](auto sc) {
-                                return box_info_ptr{sc, box_idx - 1};
-                            });
+                         scores.begin() + score_offset + box_num,
+                         std::back_inserter(cand_boxes),
+                         [&](auto sc) {
+                             box_idx++;
+                             return sc >= score_threshold;
+                         },
+                         [&](auto sc) {
+                             return box_info_ptr{sc, box_idx - 1};
+                         });
             std::priority_queue<box_info_ptr, std::vector<box_info_ptr>> sorted_boxes(
                 std::less<box_info_ptr>(), std::move(cand_boxes));
 
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold
             while(!sorted_boxes.empty() &&
-                    static_cast<int64_t>(selected_boxes_inside_class.size()) <
-                        max_output_boxes_per_class)
+                  static_cast<int64_t>(selected_boxes_inside_class.size()) <
+                      max_output_boxes_per_class)
             {
                 const box_info_ptr& next_top_score = sorted_boxes.top();
 
                 // Check with existing selected boxes for this class, suppress if exceed the IOU
                 // (Intersection Over Union) threshold
-                bool not_selected = std::any_of(selected_boxes_inside_class.begin(), selected_boxes_inside_class.end(), [&](auto selected_index) {
-                    return this->suppress_by_iou(batch_boxes,
-                                                next_top_score.index,
-                                                selected_index.index,
-                                                iou_threshold);
-                });
+                bool not_selected = std::any_of(
+                    selected_boxes_inside_class.begin(),
+                    selected_boxes_inside_class.end(),
+                    [&](auto selected_index) {
+                        return this->suppress_by_iou(
+                            batch_boxes, next_top_score.index, selected_index.index, iou_threshold);
+                    });
 
                 if(not not_selected)
                 {

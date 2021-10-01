@@ -32,6 +32,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     software-properties-common \
     wget \
     rocm-device-libs \
+    hip-base \
+    libnuma-dev \
     miopen-hip \
     rocblas \
     zlib1g-dev && \

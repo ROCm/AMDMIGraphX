@@ -75,7 +75,10 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && fiji";
     } else if(name == "vega") {
         node_name = "${rocmtest_name} && vega";
-    } else if(name == "nogpu") {
+    } else if(name == "navi21") {
+        node_name = "${rocmtest_name} && navi21";
+    }
+     else if(name == "nogpu") {
         return rocmtest_name;
     }
     return node_name
@@ -109,6 +112,11 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
+    }
+}, mlir_debug: rocmnode('navi21') { cmake_build ->
+    stage('HIP Clang Release Navi') {
+        cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
+        stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }
 

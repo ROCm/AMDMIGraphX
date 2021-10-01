@@ -311,7 +311,7 @@ std::vector<argument> program::eval(parameter_map params) const
                                 if(trace_level > 1 and ins->name().front() != '@' and
                                    ins->name() != "load" and not result.empty())
                                 {
-                                    target tgt       = make_target(this->impl->target_name);
+                                    target tgt = make_target(this->impl->target_name);
                                     std::cout << "Output: " << tgt.copy_from(result) << std::endl;
                                 }
                                 return result;

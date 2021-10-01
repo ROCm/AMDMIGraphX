@@ -2710,13 +2710,9 @@ TEST_CASE(nms_not_center_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    std::vector<float> boxes_vec = {    
-    1.0, 1.0, 0.0, 0.0,
-    0.0, 0.1, 1.0, 1.1,
-    0.0, 0.9, 1.0, -0.1,
-    0.0, 10.0, 1.0, 11.0,
-    1.0, 10.1, 0.0, 11.1,
-    1.0, 101.0, 0.0, 100.0};
+    std::vector<float> boxes_vec = {1.0, 1.0,  0.0, 0.0,  0.0, 0.1,   1.0, 1.1,
+                                    0.0, 0.9,  1.0, -0.1, 0.0, 10.0,  1.0, 11.0,
+                                    1.0, 10.1, 0.0, 11.1, 1.0, 101.0, 0.0, 100.0};
 
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};

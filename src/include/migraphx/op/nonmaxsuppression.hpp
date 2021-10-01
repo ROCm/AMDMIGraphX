@@ -35,18 +35,18 @@ struct nonmaxsuppression
         return {shape::int64_type, out_lens};
     }
 
-    struct BoxInfoPtr
+    struct box_info_ptr
     {
-        float score_{};
-        int64_t index_{};
+        float score{};
+        int64_t index{};
 
-        inline bool operator<(const BoxInfoPtr& rhs) const
+        inline bool operator<(const box_info_ptr& rhs) const
         {
-            return score_ < rhs.score_ || (float_equal(score_, rhs.score_) && index_ > rhs.index_);
+            return score < rhs.score || (float_equal(score, rhs.score) && index > rhs.index);
         }
     };
 
-    void MaxMin(float lhs, float rhs, float& min, float& max) const
+    void max_min(float lhs, float rhs, float& min, float& max) const
     {
         if(lhs >= rhs)
         {
@@ -60,7 +60,7 @@ struct nonmaxsuppression
         }
     }
 
-    inline bool SuppressByIOU(const float* boxes_data,
+    inline bool suppress_by_iou(const float* boxes_data,
                               int64_t box_index1,
                               int64_t box_index2,
                               float iou_threshold) const
@@ -84,16 +84,16 @@ struct nonmaxsuppression
         if(0 == center_point_box)
         {
             // boxes data format [y1, x1, y2, x2],
-            MaxMin(box1[1], box1[3], x1_min, x1_max);
-            MaxMin(box2[1], box2[3], x2_min, x2_max);
+            max_min(box1[1], box1[3], x1_min, x1_max);
+            max_min(box2[1], box2[3], x2_min, x2_max);
 
             intersection_x_min = std::max(x1_min, x2_min);
             intersection_x_max = std::min(x1_max, x2_max);
             if(intersection_x_max <= intersection_x_min)
                 return false;
 
-            MaxMin(box1[0], box1[2], y1_min, y1_max);
-            MaxMin(box2[0], box2[2], y2_min, y2_max);
+            max_min(box1[0], box1[2], y1_min, y1_max);
+            max_min(box2[0], box2[2], y2_min, y2_max);
             intersection_y_min = std::max(y1_min, y2_min);
             intersection_y_max = std::min(y1_max, y2_max);
             if(intersection_y_max <= intersection_y_min)
@@ -185,7 +185,7 @@ struct nonmaxsuppression
         auto class_num   = lens[1];
         auto box_num     = args.at(0).get_shape().lens()[1];
 
-        std::vector<BoxInfoPtr> selected_boxes_inside_class;
+        std::vector<box_info_ptr> selected_boxes_inside_class;
         std::vector<int64_t> selected_indices;
         selected_boxes_inside_class.reserve(output_shape.elements());
 
@@ -196,7 +196,7 @@ struct nonmaxsuppression
             {
                 std::size_t score_offset = (bidx * class_num + cidx) * box_num;
                 const float* batch_boxes = args.at(0).cast<float>() + bidx * box_num * 4;
-                std::vector<BoxInfoPtr> cand_boxes;
+                std::vector<box_info_ptr> cand_boxes;
                 cand_boxes.reserve(box_num);
 
                 int64_t box_idx = 0;
@@ -208,10 +208,10 @@ struct nonmaxsuppression
                                  return sc >= score_threshold;
                              },
                              [&](auto sc) {
-                                 return BoxInfoPtr{sc, box_idx - 1};
+                                 return box_info_ptr{sc, box_idx - 1};
                              });
-                std::priority_queue<BoxInfoPtr, std::vector<BoxInfoPtr>> sorted_boxes(
-                    std::less<BoxInfoPtr>(), std::move(cand_boxes));
+                std::priority_queue<box_info_ptr, std::vector<box_info_ptr>> sorted_boxes(
+                    std::less<box_info_ptr>(), std::move(cand_boxes));
 
                 selected_boxes_inside_class.clear();
                 // Get the next box with top score, filter by iou_threshold
@@ -219,16 +219,16 @@ struct nonmaxsuppression
                       static_cast<int64_t>(selected_boxes_inside_class.size()) <
                           max_output_boxes_per_class)
                 {
-                    const BoxInfoPtr& next_top_score = sorted_boxes.top();
+                    const box_info_ptr& next_top_score = sorted_boxes.top();
 
                     bool selected = true;
                     // Check with existing selected boxes for this class, suppress if exceed the IOU
                     // (Intersection Over Union) threshold
                     for(const auto& selected_index : selected_boxes_inside_class)
                     {
-                        if(this->SuppressByIOU(batch_boxes,
-                                               next_top_score.index_,
-                                               selected_index.index_,
+                        if(this->suppress_by_iou(batch_boxes,
+                                               next_top_score.index,
+                                               selected_index.index,
                                                iou_threshold))
                         {
                             selected = false;
@@ -241,7 +241,7 @@ struct nonmaxsuppression
                         selected_boxes_inside_class.push_back(next_top_score);
                         selected_indices.push_back(bidx);
                         selected_indices.push_back(cidx);
-                        selected_indices.push_back(next_top_score.index_);
+                        selected_indices.push_back(next_top_score.index);
                     }
                     sorted_boxes.pop();
                 } // while

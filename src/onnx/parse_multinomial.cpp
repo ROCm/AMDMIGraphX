@@ -40,9 +40,9 @@ struct parse_multinomial : op_parser<parse_multinomial>
             maxes);
         auto cdf = info.add_instruction(migraphx::make_op("sub"), args[0], mb_maxes);
         // Take the element-wise exponent to get probabilities in the range (0, 1]
-        cdf      = info.add_instruction(migraphx::make_op("exp"), cdf);
-        // Compute the cumulative density function 
-        cdf      = info.add_instruction(
+        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
+        // Compute the cumulative density function
+        cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
         // Pre-compute random distribution

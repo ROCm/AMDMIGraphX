@@ -57,8 +57,8 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
     // Copy inputs to input_map
     for(auto i : range(inputs.size()))
     {
-        auto input = inputs[i];
-        auto param = pm->get_parameter("x" + std::to_string(i));
+        auto input       = inputs[i];
+        auto param       = pm->get_parameter("x" + std::to_string(i));
         input_map[input] = param;
     }
     // Add the new parameter and additional inputs
@@ -68,11 +68,11 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
         auto param = xm->get_parameter("x" + std::to_string(i));
         if(input == ins)
         {
-            map_ins[param] = last->inputs().front();
+            map_ins[param]   = last->inputs().front();
             input_map[input] = map_ins[param];
         }
         // Avoid duplicate paramter inputs
-        else if (contains(input_map, input)) 
+        else if(contains(input_map, input))
         {
             map_ins[param] = input_map[input];
         }

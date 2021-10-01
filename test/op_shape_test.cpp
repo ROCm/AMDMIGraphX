@@ -1020,6 +1020,14 @@ TEST_CASE(multibroadcast)
     }
 }
 
+TEST_CASE(multinomial)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 5}};
+    int dtype = 0;
+
+    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s, s);
+}
+
 TEST_CASE(pooling_shape)
 {
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};

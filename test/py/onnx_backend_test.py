@@ -136,6 +136,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_mean.*')
         backend_test.include(r'.*test_min.*')
         backend_test.include(r'.*test_mul.*')
+        backend_test.include(r'.*test_multinomial.*')
+        backend_test.include(r'.*test_Multinomial.*')
         backend_test.include(r'.*test_neg.*')
         backend_test.include(r'.*test_not.*')
         backend_test.include(r'.*test_operator_addmm.*')

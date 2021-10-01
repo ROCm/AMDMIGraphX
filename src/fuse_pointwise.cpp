@@ -49,10 +49,19 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
 
     auto last = std::prev(pm->end());
     assert(last->name() == "@return");
-    assert(last->inputs().size());
+    assert(last->inputs().size() == 1);
 
     std::vector<instruction_ref> inputs = ins->inputs();
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    std::unordered_map<instruction_ref, instruction_ref> input_map;
+    // Copy inputs to input_map
+    for(auto i : range(inputs.size()))
+    {
+        auto input = inputs[i];
+        auto param = pm->get_parameter("x" + std::to_string(i));
+        input_map[input] = param;
+    }
+    // Add the new parameter and additional inputs
     for(auto i : range(output->inputs().size()))
     {
         auto input = output->inputs()[i];
@@ -60,12 +69,19 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
         if(input == ins)
         {
             map_ins[param] = last->inputs().front();
+            input_map[input] = map_ins[param];
+        }
+        // Avoid duplicate paramter inputs
+        else if (contains(input_map, input)) 
+        {
+            map_ins[param] = input_map[input];
         }
         else
         {
             map_ins[param] =
                 pm->add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
             inputs.push_back(input);
+            input_map[input] = map_ins[param];
         }
     }
     pm->replace_return(pm->insert_module_instructions(last, xm, map_ins));
@@ -85,9 +101,11 @@ void find_pointwise_modules(module& m)
         });
         if(it == ins->inputs().end())
             continue;
+
         auto new_inputs = append_pointwise_module(*it, ins);
         m.replace_instruction(*it, (*it)->get_operator(), new_inputs, (*it)->module_inputs());
         m.replace_instruction(ins, *it);
+        m.move_instruction(*it, ins);
     }
 }
 

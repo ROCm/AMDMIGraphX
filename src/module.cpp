@@ -346,7 +346,6 @@ std::vector<instruction_ref> module::insert_module_instructions(
             copy_ins = this->insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
         }
         map_ins[sins] = copy_ins;
-        // mod_outputs   = {copy_ins};
     }
     if(mod_outputs.empty())
         mod_outputs = {map_ins.at(std::prev(m->end()))};

@@ -9,6 +9,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/tensor_view.hpp>
+#include <migraphx/shape_for_each.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -190,63 +191,57 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(output_shape.elements());
 
         auto scores = make_view<float>(args.at(1).get_shape(), args.at(1).cast<float>());
-        for(std::size_t bidx = 0; bidx < batch_num; ++bidx)
-        {
-            for(std::size_t cidx = 0; cidx < class_num; ++cidx)
+        shape comp_s{shape::float_type, {batch_num, class_num}};
+        shape_for_each(comp_s, [&](auto idx) {
+            auto bidx = idx[0];
+            auto cidx = idx[1];
+
+            std::size_t score_offset = (bidx * class_num + cidx) * box_num;
+            const float* batch_boxes = args.at(0).cast<float>() + bidx * box_num * 4;
+            std::vector<box_info_ptr> cand_boxes;
+            cand_boxes.reserve(box_num);
+
+            int64_t box_idx = 0;
+            transform_if(scores.begin() + score_offset,
+                            scores.begin() + score_offset + box_num,
+                            std::back_inserter(cand_boxes),
+                            [&](auto sc) {
+                                box_idx++;
+                                return sc >= score_threshold;
+                            },
+                            [&](auto sc) {
+                                return box_info_ptr{sc, box_idx - 1};
+                            });
+            std::priority_queue<box_info_ptr, std::vector<box_info_ptr>> sorted_boxes(
+                std::less<box_info_ptr>(), std::move(cand_boxes));
+
+            selected_boxes_inside_class.clear();
+            // Get the next box with top score, filter by iou_threshold
+            while(!sorted_boxes.empty() &&
+                    static_cast<int64_t>(selected_boxes_inside_class.size()) <
+                        max_output_boxes_per_class)
             {
-                std::size_t score_offset = (bidx * class_num + cidx) * box_num;
-                const float* batch_boxes = args.at(0).cast<float>() + bidx * box_num * 4;
-                std::vector<box_info_ptr> cand_boxes;
-                cand_boxes.reserve(box_num);
+                const box_info_ptr& next_top_score = sorted_boxes.top();
 
-                int64_t box_idx = 0;
-                transform_if(scores.begin() + score_offset,
-                             scores.begin() + score_offset + box_num,
-                             std::back_inserter(cand_boxes),
-                             [&](auto sc) {
-                                 box_idx++;
-                                 return sc >= score_threshold;
-                             },
-                             [&](auto sc) {
-                                 return box_info_ptr{sc, box_idx - 1};
-                             });
-                std::priority_queue<box_info_ptr, std::vector<box_info_ptr>> sorted_boxes(
-                    std::less<box_info_ptr>(), std::move(cand_boxes));
+                // Check with existing selected boxes for this class, suppress if exceed the IOU
+                // (Intersection Over Union) threshold
+                bool not_selected = std::any_of(selected_boxes_inside_class.begin(), selected_boxes_inside_class.end(), [&](auto selected_index) {
+                    return this->suppress_by_iou(batch_boxes,
+                                                next_top_score.index,
+                                                selected_index.index,
+                                                iou_threshold);
+                });
 
-                selected_boxes_inside_class.clear();
-                // Get the next box with top score, filter by iou_threshold
-                while(!sorted_boxes.empty() &&
-                      static_cast<int64_t>(selected_boxes_inside_class.size()) <
-                          max_output_boxes_per_class)
+                if(not not_selected)
                 {
-                    const box_info_ptr& next_top_score = sorted_boxes.top();
-
-                    bool selected = true;
-                    // Check with existing selected boxes for this class, suppress if exceed the IOU
-                    // (Intersection Over Union) threshold
-                    for(const auto& selected_index : selected_boxes_inside_class)
-                    {
-                        if(this->suppress_by_iou(batch_boxes,
-                                                 next_top_score.index,
-                                                 selected_index.index,
-                                                 iou_threshold))
-                        {
-                            selected = false;
-                            break;
-                        }
-                    }
-
-                    if(selected)
-                    {
-                        selected_boxes_inside_class.push_back(next_top_score);
-                        selected_indices.push_back(bidx);
-                        selected_indices.push_back(cidx);
-                        selected_indices.push_back(next_top_score.index);
-                    }
-                    sorted_boxes.pop();
-                } // while
+                    selected_boxes_inside_class.push_back(next_top_score);
+                    selected_indices.push_back(bidx);
+                    selected_indices.push_back(cidx);
+                    selected_indices.push_back(next_top_score.index);
+                }
+                sorted_boxes.pop();
             }
-        }
+        });
 
         result.visit([&](auto out) {
             std::copy(selected_indices.begin(), selected_indices.end(), out.begin());

@@ -61,9 +61,9 @@ struct nonmaxsuppression
     }
 
     inline bool suppress_by_iou(const float* boxes_data,
-                              int64_t box_index1,
-                              int64_t box_index2,
-                              float iou_threshold) const
+                                int64_t box_index1,
+                                int64_t box_index2,
+                                float iou_threshold) const
     {
         float x1_min{};
         float y1_min{};
@@ -227,9 +227,9 @@ struct nonmaxsuppression
                     for(const auto& selected_index : selected_boxes_inside_class)
                     {
                         if(this->suppress_by_iou(batch_boxes,
-                                               next_top_score.index,
-                                               selected_index.index,
-                                               iou_threshold))
+                                                 next_top_score.index,
+                                                 selected_index.index,
+                                                 iou_threshold))
                         {
                             selected = false;
                             break;

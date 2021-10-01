@@ -113,7 +113,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, mlir_debug: rocmnode('navi21') { cmake_build ->
+}, clang_release_navi: rocmnode('navi21') { cmake_build ->
     stage('HIP Clang Release Navi') {
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'

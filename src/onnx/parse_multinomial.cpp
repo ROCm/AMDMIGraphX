@@ -32,14 +32,16 @@ struct parse_multinomial : op_parser<parse_multinomial>
         if(contains(info.attributes, "seed"))
             seed = info.attributes.at("seed").f();
 
-        // Compute cumulative density function
+        // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
             info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
         auto mb_maxes = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
             maxes);
         auto cdf = info.add_instruction(migraphx::make_op("sub"), args[0], mb_maxes);
+        // Take the element-wise exponent to get probabilities in the range (0, 1]
         cdf      = info.add_instruction(migraphx::make_op("exp"), cdf);
+        // Compute the cumulative density function 
         cdf      = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 

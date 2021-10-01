@@ -20,7 +20,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            CXX=${compiler} CXXFLAGS='-Werror -Wno-fallback' cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} .. 
+            CXX=${compiler} CXXFLAGS='-Werror' cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} .. 
             make -j\$(nproc) generate all doc package check VERBOSE=1
         """
         echo cmd

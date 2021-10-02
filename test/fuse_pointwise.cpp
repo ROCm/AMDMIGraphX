@@ -119,10 +119,11 @@ TEST_CASE(used_twice_not_fused)
         auto y    = mm->add_parameter("y", s);
         auto add1 = add_pointwise(p2, "pointwise0", {x, y}, single_pointwise("add"));
         auto pass = mm->add_instruction(pass_op{}, add1);
-        auto fadd = add_pointwise(p2, "pointwise1", {add1, y, pass}, [=](auto* pm, const auto& inputs) {
-            auto add2 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-            return pm->add_instruction(migraphx::make_op("add"), inputs[2], add2);
-        });
+        auto fadd =
+            add_pointwise(p2, "pointwise1", {add1, y, pass}, [=](auto* pm, const auto& inputs) {
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), inputs[2], add2);
+            });
         mm->add_return({fadd});
     }
     EXPECT(p1 == p2);

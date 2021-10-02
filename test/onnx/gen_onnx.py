@@ -2653,6 +2653,59 @@ def min_test():
 
 
 @onnx_test
+def multinomial_test():
+    sample_size = 10
+    seed = 0.0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def multinomial_dtype_error_test():
+    sample_size = 10
+    dtype = 0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT64,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 dtype=dtype,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def multinomial_int64_test():
+    sample_size = 10
+    dtype = 7
+    seed = 1.0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT64,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 dtype=dtype,
+                                 seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])

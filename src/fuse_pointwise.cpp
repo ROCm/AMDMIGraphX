@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -19,18 +20,29 @@ void create_pointwise_modules(module_pass_manager& mpm)
             continue;
         auto* pm = mpm.create_module("pointwise" + std::to_string(n++));
         pm->set_bypass();
+        
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        std::vector<instruction_ref> pointwise_inputs;
+        for(auto input:ins->inputs())
+        {
+            if (contains(param_map, input))
+                continue;
+            pointwise_inputs.push_back(input);
+            param_map[input] = pm->add_parameter("x" + std::to_string(param_map.size()),
+                                                    shape{input->get_shape().type()});
+        }
+
         std::vector<instruction_ref> inputs;
         std::transform(ins->inputs().begin(),
                        ins->inputs().end(),
                        std::back_inserter(inputs),
                        [&](auto input) {
-                           return pm->add_parameter("x" + std::to_string(inputs.size()),
-                                                    shape{input->get_shape().type()});
+                           return param_map[input];
                        });
         auto r = pm->add_instruction(ins->get_operator(), inputs);
         pm->add_return({r});
 
-        mpm.get_module().replace_instruction(ins, make_op("pointwise"), ins->inputs(), {pm});
+        mpm.get_module().replace_instruction(ins, make_op("pointwise"), pointwise_inputs, {pm});
     }
 }
 

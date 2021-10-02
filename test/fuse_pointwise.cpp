@@ -119,11 +119,10 @@ TEST_CASE(used_twice_not_fused)
         auto y    = mm->add_parameter("y", s);
         auto add1 = add_pointwise(p2, "pointwise0", {x, y}, single_pointwise("add"));
         auto pass = mm->add_instruction(pass_op{}, add1);
-        auto fadd =
-            add_pointwise(p2, "pointwise1", {add1, y, pass}, [=](auto* pm, const auto& inputs) {
-                auto add2 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), inputs[2], add2);
-            });
+        auto fadd = add_pointwise(p2, "pointwise1", {add1, y, pass}, [=](auto* pm, const auto& inputs) {
+            auto add2 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), inputs[2], add2);
+        });
         mm->add_return({fadd});
     }
     EXPECT(p1 == p2);
@@ -156,6 +155,35 @@ TEST_CASE(used_twice_fused)
             return pm->add_instruction(migraphx::make_op("add"), add2, add3);
         });
         mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(duplicate_inputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, x);
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), pass, y);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "pointwise0", {x}, [=](auto* pm, const auto& inputs) {
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[0]);
+        });
+        auto pass = mm->add_instruction(pass_op{}, add1);
+        auto add2 = add_pointwise(p2, "pointwise1", {pass, y}, single_pointwise("add"));
+        mm->add_return({add2});
     }
     EXPECT(p1.sort() == p2.sort());
 }

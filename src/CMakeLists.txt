@@ -129,6 +129,7 @@ register_migraphx_ops(
     min
     mul
     multibroadcast
+    multinomial
     neg
     outline
     pad

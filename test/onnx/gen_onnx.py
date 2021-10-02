@@ -1017,6 +1017,51 @@ def deconv_stride_test():
 
 
 @onnx_test
+def depthtospace_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 8, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 10, 10])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='DCR')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def depthtospace_simple_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 8, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 4, 6])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='DCR')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def depthtospace_crd_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 8, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 10, 10])
+
+    node = onnx.helper.make_node('DepthToSpace',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2,
+                                 mode='CRD')
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def dequantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
@@ -2608,6 +2653,59 @@ def min_test():
 
 
 @onnx_test
+def multinomial_test():
+    sample_size = 10
+    seed = 0.0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def multinomial_dtype_error_test():
+    sample_size = 10
+    dtype = 0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT64,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 dtype=dtype,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def multinomial_int64_test():
+    sample_size = 10
+    dtype = 7
+    seed = 1.0
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT64,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 dtype=dtype,
+                                 seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def neg_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT64, [2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.INT64, [2, 3])
@@ -2957,6 +3055,186 @@ def quantizelinear_axis_test():
 @onnx_test
 def quantizelinear_neg_axis_test():
     return make_quantizelinear_axis_graph(-2)
+
+
+@onnx_test
+def randomnormal_test():
+    dtype = 11
+    mean = 10.0
+    scale = 1.5
+    seed = 0.0
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.DOUBLE,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 mean=mean,
+                                 scale=scale,
+                                 seed=seed,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormal_dtype_error_test():
+    dtype = 6
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.INT32,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormal_shape_error_test():
+    dtype = 1
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomnormallike_test():
+    dtype = 10
+    mean = 10.0
+    scale = 1.5
+    seed = 0.0
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormalLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 mean=mean,
+                                 scale=scale,
+                                 seed=seed)
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def randomnormallike_type_error_test():
+    seed = 0
+    input = helper.make_tensor_value_info('input', TensorProto.INT32,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomNormalLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 seed=seed)
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def randomuniform_test():
+    dtype = 11
+    high = 1.0
+    low = 0.0
+    seed = 0.0
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.DOUBLE,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomUniform',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 high=high,
+                                 low=low,
+                                 seed=seed,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomuniform_dtype_error_test():
+    dtype = 6
+    shape = [2, 3, 4]
+    output = helper.make_tensor_value_info('output', TensorProto.INT32,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomUniform',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 shape=shape)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomuniform_shape_error_test():
+    dtype = 1
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomUniform',
+                                 inputs=[],
+                                 outputs=['output'],
+                                 dtype=dtype)
+
+    return ([node], [], [output])
+
+
+@onnx_test
+def randomuniformlike_test():
+    dtype = 10
+    high = 10.0
+    low = 1.0
+    seed = 0.0
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT16,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT16,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomUniformLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 dtype=dtype,
+                                 high=high,
+                                 low=low,
+                                 seed=seed)
+
+    return ([node], [input], [output])
+
+
+@onnx_test
+def randomuniformlike_type_error_test():
+    seed = 0
+    input = helper.make_tensor_value_info('input', TensorProto.INT32,
+                                          [2, 3, 4])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 4])
+
+    node = onnx.helper.make_node('RandomUniformLike',
+                                 inputs=['input'],
+                                 outputs=['output'],
+                                 seed=seed)
+
+    return ([node], [input], [output])
 
 
 @onnx_test

@@ -311,7 +311,7 @@ std::vector<instruction_ref> module::insert_module_instructions(
     {
         if(contains(map_ins, sins))
             continue;
-        instruction_ref copy_ins = this->end();
+        instruction_ref copy_ins;
         if(sins->name() == "@literal")
         {
             auto l   = sins->get_literal();

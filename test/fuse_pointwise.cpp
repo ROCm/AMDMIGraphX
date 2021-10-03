@@ -15,7 +15,7 @@ void run_pass(migraphx::program& p)
 
 template <class F>
 migraphx::instruction_ref add_pointwise(migraphx::program& p,
-                                        std::string name,
+                                        const std::string& name,
                                         std::vector<migraphx::instruction_ref> inputs,
                                         F f)
 {
@@ -32,7 +32,7 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
     return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
 }
 
-auto single_pointwise(std::string name)
+auto single_pointwise(const std::string& name)
 {
     return [=](auto* pm, const auto& inputs) {
         return pm->add_instruction(migraphx::make_op(name), inputs);
@@ -187,6 +187,32 @@ TEST_CASE(duplicate_inputs)
         mm->add_return({add2});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(scalar_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto one = mm->add_literal(1.0f);
+        auto y = mm->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), one);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto add1 = add_pointwise(p2, "pointwise0", {x}, [=](auto* pm, const auto& inputs) {
+            auto y = pm->add_literal(1.0f);
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], y);
+        });
+        mm->add_return({add1});
+    }
+    EXPECT(p1 == p2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

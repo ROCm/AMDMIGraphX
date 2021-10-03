@@ -14,15 +14,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 literal get_scalar(instruction_ref ins)
 {
     const auto& s = ins->get_shape();
-    if (not (s.elements() == 1 or s.scalar()))
+    if(not(s.elements() == 1 or s.scalar()))
         return {};
-    if (not ins->can_eval())
+    if(not ins->can_eval())
         return {};
     auto e = ins->eval();
     literal r{};
-    e.visit_at([&](auto x) {
-        r = literal{x};
-    });
+    e.visit_at([&](auto x) { r = literal{x}; });
     return r;
 }
 
@@ -43,11 +41,11 @@ void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
-            if (scalar.empty())
+            if(scalar.empty())
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] = pm->add_parameter("x" + std::to_string(param_map.size()),
-                                                    shape{input->get_shape().type()});
+                                                     shape{input->get_shape().type()});
             }
             else
             {

@@ -194,10 +194,11 @@ TEST_CASE(scalar_input)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
         auto one = mm->add_literal(1.0f);
-        auto y = mm->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), one);
+        auto y =
+            mm->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), one);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         mm->add_return({add1});
     }

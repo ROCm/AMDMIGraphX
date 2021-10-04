@@ -229,7 +229,6 @@ int main() {}
 
 )__migraphx__";
 
-
 std::string enum_params(std::size_t count, std::string param)
 {
     std::vector<std::string> items(count);
@@ -247,14 +246,14 @@ std::size_t compute_global(std::size_t n, std::size_t local = 1024)
 operation compile_roialign(context&, const std::vector<shape>& io_shapes, const value& val)
 {
     hip_compile_options options;
-    auto out_s = io_shapes.back();
-    options.global         = compute_global(out_s.elements());
-    options.local          = 1024;
-    auto inputs = io_shapes;
+    auto out_s     = io_shapes.back();
+    options.global = compute_global(out_s.elements());
+    options.local  = 1024;
+    auto inputs    = io_shapes;
     inputs.pop_back();
     options.inputs         = inputs;
     options.output         = out_s;
-    options.kernel_name = "roialign_kernel";
+    options.kernel_name    = "roialign_kernel";
     options.reduced_inputs = inputs;
 
     // wrap up scalar input arguments
@@ -266,13 +265,13 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
 
     // pooling_mode
     assert(val.contains("mode"));
-    auto mode = val.at("mode").to<std::string>();
+    auto mode           = val.at("mode").to<std::string>();
     bool is_avg_pooling = (mode == "avg");
     options.params += " -DIS_AVG_POOLING=" + std::to_string(is_avg_pooling);
 
     // coord_trans_mode
     assert(val.contains("coordinate_transformation_mode"));
-    auto ctm = val.at("coordinate_transformation_mode").to<std::string>();
+    auto ctm          = val.at("coordinate_transformation_mode").to<std::string>();
     float rois_offset = (ctm == "output_half_pixel") ? -0.5f : 0.0f;
     options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
 
@@ -285,8 +284,8 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     std::cout << roialign_kernel << std::endl;
     return compile_hip_code_object(roialign_kernel, options);
 }
-}
-
 } // namespace gpu
+
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 } // namespace migraphx

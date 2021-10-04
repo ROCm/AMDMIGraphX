@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <random>
 #include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/program.hpp>
@@ -18,6 +19,7 @@
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <random>
 
 #include <migraphx/serialize.hpp>
 
@@ -2321,6 +2323,72 @@ TEST_CASE(min_test)
     optimize_onnx("min_test.onnx");
 }
 
+TEST_CASE(multinomial_test)
+{
+    migraphx::program p;
+    auto* mm           = p.get_main_module();
+    size_t sample_size = 10;
+    float seed         = 0.0f;
+
+    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto mb_maxes =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
+    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<float> rand_samples(sample_size);
+    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
+    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
+
+    mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
+
+    auto prog = optimize_onnx("multinomial_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(multinomial_dtype_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("multinomial_dtype_error_test.onnx"); }));
+}
+
+TEST_CASE(multinomial_int64_test)
+{
+    migraphx::program p;
+    auto* mm                      = p.get_main_module();
+    size_t sample_size            = 10;
+    float seed                    = 1.0f;
+    migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
+
+    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto mb_maxes =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
+    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::vector<float> rand_samples(sample_size);
+    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
+    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
+    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
+
+    mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, rs_lit);
+
+    auto prog = optimize_onnx("multinomial_int64_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(no_pad_test)
 {
     migraphx::program p;
@@ -2723,6 +2791,130 @@ TEST_CASE(quantizelinear_neg_axis_test)
 
     auto prog = optimize_onnx("quantizelinear_neg_axis_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(randomnormal_test)
+{
+    float mean  = 10.0;
+    float scale = 1.5;
+    float seed  = 0.0;
+    std::vector<int> shape_attr{2, 3, 4};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::double_type, shape_attr};
+    std::vector<double> rand_vals(s.elements());
+    std::mt19937 gen(seed);
+    std::normal_distribution<> d(mean, scale);
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
+
+    mm->add_literal(migraphx::literal{s, rand_vals});
+
+    auto prog = optimize_onnx("randomnormal_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(randomnormal_dtype_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormal_dtype_error_test.onnx"); }));
+}
+
+TEST_CASE(randomnormal_shape_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormal_shape_error_test.onnx"); }));
+}
+
+TEST_CASE(randomnormallike_test)
+{
+    float mean  = 10.0;
+    float scale = 1.5;
+    float seed  = 0.0;
+    std::vector<int> shape_attr{2, 3, 4};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::half_type, shape_attr};
+    std::vector<double> rand_vals(s.elements());
+    std::mt19937 gen(seed);
+    std::normal_distribution<> d(mean, scale);
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
+
+    mm->add_parameter("input", s);
+    mm->add_literal(migraphx::literal{s, rand_vals});
+
+    auto prog = optimize_onnx("randomnormallike_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(randomnormallike_type_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormallike_type_error_test.onnx"); }));
+}
+
+TEST_CASE(randomuniform_test)
+{
+    float high = 1.0;
+    float low  = 0.0;
+    float seed = 0.0;
+    std::vector<int> shape_attr{2, 3, 4};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::double_type, shape_attr};
+    std::vector<double> rand_vals(s.elements());
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> d(low, high);
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
+
+    mm->add_literal(migraphx::literal{s, rand_vals});
+
+    auto prog = optimize_onnx("randomuniform_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(randomuniform_dtype_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomuniform_dtype_error_test.onnx"); }));
+}
+
+TEST_CASE(randomuniform_shape_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomuniform_shape_error_test.onnx"); }));
+}
+
+TEST_CASE(randomuniformlike_test)
+{
+    float high = 10.0;
+    float low  = 1.0;
+    float seed = 0.0;
+    std::vector<int> shape_attr{2, 3, 4};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::half_type, shape_attr};
+    std::vector<double> rand_vals(s.elements());
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<> d(low, high);
+    std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });
+
+    mm->add_parameter("input", s);
+    mm->add_literal(migraphx::literal{s, rand_vals});
+
+    auto prog = optimize_onnx("randomuniformlike_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(randomuniformlike_type_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("randomuniformlike_type_error_test.onnx"); }));
 }
 
 TEST_CASE(range_test)

@@ -22,7 +22,6 @@ struct code_object_op
     std::vector<shape> expected_inputs;
     shape output;
     kernel k{};
-    value op_attr;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

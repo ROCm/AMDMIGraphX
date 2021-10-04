@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // NOLINTNEXTLINE
-const std::string roialign_kernel = R"__migraphx__(
+static const char* const roialign_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <args.hpp>
 
@@ -222,21 +222,13 @@ __global__ void roialign_kernel(void* y, void* in_x, void* in_rois, void* in_ind
         }
     });
 }
-    
 }
 
 int main() {}
 
 )__migraphx__";
 
-std::string enum_params(std::size_t count, std::string param)
-{
-    std::vector<std::string> items(count);
-    transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
-    return join_strings(items, ",");
-}
-
-std::size_t compute_global(std::size_t n, std::size_t local = 1024)
+static std::size_t compute_global(std::size_t n, std::size_t local = 1024)
 {
     std::size_t groups  = (n + local - 1) / local;
     std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
@@ -287,5 +279,4 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
 } // namespace gpu
 
 } // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
 } // namespace migraphx

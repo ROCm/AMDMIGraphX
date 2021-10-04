@@ -499,7 +499,7 @@ struct trace : command<trace>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
-        roctx_mark rtx;
+        marker_roctx rtx;
         rtx.initalize_roctx();
         p.trace(std::cout, m, rtx);
     }

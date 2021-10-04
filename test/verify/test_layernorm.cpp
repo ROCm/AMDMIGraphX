@@ -81,3 +81,20 @@ struct test_layernorm_triadd : verify_program<test_layernorm_triadd>
         return p;
     }
 };
+
+struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 384, 1024};
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, dims});
+        auto y    = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, dims});
+        auto z    = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, dims});
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        add_layernorm(*mm, add2, dims);
+        return p;
+    }
+};

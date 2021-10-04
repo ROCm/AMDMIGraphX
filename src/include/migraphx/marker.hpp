@@ -25,11 +25,13 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * struct marker
  * {
- *      void mark(std::string st) ;
- *      size_t range_start(std::string st) ;
- *      void range_stop(std::size_t range_num) ;
- *      void trace_ins_start(std::string st) ;
- *      void trace_ins_end() ;
+ *      void mark_init(std::string st) ;
+ *      std::size_t mark_range_start(std::string st) ;
+ *      void mark_range_stop(std::size_t range_num) ;
+ *      void mark_ins_start(std::string st) ;
+ *      void mark_program_start() ;
+ *      void mark_ins_finish() ;
+ *      void mark_program_finish() ;
  * };
  *
  */
@@ -97,34 +99,46 @@ struct marker
             return private_detail_te_get_handle().type();
     }
 
-    void mark(std::string st)
+    void mark_init(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark(std::move(st));
+        (*this).private_detail_te_get_handle().mark_init(std::move(st));
     }
 
-    size_t range_start(std::string st)
+    std::size_t mark_range_start(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().range_start(std::move(st));
+        return (*this).private_detail_te_get_handle().mark_range_start(std::move(st));
     }
 
-    void range_stop(std::size_t range_num)
+    void mark_range_stop(std::size_t range_num)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().range_stop(range_num);
+        (*this).private_detail_te_get_handle().mark_range_stop(range_num);
     }
 
-    void trace_ins_start(std::string st)
+    void mark_ins_start(std::string st)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_ins_start(std::move(st));
+        (*this).private_detail_te_get_handle().mark_ins_start(std::move(st));
     }
 
-    void trace_ins_end()
+    void mark_program_start()
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().trace_ins_end();
+        (*this).private_detail_te_get_handle().mark_program_start();
+    }
+
+    void mark_ins_finish()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().mark_ins_finish();
+    }
+
+    void mark_program_finish()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().mark_program_finish();
     }
 
     friend bool is_shared(const marker& private_detail_x, const marker& private_detail_y)
@@ -140,11 +154,13 @@ struct marker
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void mark(std::string st)              = 0;
-        virtual size_t range_start(std::string st)     = 0;
-        virtual void range_stop(std::size_t range_num) = 0;
-        virtual void trace_ins_start(std::string st)   = 0;
-        virtual void trace_ins_end()                   = 0;
+        virtual void mark_init(std::string st)               = 0;
+        virtual std::size_t mark_range_start(std::string st) = 0;
+        virtual void mark_range_stop(std::size_t range_num)  = 0;
+        virtual void mark_ins_start(std::string st)          = 0;
+        virtual void mark_program_start()                    = 0;
+        virtual void mark_ins_finish()                       = 0;
+        virtual void mark_program_finish()                   = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -175,27 +191,35 @@ struct marker
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void mark(std::string st) override { private_detail_te_value.mark(std::move(st)); }
-
-        size_t range_start(std::string st) override
+        void mark_init(std::string st) override
         {
 
-            return private_detail_te_value.range_start(std::move(st));
+            private_detail_te_value.mark_init(std::move(st));
         }
 
-        void range_stop(std::size_t range_num) override
+        std::size_t mark_range_start(std::string st) override
         {
 
-            private_detail_te_value.range_stop(range_num);
+            return private_detail_te_value.mark_range_start(std::move(st));
         }
 
-        void trace_ins_start(std::string st) override
+        void mark_range_stop(std::size_t range_num) override
         {
 
-            private_detail_te_value.trace_ins_start(std::move(st));
+            private_detail_te_value.mark_range_stop(range_num);
         }
 
-        void trace_ins_end() override { private_detail_te_value.trace_ins_end(); }
+        void mark_ins_start(std::string st) override
+        {
+
+            private_detail_te_value.mark_ins_start(std::move(st));
+        }
+
+        void mark_program_start() override { private_detail_te_value.mark_program_start(); }
+
+        void mark_ins_finish() override { private_detail_te_value.mark_ins_finish(); }
+
+        void mark_program_finish() override { private_detail_te_value.mark_program_finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

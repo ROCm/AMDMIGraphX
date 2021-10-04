@@ -21,12 +21,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 #else
 
 <%
-interface('marker',
-           virtual('mark', st = 'std::string', returns = 'void'),
-           virtual('range_start', st = 'std::string', returns = 'size_t'),
-           virtual('range_stop', range_num = 'std::size_t', returns = 'void'),
-           virtual('trace_ins_start', st = 'std::string', returns = 'void'),
-           virtual('trace_ins_end', returns = 'void')
+interface('marker'
+           virtual('mark_ins_start', st = 'std::string', returns = 'void'),
+           virtual('mark_program_start', returns = 'void'),
+           virtual('mark_ins_finish', returns = 'void'),
+           virtual('mark_program_finish', returns = 'void'),
         ) %>
 #endif
 

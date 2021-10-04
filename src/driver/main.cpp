@@ -3,6 +3,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 #include "models.hpp"
+#include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -484,43 +485,6 @@ struct perf : command<perf>
         std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, n, m);
     }
-};
-
-class roctx_mark
-{
-    private:
-    migraphx::dynamic_loader lib;
-    std::function<void(const char*)> sym_roctx_mark;
-    std::function<uint64_t(const char*)> sym_roctx_range_start;
-    std::function<void(uint64_t)> sym_roctx_range_stop;
-
-    std::function<int(const char*)> sym_roctx_range_push;
-    std::function<int()> sym_roctx_range_pop;
-
-    public:
-    void initalize_roctx()
-    {
-        lib                   = migraphx::dynamic_loader{"libroctx64.so"};
-        sym_roctx_mark        = lib.get_function<void(const char*)>("roctxMarkA");
-        sym_roctx_range_start = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
-        sym_roctx_range_stop  = lib.get_function<void(uint64_t)>("roctxRangeStop");
-
-        sym_roctx_range_push = lib.get_function<int(const char*)>("roctxRangePushA");
-        sym_roctx_range_pop  = lib.get_function<int()>("roctxRangePop");
-    }
-
-    void mark(std::string const mark_string) { sym_roctx_mark(mark_string.c_str()); }
-
-    uint64_t range_start(std::string const range_string)
-    {
-        return sym_roctx_range_start(range_string.c_str());
-    }
-
-    void range_stop(uint64_t range_id) { return sym_roctx_range_stop(range_id); }
-
-    void trace_ins_start(std::string const in_string) { sym_roctx_range_push(in_string.c_str()); }
-
-    void trace_ins_end() { sym_roctx_range_pop(); }
 };
 
 struct trace : command<trace>

@@ -482,12 +482,12 @@ struct miopen_apply
             auto s      = ins->get_shape();
             auto op_val = ins->get_operator().to_value();
             auto output = insert_allocation(ins, s);
-            auto args = ins->inputs();
+            auto args   = ins->inputs();
             args.push_back(output);
 
             auto io_shapes = to_shapes(args);
-            auto co = compile_roialign(get_context(), io_shapes, op_val);
-            
+            auto co        = compile_roialign(get_context(), io_shapes, op_val);
+
             return mod->replace_instruction(ins, co, args);
         });
     }

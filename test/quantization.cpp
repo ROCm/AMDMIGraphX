@@ -432,7 +432,7 @@ TEST_CASE(op_capture)
         auto pb = mm->add_parameter("b", s2);
         auto pc = mm->add_parameter("c", s2);
         auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-        auto ps = migraphx::add_apply_alpha_beta<float>(*mm, {pa, pb, pc}, "dot", 1, 1);
+        auto ps = migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, "dot", 1, 1);
         mm->add_instruction(migraphx::make_op("dot"), pa, ps);
 
         return p;
@@ -451,7 +451,7 @@ TEST_CASE(op_capture)
         auto pa  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
         auto opa = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 0}}), pa);
         auto opb = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 1}}), pb);
-        auto ps  = migraphx::add_apply_alpha_beta<float>(*mm, {opa, opb, pc}, "dot", 1, 1);
+        auto ps  = migraphx::add_apply_alpha_beta(*mm, {opa, opb, pc}, "dot", 1, 1);
         auto opm = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 2}}), pa);
         auto ops = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 3}}), ps);
         mm->add_instruction(migraphx::make_op("dot"), opm, ops);

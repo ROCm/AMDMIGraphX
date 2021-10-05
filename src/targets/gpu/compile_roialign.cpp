@@ -12,6 +12,8 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const roialign_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/print.hpp>
 #include <args.hpp>
 
 using namespace migraphx;
@@ -134,27 +136,53 @@ __device__ T calc_pooling(const T* data,
 }
 
 extern "C" {
-__global__ void roialign_kernel(void* y, void* in_x, void* in_rois, void* in_ind, float roi_offset, bool avg_pooling, int sampling_ratio, float spatial_scale) 
+__global__ void roialign_kernel(void* in_x, void* in_rois, int64_t* in_ind, void* y) 
 {
-    make_tensors()(in_x, in_rios, in_ind, y)([](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
+    float roi_offset = ROIS_OFFSET;
+    bool avg_pooling = IS_AVG_POOLING;
+    int64_t sampling_ratio = SAMPLING_RATIO;
+    float spatial_scale = SPATIAL_SCALE;
+    make_tensors()(in_x, y)([=](auto x_t, auto y_t) {
+    make_tensors()(in_rois)([=](auto rois_t) {
+    make_tensors()(in_ind)([=](auto ind_t) __device__ {
+
         auto index = make_index();
 
         const auto* x    = x_t.data();
-        const auto* rios = device_cast(in_rios.data());
-        const auto* ind  = args.at(2).data();
-        auto* out_ptr    = device_cast(output.data());
+        const auto* rois = rois_t.data();
+        const auto* ind  = ind_t.data();
+        // const auto* ind  = in_ind;
+        auto* out_ptr    = y_t.data();
 
         // input shape
-        auto in_lens = x_t.get_shape().lens();
-        auto channel_num = lens[1];
-        auto height = lens[2];
-        auto width = lens[3];
+        auto x_lens = x_t.get_shape().lens;
+        auto channel_num = x_lens[1];
+        auto height = x_lens[2];
+        auto width = x_lens[3];
 
         const auto stride = index.nglobal();
-        auto out_s = yt.get_shape();
-        autp pooling_height = out_s.lens()[2];
-        auto pooling_widht = out_s.lens()[3];
-        for(index_int i = idx.global; i < y_t.get_shape().elements(); i += stride)
+        auto out_s = y_t.get_shape();
+        auto roi_column_num = rois_t.get_shape().lens[1];
+        auto pooling_height = out_s.lens[2];
+        auto pooling_width = out_s.lens[3];
+        if(index.global == 0)
+        {
+            printf("x[1] = %f\n", x[1]);
+            printf("roi[1] = %f\n", rois[1]);
+            printf("ind[1] = %f\n", ind[1]);
+
+            auto out_lens = out_s.lens;
+            printf("i1 = %d, i2 = %d, i3 = %d, i4 = %d\n", x_lens[0], x_lens[1], x_lens[2], x_lens[3]);
+            printf("o1 = %d, o2 = %d, o3 = %d, o4 = %d\n", out_lens[0], out_lens[1], out_lens[2], out_lens[3]);
+
+
+            auto roi_lens = rois_t.get_shape().lens;
+            printf("r1 = %d, r2 = %d, r3 = %d, r4 = %d\n", roi_lens[0], roi_lens[1], roi_lens[2], roi_lens[3]);
+
+            auto ind_lens = ind_t.get_shape().lens;
+            printf("ind1 = %d, ind2 = %d, ind3 = %d, ind4 = %d\n", ind_lens[0], ind_lens[1], ind_lens[2], ind_lens[3]);
+        }
+        for(index_int i = index.global; i < out_s.elements(); i += stride)
         {   
             auto idx = out_s.multi(i);
             int n    = idx[0];
@@ -162,7 +190,9 @@ __global__ void roialign_kernel(void* y, void* in_x, void* in_rois, void* in_ind
             int ph   = idx[2];
             int pw   = idx[3];
 
-            const auto* offset_rois = rios + n * roi_colum_num;
+            printf("n = %d, c = %d, ph = %d, pw = %d\n", n, c, ph, pw);
+
+            const auto* offset_rois = rois + n * roi_column_num;
             const int64_t batch_ind = ind[n];
 
             float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
@@ -221,6 +251,8 @@ __global__ void roialign_kernel(void* y, void* in_x, void* in_rois, void* in_ind
             }
         }
     });
+    });
+    });
 }
 }
 
@@ -242,13 +274,10 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     options.global = compute_global(out_s.elements());
     options.local  = 1024;
     auto inputs    = io_shapes;
-    inputs.pop_back();
     options.inputs         = inputs;
     options.output         = out_s;
     options.kernel_name    = "roialign_kernel";
     options.reduced_inputs = inputs;
-
-    // wrap up scalar input arguments
 
     // sampling_ratio
     assert(val.contains("sampling_ratio"));

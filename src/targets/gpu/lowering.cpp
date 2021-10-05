@@ -487,8 +487,9 @@ struct miopen_apply
 
             auto io_shapes = to_shapes(args);
             auto co        = compile_roialign(get_context(), io_shapes, op_val);
-
             return mod->replace_instruction(ins, co, args);
+
+            // return mod->replace_instruction(ins, make_op("gpu::roialign", op_val), args);
         });
     }
 

@@ -230,6 +230,8 @@ struct roialign
             using type         = typename decltype(output)::value_type;
             auto& arg_ind      = args.at(2);
             auto batch_indices = make_view(arg_ind.get_shape(), arg_ind.data());
+            // std::cout << "roi[0] = " << roi[0] << std::endl;
+            // std::cout << "ind[0] = " << batch_indices[0] << std::endl;
             par_for(n_rois, [&](auto n) {
                 const type* bottom_data  = x.data();
                 const auto roi_batch_ind = batch_indices[n];

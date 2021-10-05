@@ -13,7 +13,7 @@ TEST_CASE(dot_apply_alpha_beta_half)
         auto y = m1.add_parameter("y", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto z = m1.add_parameter("z", migraphx::shape{migraphx::shape::half_type, {2, 2}});
         auto dot_res =
-            migraphx::insert_apply_alpha_beta(m1, m1.end(), {x, y, z}, "dot", 3.0f, 2.0f);
+            migraphx::insert_apply_alpha_beta(m1, m1.end(), {x, y, z}, migraphx::make_op("dot"), 3.0f, 2.0f);
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;
@@ -97,7 +97,7 @@ TEST_CASE(quant_dot_apply_alpha_beta)
         auto dot_res = migraphx::insert_apply_alpha_beta(m1,
                                                          m1.end(),
                                                          {x, y, z},
-                                                         "quant_dot",
+                                                         migraphx::make_op("quant_dot"),
                                                          migraphx::literal{int32_t{3}},
                                                          migraphx::literal{int32_t{2}});
         m1.add_instruction(migraphx::make_op("identity"), dot_res);

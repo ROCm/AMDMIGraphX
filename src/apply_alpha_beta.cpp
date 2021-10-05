@@ -9,7 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 instruction_ref insert_apply_alpha_beta(module& m,
                                         instruction_ref pos,
                                         const std::vector<instruction_ref>& args,
-                                        const std::string& op_name,
+                                        const operation& op,
                                         const literal& alpha,
                                         const literal& beta)
 {
@@ -25,7 +25,7 @@ instruction_ref insert_apply_alpha_beta(module& m,
             a = m.insert_instruction(pos, make_op("convert", {{"target_type", input_type}}), a);
         }
     }
-    auto dot_res = m.insert_instruction(pos, migraphx::make_op(op_name), a, b);
+    auto dot_res = m.insert_instruction(pos, op, a, b);
     if(args.size() == 3)
     {
         if(not float_equal(beta.at<float>(0), 0.0) && args[2]->get_shape().elements() > 0)

@@ -13,7 +13,6 @@ namespace gpu {
 static const char* const roialign_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/basic_ops.hpp>
-#include <migraphx/kernels/print.hpp>
 #include <args.hpp>
 
 using namespace migraphx;
@@ -136,15 +135,15 @@ __device__ T calc_pooling(const T* data,
 }
 
 extern "C" {
-__global__ void roialign_kernel(void* in_x, void* in_rois, int64_t* in_ind, void* y) 
+__global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
 {
     float roi_offset = ROIS_OFFSET;
     bool avg_pooling = IS_AVG_POOLING;
     int64_t sampling_ratio = SAMPLING_RATIO;
     float spatial_scale = SPATIAL_SCALE;
-    make_tensors()(in_x, y)([=](auto x_t, auto y_t) {
-    make_tensors()(in_rois)([=](auto rois_t) {
-    make_tensors()(in_ind)([=](auto ind_t) __device__ {
+    make_tensors()(in_x, in_rois, in_ind, y)([=](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
+    // make_tensors()(in_rois)([=](auto rois_t) {
+    // make_tensors()(in_ind)([=](auto ind_t) __device__ {
 
         auto index = make_index();
 
@@ -251,8 +250,8 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, int64_t* in_ind, void
             }
         }
     });
-    });
-    });
+    // });
+    // });
 }
 }
 

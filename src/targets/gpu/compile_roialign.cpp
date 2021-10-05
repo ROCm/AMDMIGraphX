@@ -270,10 +270,10 @@ static std::size_t compute_global(std::size_t n, std::size_t local = 1024)
 operation compile_roialign(context&, const std::vector<shape>& io_shapes, const value& val)
 {
     hip_compile_options options;
-    auto out_s     = io_shapes.back();
-    options.global = compute_global(out_s.elements());
-    options.local  = 1024;
-    auto inputs    = io_shapes;
+    auto out_s             = io_shapes.back();
+    options.global         = compute_global(out_s.elements());
+    options.local          = 1024;
+    auto inputs            = io_shapes;
     options.inputs         = inputs;
     options.output         = out_s;
     options.kernel_name    = "roialign_kernel";

@@ -1,5 +1,6 @@
 #include <migraphx/gpu/compile_roialign.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -27,13 +28,6 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
 int main() {}
 
 )__migraphx__";
-
-static std::size_t compute_global(std::size_t n, std::size_t local = 1024)
-{
-    std::size_t groups  = (n + local - 1) / local;
-    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
-    return nglobal;
-}
 
 operation compile_roialign(context&, const std::vector<shape>& io_shapes, const value& val)
 {

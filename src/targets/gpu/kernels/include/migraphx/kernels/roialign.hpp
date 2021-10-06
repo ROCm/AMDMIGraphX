@@ -124,100 +124,100 @@ __device__ T calc_pooling(const T* data,
     return op.final(output_val, count);
 }
 
-__device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y) 
+__device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
 {
-    const float roi_offset = ROIS_OFFSET;
-    const bool is_avg_pooling = IS_AVG_POOLING;
+    const float roi_offset       = ROIS_OFFSET;
+    const bool is_avg_pooling    = IS_AVG_POOLING;
     const int64_t sampling_ratio = SAMPLING_RATIO;
-    const float spatial_scale = SPATIAL_SCALE;
-    make_tensors()(in_x, in_rois, in_ind, y)([=](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
-        auto index = make_index();
-        const auto* x    = x_t.data();
-        const auto* rois = rois_t.data();
-        const auto* ind  = ind_t.data();
-        // auto& ind = ind_t;
-        auto* out_ptr    = y_t.data();
+    const float spatial_scale    = SPATIAL_SCALE;
+    make_tensors()(in_x, in_rois, in_ind, y)(
+        [=](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
+            auto index       = make_index();
+            const auto* x    = x_t.data();
+            const auto* rois = rois_t.data();
+            const auto* ind  = ind_t.data();
+            // auto& ind = ind_t;
+            auto* out_ptr = y_t.data();
 
-        // input shape
-        auto x_lens = x_t.get_shape().lens;
-        auto channel_num = x_lens[1];
-        auto height = x_lens[2];
-        auto width = x_lens[3];
+            // input shape
+            auto x_lens      = x_t.get_shape().lens;
+            auto channel_num = x_lens[1];
+            auto height      = x_lens[2];
+            auto width       = x_lens[3];
 
-        const auto stride = index.nglobal();
-        auto out_s = y_t.get_shape();
-        auto roi_column_num = rois_t.get_shape().lens[1];
-        auto pooling_height = out_s.lens[2];
-        auto pooling_width = out_s.lens[3];
-        for(index_int i = index.global; i < out_s.elements(); i += stride)
-        {   
-            auto idx = out_s.multi(i);
-            int n    = idx[0];
-            int c    = idx[1];
-            int ph   = idx[2];
-            int pw   = idx[3];
-
-            const auto* offset_rois = rois + (n * roi_column_num);
-            const auto batch_ind = static_cast<int>(ind[n]);
-
-            float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
-            float roi_start_h = static_cast<float>(offset_rois[1] * spatial_scale);
-            float roi_end_w   = static_cast<float>(offset_rois[2] * spatial_scale);
-            float roi_end_h   = static_cast<float>(offset_rois[3] * spatial_scale);
-
-            float roi_width  = roi_end_w - roi_start_w;
-            float roi_height = roi_end_h - roi_start_h;
-
-            roi_width  = roi_width > 1.0f ? roi_width : 1.0f;
-            roi_height = roi_height > 1.0f ? roi_height : 1.0f;
-
-            float bin_size_w = roi_width / pooling_width;
-            float bin_size_h = roi_height / pooling_height;
-
-            const auto* offset_x = x + ((batch_ind * channel_num + c) * height * width);
-
-            // We use roi_bin_grid to sample the grid and mimic integral
-            int roi_bin_grid_h =
-                (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_height / pooling_height);
-            int roi_bin_grid_w =
-                (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);
-
-            if(is_avg_pooling)
+            const auto stride   = index.nglobal();
+            auto out_s          = y_t.get_shape();
+            auto roi_column_num = rois_t.get_shape().lens[1];
+            auto pooling_height = out_s.lens[2];
+            auto pooling_width  = out_s.lens[3];
+            for(index_int i = index.global; i < out_s.elements(); i += stride)
             {
-                out_ptr[i] = calc_pooling(offset_x,
-                                            roi_start_h,
-                                            roi_start_w,
-                                            bin_size_h,
-                                            bin_size_w,
-                                            ph,
-                                            pw,
-                                            roi_bin_grid_h,
-                                            roi_bin_grid_w,
-                                            height,
-                                            width,
-                                            roi_offset,
-                                            avg_pool{});
+                auto idx = out_s.multi(i);
+                int n    = idx[0];
+                int c    = idx[1];
+                int ph   = idx[2];
+                int pw   = idx[3];
+
+                const auto* offset_rois = rois + (n * roi_column_num);
+                const auto batch_ind    = static_cast<int>(ind[n]);
+
+                float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
+                float roi_start_h = static_cast<float>(offset_rois[1] * spatial_scale);
+                float roi_end_w   = static_cast<float>(offset_rois[2] * spatial_scale);
+                float roi_end_h   = static_cast<float>(offset_rois[3] * spatial_scale);
+
+                float roi_width  = roi_end_w - roi_start_w;
+                float roi_height = roi_end_h - roi_start_h;
+
+                roi_width  = roi_width > 1.0f ? roi_width : 1.0f;
+                roi_height = roi_height > 1.0f ? roi_height : 1.0f;
+
+                float bin_size_w = roi_width / pooling_width;
+                float bin_size_h = roi_height / pooling_height;
+
+                const auto* offset_x = x + ((batch_ind * channel_num + c) * height * width);
+
+                // We use roi_bin_grid to sample the grid and mimic integral
+                int roi_bin_grid_h =
+                    (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_height / pooling_height);
+                int roi_bin_grid_w =
+                    (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);
+
+                if(is_avg_pooling)
+                {
+                    out_ptr[i] = calc_pooling(offset_x,
+                                              roi_start_h,
+                                              roi_start_w,
+                                              bin_size_h,
+                                              bin_size_w,
+                                              ph,
+                                              pw,
+                                              roi_bin_grid_h,
+                                              roi_bin_grid_w,
+                                              height,
+                                              width,
+                                              roi_offset,
+                                              avg_pool{});
+                }
+                else
+                {
+                    out_ptr[i] = calc_pooling(offset_x,
+                                              roi_start_h,
+                                              roi_start_w,
+                                              bin_size_h,
+                                              bin_size_w,
+                                              ph,
+                                              pw,
+                                              roi_bin_grid_h,
+                                              roi_bin_grid_w,
+                                              height,
+                                              width,
+                                              roi_offset,
+                                              max_pool{});
+                }
             }
-            else
-            {
-                out_ptr[i] = calc_pooling(offset_x,
-                                            roi_start_h,
-                                            roi_start_w,
-                                            bin_size_h,
-                                            bin_size_w,
-                                            ph,
-                                            pw,
-                                            roi_bin_grid_h,
-                                            roi_bin_grid_w,
-                                            height,
-                                            width,
-                                            roi_offset,
-                                            max_pool{});
-            }
-        }
-    });
+        });
 }
 
 } // namespace migraphx
 #endif
-

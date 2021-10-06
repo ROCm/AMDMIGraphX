@@ -51,10 +51,11 @@ TEST_CASE(dot_apply_alpha_beta_double)
 {
     migraphx::module m1;
     {
-        auto x       = m1.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
-        auto y       = m1.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
-        auto z       = m1.add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 1}});
-        auto dot_res = migraphx::add_apply_alpha_beta(m1, {x, y, z}, migraphx::make_op("dot"), 3.0f, 2.0f);
+        auto x = m1.add_parameter("x", migraphx::shape{migraphx::shape::double_type, {2, 2}});
+        auto y = m1.add_parameter("y", migraphx::shape{migraphx::shape::double_type, {2, 2}});
+        auto z = m1.add_parameter("z", migraphx::shape{migraphx::shape::double_type, {2, 1}});
+        auto dot_res =
+            migraphx::add_apply_alpha_beta(m1, {x, y, z}, migraphx::make_op("dot"), 3.0f, 2.0f);
         m1.add_instruction(migraphx::make_op("identity"), dot_res);
     }
     migraphx::module m2;

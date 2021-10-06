@@ -432,7 +432,8 @@ TEST_CASE(op_capture)
         auto pb = mm->add_parameter("b", s2);
         auto pc = mm->add_parameter("c", s2);
         auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-        auto ps = migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
+        auto ps =
+            migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
         mm->add_instruction(migraphx::make_op("dot"), pa, ps);
 
         return p;
@@ -451,7 +452,8 @@ TEST_CASE(op_capture)
         auto pa  = mm->add_instruction(migraphx::make_op("add"), p1, p2);
         auto opa = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 0}}), pa);
         auto opb = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 1}}), pb);
-        auto ps  = migraphx::add_apply_alpha_beta(*mm, {opa, opb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
+        auto ps  = migraphx::add_apply_alpha_beta(
+            *mm, {opa, opb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
         auto opm = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 2}}), pa);
         auto ops = mm->add_instruction(migraphx::make_op("capture", {{"ins_index", 3}}), ps);
         mm->add_instruction(migraphx::make_op("dot"), opm, ops);
@@ -1035,7 +1037,8 @@ TEST_CASE(int8_quantization_dot)
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto r  = migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
+        auto r =
+            migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
         mm->add_return({r});
         return p;
     };
@@ -1121,7 +1124,7 @@ TEST_CASE(int8_subgraph)
         auto w = mm->add_parameter("w", sw);
 
         auto* then_mod = p.create_module("If_6_if");
-        auto out1      = migraphx::add_apply_alpha_beta(*then_mod, {a, b}, migraphx::make_op("dot"));
+        auto out1 = migraphx::add_apply_alpha_beta(*then_mod, {a, b}, migraphx::make_op("dot"));
         then_mod->add_return({out1});
 
         auto* else_mod = p.create_module("If_6_else");
@@ -1228,7 +1231,8 @@ TEST_CASE(test_op_capture)
     auto pb = mm->add_literal(s2, d2);
     auto pc = mm->add_literal(s2, d2);
     auto pa = mm->add_instruction(migraphx::make_op("add"), p1, p2);
-    auto ps = migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
+    auto ps =
+        migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
     mm->add_instruction(migraphx::make_op("dot"), pa, ps);
 
     auto calc = [](std::size_t, const std::vector<migraphx::argument>&) {};

@@ -17,7 +17,8 @@ struct test_gemm_copy : verify_program<test_gemm_copy>
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
-        auto dr = migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
+        auto dr =
+            migraphx::add_apply_alpha_beta(*mm, {pa, pb, pc}, migraphx::make_op("dot"), 1.0f, 1.0f);
         mm->add_instruction(migraphx::make_op("add"), dr, dr);
         return p;
     }

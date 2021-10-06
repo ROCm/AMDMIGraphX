@@ -1231,7 +1231,8 @@ migraphx::program resnet50(unsigned batch) // NOLINT(readability-function-size)
     auto mx442                    = mm->add_instruction(multibroadcast442, mx0);
     float dot443_alpha            = 1;
     float dot443_beta             = 1;
-    migraphx::add_apply_alpha_beta(*mm, {mx440, mx441, mx442}, migraphx::make_op("dot"), dot443_alpha, dot443_beta);
+    migraphx::add_apply_alpha_beta(
+        *mm, {mx440, mx441, mx442}, migraphx::make_op("dot"), dot443_alpha, dot443_beta);
     return p;
 }
 

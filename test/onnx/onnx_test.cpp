@@ -2167,7 +2167,8 @@ TEST_CASE(matmul_bmv_test)
     auto sl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l1);
     auto bsl1 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 7, 1}}}), sl1);
-    auto res = migraphx::add_apply_alpha_beta(*mm, {l0, bsl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto res =
+        migraphx::add_apply_alpha_beta(*mm, {l0, bsl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), res);
 
     auto prog = optimize_onnx("matmul_bmv_test.onnx");
@@ -2199,7 +2200,8 @@ TEST_CASE(matmul_vbm_test)
     auto sl0 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l0);
     auto bsl0 =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 1, 7}}}), sl0);
-    auto res = migraphx::add_apply_alpha_beta(*mm, {bsl0, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto res =
+        migraphx::add_apply_alpha_beta(*mm, {bsl0, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), res);
 
     auto prog = optimize_onnx("matmul_vbm_test.onnx");
@@ -2230,7 +2232,8 @@ TEST_CASE(matmul_vv_test)
     auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
     auto sl0 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l0);
     auto sl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l1);
-    auto res = migraphx::add_apply_alpha_beta(*mm, {sl0, sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto res =
+        migraphx::add_apply_alpha_beta(*mm, {sl0, sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
     auto sr0 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), res);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sr0);
 

@@ -227,8 +227,8 @@ struct roialign
         auto roi_s            = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
-            using type         = typename decltype(output)::value_type;
-            auto& arg_ind      = args.at(2);
+            using type                = typename decltype(output)::value_type;
+            auto& arg_ind             = args.at(2);
             const auto* batch_indices = arg_ind.cast<int64_t>();
             par_for(n_rois, [&](auto n) {
                 const type* bottom_data  = x.data();

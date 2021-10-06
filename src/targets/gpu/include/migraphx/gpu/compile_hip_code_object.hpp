@@ -21,8 +21,6 @@ struct hip_compile_options
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options);
 
-
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

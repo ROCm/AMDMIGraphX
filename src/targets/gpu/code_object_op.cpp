@@ -20,7 +20,6 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     if(einputs != inputs)
         MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
                        to_string_range(inputs) + "]");
-    std::cout << "out_shape = " << output << std::endl;
     return output;
 }
 argument
@@ -29,7 +28,6 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     std::vector<void*> kargs(args.size());
     std::transform(
         args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
-    std::cout << "output_shape_compute = " << args.back().get_shape() << std::endl;
     k.launch(ctx.get_stream().get(), global, local, std::move(kargs));
     return args.back();
 }

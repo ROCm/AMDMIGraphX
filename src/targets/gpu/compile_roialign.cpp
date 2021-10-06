@@ -137,20 +137,16 @@ __device__ T calc_pooling(const T* data,
 extern "C" {
 __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
 {
-    float roi_offset = ROIS_OFFSET;
-    bool avg_pooling = IS_AVG_POOLING;
-    int64_t sampling_ratio = SAMPLING_RATIO;
-    float spatial_scale = SPATIAL_SCALE;
+    const float roi_offset = ROIS_OFFSET;
+    const bool is_avg_pooling = IS_AVG_POOLING;
+    const int64_t sampling_ratio = SAMPLING_RATIO;
+    const float spatial_scale = SPATIAL_SCALE;
     make_tensors()(in_x, in_rois, in_ind, y)([=](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
-    // make_tensors()(in_rois)([=](auto rois_t) {
-    // make_tensors()(in_ind)([=](auto ind_t) __device__ {
-
         auto index = make_index();
-
         const auto* x    = x_t.data();
         const auto* rois = rois_t.data();
         const auto* ind  = ind_t.data();
-        // const auto* ind  = in_ind;
+        // auto& ind = ind_t;
         auto* out_ptr    = y_t.data();
 
         // input shape
@@ -164,23 +160,6 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
         auto roi_column_num = rois_t.get_shape().lens[1];
         auto pooling_height = out_s.lens[2];
         auto pooling_width = out_s.lens[3];
-        if(index.global == 0)
-        {
-            printf("x[1] = %f\n", x[1]);
-            printf("roi[1] = %f\n", rois[1]);
-            printf("ind[1] = %f\n", ind[1]);
-
-            auto out_lens = out_s.lens;
-            printf("i1 = %d, i2 = %d, i3 = %d, i4 = %d\n", x_lens[0], x_lens[1], x_lens[2], x_lens[3]);
-            printf("o1 = %d, o2 = %d, o3 = %d, o4 = %d\n", out_lens[0], out_lens[1], out_lens[2], out_lens[3]);
-
-
-            auto roi_lens = rois_t.get_shape().lens;
-            printf("r1 = %d, r2 = %d, r3 = %d, r4 = %d\n", roi_lens[0], roi_lens[1], roi_lens[2], roi_lens[3]);
-
-            auto ind_lens = ind_t.get_shape().lens;
-            printf("ind1 = %d, ind2 = %d, ind3 = %d, ind4 = %d\n", ind_lens[0], ind_lens[1], ind_lens[2], ind_lens[3]);
-        }
         for(index_int i = index.global; i < out_s.elements(); i += stride)
         {   
             auto idx = out_s.multi(i);
@@ -189,10 +168,8 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
             int ph   = idx[2];
             int pw   = idx[3];
 
-            printf("n = %d, c = %d, ph = %d, pw = %d\n", n, c, ph, pw);
-
-            const auto* offset_rois = rois + n * roi_column_num;
-            const int64_t batch_ind = ind[n];
+            const auto* offset_rois = rois + (n * roi_column_num);
+            const auto batch_ind = static_cast<int>(ind[n]);
 
             float roi_start_w = static_cast<float>(offset_rois[0] * spatial_scale);
             float roi_start_h = static_cast<float>(offset_rois[1] * spatial_scale);
@@ -216,7 +193,7 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
             int roi_bin_grid_w =
                 (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);
 
-            if(avg_pooling)
+            if(is_avg_pooling)
             {
                 out_ptr[i] = calc_pooling(offset_x,
                                             roi_start_h,
@@ -250,8 +227,6 @@ __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y
             }
         }
     });
-    // });
-    // });
 }
 }
 
@@ -270,13 +245,12 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
 {
     hip_compile_options options;
     auto out_s             = io_shapes.back();
-    options.global         = compute_global(out_s.elements());
-    options.local          = 1024;
-    auto inputs            = io_shapes;
-    options.inputs         = inputs;
+    options.local          = 128;
+    options.global         = compute_global(out_s.elements(), options.local);
+    options.inputs         = io_shapes;
     options.output         = out_s;
     options.kernel_name    = "roialign_kernel";
-    options.reduced_inputs = inputs;
+    options.reduced_inputs = io_shapes;
 
     // sampling_ratio
     assert(val.contains("sampling_ratio"));
@@ -300,8 +274,6 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     float spatial_scale = val.at("spatial_scale").to<float>();
     options.params += " -DSPATIAL_SCALE=" + std::to_string(spatial_scale);
 
-    std::cout << "kernel_src = " << std::endl;
-    std::cout << roialign_kernel << std::endl;
     return compile_hip_code_object(roialign_kernel, options);
 }
 } // namespace gpu

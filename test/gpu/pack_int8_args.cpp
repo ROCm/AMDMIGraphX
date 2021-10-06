@@ -49,7 +49,7 @@ TEST_CASE(quant_dot)
         auto l1 = m.add_parameter("a", m1_shape);
         auto l2 = m.add_parameter("b", m2_shape);
         auto l3 = m.add_parameter("c", m3_shape);
-        auto r  = migraphx::add_apply_alpha_beta<int32_t>(
+        auto r  = migraphx::add_apply_alpha_beta(
             m, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 1);
         m.add_return({r});
         return m;
@@ -119,7 +119,7 @@ TEST_CASE(quant_dot_trans)
         auto l2 = m.add_parameter("b", s2);
         auto tl2 =
             m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
-        auto r = migraphx::add_apply_alpha_beta<int32_t>(
+        auto r = migraphx::add_apply_alpha_beta(
             m, {tl1, tl2}, migraphx::make_op("quant_dot"), 3);
         m.add_return({r});
         return m;
@@ -216,7 +216,7 @@ TEST_CASE(quant_dot_pad)
         auto l1 = m.add_parameter("a", s1);
         auto l2 = m.add_parameter("b", s2);
         auto l3 = m.add_parameter("c", s3);
-        auto r  = migraphx::add_apply_alpha_beta<int32_t>(
+        auto r  = migraphx::add_apply_alpha_beta(
             m, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 1);
         m.add_return({r});
         return m;
@@ -310,7 +310,7 @@ TEST_CASE(quant_dot_trans_pad)
         auto l2 = m.add_parameter("b", s2);
         auto tl2 =
             m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
-        auto r = migraphx::add_apply_alpha_beta<int32_t>(
+        auto r = migraphx::add_apply_alpha_beta(
             m, {tl1, tl2}, migraphx::make_op("quant_dot"), 3);
         m.add_return({r});
         return m;

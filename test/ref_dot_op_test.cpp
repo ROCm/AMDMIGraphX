@@ -1355,7 +1355,7 @@ TEST_CASE(quant_dot_2args_general)
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
 
-        migraphx::add_apply_alpha_beta<int32_t>(*mm, {l1, tl2}, migraphx::make_op("quant_dot"), 2);
+        migraphx::add_apply_alpha_beta(*mm, {l1, tl2}, migraphx::make_op("quant_dot"), 2);
 
         std::vector<int> gold = {
             28, 76, 124, 172, 220, 76, 252, 428, 604, 780, 124, 428, 732, 1036, 1340};
@@ -1384,7 +1384,7 @@ TEST_CASE(quant_dot_2args_general)
         auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
-        migraphx::add_apply_alpha_beta<int32_t>(*mm, {tl1, tl2}, migraphx::make_op("quant_dot"), 3);
+        migraphx::add_apply_alpha_beta(*mm, {tl1, tl2}, migraphx::make_op("quant_dot"), 3);
 
         std::vector<int> gold = {
             126, 342, 558, 774, 990, 144, 408, 672, 936, 1200, 162, 474, 786, 1098, 1410};
@@ -1416,7 +1416,7 @@ TEST_CASE(quant_dot_3args_general)
         auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
         auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 1);
 
         std::vector<int> gold = {
@@ -1476,7 +1476,7 @@ TEST_CASE(quant_dot_3args_general)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
         auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {tl1, l2, l3}, migraphx::make_op("quant_dot"), 1, 3);
 
         std::vector<int> gold = {
@@ -1508,7 +1508,7 @@ TEST_CASE(quant_dot_3args_general)
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {l1, tl2, l3}, migraphx::make_op("quant_dot"), 2, 3);
 
         std::vector<int> gold = {
@@ -1542,7 +1542,7 @@ TEST_CASE(quant_dot_3args_general)
         auto tl2 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l2);
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {tl1, tl2, l3}, migraphx::make_op("quant_dot"), 3, 2);
 
         std::vector<int> gold = {
@@ -1575,7 +1575,7 @@ TEST_CASE(quant_dot_3args_batch)
         auto l1 = mm->add_literal(migraphx::literal{m1_shape, data1});
         auto l2 = mm->add_literal(migraphx::literal{m2_shape, data2});
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 2);
 
         std::vector<int> gold = {
@@ -1613,7 +1613,7 @@ TEST_CASE(quant_dot_3args_batch)
         auto tl2 = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         auto l3 = mm->add_literal(migraphx::literal{m3_shape, data3});
-        migraphx::add_apply_alpha_beta<int32_t>(
+        migraphx::add_apply_alpha_beta(
             *mm, {tl1, tl2, l3}, migraphx::make_op("quant_dot"), 2, 3);
 
         std::vector<int> gold = {

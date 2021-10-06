@@ -504,7 +504,7 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::trace(std::ostream& os, parameter_map params, marker m) const
+void program::trace(std::ostream& os, parameter_map params, marker m)
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself

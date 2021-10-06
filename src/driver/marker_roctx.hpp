@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 class marker_roctx
 {
-private:
+    private:
     dynamic_loader lib;
     std::function<void(const char*)> sym_roctx_mark;
     std::function<uint64_t(const char*)> sym_roctx_range_start;
@@ -21,7 +21,7 @@ private:
 
     bool init = false;
 
-public:
+    public:
     void initalize_roctx()
     {
         lib                   = migraphx::dynamic_loader{"libroctx64.so"};
@@ -38,28 +38,19 @@ public:
         if(init)
         {
             sym_roctx_mark("rocTX marker created.");
-            init = true; 
+            init = true;
         }
         return sym_roctx_range_start(std::to_string(range_id).c_str());
     }
 
-    void mark_range_finish(uint64_t range_id)
-    {
-        return sym_roctx_range_stop(range_id);
-    }
+    void mark_range_finish(uint64_t range_id) { return sym_roctx_range_stop(range_id); }
 
-    void mark_ins_start(std::string start_log)
-    {
-        sym_roctx_range_push(start_log.c_str());
-    }
+    void mark_ins_start(std::string start_log) { sym_roctx_range_push(start_log.c_str()); }
 
-    void mark_ins_finish()
-    {
-        sym_roctx_range_pop();
-    }
+    void mark_ins_finish() { sym_roctx_range_pop(); }
 
-    void mark_program_start(){}
-    void mark_program_finish(){}
+    void mark_program_start() {}
+    void mark_program_finish() {}
 };
 
 } // namespace MIGRAPHX_INLINE_NS

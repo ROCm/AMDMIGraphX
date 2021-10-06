@@ -161,7 +161,7 @@ TEST_CASE(program_copy)
         auto para1 = mm1->add_parameter("m1", s1);
         auto para2 = mm1->add_parameter("m2", s2);
         auto para3 = mm1->add_parameter("m3", s3);
-        migraphx::add_apply_alpha_beta(*mm1, {para1, para2, para3}, "dot", 0.31f, 0.28f);
+        migraphx::add_apply_alpha_beta(*mm1, {para1, para2, para3}, migraphx::make_op("dot"), 0.31f, 0.28f);
         migraphx::program p2{};
         p2 = p1;
         EXPECT(p2 == p1);

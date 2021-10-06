@@ -18,7 +18,7 @@ struct gemm_2args_vv : verify_program<gemm_2args_vv>
         auto l2     = mm->add_parameter("2", m2_shape);
         auto ul2    = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l2);
         float alpha = 0.23f;
-        auto res    = migraphx::add_apply_alpha_beta<float>(*mm, {ul1, ul2}, "dot", alpha);
+        auto res    = migraphx::add_apply_alpha_beta(*mm, {ul1, ul2}, migraphx::make_op("dot"), alpha);
         auto sres   = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), res);
         mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), sres);
 

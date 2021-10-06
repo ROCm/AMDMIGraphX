@@ -14,8 +14,6 @@ std::vector<char> pack_args(const std::vector<kernel_argument>& args)
         const auto* p = static_cast<const char*>(arg.data);
         // Insert padding
         std::size_t padding = (arg.align - (kernargs.size() % arg.align)) % arg.align;
-
-        // Why padding inserted before actual argument?
         kernargs.insert(kernargs.end(), padding, 0);
         kernargs.insert(kernargs.end(), p, p + n);
     }

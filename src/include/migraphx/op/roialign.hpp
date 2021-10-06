@@ -227,11 +227,9 @@ struct roialign
         auto roi_s            = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
-            using type                = typename decltype(output)::value_type;
-            auto& arg_ind             = args.at(2);
-            const auto* batch_indices = arg_ind.cast<int64_t>();
+            const auto* batch_indices = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
-                const type* bottom_data  = x.data();
+                const auto* bottom_data  = x.data();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
                 float roi_start_w = static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale);
@@ -286,7 +284,7 @@ struct roialign
                     auto ph = idx[1];
                     auto pw = idx[2];
 
-                    const type* offset_bottom_data =
+                    const auto* offset_bottom_data =
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
                     vec_outputs[c] = (mode == "avg") ? this->calc_pooling(offset_bottom_data,

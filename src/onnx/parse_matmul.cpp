@@ -67,7 +67,7 @@ struct parse_matmul : op_parser<parse_matmul>
             }
         }
         instruction_ref dot_res = info.add_instruction(make_op(opd.op_name), bl0, bl1);
-        int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
+        int64_t num_axis        = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
             dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);

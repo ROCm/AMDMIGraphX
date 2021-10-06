@@ -221,17 +221,15 @@ struct roialign
         int64_t channels      = out_lens[1];
         int64_t pooled_height = out_lens[2];
         int64_t pooled_width  = out_lens[3];
-        auto x_lens           = args.at(0).get_shape().lens();
+        const auto& x_lens    = args.at(0).get_shape().lens();
         auto height           = x_lens[2];
         auto width            = x_lens[3];
         auto roi_s            = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
-            using type         = typename decltype(output)::value_type;
-            auto& arg_ind      = args.at(2);
-            auto batch_indices = make_view(arg_ind.get_shape(), arg_ind.data());
+            const auto* batch_indices = args.at(2).cast<int64_t>();
             par_for(n_rois, [&](auto n) {
-                const type* bottom_data  = x.data();
+                const auto* bottom_data  = x.data();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
                 float roi_start_w = static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale);
@@ -286,7 +284,7 @@ struct roialign
                     auto ph = idx[1];
                     auto pw = idx[2];
 
-                    const type* offset_bottom_data =
+                    const auto* offset_bottom_data =
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
                     vec_outputs[c] = (mode == "avg") ? this->calc_pooling(offset_bottom_data,

@@ -18,8 +18,7 @@ struct quant_dot_3args_1 : verify_program<quant_dot_3args_1>
         auto l1 = mm->add_parameter("a", m1_shape);
         auto l2 = mm->add_parameter("b", m2_shape);
         auto l3 = mm->add_parameter("c", m3_shape);
-        migraphx::add_apply_alpha_beta(
-            *mm, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 1);
+        migraphx::add_apply_alpha_beta(*mm, {l1, l2, l3}, migraphx::make_op("quant_dot"), 1, 1);
         return p;
     }
 };

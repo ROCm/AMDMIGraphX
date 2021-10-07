@@ -30,10 +30,10 @@ instruction_ref insert_apply_alpha_beta(module& m,
     {
         if(not float_equal(beta.at<float>(0), 0.0) && args[2]->get_shape().elements() > 0)
         {
-            auto out_lens   = op_res->get_shape().lens();
-            auto c          = args[2];
-            auto c_lens     = c->get_shape().lens();
-            input_type      = c->get_shape().type();
+            auto out_lens = op_res->get_shape().lens();
+            auto c        = args[2];
+            auto c_lens   = c->get_shape().lens();
+            input_type    = c->get_shape().type();
             if(out_lens != c_lens)
             {
                 c = m.insert_instruction(

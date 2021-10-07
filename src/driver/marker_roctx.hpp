@@ -40,19 +40,13 @@ class marker_roctx
         std::string text = "Marker start: " + ins->name();
         sym_roctx_range_push(text.c_str());
     }
-    void mark_stop(instruction_ref ins)
-    {
-        sym_roctx_range_pop();
-    }
+    void mark_stop(instruction_ref ins) { sym_roctx_range_pop(); }
     uint64_t mark_start(const program& p)
     {
         sym_roctx_mark("rocTX marker created.");
         return sym_roctx_range_start("0");
     }
-    void mark_stop(const program& p, uint64_t range_id)
-    {
-        sym_roctx_range_stop(range_id);
-    }
+    void mark_stop(const program& p, uint64_t range_id) { sym_roctx_range_stop(range_id); }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

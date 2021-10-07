@@ -51,20 +51,24 @@ struct rocblas_gemm
         check_shapes{in_shapes, *this}.not_broadcasted();
         batch_not_transposed(inputs[0].strides());
         batch_not_transposed(inputs[1].strides());
-        //if gemm and add are fused 
-        if(not float_equal(beta, 0)) {
+        // if gemm and add are fused
+        if(not float_equal(beta, 0))
+        {
             auto cmat_shape = in_shapes.back();
             in_shapes.pop_back();
             auto op_out_shape = op.compute_shape(in_shapes);
-            if(cmat_shape.lens() != op_out_shape.lens()) {
+            if(cmat_shape.lens() != op_out_shape.lens())
+            {
                 MIGRAPHX_THROW("gpu::gemm: dimension mismatch, operand C: {" +
-                            to_string_range(cmat_shape.lens()) +
-                            "}, cannot add to operand A * B: {" + to_string_range(op_out_shape.lens()) + "}");
-
+                               to_string_range(cmat_shape.lens()) +
+                               "}, cannot add to operand A * B: {" +
+                               to_string_range(op_out_shape.lens()) + "}");
             }
-            if(cmat_shape.type() != op_out_shape.type()) {
-                MIGRAPHX_THROW("gpu::gemm: operand C type mismatch, operand C is of type: " + to_string(cmat_shape.type())+ 
-                ", it must be: " + to_string(op_out_shape.type()));
+            if(cmat_shape.type() != op_out_shape.type())
+            {
+                MIGRAPHX_THROW("gpu::gemm: operand C type mismatch, operand C is of type: " +
+                               to_string(cmat_shape.type()) +
+                               ", it must be: " + to_string(op_out_shape.type()));
             }
         }
 

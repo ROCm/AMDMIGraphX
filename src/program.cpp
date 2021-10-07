@@ -512,15 +512,15 @@ void program::trace(std::ostream& os, parameter_map params, marker m)
     eval(params);
     ctx.finish();
     os << "rocTX:\tRunning markers..." << std::endl;
-    uint64_t range_id = m.mark_range_start(0); // Should be a global range ID.
+    auto range_id = m.mark_start(*this);
     generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;
-        m.mark_ins_start("Marker start: " + ins->name());
+        m.mark_start(ins);
         result = f();
-        m.mark_ins_finish();
+        m.mark_stop(ins);
         return result;
     }));
-    m.mark_range_finish(range_id);
+    m.mark_stop(*this, range_id);
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const

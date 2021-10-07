@@ -8,8 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -25,12 +25,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * struct marker
  * {
- *      std::size_t mark_range_start(std::size_t range_id) ;
- *      void mark_ins_start(std::string log) ;
- *      void mark_program_start() ;
- *      void mark_range_finish(std::size_t range_id) ;
- *      void mark_ins_finish() ;
- *      void mark_program_finish() ;
+ *      void mark_start(instruction_ref inst) ;
+ *      std::size_t mark_start(const program& prog) ;
+ *      void mark_stop(instruction_ref inst) ;
+ *      void mark_stop(const program& prog,std::size_t range_id) ;
  * };
  *
  */
@@ -98,40 +96,28 @@ struct marker
             return private_detail_te_get_handle().type();
     }
 
-    std::size_t mark_range_start(std::size_t range_id)
+    void mark_start(instruction_ref inst)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().mark_range_start(range_id);
+        (*this).private_detail_te_get_handle().mark_start(inst);
     }
 
-    void mark_ins_start(std::string log)
+    std::size_t mark_start(const program& prog)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark_ins_start(std::move(log));
+        return (*this).private_detail_te_get_handle().mark_start(prog);
     }
 
-    void mark_program_start()
+    void mark_stop(instruction_ref inst)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark_program_start();
+        (*this).private_detail_te_get_handle().mark_stop(inst);
     }
 
-    void mark_range_finish(std::size_t range_id)
+    void mark_stop(const program& prog, std::size_t range_id)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark_range_finish(range_id);
-    }
-
-    void mark_ins_finish()
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark_ins_finish();
-    }
-
-    void mark_program_finish()
-    {
-        assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().mark_program_finish();
+        (*this).private_detail_te_get_handle().mark_stop(prog, range_id);
     }
 
     friend bool is_shared(const marker& private_detail_x, const marker& private_detail_y)
@@ -147,12 +133,10 @@ struct marker
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::size_t mark_range_start(std::size_t range_id) = 0;
-        virtual void mark_ins_start(std::string log)               = 0;
-        virtual void mark_program_start()                          = 0;
-        virtual void mark_range_finish(std::size_t range_id)       = 0;
-        virtual void mark_ins_finish()                             = 0;
-        virtual void mark_program_finish()                         = 0;
+        virtual void mark_start(instruction_ref inst)                     = 0;
+        virtual std::size_t mark_start(const program& prog)               = 0;
+        virtual void mark_stop(instruction_ref inst)                      = 0;
+        virtual void mark_stop(const program& prog, std::size_t range_id) = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -183,29 +167,21 @@ struct marker
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        std::size_t mark_range_start(std::size_t range_id) override
+        void mark_start(instruction_ref inst) override { private_detail_te_value.mark_start(inst); }
+
+        std::size_t mark_start(const program& prog) override
         {
 
-            return private_detail_te_value.mark_range_start(range_id);
+            return private_detail_te_value.mark_start(prog);
         }
 
-        void mark_ins_start(std::string log) override
+        void mark_stop(instruction_ref inst) override { private_detail_te_value.mark_stop(inst); }
+
+        void mark_stop(const program& prog, std::size_t range_id) override
         {
 
-            private_detail_te_value.mark_ins_start(std::move(log));
+            private_detail_te_value.mark_stop(prog, range_id);
         }
-
-        void mark_program_start() override { private_detail_te_value.mark_program_start(); }
-
-        void mark_range_finish(std::size_t range_id) override
-        {
-
-            private_detail_te_value.mark_range_finish(range_id);
-        }
-
-        void mark_ins_finish() override { private_detail_te_value.mark_ins_finish(); }
-
-        void mark_program_finish() override { private_detail_te_value.mark_program_finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

@@ -31,26 +31,28 @@ class marker_roctx
 
         sym_roctx_range_push = lib.get_function<int(const char*)>("roctxRangePushA");
         sym_roctx_range_pop  = lib.get_function<int()>("roctxRangePop");
+
+        sym_roctx_mark("rocTX marker created.");
     }
 
-    uint64_t mark_range_start(uint64_t range_id)
+    void mark_start(instruction_ref ins)
     {
-        if(init)
-        {
-            sym_roctx_mark("rocTX marker created.");
-            init = true;
-        }
-        return sym_roctx_range_start(std::to_string(range_id).c_str());
+        std::string text = "Marker start: " + ins->name();
+        sym_roctx_range_push(text.c_str());
     }
-
-    void mark_range_finish(uint64_t range_id) { return sym_roctx_range_stop(range_id); }
-
-    void mark_ins_start(std::string start_log) { sym_roctx_range_push(start_log.c_str()); }
-
-    void mark_ins_finish() { sym_roctx_range_pop(); }
-
-    void mark_program_start() {}
-    void mark_program_finish() {}
+    void mark_stop(instruction_ref ins)
+    {
+        sym_roctx_range_pop();
+    }
+    uint64_t mark_start(const program& p)
+    {
+        sym_roctx_mark("rocTX marker created.");
+        return sym_roctx_range_start("0");
+    }
+    void mark_stop(const program& p, uint64_t range_id)
+    {
+        sym_roctx_range_stop(range_id);
+    }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

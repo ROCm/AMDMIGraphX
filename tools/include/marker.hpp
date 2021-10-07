@@ -8,8 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -22,12 +22,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 <%
 interface('marker',
-           virtual('mark_range_start', range_id='std::size_t', returns = 'std::size_t'),
-           virtual('mark_ins_start', log='std::string', returns = 'void'),
-           virtual('mark_program_start', returns = 'void'),
-           virtual('mark_range_finish', range_id='std::size_t', returns = 'void'),
-           virtual('mark_ins_finish', returns = 'void'),
-           virtual('mark_program_finish', returns = 'void'),
+           virtual('mark_start', inst = 'instruction_ref', returns = 'void'),
+           virtual('mark_start', prog = 'const program&', returns = 'std::size_t'),
+           virtual('mark_stop', inst = 'instruction_ref', returns = 'void'),
+           virtual('mark_stop', prog = 'const program&', range_id = 'std::size_t', returns = 'void')
         ) %>
 #endif
 

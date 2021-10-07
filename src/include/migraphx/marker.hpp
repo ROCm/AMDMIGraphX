@@ -9,10 +9,11 @@
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct program;
 
 #ifdef DOXYGEN
 

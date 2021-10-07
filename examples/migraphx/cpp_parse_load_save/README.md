@@ -25,8 +25,8 @@ migraphx::save(p, output_file);
 
 ```
 migraphx::program p = ... <migraphx::program>;
-migraphx_file_options options;
-options.format = "msgpack";
+migraphx::file_options options;
+options.set_file_format("msgpack");
 migraphx::save(p, output_file, options);
 ```
 
@@ -41,15 +41,15 @@ p = migraphx::load(input_file);
 
 ```
 migraphx::program p;
-migraphx_file_options options;
-options.format = "msgpack";
+migraphx::file_options options;
+options.set_file_format("msgpack");
 p = migraphx::load(input_file, options);
 ```
 To load a program that has been saved in JSON format:
 ```
 migraphx::program p;
-migraphx_file_options options;
-options.format = "json";
+migraphx::file_options options;
+options.set_file_format("json");
 p = migraphx::load(input_file, options);
 ```
 

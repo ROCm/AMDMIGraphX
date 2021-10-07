@@ -23,7 +23,7 @@ struct quant_dot
     std::string name() const { return "quant_dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type();
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().has(2);
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -55,18 +55,6 @@ struct quant_dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
-        {
-            MIGRAPHX_THROW("QUANT_DOT: dimension mismatch, operand C: {" +
-                           to_string_range(inputs.at(2).lens()) +
-                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
-        }
-
-        if(inputs.size() == 3 && inputs.at(2).type() != shape::int32_type)
-        {
-            MIGRAPHX_THROW("QUANT_DOT: operand C type must be int32");
-        }
-
         return {shape::int32_type, out_lens};
     }
 };

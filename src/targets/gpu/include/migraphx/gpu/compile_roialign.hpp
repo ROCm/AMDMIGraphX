@@ -9,7 +9,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-operation compile_roialign(context& ctx, const std::vector<shape>& inputs, const value& val);
+operation compile_roialign(context& ctx, const std::vector<shape>& io_shapes, const value& val);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -49,7 +49,7 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     assert(val.contains("mode"));
     auto mode           = val.at("mode").to<std::string>();
     bool is_avg_pooling = (mode == "avg");
-    options.params += " -DIS_AVG_POOLING=" + std::to_string(is_avg_pooling);
+    options.params += " -DIS_AVG_POOLING=" + std::to_string(static_cast<int>(is_avg_pooling));
 
     // coord_trans_mode
     assert(val.contains("coordinate_transformation_mode"));

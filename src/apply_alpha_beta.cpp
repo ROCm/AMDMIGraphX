@@ -25,13 +25,12 @@ instruction_ref insert_apply_alpha_beta(module& m,
             a = m.insert_instruction(pos, make_op("convert", {{"target_type", input_type}}), a);
         }
     }
-    auto dot_res = m.insert_instruction(pos, op, a, b);
+    auto op_res = m.insert_instruction(pos, op, a, b);
     if(args.size() == 3)
     {
         if(not float_equal(beta.at<float>(0), 0.0) && args[2]->get_shape().elements() > 0)
         {
-            auto out_lens   = a->get_shape().lens();
-            out_lens.back() = b->get_shape().lens().back();
+            auto out_lens   = op_res->get_shape().lens();
             auto c          = args[2];
             auto c_lens     = c->get_shape().lens();
             input_type      = c->get_shape().type();
@@ -47,10 +46,10 @@ instruction_ref insert_apply_alpha_beta(module& m,
                 beta_c = m.insert_instruction(
                     pos, migraphx::make_op("convert", {{"target_type", input_type}}), beta_c);
             }
-            return m.insert_instruction(pos, migraphx::make_op("add"), dot_res, beta_c);
+            return m.insert_instruction(pos, migraphx::make_op("add"), op_res, beta_c);
         }
     }
-    return dot_res;
+    return op_res;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -59,14 +59,14 @@ struct rocblas_gemm
             auto op_out_shape = op.compute_shape(in_shapes);
             if(cmat_shape.lens() != op_out_shape.lens())
             {
-                MIGRAPHX_THROW("gpu::gemm: dimension mismatch, operand C: {" +
+                MIGRAPHX_THROW(this->name() + " : dimension mismatch, operand C: {" +
                                to_string_range(cmat_shape.lens()) +
                                "}, cannot add to operand A * B: {" +
                                to_string_range(op_out_shape.lens()) + "}");
             }
             if(cmat_shape.type() != op_out_shape.type())
             {
-                MIGRAPHX_THROW("gpu::gemm: operand C type mismatch, operand C is of type: " +
+                MIGRAPHX_THROW(this->name() + " : operand C type mismatch, operand C is of type: " +
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }

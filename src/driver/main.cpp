@@ -500,7 +500,7 @@ struct mark : command<mark>
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         marker_roctx rtx;
-        p.mark(std::cout, m, rtx);
+        p.mark(m, rtx);
     }
 };
 

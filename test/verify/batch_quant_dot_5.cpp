@@ -21,7 +21,7 @@ struct batch_quant_dot_5 : verify_program<batch_quant_dot_5>
         auto tl2 = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l2);
         auto sl2 = mm->add_instruction(migraphx::make_op("add"), tl2, tl2);
-        mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}}), sl1, sl2);
+        mm->add_instruction(migraphx::make_op("quant_dot"), sl1, sl2);
         return p;
     }
 };

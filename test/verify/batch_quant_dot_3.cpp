@@ -15,7 +15,7 @@ struct batch_quant_dot_3 : verify_program<batch_quant_dot_3>
 
         auto l1 = mm->add_parameter("a", m1_shape);
         auto l2 = mm->add_parameter("b", m2_shape);
-        mm->add_instruction(migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 3}}), l1, l2);
+        mm->add_instruction(migraphx::make_op("quant_dot"), l1, l2);
         return p;
     }
 };

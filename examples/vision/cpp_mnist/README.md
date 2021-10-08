@@ -60,14 +60,14 @@ migraphx::quantize_int8(prog, targ, quant_opts);
 ## Compilation 
 Network graphs saved in e.g. ONNX or protobuf format are not target-specific. In order to run inference, we must compile the graph into a target-specific program. 
 
-Two options may be turned on (default for both is `false`) when compiling:
-- `bool offload_copy`: For targets with offloaded memory (such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
-- `bool fast_math`: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled. 
+Two options may be turned on when compiling:
+- `set_offload_copy(bool value)`: For targets with offloaded memory (such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory. Default value is `false` for offload_copy.
+- `set_fast_math(bool value)`: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled. Default value is `true` for fast_math. 
 
 The following snippet assumes `targ` has been set as "gpu", and will compile the program without the fast_math optimization.
 ```
-migraphx_compile_options comp_opts;
-comp_opts.offload_copy = true;
+migraphx::compile_options comp_opts;
+comp_opts.set_offload_copy();
 prog.compile(targ, comp_opts);
 ``` 
 

@@ -504,14 +504,13 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::trace(std::ostream& os, const parameter_map& params, marker m)
+void program::mark(std::ostream& os, const parameter_map& params, marker m)
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself
-    os << "rocTX:\tRunning once..." << std::endl;
     eval(params);
     ctx.finish();
-    os << "rocTX:\tRunning markers..." << std::endl;
+    // Start marking
     auto range_id = m.mark_start(*this);
     generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;

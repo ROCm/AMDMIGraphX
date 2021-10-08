@@ -10,8 +10,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 class marker_roctx
 {
-    private:
-    dynamic_loader lib;
     std::function<void(const char*)> sym_roctx_mark;
     std::function<uint64_t(const char*)> sym_roctx_range_start;
     std::function<void(uint64_t)> sym_roctx_range_stop;
@@ -20,9 +18,9 @@ class marker_roctx
     std::function<int()> sym_roctx_range_pop;
 
     public:
-    void initalize_roctx()
+    marker_roctx()
     {
-        lib                   = migraphx::dynamic_loader{"libroctx64.so"};
+        dynamic_loader lib    = migraphx::dynamic_loader{"libroctx64.so"};
         sym_roctx_mark        = lib.get_function<void(const char*)>("roctxMarkA");
         sym_roctx_range_start = lib.get_function<uint64_t(const char*)>("roctxRangeStartA");
         sym_roctx_range_stop  = lib.get_function<void(uint64_t)>("roctxRangeStop");
@@ -38,16 +36,13 @@ class marker_roctx
         std::string text = "Marker start: " + ins->name();
         sym_roctx_range_push(text.c_str());
     }
-    void mark_stop(instruction_ref ins __attribute__((unused))) { sym_roctx_range_pop(); }
-    uint64_t mark_start(const program& p __attribute__((unused)))
+    void mark_stop(instruction_ref) { sym_roctx_range_pop(); }
+    uint64_t mark_start(const program&)
     {
         sym_roctx_mark("rocTX marker created: ");
         return sym_roctx_range_start("0");
     }
-    void mark_stop(const program& p __attribute__((unused)), uint64_t range_id)
-    {
-        sym_roctx_range_stop(range_id);
-    }
+    void mark_stop(const program&, uint64_t range_id) { sym_roctx_range_stop(range_id); }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

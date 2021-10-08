@@ -165,6 +165,7 @@ struct miopen_apply
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
         add_extend_op("multinomial");
+        add_extend_op("nonzero");
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
@@ -181,16 +182,16 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
-        add_gemm_op<op::dot>("dot");
-        add_gemm_op<op::quant_dot>("quant_dot");
+        add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
-        add_quant_convolution_op();
-        add_batch_norm_inference_op();
-        add_neg_op();
-        add_nms_op();
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
         add_if_op();
         add_loop_op();
+        add_neg_op();
+        add_nms_op();
+        add_quant_convolution_op();
     }
 
     void copy_params()

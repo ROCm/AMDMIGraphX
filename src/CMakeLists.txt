@@ -131,6 +131,7 @@ register_migraphx_ops(
     multinomial
     neg
     nonmaxsuppression
+    nonzero
     outline
     pad
     pooling

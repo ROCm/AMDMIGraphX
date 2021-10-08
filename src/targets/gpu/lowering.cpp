@@ -304,17 +304,14 @@ struct miopen_apply
         });
     }
 
-    template <class Op>
-    void add_gemm_op(std::string name)
+    template <typename Op>
+    void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<Op>(ins->get_operator());
-            auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                beta        = 0;
                 refs.push_back(output);
             }
             else
@@ -333,9 +330,8 @@ struct miopen_apply
                     refs.push_back(refs.back());
                 }
             }
-
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
         });
     }
 

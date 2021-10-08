@@ -44,15 +44,15 @@ int main(int argc, char** argv)
         std::string format = load_arg;
         if(format == "json")
         {
-            migraphx_file_options options;
-            options.format = "json";
-            p              = migraphx::load(input_file, options);
+            migraphx::file_options options;
+            options.set_file_format("json");
+            p = migraphx::load(input_file, options);
         }
         else if(format == "msgpack")
         {
-            migraphx_file_options options;
-            options.format = "msgpack";
-            p              = migraphx::load(input_file, options);
+            migraphx::file_options options;
+            options.set_file_format("msgpack");
+            p = migraphx::load(input_file, options);
         }
         else
             p = migraphx::load(input_file);
@@ -80,8 +80,8 @@ int main(int argc, char** argv)
         output_file = save_arg == nullptr ? "out" : save_arg;
         output_file.append(".msgpack");
 
-        migraphx_file_options options;
-        options.format = "msgpack";
+        migraphx::file_options options;
+        options.set_file_format("msgpack");
         migraphx::save(p, output_file.c_str(), options);
         std::cout << "Program has been saved as ./" << output_file << std::endl;
     }

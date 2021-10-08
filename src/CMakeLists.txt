@@ -7,6 +7,7 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    apply_alpha_beta.cpp
     argument.cpp
     auto_contiguous.cpp
     common.cpp
@@ -14,7 +15,6 @@ add_library(migraphx
     convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
-    decompose.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -52,7 +52,6 @@ add_library(migraphx
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
-    remap.cpp
     simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp

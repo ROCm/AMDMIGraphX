@@ -2754,6 +2754,26 @@ TEST_CASE(neg_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(nonzero_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}};
+    std::vector<float> data = {
+        1.0f, 1.3f, 0.0f, -1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.2f, 0.0f, 0.5f};
+    auto input = mm->add_literal(migraphx::literal(s, data));
+    auto ret   = mm->add_instruction(migraphx::make_op("nonzero"), input);
+    mm->add_return({ret});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::cout << "result = " << result << std::endl;
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+                                 1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(not_test)
 {
     // int32

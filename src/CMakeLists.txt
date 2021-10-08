@@ -130,6 +130,7 @@ register_migraphx_ops(
     multibroadcast
     multinomial
     neg
+    nonzero
     outline
     pad
     pooling

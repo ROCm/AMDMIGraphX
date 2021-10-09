@@ -132,7 +132,7 @@ struct mlir_program
         return mlirRankedTensorTypeGet(lens.size(), lens.data(), make_type(s.type()));
     }
 
-    template<class Range>
+    template <class Range>
     std::vector<MlirType> make_tensors(const Range& r)
     {
         std::vector<MlirType> result;
@@ -144,7 +144,7 @@ struct mlir_program
 
     MlirType make_function_type(const std::vector<shape>& inputs, const std::vector<shape>& outputs)
     {
-        auto in = make_tensors(inputs);
+        auto in  = make_tensors(inputs);
         auto out = make_tensors(outputs);
         return mlirFunctionTypeGet(ctx.get(), in.size(), in.data(), out.size(), out.data());
     }
@@ -212,12 +212,9 @@ struct mlir_program
         }
     }
 
-    MlirAttribute attribute(MlirType t) const
-    {
-        return mlirTypeAttrGet(t);
-    }
+    MlirAttribute attribute(MlirType t) const { return mlirTypeAttrGet(t); }
 
-    template<class T>
+    template <class T>
     MlirNamedAttribute name_attribute(const std::string_view& key, const T& x) const
     {
         MlirNamedAttribute attr;
@@ -225,7 +222,6 @@ struct mlir_program
         attr.attribute = attribute(x);
         return attr;
     }
-
 
     mlir_context ctx;
 };

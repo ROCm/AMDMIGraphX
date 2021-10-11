@@ -24,7 +24,6 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/dynamic_loader.hpp>
 
 #include <fstream>
 

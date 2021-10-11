@@ -33,8 +33,6 @@ rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
 set(MIGRAPHX_ENABLE_ZENDNN Off CACHE BOOL "")
 
-find_package(Threads)
-
 if(MIGRAPHX_ENABLE_ZENDNN)
     find_path(ZENDNN_INC_PATH zendnn.hpp)
     find_library(ZENDNN_LIB amdZenDNN)
@@ -53,7 +51,7 @@ if(MIGRAPHX_ENABLE_ZENDNN)
 else()
     target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
 endif()
-target_link_libraries(migraphx_cpu PRIVATE migraphx Threads::Threads)
+target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
 find_package(OpenMP)
 target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)

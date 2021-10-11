@@ -27,7 +27,6 @@
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/marker.hpp>
 
-#include <variant>
 #include <fstream>
 
 namespace migraphx {

@@ -3,6 +3,8 @@
 
 #include <migraphx/marker.hpp>
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -31,18 +33,18 @@ class marker_roctx
         sym_roctx_mark("rocTX marker created.");
     }
 
-    void mark_start(instruction_ref ins)
+    void mark_start(instruction_ref ins_ref) const
     {
-        std::string text = "Marker start: " + ins->name();
+        std::string text = "Marker start: " + ins_ref->name();
         sym_roctx_range_push(text.c_str());
     }
-    void mark_stop(instruction_ref) { sym_roctx_range_pop(); }
-    uint64_t mark_start(const program&)
+    void mark_stop(instruction_ref) const { sym_roctx_range_pop(); }
+    uint64_t mark_start(const program&) const
     {
         sym_roctx_mark("rocTX marker created: ");
         return sym_roctx_range_start("0");
     }
-    void mark_stop(const program&, uint64_t range_id) { sym_roctx_range_stop(range_id); }
+    void mark_stop(const program&) const { sym_roctx_range_stop(0); }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

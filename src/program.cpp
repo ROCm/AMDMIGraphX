@@ -13,6 +13,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/marker.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -504,14 +505,14 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::mark(const parameter_map& params, marker m)
+void program::mark(const parameter_map& params, const marker& m)
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself
     eval(params);
     ctx.finish();
     // Start marking
-    auto range_id = m.mark_start(*this);
+    m.mark_start(*this);
     generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
         argument result;
         m.mark_start(ins);
@@ -519,7 +520,7 @@ void program::mark(const parameter_map& params, marker m)
         m.mark_stop(ins);
         return result;
     }));
-    m.mark_stop(*this, range_id);
+    m.mark_stop(*this);
 }
 
 void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const

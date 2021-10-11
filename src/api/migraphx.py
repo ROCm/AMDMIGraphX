@@ -212,7 +212,7 @@ def program(h):
 @auto_handle()
 def operation(h):
     h.constructor('create',
-                  api.params(name='const char*', attributes='const char*'),
+                  api.params(name='const char*', attributes='const char*', vlist='...'),
                   fname='migraphx::create_op')
     h.method('name', returns='std::string')
 

@@ -155,12 +155,15 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
-operation create_op(const char* name, const char* attributes)
+operation create_op(const char* name, const char* attributes, va_list vlist)
 {
+    std::string sattributes = attributes ? attributes : "";
+    std::vector<char> buffer(sattributes.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), sattributes.c_str(), vlist);
     value v = value::object{};
     if(attributes != nullptr)
     {
-        v = from_json_string(convert_to_json(std::string(attributes)));
+        v = from_json_string(convert_to_json(std::string(buffer.data())));
     }
     auto op = make_op(name, v);
 

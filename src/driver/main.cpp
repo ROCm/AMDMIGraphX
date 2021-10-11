@@ -484,7 +484,7 @@ struct perf : command<perf>
     }
 };
 
-struct mark : command<mark>
+struct roctx : command<roctx>
 {
     compiler c;
     void parse(argument_parser& ap) { c.parse(ap); }
@@ -497,7 +497,7 @@ struct mark : command<mark>
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         auto rtx = create_marker_roctx();
-        p.mark(m, std::move(rtx));
+        p.roctx(m, std::move(rtx));
     }
 };
 

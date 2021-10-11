@@ -10,7 +10,6 @@ namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
 marker create_marker_roctx();
- 
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

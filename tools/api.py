@@ -130,7 +130,10 @@ class CFunction:
 
     def add_vlist(self, name):
         last_param = self.params[-1].split()[-1]
-        self.va_start = ['va_list {};'.format(name), 'va_start({}, {});'.format(name, last_param)]
+        self.va_start = [
+            'va_list {};'.format(name),
+            'va_start({}, {});'.format(name, last_param)
+        ]
         self.va_end = ['va_end({});'.format(name)]
         self.add_param('...', '')
 

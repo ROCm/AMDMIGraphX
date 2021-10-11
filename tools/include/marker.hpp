@@ -22,10 +22,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 <%
 interface('marker',
-           virtual('mark_start', ins_ref = 'instruction_ref', const = True, returns = 'void'),
-           virtual('mark_start', prog = 'const program&', const = True, returns = 'uint64_t'),
-           virtual('mark_stop', ins = 'instruction_ref', const = True, returns = 'void'),
-           virtual('mark_stop', prog = 'const program&', const = True, returns = 'void')
+           virtual('mark_start', ins_ref = 'instruction_ref', returns = 'void'),
+           virtual('mark_start', prog = 'const program&', returns = 'void'),
+           virtual('mark_stop', ins = 'instruction_ref', returns = 'void'),
+           virtual('mark_stop', prog = 'const program&', returns = 'void')
         ) %>
 #endif
 

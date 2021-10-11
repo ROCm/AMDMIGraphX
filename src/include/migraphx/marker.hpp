@@ -25,10 +25,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  *
  * struct marker
  * {
- *      void mark_start(instruction_ref ins_ref) const;
- *      uint64_t mark_start(const program& prog) const;
- *      void mark_stop(instruction_ref ins) const;
- *      void mark_stop(const program& prog) const;
+ *      void mark_start(instruction_ref ins_ref) ;
+ *      void mark_start(const program& prog) ;
+ *      void mark_stop(instruction_ref ins) ;
+ *      void mark_stop(const program& prog) ;
  * };
  *
  */
@@ -96,25 +96,25 @@ struct marker
             return private_detail_te_get_handle().type();
     }
 
-    void mark_start(instruction_ref ins_ref) const
+    void mark_start(instruction_ref ins_ref)
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().mark_start(ins_ref);
     }
 
-    uint64_t mark_start(const program& prog) const
+    void mark_start(const program& prog)
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().mark_start(prog);
+        (*this).private_detail_te_get_handle().mark_start(prog);
     }
 
-    void mark_stop(instruction_ref ins) const
+    void mark_stop(instruction_ref ins)
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().mark_stop(ins);
     }
 
-    void mark_stop(const program& prog) const
+    void mark_stop(const program& prog)
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().mark_stop(prog);
@@ -133,10 +133,10 @@ struct marker
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual void mark_start(instruction_ref ins_ref) const = 0;
-        virtual uint64_t mark_start(const program& prog) const = 0;
-        virtual void mark_stop(instruction_ref ins) const      = 0;
-        virtual void mark_stop(const program& prog) const      = 0;
+        virtual void mark_start(instruction_ref ins_ref) = 0;
+        virtual void mark_start(const program& prog)     = 0;
+        virtual void mark_stop(instruction_ref ins)      = 0;
+        virtual void mark_stop(const program& prog)      = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -167,29 +167,17 @@ struct marker
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
-        void mark_start(instruction_ref ins_ref) const override
+        void mark_start(instruction_ref ins_ref) override
         {
 
             private_detail_te_value.mark_start(ins_ref);
         }
 
-        uint64_t mark_start(const program& prog) const override
-        {
+        void mark_start(const program& prog) override { private_detail_te_value.mark_start(prog); }
 
-            return private_detail_te_value.mark_start(prog);
-        }
+        void mark_stop(instruction_ref ins) override { private_detail_te_value.mark_stop(ins); }
 
-        void mark_stop(instruction_ref ins) const override
-        {
-
-            private_detail_te_value.mark_stop(ins);
-        }
-
-        void mark_stop(const program& prog) const override
-        {
-
-            private_detail_te_value.mark_stop(prog);
-        }
+        void mark_stop(const program& prog) override { private_detail_te_value.mark_stop(prog); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

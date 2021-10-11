@@ -25,7 +25,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/dynamic_loader.hpp>
-#include <migraphx/marker.hpp>
 
 #include <fstream>
 
@@ -498,8 +497,8 @@ struct mark : command<mark>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
-        marker_roctx rtx;
-        p.mark(m, rtx);
+        auto rtx = create_marker_roctx();
+        p.mark(m, std::move(rtx));
     }
 };
 

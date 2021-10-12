@@ -2,8 +2,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_MARKER_ROCTX_HPP
 
 #include <migraphx/marker.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 namespace driver {

@@ -1,6 +1,8 @@
 #include "marker_roctx.hpp"
 
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 namespace driver {

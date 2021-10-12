@@ -1,6 +1,6 @@
 pfultz2/rocm-recipes
 facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 ccache@v4.1
-danmar/cppcheck@4a8a78a9258fd56bc21e55b5b49a0f09bc8fa750 -DHAVE_RULES=1
+danmar/cppcheck@2.6 -DHAVE_RULES=1
 RadeonOpenCompute/rocm-cmake@ececd2eccae4d01e7ec154efe90ac43ebf4df317 --build
 -f requirements.txt

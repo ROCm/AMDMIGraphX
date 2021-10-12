@@ -155,6 +155,11 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
 operation create_op(const char* name, const char* attributes, va_list vlist)
 {
     std::string sattributes = attributes ? attributes : "";
@@ -169,6 +174,10 @@ operation create_op(const char* name, const char* attributes, va_list vlist)
 
     return op;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 template <class T>
 bool equal(const T& x, const T& y)

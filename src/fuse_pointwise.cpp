@@ -11,7 +11,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-literal get_scalar(instruction_ref ins)
+static literal get_scalar(instruction_ref ins)
 {
     const auto& s = ins->get_shape();
     if(not(s.elements() == 1 or s.scalar()))
@@ -24,7 +24,7 @@ literal get_scalar(instruction_ref ins)
     return r;
 }
 
-void create_pointwise_modules(module_pass_manager& mpm)
+static void create_pointwise_modules(module_pass_manager& mpm)
 {
     std::size_t n = 0;
     for(auto ins : iterator_for(mpm.get_module()))
@@ -65,15 +65,7 @@ void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-instruction_ref get_return(module_ref m)
-{
-    auto last = std::prev(m->end());
-    if(last->name() == "@return")
-        return last->inputs().front();
-    return last;
-}
-
-std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instruction_ref output)
+static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
     module_ref pm = ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
@@ -119,7 +111,7 @@ std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instru
     return inputs;
 }
 
-void find_pointwise_modules(module& m)
+static void find_pointwise_modules(module& m)
 {
     for(auto ins : iterator_for(m))
     {

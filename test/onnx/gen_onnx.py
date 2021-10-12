@@ -1062,6 +1062,34 @@ def depthtospace_crd_test():
 
 
 @onnx_test
+def spacetodepth_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 10, 10])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 8, 5, 5])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def spacetodepth_simple_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 3])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def dequantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])

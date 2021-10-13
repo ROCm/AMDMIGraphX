@@ -497,7 +497,7 @@ struct roctx : command<roctx>
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         auto rtx = create_marker_roctx();
-        p.roctx(m, std::move(rtx));
+        p.mark(m, std::move(rtx));
     }
 };
 

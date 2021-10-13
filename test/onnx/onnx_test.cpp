@@ -995,12 +995,13 @@ TEST_CASE(spacetodepth_simple_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(spacetodepth_invalid_blocksize) {
+TEST_CASE(spacetodepth_invalid_blocksize)
+{
     EXPECT(test::throws([&] { migraphx::parse_onnx("spacetodepth_invalid_blocksize_test.onnx"); }));
-
 }
 
-TEST_CASE(spacetodepth_nondivisibility_test) {
+TEST_CASE(spacetodepth_nondivisibility_test)
+{
     EXPECT(test::throws([&] { migraphx::parse_onnx("spacetodepth_nondivisibility_test.onnx"); }));
 }
 

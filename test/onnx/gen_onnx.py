@@ -1088,6 +1088,7 @@ def spacetodepth_simple_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def spacetodepth_invalid_blocksize_test():
 
@@ -1101,6 +1102,7 @@ def spacetodepth_invalid_blocksize_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test
 def spacetodepth_nondivisibility_test():
 
@@ -1113,6 +1115,7 @@ def spacetodepth_nondivisibility_test():
                                  blocksize=2)
 
     return ([node], [x], [y])
+
 
 @onnx_test
 def dequantizelinear_test():

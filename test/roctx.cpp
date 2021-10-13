@@ -49,7 +49,7 @@ TEST_CASE(roctx)
     std::string output = temp_marker.ss->str();
     EXPECT(migraphx::contains(output, "Mock marker instruction start:@literal"));
     EXPECT(migraphx::contains(output, "Mock marker instruction start:ref::op"));
-    EXPECT(migraphx::contains(output, "Mock marker instruction stop."));    
+    EXPECT(migraphx::contains(output, "Mock marker instruction stop."));
     EXPECT(migraphx::contains(output, "Mock marker program start."));
     EXPECT(migraphx::contains(output, "Mock marker program stop."));
 }

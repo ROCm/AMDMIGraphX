@@ -41,7 +41,6 @@ class marker_roctx
     void mark_stop(instruction_ref) { sym_roctx_range_pop(); }
     void mark_start(const program&)
     {
-        sym_roctx_mark("rocTX marker created: ");
         range_id = sym_roctx_range_start("0");
     }
     void mark_stop(const program&) { sym_roctx_range_stop(range_id); }

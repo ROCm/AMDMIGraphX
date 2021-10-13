@@ -15,25 +15,23 @@ struct mock_marker
     {
         std::string text = "Mock marker instruction start:" + ins_ref->name();
         (*ss) << text;
-        
     }
     void mark_stop(migraphx::instruction_ref)
-    { 
+    {
         std::string text = "Mock marker instruction stop.";
         (*ss) << text;
     }
     void mark_start(const migraphx::program&)
     {
         std::string text = "Mock marker program start.";
-        (*ss) << text; 
+        (*ss) << text;
     }
     void mark_stop(const migraphx::program&)
-    { 
+    {
         std::string text = "Mock marker program stop.";
-        (*ss) << text;    
+        (*ss) << text;
     }
 };
-
 
 TEST_CASE(roctx)
 {
@@ -44,7 +42,7 @@ TEST_CASE(roctx)
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     p.compile(migraphx::ref::target{});
-    
+
     mock_marker temp_marker;
     p.roctx({}, temp_marker);
 
@@ -53,7 +51,6 @@ TEST_CASE(roctx)
     EXPECT(migraphx::contains(output, "Mock marker instruction stop."));
     EXPECT(migraphx::contains(output, "Mock marker program start."));
     EXPECT(migraphx::contains(output, "Mock marker program stop."));
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

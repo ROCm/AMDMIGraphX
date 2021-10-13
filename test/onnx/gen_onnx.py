@@ -1064,10 +1064,10 @@ def depthtospace_crd_test():
 @onnx_test
 def spacetodepth_test():
 
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 10, 10])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 8, 5, 5])
+    x = helper.make_tensor_value_info('x', tensorproto.float, [2, 2, 10, 10])
+    y = helper.make_tensor_value_info('y', tensorproto.float, [2, 8, 5, 5])
 
-    node = onnx.helper.make_node('SpaceToDepth',
+    node = onnx.helper.make_node('spacetodepth',
                                  inputs=['x'],
                                  outputs=['y'],
                                  blocksize=2)
@@ -1088,6 +1088,31 @@ def spacetodepth_simple_test():
 
     return ([node], [x], [y])
 
+@onnx_test
+def spacetodepth_invalid_blocksize_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 3])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=0.3)
+
+    return ([node], [x], [y])
+
+@onnx_test
+def spacetodepth_nondivisibility_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 2])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
 
 @onnx_test
 def dequantizelinear_test():

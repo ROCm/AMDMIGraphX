@@ -29,28 +29,28 @@ struct parse_spacetodepth : op_parser<parse_spacetodepth>
             MIGRAPHX_THROW("SpaceToDepth: blocksize is less than 1");
         }
         // calculate dimensions
-        auto res_shape = s.lens(); // {N, C, H, W}
-        if(((res_shape[2] % blocksize) == 0) and ((res_shape[3] % blocksize) == 0))
+        auto res_lens = s.lens(); // {N, C, H, W}
+        if(((res_lens[2] % blocksize) == 0) and ((res_lens[3] % blocksize) == 0))
         {
             // Co = C * (blocksize ^ 2)
-            res_shape[1] = res_shape[1] * blocksize * blocksize;
+            res_lens[1] = res_lens[1] * blocksize * blocksize;
             // Ho = (H / blocksize)
-            res_shape[2] = res_shape[2] / blocksize;
+            res_lens[2] = res_lens[2] / blocksize;
             // Wo = (W / blocksize)
-            res_shape[3] = res_shape[3] / blocksize;
+            res_lens[3] = res_lens[3] / blocksize;
         } // res_shape = (N, Co, Ho, Wo)
         else
             MIGRAPHX_THROW("SpaceToDepth: div by blocksize quotient not int ");
 
-        auto trans_shape = s.lens(); // {N, C, H, W}
-        trans_shape[2]   = res_shape[2];
-        trans_shape[3]   = blocksize;
-        trans_shape.push_back(res_shape[3]);
-        trans_shape.push_back(blocksize); // {N, C, Ho, blocksize, Wo, blocksize}
+        auto trans_lens = s.lens(); // {N, C, H, W}
+        trans_lens[2]   = res_lens[2];
+        trans_lens[3]   = blocksize;
+        trans_lens.push_back(res_lens[3]);
+        trans_lens.push_back(blocksize); // {N, C, Ho, blocksize, Wo, blocksize}
         std::vector<int64_t> perm = {0, 3, 5, 1, 2, 4};
-        auto temp1 = info.add_instruction(make_op("reshape", {{"dims", trans_shape}}), args[0]);
+        auto temp1 = info.add_instruction(make_op("reshape", {{"dims", trans_lens}}), args[0]);
         auto temp2 = info.add_instruction(make_op("transpose", {{"permutation", perm}}), temp1);
-        return info.add_instruction(make_op("reshape", {{"dims", res_shape}}),
+        return info.add_instruction(make_op("reshape", {{"dims", res_lens}}),
                                     info.make_contiguous(temp2));
     }
 };

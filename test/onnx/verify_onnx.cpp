@@ -99,7 +99,7 @@ TEST_CASE(spacetodepth_depthtospace_test)
     p2.compile(migraphx::ref::target{});
     migraphx::shape s_x_2{migraphx::shape::float_type, {1, 8, 2, 3}};
     migraphx::parameter_map pp2;
-    pp2["x"]     = migraphx::argument(s_x_2, result_vector1.data());
+    pp2["x"]     = result1;
     auto result2 = p2.eval(pp2).back();
     std::vector<float> result_vector2;
     result2.visit([&](auto output) { result_vector2.assign(output.begin(), output.end()); });

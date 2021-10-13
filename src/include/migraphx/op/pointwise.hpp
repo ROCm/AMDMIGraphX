@@ -59,7 +59,7 @@ struct pointwise
             std::transform(
                 pnames.begin(),
                 pnames.end(),
-                args.begin() + 1,
+                args.begin(),
                 std::inserter(params, params.end()),
                 [&](auto&& name, auto&& arg) { return std::make_pair(name, arg.element(i)); });
 

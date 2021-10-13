@@ -65,7 +65,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins, instruction_ref output)
+static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
+                                                            instruction_ref output)
 {
     module_ref pm = ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);

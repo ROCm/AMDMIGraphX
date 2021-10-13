@@ -39,10 +39,7 @@ class marker_roctx
         sym_roctx_range_push(text.c_str());
     }
     void mark_stop(instruction_ref) { sym_roctx_range_pop(); }
-    void mark_start(const program&)
-    {
-        range_id = sym_roctx_range_start("0");
-    }
+    void mark_start(const program&) { range_id = sym_roctx_range_start("0"); }
     void mark_stop(const program&) { sym_roctx_range_stop(range_id); }
 };
 

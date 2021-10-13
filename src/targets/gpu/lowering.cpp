@@ -165,6 +165,7 @@ struct miopen_apply
         add_extend_op("logsoftmax");
         add_extend_op("lrn");
         add_extend_op("multinomial");
+        add_extend_op("nonzero");
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
@@ -181,15 +182,15 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
-        add_gemm_op<op::dot>("dot");
-        add_gemm_op<op::quant_dot>("quant_dot");
+        add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
-        add_quant_convolution_op();
-        add_batch_norm_inference_op();
-        add_neg_op();
+        add_gemm_op<op::dot>("dot");
+        add_gemm_op<op::quant_dot>("quant_dot");
         add_if_op();
         add_loop_op();
+        add_neg_op();
+        add_quant_convolution_op();
     }
 
     void copy_params()
@@ -304,17 +305,14 @@ struct miopen_apply
         });
     }
 
-    template <class Op>
-    void add_gemm_op(std::string name)
+    template <typename Op>
+    void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            auto&& op                         = any_cast<Op>(ins->get_operator());
-            auto beta                         = op.beta;
             std::vector<instruction_ref> refs = ins->inputs();
             if(refs.size() == 2)
             {
                 auto output = insert_allocation(ins, ins->get_shape());
-                beta        = 0;
                 refs.push_back(output);
             }
             else
@@ -333,9 +331,8 @@ struct miopen_apply
                     refs.push_back(refs.back());
                 }
             }
-
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{op.alpha, beta}, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
         });
     }
 

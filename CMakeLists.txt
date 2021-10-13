@@ -190,6 +190,7 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp

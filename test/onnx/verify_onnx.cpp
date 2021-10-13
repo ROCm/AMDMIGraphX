@@ -92,12 +92,9 @@ TEST_CASE(spacetodepth_depthtospace_test)
     migraphx::parameter_map pp1;
     pp1["x"]     = migraphx::argument(s_x_1, data_in.data());
     auto result1 = p1.eval(pp1).back();
-    std::vector<float> result_vector1;
-    result1.visit([&](auto output) { result_vector1.assign(output.begin(), output.end()); });
     // depth to space
     auto p2 = migraphx::parse_onnx("depthtospace_simple_test.onnx");
     p2.compile(migraphx::ref::target{});
-    migraphx::shape s_x_2{migraphx::shape::float_type, {1, 8, 2, 3}};
     migraphx::parameter_map pp2;
     pp2["x"]     = result1;
     auto result2 = p2.eval(pp2).back();

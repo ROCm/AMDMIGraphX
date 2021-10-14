@@ -84,12 +84,12 @@ struct roialign
                          const std::array<float, 2>& roi_start,
                          const std::array<float, 2>& bin_size,
                          const std::array<int64_t, 2>& bin_grid_size
-                        //  float roi_start_h,
-                        //  float roi_start_w,
-                        //  float bin_size_h,
-                        //  float bin_size_w,
-                        //  int64_t roi_bin_grid_h,
-                        //  int64_t roi_bin_grid_w
+                         //  float roi_start_h,
+                         //  float roi_start_w,
+                         //  float bin_size_h,
+                         //  float bin_size_w,
+                         //  int64_t roi_bin_grid_h,
+                         //  int64_t roi_bin_grid_w
                          ) const
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
@@ -176,8 +176,8 @@ struct roialign
     template <class T, class Op>
     std::tuple<double, int64_t> calc_pooling(const T& data,
                                              const std::array<int64_t, 2>& bin_grid_size,
-                                            //  int64_t roi_bin_grid_h,
-                                            //  int64_t roi_bin_grid_w,
+                                             //  int64_t roi_bin_grid_h,
+                                             //  int64_t roi_bin_grid_w,
                                              const std::vector<pos_weight>& pos_weights,
                                              int64_t index,
                                              Op op) const

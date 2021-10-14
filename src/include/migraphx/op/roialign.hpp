@@ -168,12 +168,11 @@ struct roialign
     };
 
     template <class T, class Op>
-    // std::tuple<double, int64_t> calc_pooling(const T& data,
-    double calc_pooling(const T& data,
+    std::tuple<double, int64_t> calc_pooling(const T& data,
                         int64_t roi_bin_grid_h,
                         int64_t roi_bin_grid_w,
                         const std::vector<pos_weight>& pos_weights,
-                        int64_t& index,
+                        int64_t index,
                         Op op) const
     {
         double output_val   = op.init();
@@ -191,7 +190,7 @@ struct roialign
 
         output_val = op.final(output_val, count);
 
-        return output_val;
+        return {output_val, index};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
@@ -251,7 +250,6 @@ struct roialign
                 std::vector<int64_t> comp_lens1 = {channels, pooled_height, pooled_width};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
-                std::pair<double, int64_t> pooling_inouts = {0.0, 0};
                 shape_for_each(comp_s1, [&](auto idx) {
                     auto c  = idx[0];
                     auto ph = idx[1];
@@ -260,21 +258,19 @@ struct roialign
                     const auto offset_bottom_data =
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
-                    // double output_val;
-                    double output_val = (mode == "avg")
+                    double output_val;
+                    std::tie(output_val, vec_index[c]) = (mode == "avg")
                                             ? this->calc_pooling(offset_bottom_data,
                                                                  roi_bin_grid_h,
                                                                  roi_bin_grid_w,
                                                                  pre_calc,
                                                                  vec_index[c],
-                                                                 //   pooling_inouts.second,
                                                                  avg_pool{})
                                             : this->calc_pooling(offset_bottom_data,
                                                                  roi_bin_grid_h,
                                                                  roi_bin_grid_w,
                                                                  pre_calc,
                                                                  vec_index[c],
-                                                                 //   pooling_inouts.second,
                                                                  max_pool{});
                     auto out_idx                        = output_shape.lens();
                     out_idx[0]                          = n;

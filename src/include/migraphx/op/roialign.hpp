@@ -90,7 +90,7 @@ struct roialign
         shape_for_each(comp_s, [&](auto idx) {
             std::array<std::size_t, 2> p = {idx[0], idx[1]};
             std::array<std::size_t, 2> i = {idx[2], idx[3]};
-            auto index = comp_s.index(idx);
+            auto index                   = comp_s.index(idx);
             const float yy =
                 roi_start[0] + p[0] * bin_size[0] + (i[0] + .5f) * bin_size[0] / bin_grid_size[0];
             const float xx =

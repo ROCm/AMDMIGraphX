@@ -33,7 +33,7 @@ struct mock_marker
     }
 };
 
-TEST_CASE(roctx)
+TEST_CASE(marker)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

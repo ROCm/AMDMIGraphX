@@ -146,8 +146,7 @@ struct roialign
 
         double operator()(double x, double y)
         {
-            double m = std::max(x, y);
-            return (m);
+            return std::max(x, y);
         }
 
         double final(double x, std::size_t) { return (x); }

@@ -144,10 +144,7 @@ struct roialign
     {
         double init() { return std::numeric_limits<double>::lowest(); }
 
-        double operator()(double x, double y)
-        {
-            return std::max(x, y);
-        }
+        double operator()(double x, double y) { return std::max(x, y); }
 
         double final(double x, std::size_t) { return (x); }
     };

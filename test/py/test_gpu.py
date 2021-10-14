@@ -53,6 +53,22 @@ def test_neg_int64():
     print(r)
 
 
+def test_nonzero():
+    p = migraphx.parse_onnx("nonzero_dynamic_test.onnx")
+    print(p)
+    print("Compiling ...")
+    p.compile(migraphx.get_target("gpu"))
+    print(p)
+    params = {}
+
+    shapes = p.get_parameter_shapes()
+    params["data"] = np.array([1, 1, 0, 1]).reshape(
+        shapes["data"].lens()).astype(np.bool)
+
+    r = p.run(params)
+    print(r)
+
+
 def test_fp16_imagescaler():
     p = migraphx.parse_onnx("imagescaler_half_test.onnx")
     print(p)
@@ -98,3 +114,4 @@ test_sub_uint64()
 test_neg_int64()
 test_fp16_imagescaler()
 test_if_pl()
+test_nonzero()

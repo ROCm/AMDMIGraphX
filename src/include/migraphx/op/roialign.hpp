@@ -83,24 +83,13 @@ struct roialign
                          const shape& comp_s,
                          const std::array<float, 2>& roi_start,
                          const std::array<float, 2>& bin_size,
-                         const std::array<int64_t, 2>& bin_grid_size
-                         //  float roi_start_h,
-                         //  float roi_start_w,
-                         //  float bin_size_h,
-                         //  float bin_size_w,
-                         //  int64_t roi_bin_grid_h,
-                         //  int64_t roi_bin_grid_w
-                         ) const
+                         const std::array<int64_t, 2>& bin_grid_size) const
     {
         std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
         shape_for_each(comp_s, [&](auto idx) {
             std::array<std::size_t, 2> p = {idx[0], idx[1]};
             std::array<std::size_t, 2> i = {idx[2], idx[3]};
-            // auto ph    = idx[0];
-            // auto pw    = idx[1];
-            // auto iy    = idx[2];
-            // auto ix    = idx[3];
             auto index = comp_s.index(idx);
             const float yy =
                 roi_start[0] + p[0] * bin_size[0] + (i[0] + .5f) * bin_size[0] / bin_grid_size[0];
@@ -176,8 +165,6 @@ struct roialign
     template <class T, class Op>
     std::tuple<double, int64_t> calc_pooling(const T& data,
                                              const std::array<int64_t, 2>& bin_grid_size,
-                                             //  int64_t roi_bin_grid_h,
-                                             //  int64_t roi_bin_grid_w,
                                              const std::vector<pos_weight>& pos_weights,
                                              int64_t index,
                                              Op op) const
@@ -274,11 +261,6 @@ struct roialign
                                                              pre_calc,
                                                              vec_index[c],
                                                              max_pool{});
-                    // auto out_idx                        = output_shape.lens();
-                    // out_idx[0]                          = n;
-                    // out_idx[1]                          = c;
-                    // out_idx[2]                          = ph;
-                    // out_idx[3]                          = pw;
                     output[output_shape.index({n, c, ph, pw})] = output_val;
                 });
 

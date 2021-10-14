@@ -169,11 +169,11 @@ struct roialign
 
     template <class T, class Op>
     std::tuple<double, int64_t> calc_pooling(const T& data,
-                        int64_t roi_bin_grid_h,
-                        int64_t roi_bin_grid_w,
-                        const std::vector<pos_weight>& pos_weights,
-                        int64_t index,
-                        Op op) const
+                                             int64_t roi_bin_grid_h,
+                                             int64_t roi_bin_grid_w,
+                                             const std::vector<pos_weight>& pos_weights,
+                                             int64_t index,
+                                             Op op) const
     {
         double output_val   = op.init();
         const int64_t count = roi_bin_grid_h * roi_bin_grid_w;
@@ -259,19 +259,19 @@ struct roialign
                         bottom_data +
                         static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
                     double output_val;
-                    std::tie(output_val, vec_index[c]) = (mode == "avg")
-                                            ? this->calc_pooling(offset_bottom_data,
-                                                                 roi_bin_grid_h,
-                                                                 roi_bin_grid_w,
-                                                                 pre_calc,
-                                                                 vec_index[c],
-                                                                 avg_pool{})
-                                            : this->calc_pooling(offset_bottom_data,
-                                                                 roi_bin_grid_h,
-                                                                 roi_bin_grid_w,
-                                                                 pre_calc,
-                                                                 vec_index[c],
-                                                                 max_pool{});
+                    std::tie(output_val, vec_index[c]) =
+                        (mode == "avg") ? this->calc_pooling(offset_bottom_data,
+                                                             roi_bin_grid_h,
+                                                             roi_bin_grid_w,
+                                                             pre_calc,
+                                                             vec_index[c],
+                                                             avg_pool{})
+                                        : this->calc_pooling(offset_bottom_data,
+                                                             roi_bin_grid_h,
+                                                             roi_bin_grid_w,
+                                                             pre_calc,
+                                                             vec_index[c],
+                                                             max_pool{});
                     auto out_idx                        = output_shape.lens();
                     out_idx[0]                          = n;
                     out_idx[1]                          = c;

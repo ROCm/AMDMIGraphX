@@ -76,7 +76,7 @@ struct roialign
     struct pos_weight
     {
         std::array<std::size_t, 4> pos = {0, 0, 0, 0};
-        std::array<float, 4> w          = {0.0f, 0.0f, 0.0f, 0.0f};
+        std::array<float, 4> w         = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     auto calc_pos_weight(const std::array<std::size_t, 2>& dims,
@@ -95,9 +95,10 @@ struct roialign
             std::array<float, 2> xy{};
             std::array<int64_t, 2> low{};
             std::array<int64_t, 2> high{};
-            for (auto ii : range(p.size()))
+            for(auto ii : range(p.size()))
             {
-                xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] + (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
+                xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
+                         (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
                 xy[ii] = (coord_trans_mode == "output_half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
                 if(xy[ii] < -1.0 or xy[ii] > dims[ii])
                 {
@@ -105,8 +106,8 @@ struct roialign
                     return;
                 }
 
-                xy[ii] = std::max(xy[ii], 0.0f);
-                low[ii] = xy[ii];
+                xy[ii]   = std::max(xy[ii], 0.0f);
+                low[ii]  = xy[ii];
                 high[ii] = low[ii] + 1;
                 if(low[ii] >= dims[ii] - 1)
                 {
@@ -177,13 +178,13 @@ struct roialign
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        const auto& out_lens  = output_shape.lens();
-        int64_t n_rois        = out_lens[0];
-        std::size_t channels      = out_lens[1];
+        const auto& out_lens                = output_shape.lens();
+        int64_t n_rois                      = out_lens[0];
+        std::size_t channels                = out_lens[1];
         std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
-        const auto& x_lens    = args.at(0).get_shape().lens();
-        std::array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
-        auto roi_s            = args.at(1).get_shape();
+        const auto& x_lens                  = args.at(0).get_shape().lens();
+        std::array<std::size_t, 2> in_dims  = {x_lens[2], x_lens[3]};
+        auto roi_s                          = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
@@ -191,21 +192,27 @@ struct roialign
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
-                std::array<float, 2> roi_starts = {static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale), static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale)};
-                std::array<float, 2> roi_ends   = {static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale), static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale)};
+                std::array<float, 2> roi_starts = {
+                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale),
+                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale)};
+                std::array<float, 2> roi_ends = {
+                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale),
+                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale)};
 
                 // Force malformed ROIs to be 1x1
                 std::array<float, 2> roi_size{};
                 std::array<float, 2> bin_size{};
                 std::array<std::size_t, 2> bin_grid_size{};
 
-                for (auto ii : range(roi_size.size()))
+                for(auto ii : range(roi_size.size()))
                 {
                     roi_size[ii] = roi_ends[ii] - roi_starts[ii];
                     roi_size[ii] = std::max(roi_size[ii], 1.0f);
 
-                    bin_size[ii] = roi_size[ii] / out_dims[ii];
-                    bin_grid_size[ii] = (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
+                    bin_size[ii]      = roi_size[ii] / out_dims[ii];
+                    bin_grid_size[ii] = (sampling_ratio > 0)
+                                            ? sampling_ratio
+                                            : std::ceil(roi_size[ii] / out_dims[ii]);
                 }
 
                 // we want to precalculate indices and weights shared by all channels,
@@ -213,11 +220,8 @@ struct roialign
                 std::vector<std::size_t> comp_lens = {
                     out_dims[0], out_dims[1], bin_grid_size[0], bin_grid_size[1]};
                 shape comp_s{shape::float_type, comp_lens};
-                auto pre_calc = this->calc_pos_weight(in_dims,
-                                                      comp_s,
-                                                      roi_starts,
-                                                      bin_size,
-                                                      bin_grid_size);
+                auto pre_calc =
+                    this->calc_pos_weight(in_dims, comp_s, roi_starts, bin_size, bin_grid_size);
 
                 std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
@@ -228,8 +232,8 @@ struct roialign
                     auto pw = idx[2];
 
                     const auto offset_bottom_data =
-                        bottom_data +
-                        static_cast<int64_t>((roi_batch_ind * channels + c) * in_dims[0] * in_dims[1]);
+                        bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
+                                                           in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == "avg") ? this->calc_pooling(offset_bottom_data,

@@ -3,6 +3,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 #include "models.hpp"
+#include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -480,6 +481,23 @@ struct perf : command<perf>
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
         p.perf_report(std::cout, n, m);
+    }
+};
+
+struct roctx : command<roctx>
+{
+    compiler c;
+    void parse(argument_parser& ap) { c.parse(ap); }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
+        auto rtx = create_marker_roctx();
+        p.mark(m, std::move(rtx));
     }
 };
 

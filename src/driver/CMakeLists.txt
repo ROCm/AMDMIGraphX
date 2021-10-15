@@ -6,6 +6,7 @@ add_executable(driver
     resnet50.cpp
     inceptionv3.cpp
     alexnet.cpp
+    marker_roctx.cpp
 )
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
 # Copy driver for backwards compatibility

@@ -7,6 +7,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/dfor.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <cmath>
 #include <numeric>
@@ -74,70 +75,56 @@ struct roialign
 
     struct pos_weight
     {
-        std::array<std::int64_t, 4> pos = {0, 0, 0, 0};
-        std::array<float, 4> w          = {0.0f, 0.0f, 0.0f, 0.0f};
+        std::array<std::size_t, 4> pos = {0, 0, 0, 0};
+        std::array<float, 4> w         = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
-    auto calc_pos_weight(const int64_t height,
-                         const int64_t width,
+    auto calc_pos_weight(const std::array<std::size_t, 2>& dims,
                          const shape& comp_s,
-                         float roi_start_h,
-                         float roi_start_w,
-                         float bin_size_h,
-                         float bin_size_w,
-                         int64_t roi_bin_grid_h,
-                         int64_t roi_bin_grid_w) const
+                         const std::array<float, 2>& roi_start,
+                         const std::array<float, 2>& bin_size,
+                         const std::array<std::size_t, 2>& bin_grid_size) const
     {
-        std::vector<pos_weight> results(roi_bin_grid_h * roi_bin_grid_w * output_height *
+        std::vector<pos_weight> results(bin_grid_size[0] * bin_grid_size[1] * output_height *
                                         output_width);
         shape_for_each(comp_s, [&](auto idx) {
-            auto ph    = idx[0];
-            auto pw    = idx[1];
-            auto iy    = idx[2];
-            auto ix    = idx[3];
-            auto index = comp_s.index(idx);
-            const float yy =
-                roi_start_h + ph * bin_size_h + (iy + .5f) * bin_size_h / roi_bin_grid_h;
-            const float xx =
-                roi_start_w + pw * bin_size_w + (ix + .5f) * bin_size_w / roi_bin_grid_w;
+            std::array<std::size_t, 2> p = {idx[0], idx[1]};
+            std::array<std::size_t, 2> i = {idx[2], idx[3]};
+            auto index                   = comp_s.index(idx);
 
-            float x = (coord_trans_mode == "output_half_pixel") ? (xx - 0.5f) : xx;
-            float y = (coord_trans_mode == "output_half_pixel") ? (yy - 0.5f) : yy;
-
-            // deal with: inverse elements are out of feature map boundary
-            if(y < -1.0 || y > height || x < -1.0 || x > width)
+            std::array<float, 2> xy{};
+            std::array<int64_t, 2> low{};
+            std::array<int64_t, 2> high{};
+            for(auto ii : range(p.size()))
             {
-                results[index] = pos_weight{};
-                return;
+                xy[ii] = roi_start[ii] + p[ii] * bin_size[ii] +
+                         (i[ii] + .5f) * bin_size[ii] / bin_grid_size[ii];
+                xy[ii] = (coord_trans_mode == "output_half_pixel") ? (xy[ii] - 0.5f) : xy[ii];
+                if(xy[ii] < -1.0 or xy[ii] > dims[ii])
+                {
+                    results[index] = pos_weight{};
+                    return;
+                }
+
+                xy[ii]   = std::max(xy[ii], 0.0f);
+                low[ii]  = xy[ii];
+                high[ii] = low[ii] + 1;
+                if(low[ii] >= dims[ii] - 1)
+                {
+                    xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
+                }
             }
 
-            y             = std::max(y, 0.0f);
-            x             = std::max(x, 0.0f);
-            int64_t y_low = y;
-            int64_t x_low = x;
-            int64_t y_high;
-            int64_t x_high;
+            results[index].pos = {low[0] * dims[1] + low[1],
+                                  low[0] * dims[1] + high[1],
+                                  high[0] * dims[1] + low[1],
+                                  high[0] * dims[1] + high[1]};
 
-            y_high = y_low + 1;
-            if(y_low >= height - 1)
-            {
-                y = y_high = y_low = height - 1;
-            }
-
-            x_high = x_low + 1;
-            if(x_low >= width - 1)
-            {
-                x = x_high = x_low = width - 1;
-            }
-            results[index].pos = {y_low * width + x_low,
-                                  y_low * width + x_high,
-                                  y_high * width + x_low,
-                                  y_high * width + x_high};
-
-            float ly = y - y_low;
-            float lx = x - x_low;
+            float ly = xy[0] - low[0];
+            float lx = xy[1] - low[1];
             float hy = 1.0f - ly;
             float hx = 1.0f - lx;
+
             // save weights and indeces
             results[index].w = {hy * hx, hy * lx, ly * hx, ly * lx};
         });
@@ -149,11 +136,7 @@ struct roialign
     {
         double init() { return std::numeric_limits<double>::lowest(); }
 
-        double operator()(double x, double y)
-        {
-            double m = std::max(x, y);
-            return (m);
-        }
+        double operator()(double x, double y) { return std::max(x, y); }
 
         double final(double x, std::size_t) { return (x); }
     };
@@ -169,15 +152,14 @@ struct roialign
 
     template <class T, class Op>
     std::tuple<double, int64_t> calc_pooling(const T& data,
-                                             int64_t roi_bin_grid_h,
-                                             int64_t roi_bin_grid_w,
+                                             const std::array<std::size_t, 2>& bin_grid_size,
                                              const std::vector<pos_weight>& pos_weights,
                                              int64_t index,
                                              Op op) const
     {
         double output_val   = op.init();
-        const int64_t count = roi_bin_grid_h * roi_bin_grid_w;
-        dfor(roi_bin_grid_h, roi_bin_grid_w)([&](auto, auto) {
+        const int64_t count = bin_grid_size[0] * bin_grid_size[1];
+        dfor(bin_grid_size[0], bin_grid_size[1])([&](auto, auto) {
             const auto& pc = pos_weights[index];
             std::array<double, 4> wv;
             std::transform(
@@ -196,15 +178,13 @@ struct roialign
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        const auto& out_lens  = output_shape.lens();
-        int64_t n_rois        = out_lens[0];
-        int64_t channels      = out_lens[1];
-        int64_t pooled_height = out_lens[2];
-        int64_t pooled_width  = out_lens[3];
-        const auto& x_lens    = args.at(0).get_shape().lens();
-        auto height           = x_lens[2];
-        auto width            = x_lens[3];
-        auto roi_s            = args.at(1).get_shape();
+        const auto& out_lens                = output_shape.lens();
+        int64_t n_rois                      = out_lens[0];
+        std::size_t channels                = out_lens[1];
+        std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
+        const auto& x_lens                  = args.at(0).get_shape().lens();
+        std::array<std::size_t, 2> in_dims  = {x_lens[2], x_lens[3]};
+        auto roi_s                          = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();
@@ -212,42 +192,38 @@ struct roialign
                 const auto bottom_data   = x.begin();
                 const auto roi_batch_ind = batch_indices[n];
                 // Do not using rounding; this implementation detail is critical
-                float roi_start_w = roi[roi_s.index({n, 0})] * spatial_scale;
-                float roi_start_h = roi[roi_s.index({n, 1})] * spatial_scale;
-                float roi_end_w   = roi[roi_s.index({n, 2})] * spatial_scale;
-                float roi_end_h   = roi[roi_s.index({n, 3})] * spatial_scale;
+                std::array<float, 2> roi_starts = {
+                    static_cast<float>(roi[roi_s.index({n, 1})] * spatial_scale),
+                    static_cast<float>(roi[roi_s.index({n, 0})] * spatial_scale)};
+                std::array<float, 2> roi_ends = {
+                    static_cast<float>(roi[roi_s.index({n, 3})] * spatial_scale),
+                    static_cast<float>(roi[roi_s.index({n, 2})] * spatial_scale)};
 
                 // Force malformed ROIs to be 1x1
-                float roi_width =
-                    (roi_end_w - roi_start_w) > 1.0f ? (roi_end_w - roi_start_w) : 1.0f;
-                float roi_height =
-                    (roi_end_h - roi_start_h) > 1.0f ? (roi_end_h - roi_start_h) : 1.0f;
-                float bin_size_h = roi_height / pooled_height;
-                float bin_size_w = roi_width / pooled_width;
+                std::array<float, 2> roi_size{};
+                std::array<float, 2> bin_size{};
+                std::array<std::size_t, 2> bin_grid_size{};
 
-                // We use roi_bin_grid to sample the grid and mimic integral
-                int64_t roi_bin_grid_h =
-                    (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_height / pooled_height);
-                int64_t roi_bin_grid_w =
-                    (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_width / pooled_width);
+                for(auto ii : range(roi_size.size()))
+                {
+                    roi_size[ii] = roi_ends[ii] - roi_starts[ii];
+                    roi_size[ii] = std::max(roi_size[ii], 1.0f);
+
+                    bin_size[ii]      = roi_size[ii] / out_dims[ii];
+                    bin_grid_size[ii] = (sampling_ratio > 0)
+                                            ? sampling_ratio
+                                            : std::ceil(roi_size[ii] / out_dims[ii]);
+                }
 
                 // we want to precalculate indices and weights shared by all channels,
                 // this is the key point of optimization
-                std::vector<int64_t> lens = {
-                    pooled_height, pooled_width, roi_bin_grid_h, roi_bin_grid_w};
-                std::vector<std::size_t> comp_lens(lens.begin(), lens.end());
+                std::vector<std::size_t> comp_lens = {
+                    out_dims[0], out_dims[1], bin_grid_size[0], bin_grid_size[1]};
                 shape comp_s{shape::float_type, comp_lens};
-                auto pre_calc = this->calc_pos_weight(height,
-                                                      width,
-                                                      comp_s,
-                                                      roi_start_h,
-                                                      roi_start_w,
-                                                      bin_size_h,
-                                                      bin_size_w,
-                                                      roi_bin_grid_h,
-                                                      roi_bin_grid_w);
+                auto pre_calc =
+                    this->calc_pos_weight(in_dims, comp_s, roi_starts, bin_size, bin_grid_size);
 
-                std::vector<int64_t> comp_lens1 = {channels, pooled_height, pooled_width};
+                std::vector<std::size_t> comp_lens1 = {channels, out_dims[0], out_dims[1]};
                 shape comp_s1{migraphx::shape::float_type, comp_lens1};
                 std::vector<int64_t> vec_index(channels, 0);
                 shape_for_each(comp_s1, [&](auto idx) {
@@ -256,28 +232,21 @@ struct roialign
                     auto pw = idx[2];
 
                     const auto offset_bottom_data =
-                        bottom_data +
-                        static_cast<int64_t>((roi_batch_ind * channels + c) * height * width);
+                        bottom_data + static_cast<int64_t>((roi_batch_ind * channels + c) *
+                                                           in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == "avg") ? this->calc_pooling(offset_bottom_data,
-                                                             roi_bin_grid_h,
-                                                             roi_bin_grid_w,
+                                                             bin_grid_size,
                                                              pre_calc,
                                                              vec_index[c],
                                                              avg_pool{})
                                         : this->calc_pooling(offset_bottom_data,
-                                                             roi_bin_grid_h,
-                                                             roi_bin_grid_w,
+                                                             bin_grid_size,
                                                              pre_calc,
                                                              vec_index[c],
                                                              max_pool{});
-                    auto out_idx                        = output_shape.lens();
-                    out_idx[0]                          = n;
-                    out_idx[1]                          = c;
-                    out_idx[2]                          = ph;
-                    out_idx[3]                          = pw;
-                    output[output_shape.index(out_idx)] = output_val;
+                    output[output_shape.index({n, c, ph, pw})] = output_val;
                 });
 
             });

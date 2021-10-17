@@ -104,12 +104,10 @@ ${error_type} ${name}(${params});
 c_api_impl = Template('''
 extern "C" ${error_type} ${name}(${params})
 {
-    ${va_start}
-    auto api_error_result = ${try_wrap}([&] {
+    ${va_start}auto api_error_result = ${try_wrap}([&] {
         ${body};
     });
-    ${va_end}
-    return api_error_result;
+    ${va_end}return api_error_result;
 }
 ''')
 

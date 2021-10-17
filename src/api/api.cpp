@@ -13,6 +13,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
+#include <cstdarg>
 
 namespace migraphx {
 

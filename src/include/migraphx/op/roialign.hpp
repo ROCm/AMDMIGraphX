@@ -75,7 +75,9 @@ struct roialign
 
     struct pos_weight
     {
+        // neighbor indices for the bilinear interpolation
         std::array<std::size_t, 4> pos = {0, 0, 0, 0};
+        // neighbor weights for the bilinear interpolation
         std::array<float, 4> w         = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
@@ -181,8 +183,11 @@ struct roialign
         const auto& out_lens                = output_shape.lens();
         int64_t n_rois                      = out_lens[0];
         std::size_t channels                = out_lens[1];
+        // output dims of height and width, in all 2-dim arrays, the first dim
+        // is for height and second dim is for width
         std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
         const auto& x_lens                  = args.at(0).get_shape().lens();
+        // input dims of height and width
         std::array<std::size_t, 2> in_dims  = {x_lens[2], x_lens[3]};
         auto roi_s                          = args.at(1).get_shape();
 

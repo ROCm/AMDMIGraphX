@@ -75,8 +75,10 @@ struct roialign
 
     struct pos_weight
     {
+        // neighbor indices for the bilinear interpolation
         std::array<std::size_t, 4> pos = {0, 0, 0, 0};
-        std::array<float, 4> w         = {0.0f, 0.0f, 0.0f, 0.0f};
+        // neighbor weights for the bilinear interpolation
+        std::array<float, 4> w = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     auto calc_pos_weight(const std::array<std::size_t, 2>& dims,
@@ -178,13 +180,16 @@ struct roialign
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        const auto& out_lens                = output_shape.lens();
-        int64_t n_rois                      = out_lens[0];
-        std::size_t channels                = out_lens[1];
+        const auto& out_lens = output_shape.lens();
+        int64_t n_rois       = out_lens[0];
+        std::size_t channels = out_lens[1];
+        // output dims of height and width, in all 2-dim arrays, the first dim
+        // is for height and second dim is for width
         std::array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
         const auto& x_lens                  = args.at(0).get_shape().lens();
-        std::array<std::size_t, 2> in_dims  = {x_lens[2], x_lens[3]};
-        auto roi_s                          = args.at(1).get_shape();
+        // input dims of height and width
+        std::array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
+        auto roi_s                         = args.at(1).get_shape();
 
         visit_all(result, args.at(0), args.at(1))([&](auto output, auto x, auto roi) {
             const auto* batch_indices = args.at(2).cast<int64_t>();

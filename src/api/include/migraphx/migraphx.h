@@ -209,7 +209,8 @@ migraphx_status migraphx_operation_destroy(migraphx_operation_t operation);
 
 migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
                                           const char* name,
-                                          const char* attributes);
+                                          const char* attributes,
+                                          ...);
 
 migraphx_status migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operation);
 

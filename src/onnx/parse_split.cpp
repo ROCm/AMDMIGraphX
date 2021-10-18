@@ -24,7 +24,7 @@ struct parse_split : op_parser<parse_split>
         }
 
         auto lens          = args[0]->get_shape().lens();
-        int64_t n_rank     = static_cast<int64_t>(lens.size());
+        int64_t n_rank     = lens.size();
         int64_t tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         std::vector<int64_t> vec_splits;

@@ -57,6 +57,7 @@
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/op/neg.hpp>
+#include <migraphx/op/nonzero.hpp>
 #include <migraphx/op/outline.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>

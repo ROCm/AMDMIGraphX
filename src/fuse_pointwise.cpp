@@ -142,7 +142,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 8; i++)
     {
-        if (not find_pointwise_modules(mpm.get_module()))
+        if(not find_pointwise_modules(mpm.get_module()))
             break;
         mpm.run_pass(dead_code_elimination{});
     }

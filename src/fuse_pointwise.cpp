@@ -112,8 +112,9 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
     return inputs;
 }
 
-static void find_pointwise_modules(module& m)
+static bool find_pointwise_modules(module& m)
 {
+    bool changed = false;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "pointwise")
@@ -130,7 +131,9 @@ static void find_pointwise_modules(module& m)
         m.replace_instruction(*it, (*it)->get_operator(), new_inputs, (*it)->module_inputs());
         m.replace_instruction(ins, *it);
         m.move_instruction(*it, ins);
+        changed = true;
     }
+    return changed;
 }
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
@@ -139,7 +142,8 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 8; i++)
     {
-        find_pointwise_modules(mpm.get_module());
+        if (not find_pointwise_modules(mpm.get_module()))
+            break;
         mpm.run_pass(dead_code_elimination{});
     }
 }

@@ -269,7 +269,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
     last_out     = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), sih);
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -556,7 +556,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     instruction_ref last_output{};
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long hs                   = static_cast<long>(r_shape.lens()[2]);
+    long hs                   = r_shape.lens()[2];
 
     migraphx::shape ss(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});
     std::vector<float> data(ss.elements(), 1.0f);
@@ -613,7 +613,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             rb_h);
     }
 
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -1032,7 +1032,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref last_cell_output{};
 
     migraphx::shape r_shape = r->get_shape();
-    long hs                 = static_cast<long>(r_shape.lens()[2]);
+    long hs                 = r_shape.lens()[2];
     auto bs                 = ih->get_shape().lens()[1];
 
     std::vector<int64_t> perm{1, 0};
@@ -1094,7 +1094,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
             ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), pphf);
     }
 
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; ++i)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);

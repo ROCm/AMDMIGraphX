@@ -147,8 +147,10 @@ def main():
         )
         os.system(
             "python /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json")
-        print("JSON FILE PATH: " + out_path + "trace.json")
         os.chdir(curr)
+        parse(out_path + "trace.json")
+        print("JSON FILE PATH: " + out_path + "trace.json")
+
 
     if (args.parse):
         if not (file):

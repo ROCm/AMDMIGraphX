@@ -58,39 +58,40 @@ struct nonmaxsuppression
         }
     };
 
-    struct box {
+    struct box
+    {
         std::array<float, 2> x;
         std::array<float, 2> y;
 
-        void sort() {
+        void sort()
+        {
             std::sort(x.begin(), x.end());
             std::sort(y.begin(), y.end());
         }
 
-        std::array<float, 2>& operator[](std::size_t i) {
-            return i == 0 ? x : y;
-        }
+        std::array<float, 2>& operator[](std::size_t i) { return i == 0 ? x : y; }
 
-        float area() const {
+        float area() const
+        {
             assert(std::is_sorted(x.begin(), x.end()));
             assert(std::is_sorted(y.begin(), y.end()));
             return (x[1] - x[0]) * (y[1] - y[0]);
         }
     };
 
-    template<class T>
+    template <class T>
     box batch_box(const T& boxes, std::size_t bidx) const
     {
         box result{};
         const auto& start = boxes + 4 * bidx;
         if(center_point_box)
         {
-            float half_width = (*(start + 2)) / 2.0f;
+            float half_width  = (*(start + 2)) / 2.0f;
             float half_height = (*(start + 3)) / 2.0f;
-            float x_center = *start;
-            float y_center = *(start + 1);
-            result.x = {x_center - half_width, x_center + half_width};
-            result.y = {y_center - half_height, y_center + half_height};
+            float x_center    = *start;
+            float y_center    = *(start + 1);
+            result.x          = {x_center - half_width, x_center + half_width};
+            result.y          = {y_center - half_height, y_center + half_height};
         }
         else
         {
@@ -101,27 +102,26 @@ struct nonmaxsuppression
         return result;
     }
 
-    inline bool suppress_by_iou(box b1,
-                                box b2,
-                                float iou_threshold) const
+    inline bool suppress_by_iou(box b1, box b2, float iou_threshold) const
     {
         b1.sort();
         b2.sort();
 
         box intersection{};
-        for(auto i:range(2)) {
+        for(auto i : range(2))
+        {
             intersection[i][0] = std::max(b1[i][0], b2[i][0]);
             intersection[i][1] = std::min(b1[i][1], b2[i][1]);
         }
 
-        for(auto i:range(2))
-            if (not std::is_sorted(intersection[i].begin(), intersection[i].end()))
+        for(auto i : range(2))
+            if(not std::is_sorted(intersection[i].begin(), intersection[i].end()))
                 return false;
 
-        const float area1      = b1.area();
-        const float area2      = b2.area();
+        const float area1             = b1.area();
+        const float area2             = b2.area();
         const float intersection_area = intersection.area();
-        const float union_area = area1 + area2 - intersection_area;
+        const float union_area        = area1 + area2 - intersection_area;
 
         if(area1 <= .0f or area2 <= .0f or union_area <= .0f)
         {
@@ -173,14 +173,14 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(output_shape.elements());
 
         auto scores = make_view<float>(args.at(1).get_shape(), args.at(1).cast<float>());
-        auto boxes = make_view<float>(args.at(0).get_shape(), args.at(0).cast<float>());
+        auto boxes  = make_view<float>(args.at(0).get_shape(), args.at(0).cast<float>());
         shape comp_s{shape::float_type, {batch_num, class_num}};
         shape_for_each(comp_s, [&](auto idx) {
             auto bidx = idx[0];
             auto cidx = idx[1];
 
             std::size_t score_offset = (bidx * class_num + cidx) * box_num;
-            const auto& batch_boxes = boxes.begin() + bidx * box_num * 4;
+            const auto& batch_boxes  = boxes.begin() + bidx * box_num * 4;
             std::vector<box_info> cand_boxes;
             cand_boxes.reserve(box_num);
 
@@ -212,8 +212,9 @@ struct nonmaxsuppression
                     selected_boxes_inside_class.begin(),
                     selected_boxes_inside_class.end(),
                     [&](auto selected_index) {
-                        return this->suppress_by_iou(
-                            batch_box(batch_boxes, next_top_score.index), batch_box(batch_boxes, selected_index.index), iou_threshold);
+                        return this->suppress_by_iou(batch_box(batch_boxes, next_top_score.index),
+                                                     batch_box(batch_boxes, selected_index.index),
+                                                     iou_threshold);
                     });
 
                 if(not not_selected)

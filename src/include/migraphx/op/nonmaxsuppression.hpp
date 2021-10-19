@@ -47,17 +47,6 @@ struct nonmaxsuppression
         return {shape::int64_type, out_lens};
     }
 
-    struct box_info
-    {
-        float score{};
-        int64_t index{};
-
-        inline bool operator<(const box_info& rhs) const
-        {
-            return score < rhs.score || (float_equal(score, rhs.score) && index > rhs.index);
-        }
-    };
-
     struct box
     {
         std::array<float, 2> x;
@@ -76,6 +65,17 @@ struct nonmaxsuppression
             assert(std::is_sorted(x.begin(), x.end()));
             assert(std::is_sorted(y.begin(), y.end()));
             return (x[1] - x[0]) * (y[1] - y[0]);
+        }
+    };
+
+    struct box_info
+    {
+        float score{};
+        int64_t index{};
+
+        inline bool operator<(const box_info& rhs) const
+        {
+            return score < rhs.score || (float_equal(score, rhs.score) && index > rhs.index);
         }
     };
 

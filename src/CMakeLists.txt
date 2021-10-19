@@ -200,6 +200,9 @@ target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
+find_package(Threads)
+target_link_libraries(migraphx PUBLIC Threads::Threads)
+
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
@@ -237,6 +240,7 @@ rocm_export_targets(
   TARGETS migraphx::migraphx migraphx_all_targets
   NAMESPACE migraphx::
   DEPENDS
+    Threads
     ${PACKAGE_DEPENDS}
 )
  

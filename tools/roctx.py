@@ -1,9 +1,7 @@
 import json
 import argparse
 import os
-import subprocess
 import pandas as pd
-import numpy as np
 
 
 def parse_args():

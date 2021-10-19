@@ -45,7 +45,7 @@ TEST_CASE(if_pl_test)
         auto ys = param_shapes["y"];
         std::vector<float> yd(ys.bytes() / sizeof(float), 2.0);
         pp.add("y", migraphx::argument(ys, yd.data()));
-        char ccond = static_cast<char>(cond);
+        char ccond = cond;
         pp.add("cond", migraphx::argument(param_shapes["cond"], &ccond));
 
         auto outputs = p.eval(pp);

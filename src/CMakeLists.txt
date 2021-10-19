@@ -26,6 +26,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fuse_pointwise.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -133,6 +134,7 @@ register_migraphx_ops(
     nonzero
     outline
     pad
+    pointwise
     pooling
     pow
     prefix_scan_sum

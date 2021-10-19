@@ -13,6 +13,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
+#include <cstdarg>
 
 namespace migraphx {
 
@@ -155,17 +156,29 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
-operation create_op(const char* name, const char* attributes)
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+operation create_op(const char* name, const char* attributes, va_list vlist)
 {
+    std::string sattributes = attributes == nullptr ? "" : attributes;
+    std::vector<char> buffer(sattributes.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), sattributes.c_str(), vlist);
     value v = value::object{};
     if(attributes != nullptr)
     {
-        v = from_json_string(convert_to_json(std::string(attributes)));
+        v = from_json_string(convert_to_json(std::string(buffer.data())));
     }
     auto op = make_op(name, v);
 
     return op;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 template <class T>
 bool equal(const T& x, const T& y)

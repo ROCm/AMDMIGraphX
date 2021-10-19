@@ -39,7 +39,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
         int tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         auto axis_stride      = data_s.strides()[tuned_axis];
-        int64_t data_elem_num = static_cast<int64_t>(data_s.elements());
+        int64_t data_elem_num = data_s.elements();
         // reshape the input data as one dimension and used as input data
         // to the gather operator
         arg_data = info.add_instruction(make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);

@@ -2865,6 +2865,26 @@ TEST_CASE(pad_test_lowest_half)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(pointwise_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    auto l1  = mm->add_literal(migraphx::literal{s, {-1, 0, 1}});
+    auto l2  = mm->add_literal(migraphx::literal{s, {1, 2, 3}});
+    auto* pm = p.create_module("pointwise");
+    auto x1  = pm->add_parameter("x1", {migraphx::shape::float_type});
+    auto x2  = pm->add_parameter("x2", {migraphx::shape::float_type});
+    pm->add_instruction(migraphx::make_op("add"), x1, x2);
+    mm->add_instruction(migraphx::make_op("pointwise"), {l1, l2}, {pm});
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0, 2, 4};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(pow_test)
 {
     migraphx::program p;

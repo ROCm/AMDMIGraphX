@@ -1,6 +1,7 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -19,8 +20,7 @@ struct quant_dot_3args_2 : verify_program<quant_dot_3args_2>
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
         auto l2 = mm->add_parameter("b", m2_shape);
         auto l3 = mm->add_parameter("c", m3_shape);
-        mm->add_instruction(
-            migraphx::make_op("quant_dot", {{"alpha", 1}, {"beta", 3}}), tl1, l2, l3);
+        migraphx::add_apply_alpha_beta(*mm, {tl1, l2, l3}, migraphx::make_op("quant_dot"), 1, 3);
         return p;
     }
 };

@@ -45,6 +45,24 @@ TEST_CASE(averagepool_nt_cip_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(depthtospace_simple_test)
+{
+    auto p = migraphx::parse_onnx("depthtospace_simple_test.onnx");
+    p.compile(migraphx::ref::target{});
+    std::vector<float> data_in(48);
+    std::iota(std::begin(data_in), std::end(data_in), 0);
+    migraphx::shape s_x{migraphx::shape::float_type, {1, 8, 2, 3}};
+    migraphx::parameter_map pp;
+    pp["x"]     = migraphx::argument(s_x, data_in.data());
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {0,  12, 1,  13, 2,  14, 24, 36, 25, 37, 26, 38, 3,  15, 4,  16,
+                               5,  17, 27, 39, 28, 40, 29, 41, 6,  18, 7,  19, 8,  20, 30, 42,
+                               31, 43, 32, 44, 9,  21, 10, 22, 11, 23, 33, 45, 34, 46, 35, 47};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(gather_elements)
 {
     migraphx::program p = migraphx::parse_onnx("gather_elements_axis0_test.onnx");
@@ -287,6 +305,25 @@ TEST_CASE(lessorequal_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1, 0, 1};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(nonzero_test)
+{
+    migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::bool_type, {2, 2}};
+    std::vector<char> data = {1, 1, 1, 0};
+
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 0, 1, 0, 0, 1, 0, 0};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

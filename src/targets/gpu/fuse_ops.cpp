@@ -717,7 +717,7 @@ struct find_gemm_add
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
-        if(not float_equal(gemm.op.beta, 0))
+        if(not float_equal(gemm.beta, 0))
             return;
 
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
@@ -738,7 +738,7 @@ struct find_gemm_add
         inputs.push_back(copy_ins);
         inputs.push_back(copy_ins);
 
-        gemm.op.beta = 1;
+        gemm.beta = 1;
         p.replace_instruction(ins, gemm, inputs);
     }
 };

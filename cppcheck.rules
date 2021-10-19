@@ -154,7 +154,7 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[((?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)*) (\w) ; \2 = static_cast < \1 > (\([^()]*(?-1)*[^()]*\)) ;]]></pattern>
+    <pattern><![CDATA[((?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)*) (\w+) ; \2 = static_cast < \1 > (\([^()]*(?-1)*[^()]*\)) ;]]></pattern>
     <message>
         <id>RedundantCast</id>
         <severity>style</severity>
@@ -163,7 +163,7 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
-    <pattern><![CDATA[auto (\w) ; \1 = static_cast < (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* > (\([^()]*(?-1)*[^()]*\)) ;]]></pattern>
+    <pattern><![CDATA[auto (\w+) ; \1 = static_cast < (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* > (\([^()]*(?-1)*[^()]*\)) ;]]></pattern>
     <message>
         <id>RedundantCast</id>
         <severity>style</severity>

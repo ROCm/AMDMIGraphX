@@ -101,7 +101,10 @@ void mlir_print(F f, T x, std::ostream& os)
 
 struct mlir_program
 {
-    mlir_program() : ctx(mlirContextCreate()), location(mlirLocationUnknownGet(ctx.get())), mmodule(mlirModuleCreateEmpty(location))
+    mlir_program()
+        : ctx(mlirContextCreate()),
+          location(mlirLocationUnknownGet(ctx.get())),
+          mmodule(mlirModuleCreateEmpty(location))
     {
         mlirRegisterAllDialects(ctx.get());
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
@@ -226,21 +229,32 @@ struct mlir_program
         return attr;
     }
 
-    using attribute_t = std::variant<std::nullptr_t, std::uint64_t, unsigned char, bool, double, std::string, value, std::vector<value>, MlirType>;
+    using attribute_t       = std::variant<std::nullptr_t,
+                                     std::uint64_t,
+                                     unsigned char,
+                                     bool,
+                                     double,
+                                     std::string,
+                                     value,
+                                     std::vector<value>,
+                                     MlirType>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
     {
-        return name_attribute(na.first, std::visit([&](const auto& x) { return attribute(x); }, na.second));
+        return name_attribute(na.first,
+                              std::visit([&](const auto& x) { return attribute(x); }, na.second));
     }
 
-    std::vector<MlirNamedAttribute> name_attributes(const std::vector<named_attribute_t>& named_attrs) const
+    std::vector<MlirNamedAttribute>
+    name_attributes(const std::vector<named_attribute_t>& named_attrs) const
     {
         std::vector<MlirNamedAttribute> attributes;
         attributes.reserve(named_attrs.size());
-        std::transform(named_attrs.begin(), named_attrs.end(), std::back_inserter(attributes), [&](const named_attribute_t& a) {
-            return name_attribute(a);
-        });
+        std::transform(named_attrs.begin(),
+                       named_attrs.end(),
+                       std::back_inserter(attributes),
+                       [&](const named_attribute_t& a) { return name_attribute(a); });
         return attributes;
     }
 
@@ -256,9 +270,10 @@ struct mlir_program
 
     struct mlir_operation_state
     {
-        mlir_operation_state(mlir_program& p, const std::string_view& name) 
-        : prog(&p), op_state(mlirOperationStateGet(make_mlir_string_ref(name), p.location))
-        {}
+        mlir_operation_state(mlir_program& p, const std::string_view& name)
+            : prog(&p), op_state(mlirOperationStateGet(make_mlir_string_ref(name), p.location))
+        {
+        }
 
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
@@ -308,11 +323,10 @@ struct mlir_program
             mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
             mlir_operation op(mlirOperationCreate(&op_state));
             // Release memory since mlir_operation owns it
-            for(auto& r:regions)
+            for(auto& r : regions)
                 r.release();
             regions.clear();
             return op;
-
         }
 
         mlir_program* prog;
@@ -329,7 +343,7 @@ struct mlir_program
     {
         std::vector<MlirValue> result;
         mlir_operation op = ops.create_operation();
-        auto weak_op = op.get();
+        auto weak_op      = op.get();
         mlirBlockInsertOwnedOperation(body, 0, op.release());
 
         auto n = mlirOperationGetNumResults(weak_op);
@@ -340,27 +354,30 @@ struct mlir_program
         return result;
     }
 
-    MlirBlock insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
+    MlirBlock
+    insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
         std::vector<shape> inputs;
-        std::transform(names.begin(), names.end(), std::back_inserter(inputs), [&](const std::string& name) {
-            return m.get_parameter_shape(name);
-        });
+        std::transform(names.begin(),
+                       names.end(),
+                       std::back_inserter(inputs),
+                       [&](const std::string& name) { return m.get_parameter_shape(name); });
         std::vector<shape> outputs = m.get_output_shapes();
 
-        auto body_inputs = make_tensors(inputs);
+        auto body_inputs   = make_tensors(inputs);
         mlir_region region = mlirRegionCreate();
-        mlir_block fbody = mlirBlockCreate(body_inputs.size(), body_inputs.data());
-        MlirBlock result = fbody.get();
+        mlir_block fbody   = mlirBlockCreate(body_inputs.size(), body_inputs.data());
+        MlirBlock result   = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
         auto ops = create_operation_state("builtin.func");
-        ops.add_attributes({{"type", make_function_type(inputs, outputs)}, {"sym_name", "\"main\""}});
+        ops.add_attributes(
+            {{"type", make_function_type(inputs, outputs)}, {"sym_name", "\"main\""}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
-        for(auto i:range(names.size()))
+        for(auto i : range(names.size()))
             ins_map[m.get_parameter(names[i])] = mlirBlockGetArgument(result, i);
         return result;
     }
@@ -370,17 +387,16 @@ struct mlir_program
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
         auto fbody = insert(mbody, m, ins_map);
-        for(auto ins:iterator_for(m))
+        for(auto ins : iterator_for(m))
         {
             auto name = "migraphx." + ins->name();
-            auto ops = create_operation_state(name);
+            auto ops  = create_operation_state(name);
             ops.add_attribute_value(ins->get_operator().to_value());
             ops.add_results({ins->get_shape()});
 
             std::vector<MlirValue> inputs;
-            transform(ins->inputs(), std::back_inserter(inputs), [&](auto i) {
-                return ins_map.at(i);
-            });
+            transform(
+                ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));

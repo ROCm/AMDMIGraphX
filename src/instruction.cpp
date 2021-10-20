@@ -468,5 +468,11 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
     }
     return {new_shape};
 }
+
+migraphx::instruction* as_address(const instruction_ref& ins) noexcept
+{
+    return std::addressof(*ins);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

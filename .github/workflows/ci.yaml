@@ -80,10 +80,10 @@ jobs:
       uses: pat-s/always-upload-cache@v2.1.3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
+        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
         restore-keys: |
-            cppcheck-cache-${{ steps.cache_timestamp.outputs.timestamp }}
-            cppcheck-cache-
+            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
+            cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx

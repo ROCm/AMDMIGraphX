@@ -155,5 +155,13 @@ std::vector<argument> argument::get_sub_objects() const
     return result;
 }
 
+argument argument::element(std::size_t i) const
+{
+    assert(this->get_shape().sub_shapes().empty());
+    auto idx    = this->get_shape().index(i);
+    auto offset = this->get_shape().type_size() * idx;
+    return argument{shape{this->get_shape().type()}, this->data() + offset};
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

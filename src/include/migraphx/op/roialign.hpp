@@ -251,7 +251,7 @@ struct roialign
                                                              pre_calc,
                                                              vec_index[c],
                                                              max_pool{});
-                    output[output_shape.index({n, c, ph, pw})] = output_val;
+                    output(n, c, ph, pw) = output_val;
                 });
 
             });

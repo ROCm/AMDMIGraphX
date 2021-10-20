@@ -398,7 +398,7 @@ struct mlir_program
         auto fbody = insert(mbody, m, ins_map);
         for(auto ins : iterator_for(m))
         {
-            if (ins->name() == "@param")
+            if(ins->name() == "@param")
                 continue;
             auto name = "migraphx." + ins->name();
             auto ops  = create_operation_state(name);

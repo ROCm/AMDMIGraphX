@@ -2766,7 +2766,6 @@ TEST_CASE(nonzero_test)
     mm->add_return({ret});
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
-    std::cout << "result = " << result << std::endl;
     std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
@@ -3998,7 +3997,6 @@ TEST_CASE(roialign_test)
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::cout << "result = " << result << std::endl;
         std::vector<float> gold = {
             0.819145, 0.373103, 0.258302,  0.515419, 0.726104, 0.540536, 0.545512,  0.38511,
             0.376545, 0.274635, 0.22341,   0.184511, 0.230843, 0.404869, 0.29546,   0.540409,

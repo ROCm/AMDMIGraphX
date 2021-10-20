@@ -40,7 +40,7 @@ def parse(file):
                 list_names.append(i['name'])
 
     # Get timing information for each marker name
-    print(list_names)
+    # print(list_names)
     list_times_per_names = []
     for name in list_names:
         print(name)
@@ -82,14 +82,22 @@ def parse(file):
             min_per_name.append(min(list))
         except:
             min_per_name.append("ERR")
-
+    
+    max_index_per_name = []
+    for list in list_times_per_names:
+        try:
+            max_index_per_name.append(list.index(max(list)))
+        except:
+            max_index_per_name.append("ERR")
+    
     print("SUM: %s" % sum_per_name)
     print("MAX: %s" % max_per_name)
     print("MIN: %s" % min_per_name)
+    print("MAX_INDEX: %s" % max_index_per_name)
 
     total_time = sum(sum_per_name)
 
-    d = {'SUM': sum_per_name, 'MIN': min_per_name, 'MAX': max_per_name}
+    d = {'SUM': sum_per_name, 'MIN': min_per_name, 'MAX': max_per_name, 'MAX_INDEX': max_index_per_name}
     df2 = pd.DataFrame(d)
     df2.index = list_names
     df2.sort_values(by=['SUM'], inplace=True, ascending=False)
@@ -149,7 +157,6 @@ def main():
         parse(out_path + "trace.json")
         print("JSON FILE PATH: " + out_path + "trace.json")
 
-
     if (args.parse):
         if not (file):
             raise Exception("JSON path is not provided for parsing.")
@@ -158,4 +165,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

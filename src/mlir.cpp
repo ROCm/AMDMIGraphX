@@ -21,7 +21,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T, class F, F f>
+template <class T, class F, F f> // NOLINT
 struct mlir_handle
 {
     struct ptr
@@ -177,7 +177,7 @@ struct mlir_program
     }
     MlirAttribute attribute(std::uint64_t i) const { return attribute(std::int64_t(i)); }
     MlirAttribute attribute(unsigned char i) const { return attribute(std::int64_t(i)); }
-    MlirAttribute attribute(bool b) const { return mlirBoolAttrGet(ctx.get(), b); }
+    MlirAttribute attribute(bool b) const { return mlirBoolAttrGet(ctx.get(), b ? 1 : 0); }
     MlirAttribute attribute(double d) const
     {
         return mlirFloatAttrDoubleGet(ctx.get(), mlirF64TypeGet(ctx.get()), d);

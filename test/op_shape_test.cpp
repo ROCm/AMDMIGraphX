@@ -1544,4 +1544,26 @@ TEST_CASE(where_broadcast_input)
     expect_shape(s2, migraphx::make_op("where"), s3, s1, s2);
 }
 
+TEST_CASE(roialign_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};
+    migraphx::shape srois{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {2}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 4, 1, 1}};
+
+    expect_shape(sout, migraphx::make_op("roialign"), sx, srois, sbi);
+
+    migraphx::shape sbi1{migraphx::shape::int64_type, {2, 3}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi1);
+
+    migraphx::shape sbi2{migraphx::shape::int64_type, {3}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois, sbi2);
+
+    migraphx::shape srois1{migraphx::shape::float_type, {2, 4, 3}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois1, sbi);
+
+    migraphx::shape srois2{migraphx::shape::float_type, {2, 3}};
+    throws_shape(migraphx::make_op("roialign"), sx, srois2, sbi);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -81,6 +81,7 @@
 #include <migraphx/op/rnn_last_hs_output.hpp>
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
+#include <migraphx/op/roialign.hpp>
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>

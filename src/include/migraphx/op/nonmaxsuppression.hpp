@@ -116,14 +116,11 @@ struct nonmaxsuppression
 
         std::vector<std::array<float, 2>> bbox = {intersection.x, intersection.y};
         if(std::any_of(bbox.begin(), bbox.end(), [](auto bx) {
-            return not std::is_sorted(bx.begin(), bx.end());
-        }))
+               return not std::is_sorted(bx.begin(), bx.end());
+           }))
         {
             return false;
         }
-        // for(auto i : range(2))
-        //     if(not std::is_sorted(intersection[i].begin(), intersection[i].end()))
-        //         return false;
 
         const float area1             = b1.area();
         const float area2             = b2.area();

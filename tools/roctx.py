@@ -76,30 +76,37 @@ def parse(file):
             min_per_name.append(min(list))
         except:
             min_per_name.append("ERR")
-    
+
     max_index_per_name = []
     for list in list_times_per_names:
         try:
             max_index_per_name.append(list.index(max(list)))
         except:
             max_index_per_name.append("ERR")
-    
+
     max_occur_per_name = []
     for list in list_times_per_names:
         try:
             max_occur_per_name.append(list.count(max(list)))
         except:
             max_occur_per_name.append("ERR")
-    
+
     total_time = sum(sum_per_name)
 
-    d = {'SUM': sum_per_name, 'MIN': min_per_name, 'MAX': max_per_name, 'MAX_INDEX': max_index_per_name, 'MAX_OCCUR': max_occur_per_name}
+    d = {
+        'SUM': sum_per_name,
+        'MIN': min_per_name,
+        'MAX': max_per_name,
+        'MAX_INDEX': max_index_per_name,
+        'MAX_OCCUR': max_occur_per_name
+    }
     df2 = pd.DataFrame(d)
     df2.index = list_names
     df2.sort_values(by=['SUM'], inplace=True, ascending=False)
 
     print(df2)
     print("\nTOTAL TIME: %s us\n" % total_time)
+
 
 def run():
     args = parse_args()

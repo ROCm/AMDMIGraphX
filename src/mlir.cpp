@@ -1,3 +1,4 @@
+#include <migraphx/mlir.hpp>
 
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
@@ -97,6 +98,14 @@ template <class F, class T>
 void mlir_print(F f, T x, std::ostream& os)
 {
     mlir_print(f, x, [&](auto s) { os << s; });
+}
+
+template <class F, class T>
+std::string mlir_print(F f, T x)
+{
+    std::stringstream ss;
+    mlir_print(f, x, [&](auto s) { ss << s; });
+    return ss.str();
 }
 
 struct mlir_program
@@ -410,6 +419,14 @@ struct mlir_program
     mlir_module mmodule;
     std::deque<std::string> strings{};
 };
+
+std::string dump_mlir(const module& m)
+{
+    mlir_program mp;
+    mp.parse(m);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    return mlir_print(&mlirOperationPrint, mod_op);
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

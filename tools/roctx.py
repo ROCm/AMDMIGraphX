@@ -43,7 +43,6 @@ def parse(file):
     # print(list_names)
     list_times_per_names = []
     for name in list_names:
-        print(name)
         temp_list = []
         for entry in data:
             if (entry) and (
@@ -52,17 +51,12 @@ def parse(file):
                 if (("gpu::" in name)
                         and ("UserMarker frame:"
                              in entry['args']['desc'])):  #gpu side information
-                    print(entry)
                     temp_list.append(int(entry.get('dur')))
                 elif (("gpu::" not in name)
                       and ("Marker start:"
                            in entry['args']['desc'])):  #cpu side information
-                    print(entry)
                     temp_list.append(int(entry.get('dur')))
         list_times_per_names.append(temp_list)
-
-    print(list_names)
-    print(list_times_per_names)
 
     # Sum duration for each entry for a given name
     sum_per_name = []
@@ -90,21 +84,22 @@ def parse(file):
         except:
             max_index_per_name.append("ERR")
     
-    print("SUM: %s" % sum_per_name)
-    print("MAX: %s" % max_per_name)
-    print("MIN: %s" % min_per_name)
-    print("MAX_INDEX: %s" % max_index_per_name)
-
+    max_occur_per_name = []
+    for list in list_times_per_names:
+        try:
+            max_occur_per_name.append(list.count(max(list)))
+        except:
+            max_occur_per_name.append("ERR")
+    
     total_time = sum(sum_per_name)
 
-    d = {'SUM': sum_per_name, 'MIN': min_per_name, 'MAX': max_per_name, 'MAX_INDEX': max_index_per_name}
+    d = {'SUM': sum_per_name, 'MIN': min_per_name, 'MAX': max_per_name, 'MAX_INDEX': max_index_per_name, 'MAX_OCCUR': max_occur_per_name}
     df2 = pd.DataFrame(d)
     df2.index = list_names
     df2.sort_values(by=['SUM'], inplace=True, ascending=False)
 
     print(df2)
     print("\nTOTAL TIME: %s us\n" % total_time)
-
 
 def run():
     args = parse_args()

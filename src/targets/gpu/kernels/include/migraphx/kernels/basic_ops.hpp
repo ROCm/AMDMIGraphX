@@ -65,7 +65,6 @@ struct lowest
     template <class T>
     constexpr __device__ __host__ operator T() const
     {
-        // return device_cast(std::numeric_limits<host_type<T>>::lowest());
         return std::numeric_limits<T>::lowest();
     }
 };
@@ -75,7 +74,6 @@ struct highest
     template <class T>
     constexpr __device__ __host__ operator T() const
     {
-        // return device_cast(std::numeric_limits<host_type<T>>::max());
         return std::numeric_limits<T>::max();
     }
 };

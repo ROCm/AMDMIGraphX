@@ -51,7 +51,6 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
 {
     std::array<int, 2> low{};
     std::array<int, 2> high{};
-    max max_op{};
     for(std::size_t ii = 0; ii < xy.size(); ++ii)
     {
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
@@ -59,7 +58,7 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
             return 0;
         }
 
-        xy[ii]   = max_op(xy[ii], 0);
+        xy[ii]   = std::max(xy[ii], 0.0f);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)

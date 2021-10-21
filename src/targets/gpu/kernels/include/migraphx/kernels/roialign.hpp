@@ -72,14 +72,14 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
                                        high[0] * dims[1] + low[1],
                                        high[0] * dims[1] + high[1]};
 
-    float ly = xy[0] - low[0];
-    float lx = xy[1] - low[1];
-    float hy = 1.0f - ly;
-    float hx = 1.0f - lx;
-    std::array<T, 4> ws             = {hy * hx, hy * lx, ly * hx, ly * lx};
+    float ly            = xy[0] - low[0];
+    float lx            = xy[1] - low[1];
+    float hy            = 1.0f - ly;
+    float hx            = 1.0f - lx;
+    std::array<T, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
-    auto v01                        = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
-    auto v23                        = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
+    auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
+    auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     return pooling(v01, v23);
 }
 
@@ -98,10 +98,10 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         std::array<float, 2> locs;
         std::array<std::size_t, 2> id = {iy, ix};
-        for (std::size_t i = 0; i < idx.size(); ++i)
+        for(std::size_t i = 0; i < idx.size(); ++i)
         {
-            locs[i] =
-                roi_starts[i] + idx[i] * bin_size[i] + (id[i] + 0.5f) * bin_size[i] / bin_grid_size[i];
+            locs[i] = roi_starts[i] + idx[i] * bin_size[i] +
+                      (id[i] + 0.5f) * bin_size[i] / bin_grid_size[i];
             locs[i] += roi_offset;
         }
 

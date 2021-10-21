@@ -67,28 +67,20 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
         }
     }
+    std::array<std::size_t, 4> locs = {low[0] * dims[1] + low[1],
+                                       low[0] * dims[1] + high[1],
+                                       high[0] * dims[1] + low[1],
+                                       high[0] * dims[1] + high[1]};
 
     float ly = xy[0] - low[0];
     float lx = xy[1] - low[1];
     float hy = 1.0f - ly;
     float hx = 1.0f - lx;
-
-    std::array<std::size_t, 4> locs = {low[0] * dims[1] + low[1],
-                                       low[0] * dims[1] + high[1],
-                                       high[0] * dims[1] + low[1],
-                                       high[0] * dims[1] + high[1]};
     std::array<T, 4> ws             = {hy * hx, hy * lx, ly * hx, ly * lx};
+
     auto v01                        = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23                        = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     return pooling(v01, v23);
-
-    // std::array<T, 4> vals;
-    // std::transform(locs.begin(), locs.end(), ws.begin(), vals.begin(), [&](auto pos, auto w){
-    //     return data[pos] * w;
-    // });
-
-    // T ini_val = pooling.init();
-    // return std::accumulate(vals.begin(), vals.end(), ini_val, pooling);
 }
 
 template <class T, class Op>
@@ -105,31 +97,17 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         std::array<float, 2> locs;
+        std::array<std::size_t, 2> id = {iy, ix};
+        for (std::size_t i = 0; i < idx.size(); ++i)
+        {
+            locs[i] =
+                roi_starts[i] + idx[i] * bin_size[i] + (id[i] + 0.5f) * bin_size[i] / bin_grid_size[i];
+            locs[i] += roi_offset;
+        }
 
-        locs[0] =
-            roi_starts[0] + idx[0] * bin_size[0] + (iy + 0.5f) * bin_size[0] / bin_grid_size[0];
-        locs[1] =
-            roi_starts[1] + idx[1] * bin_size[1] + (ix + .5f) * bin_size[1] / bin_grid_size[1];
-
-        locs[0] += roi_offset;
-        locs[1] += roi_offset;
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);
     });
-
-    // for(int iy = 0; iy < roi_bin_grid_h; ++iy)
-    // {
-    //     float y = roi_start_h + ph * bin_size_h + (iy + 0.5f) * bin_size_h / roi_bin_grid_h;
-    //     y += roi_offset;
-    //     for(int ix = 0; ix < roi_bin_grid_w; ++ix)
-    //     {
-    //         float x = roi_start_w + pw * bin_size_w + (ix + .5f) * bin_size_w / roi_bin_grid_w;
-    //         x += roi_offset;
-    //         auto val   = bilinear_interpolate(data, height, width, y, x, op);
-    //         output_val = op.op(output_val, val);
-    //     }
-    // }
-
     return op.final(output_val, count);
 }
 

@@ -129,8 +129,6 @@ __device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
         // input shape
         auto x_lens      = x_t.get_shape().lens;
         auto channel_num = x_lens[1];
-        // auto height      = x_lens[2];
-        // auto width       = x_lens[3];
         // input dims of height and width, in all 2-dim arrays, the first dim
         // is for height and second dim is for width
         std::array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
@@ -138,8 +136,6 @@ __device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
         const auto stride   = index.nglobal();
         auto out_s          = y_t.get_shape();
         auto roi_column_num = rois_t.get_shape().lens[1];
-        // auto pooling_height = out_s.lens[2];
-        // auto pooling_width  = out_s.lens[3];
 
         // output dims of height and width, in all 2-dim arrays, the first dim
         // is for height and second dim is for width
@@ -176,23 +172,7 @@ __device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
                     (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
             }
 
-            // float roi_width  = roi_end_w - roi_start_w;
-            // float roi_height = roi_end_h - roi_start_h;
-
-            // roi_width  = roi_width > 1.0f ? roi_width : 1.0f;
-            // roi_height = roi_height > 1.0f ? roi_height : 1.0f;
-
-            // float bin_size_w = roi_width / pooling_width;
-            // float bin_size_h = roi_height / pooling_height;
-
-            // We use roi_bin_grid to sample the grid and mimic integral
-            // int roi_bin_grid_h =
-            //     (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_height / pooling_height);
-            // int roi_bin_grid_w =
-            //     (sampling_ratio > 0) ? sampling_ratio : ceilf(roi_width / pooling_width);
-
             const auto* offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-
             if(is_avg_pooling)
             {
                 out_ptr[i] = calc_pooling(offset_x,

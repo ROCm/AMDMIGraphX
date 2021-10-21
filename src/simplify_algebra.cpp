@@ -242,6 +242,46 @@ struct find_double_add_lit_broadcast
     }
 };
 
+struct find_depthtospace_unary
+{
+    // depthtospace is implemented as reshape --> transpose --> contiguous --> reshape.
+    // this matcher moves the unary operation before the contiguous so it becomes reshape -->
+    // transpose --> unary --> contigous --> reshape. later pointwise sub-module can be created out
+    // of `binary --> contigous --> reshape`
+    auto matcher() const
+    {
+        return pointwise(
+            match::used_once(),
+            match::nargs(1),
+            match::arg(0)(
+                match::name("reshape")(
+                    match::used_once(),
+                    match::arg(0)(match::name("contiguous")(
+                                      match::used_once(),
+                                      match::arg(0)(match::name("transpose")(
+                                                        match::used_once(),
+                                                        match::arg(0)(match::name("reshape")(
+                                                            match::used_once())))
+                                                        .bind("trans_ins")))
+                                      .bind("cont_ins")))
+                    .bind("d2s_ins")));
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins           = r.result;
+        auto d2s_ins       = r.instructions["d2s_ins"];
+        auto trans_ins     = r.instructions["trans_ins"];
+        auto cont_ins      = r.instructions["cont_ins"];
+        auto unary_op_name = ins->get_operator().name();
+        auto unary_ins     = p.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
+        auto new_cont_ins  = p.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
+        auto reshape_dims  = any_cast<op::reshape>(d2s_ins->get_operator()).dims;
+        // older cont and reshape are removed by deadcode elimination
+        p.replace_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), new_cont_ins);
+    }
+};
+
 struct find_inner_broadcast
 {
     auto matcher() const
@@ -1033,6 +1073,7 @@ void simplify_algebra::apply(module& p) const
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
+                            find_depthtospace_unary{},
                             find_split_transpose{});
         dead_code_elimination{}.apply(p);
     }

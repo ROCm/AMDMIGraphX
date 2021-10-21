@@ -110,8 +110,8 @@ def parse(file):
     df2 = pd.DataFrame(d)
     df2.index = list_names
     df2.sort_values(by=['SUM'], inplace=True, ascending=False)
-    
-    if(args.debug):
+
+    if (args.debug):
         print(df2)
         print("\nTOTAL TIME: %s us" % total_time)
     return df2, total_time
@@ -121,8 +121,9 @@ def run():
     args = parse_args()
     onnx_path = args.onnx_file
     repeat_count = args.repeat
-    if(repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
-        raise Exception("Repeat count is either, 0, infinity or not defined. Quitting.")
+    if (repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
+        raise Exception(
+            "Repeat count is either, 0, infinity or not defined. Quitting.")
     migraphx_args = args.migraphx_args
     if not (onnx_path):
         raise Exception("No ONNX file is provided to run.")
@@ -159,8 +160,8 @@ def main():
         os.chdir(curr)
         run()
         os.chdir(curr + "/%s/" % args.out)
-        out_path = os.popen("ls -td $PWD/*/*/ | head -%s"%args.repeat).read()
-        print("\nFollowing paths will be parsed:\n%s"%out_path)
+        out_path = os.popen("ls -td $PWD/*/*/ | head -%s" % args.repeat).read()
+        print("\nFollowing paths will be parsed:\n%s" % out_path)
         out_path = out_path.splitlines()
         df_tot = pd.DataFrame()
         tot_time = []
@@ -172,33 +173,47 @@ def main():
                 "python -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
             )
             os.system(
-                "python /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json")
+                "python /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json"
+            )
             os.chdir(curr)
             df, total_time = parse(path + "trace.json")
             tot_time.append(total_time)
-            df_tot = pd.merge(df_tot, df, how='outer', left_index=True, right_index=True)
-            if(args.debug):
+            df_tot = pd.merge(df_tot,
+                              df,
+                              how='outer',
+                              left_index=True,
+                              right_index=True)
+            if (args.debug):
                 print("JSON FILE PATH: " + path + "trace.json")
         tmp_sum = df_tot.loc[:, df_tot.columns.str.contains('SUM')].astype(int)
         tmp_min = df_tot.loc[:, df_tot.columns.str.contains('MIN')].astype(int)
-        tmp_max = df_tot.loc[:, df_tot.columns.str.match("^MAX_.$")].astype(int)
+        tmp_max = df_tot.loc[:,
+                             df_tot.columns.str.match("^MAX_.$")].astype(int)
 
         tmp_sum['SUM_avg'] = tmp_sum.mean(axis=1).astype(int)
         tmp_min['MIN_avg'] = tmp_min.mean(axis=1).astype(int)
         tmp_max['MAX_avg'] = tmp_max.mean(axis=1).astype(int)
 
         df2 = tmp_sum['SUM_avg'].copy()
-        df2 = pd.merge(df2, tmp_min['MIN_avg'], how='outer', left_index=True, right_index=True)
-        df2 = pd.merge(df2, tmp_max['MAX_avg'], how='outer', left_index=True, right_index=True)
+        df2 = pd.merge(df2,
+                       tmp_min['MIN_avg'],
+                       how='outer',
+                       left_index=True,
+                       right_index=True)
+        df2 = pd.merge(df2,
+                       tmp_max['MAX_avg'],
+                       how='outer',
+                       left_index=True,
+                       right_index=True)
         df2.sort_values(by=['SUM_avg'], inplace=True, ascending=False)
 
-        if(args.debug):
+        if (args.debug):
             pd.set_option('display.max_columns', None)
             print(df_tot)
         print("\n*** RESULTS ***")
         print(df2)
         out_time = sum(tot_time) / len(tot_time)
-        print("\nAVG TOTAL TIME: %s us\n" %int(out_time))
+        print("\nAVG TOTAL TIME: %s us\n" % int(out_time))
 
     if (args.parse):
         if not (file):

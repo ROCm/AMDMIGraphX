@@ -560,7 +560,9 @@ struct find_transpose_contiguous_reshaper_unary
 {
     auto matcher() const
     {
-        return pointwise(match::used_once(), match::args(match_transpose_contiguous_reshaper()));
+        return pointwise(match::used_once(),
+                         match::nargs(1),
+                         match::args(match_transpose_contiguous_reshaper()));
     }
 
     void apply(module& p, match::matcher_result r) const
@@ -572,6 +574,33 @@ struct find_transpose_contiguous_reshaper_unary
         auto unary_op_name = ins->get_operator().name();
         auto unary_ins     = p.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
         auto new_cont_ins  = p.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
+        // older cont and reshape are removed by deadcode elimination
+        p.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+    }
+};
+
+// similar to find_transpose_contiguous_reshaper_unary, but this works on binary ops
+struct find_transpose_contiguous_reshaper_binary
+{
+    auto matcher() const
+    {
+        return pointwise(match::used_once(),
+                         match::nargs(2),
+                         match::either_arg(0, 1)(match::standard_shape().bind("y"),
+                                                 match_transpose_contiguous_reshaper()));
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins          = r.result;
+        auto y            = r.instructions["y"];
+        auto reshaper_ins = r.instructions["reshaper_ins"];
+        auto trans_ins    = r.instructions["trans_ins"];
+        auto cont_ins     = r.instructions["cont_ins"];
+        auto y_reshape    = p.insert_instruction(
+            cont_ins, make_op("reshape", {{"dims", trans_ins->get_shape().lens()}}), y);
+        auto binary_ins = p.insert_instruction(cont_ins, ins->get_operator(), trans_ins, y_reshape);
+        auto new_cont_ins = p.insert_instruction(cont_ins, make_op("contiguous"), binary_ins);
         // older cont and reshape are removed by deadcode elimination
         p.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
     }
@@ -592,7 +621,8 @@ void simplify_reshapes::apply(module& p) const
                             find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            find_transpose_contiguous_reshaper_unary{});
+                            find_transpose_contiguous_reshaper_unary{},
+                            find_transpose_contiguous_reshaper_binary{});
         dead_code_elimination{}.apply(p);
     }
 }

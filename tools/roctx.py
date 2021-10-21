@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 import csv
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Parser for MIGraphX ROCTX Markers")
@@ -20,10 +21,11 @@ def parse_args():
                         type=str,
                         metavar='out',
                         help='output directory for run')
-    parser.add_argument('--study_name',
-                        type=str,
-                        metavar='study_name',
-                        help='study name is used for naming the output CSV file.')
+    parser.add_argument(
+        '--study_name',
+        type=str,
+        metavar='study_name',
+        help='study name is used for naming the output CSV file.')
     parser.add_argument('--repeat',
                         type=int,
                         metavar='repeat',
@@ -151,17 +153,17 @@ def main():
     print(args)
     file = args.json_path
 
-    if(args.study_name):
+    if (args.study_name):
         filename = args.study_name + ".csv"
     else:
-        filename = "output" + datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p") + ".csv"
-    
+        filename = "output" + datetime.now().strftime(
+            "%Y_%m_%d-%I:%M:%S_%p") + ".csv"
+
     with open(filename, 'a') as f:
         f.write(args.onnx_file)
         f.write('\n')
         f.write(args.migraphx_args)
         f.write('\n')
-
 
     if (args.run):
         curr = os.path.abspath(os.getcwd())
@@ -235,7 +237,6 @@ def main():
         with open(filename, 'a') as f:
             f.write("AVG TOTAL TIME: %s us\n" % int(out_time))
         print("OUTPUT CSV FILE: %s" % filename)
-        
 
     if (args.parse):
         if not (file):

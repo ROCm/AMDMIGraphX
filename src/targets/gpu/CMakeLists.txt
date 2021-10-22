@@ -1,5 +1,5 @@
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip /opt/rocm/hcc)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hcc)
 find_package(miopen)
 
 # rocblas
@@ -255,9 +255,8 @@ else()
         PATH_SUFFIXES bin
         HINTS ${CMAKE_CXX_COMPILER_PATH}
         PATHS
-            /opt/rocm/hip
-            /opt/rocm/hcc
             /opt/rocm
+            /opt/rocm/hcc
     )
 endif()
 

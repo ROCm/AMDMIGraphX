@@ -1,4 +1,5 @@
 
+#include <migraphx/apply_alpha_beta.hpp>
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
@@ -19,9 +20,7 @@ struct gemm_multi_3args_beta0 : verify_program<gemm_multi_3args_beta0>
 
         float alpha = 1.0f;
         float beta  = 0.0f;
-        mm->add_instruction(
-            migraphx::make_op("dot", {{"alpha", alpha}, {"beta", beta}}), l1, l2, l3);
-
+        migraphx::add_apply_alpha_beta(*mm, {l1, l2, l3}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
 };

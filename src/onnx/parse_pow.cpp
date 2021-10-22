@@ -9,21 +9,20 @@ namespace onnx {
 
 auto compute_type(shape::type_t t1, shape::type_t t2)
 {
-    const static std::unordered_map<int, int> op_order = {
-        {static_cast<int>(shape::int8_type), 1},
-        {static_cast<int>(shape::uint8_type), 2},
-        {static_cast<int>(shape::int16_type), 3},
-        {static_cast<int>(shape::uint16_type), 4},
-        {static_cast<int>(shape::int32_type), 5},
-        {static_cast<int>(shape::uint32_type), 6},
-        {static_cast<int>(shape::int64_type), 7},
-        {static_cast<int>(shape::uint64_type), 8},
-        {static_cast<int>(shape::half_type), 9},
-        {static_cast<int>(shape::float_type), 10},
-        {static_cast<int>(shape::double_type), 11}};
+    const static std::unordered_map<int, int> op_order = {{shape::int8_type, 1},
+                                                          {shape::uint8_type, 2},
+                                                          {shape::int16_type, 3},
+                                                          {shape::uint16_type, 4},
+                                                          {shape::int32_type, 5},
+                                                          {shape::uint32_type, 6},
+                                                          {shape::int64_type, 7},
+                                                          {shape::uint64_type, 8},
+                                                          {shape::half_type, 9},
+                                                          {shape::float_type, 10},
+                                                          {shape::double_type, 11}};
 
-    int it1 = static_cast<int>(t1);
-    int it2 = static_cast<int>(t2);
+    int it1 = t1;
+    int it2 = t2;
     if(!contains(op_order, it1) or !contains(op_order, it2))
     {
         MIGRAPHX_THROW("PARSE_POW: Input data type not supported!");

@@ -35,6 +35,9 @@ class Type:
     def is_const(self):
         return self.name.startswith('const ')
 
+    def is_variadic(self):
+        return self.name.startswith('...')
+
     def add_pointer(self):
         return Type(self.name + '*')
 
@@ -101,9 +104,10 @@ ${error_type} ${name}(${params});
 c_api_impl = Template('''
 extern "C" ${error_type} ${name}(${params})
 {
-    return ${try_wrap}([&] {
+    ${va_start}auto api_error_result = ${try_wrap}([&] {
         ${body};
     });
+    ${va_end}return api_error_result;
 }
 ''')
 
@@ -113,6 +117,8 @@ class CFunction:
         self.name = name
         self.params = []
         self.body = []
+        self.va_start = []
+        self.va_end = []
 
     def add_param(self, type, pname):
         self.params.append('{} {}'.format(type, pname))
@@ -120,12 +126,23 @@ class CFunction:
     def add_statement(self, stmt):
         self.body.append(stmt)
 
+    def add_vlist(self, name):
+        last_param = self.params[-1].split()[-1]
+        self.va_start = [
+            'va_list {};'.format(name),
+            'va_start({}, {});'.format(name, last_param)
+        ]
+        self.va_end = ['va_end({});'.format(name)]
+        self.add_param('...', '')
+
     def substitute(self, form):
         return form.substitute(error_type=error_type,
                                try_wrap=try_wrap,
                                name=self.name,
                                params=', '.join(self.params),
-                               body=";\n        ".join(self.body))
+                               body=";\n        ".join(self.body),
+                               va_start="\n    ".join(self.va_start),
+                               va_end="\n    ".join(self.va_end))
 
     def generate_header(self):
         return self.substitute(header_function)
@@ -256,7 +273,10 @@ class Parameter:
 
     def add_to_cfunction(self, cfunction):
         for t, name in self.cparams:
-            cfunction.add_param(self.substitute(t), self.substitute(name))
+            if t.startswith('...'):
+                cfunction.add_vlist(name)
+            else:
+                cfunction.add_param(self.substitute(t), self.substitute(name))
         if self.bad_param_check:
             msg = 'Bad parameter {name}: {msg}'.format(
                 name=self.name, msg=self.bad_param_check.msg)

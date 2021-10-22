@@ -1062,6 +1062,62 @@ def depthtospace_crd_test():
 
 
 @onnx_test
+def spacetodepth_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.float, [2, 2, 10, 10])
+    y = helper.make_tensor_value_info('y', TensorProto.float, [2, 8, 5, 5])
+
+    node = onnx.helper.make_node('spacetodepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def spacetodepth_simple_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 3])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def spacetodepth_invalid_blocksize_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 4, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 3])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=0.3)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def spacetodepth_nondivisibility_test():
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 5, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 8, 2, 2])
+
+    node = onnx.helper.make_node('SpaceToDepth',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 blocksize=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def dequantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.INT8, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])
@@ -2749,6 +2805,18 @@ def no_pad_test():
 
 
 @onnx_test
+def nonzero_dynamic_test():
+    x = helper.make_tensor_value_info('data', TensorProto.BOOL, [2, 2])
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 3])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def nonzero_test():
     data1 = np.array([[1., 0.], [1., 1.]])
     data = helper.make_tensor(name='data',
@@ -3767,6 +3835,7 @@ def resize_upsample_pf_test():
     return ([node], [X], [Y], [scale_tensor])
 
 
+@onnx_test
 def resize_upsample_pc_test():
     scales = np.array([1.0, 1.0, 2.0, 1.5], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
@@ -3787,6 +3856,41 @@ def resize_upsample_pc_test():
         nearest_mode='round_prefer_ceil')
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test
+def roialign_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 1, 1])
+
+    node = onnx.helper.make_node('RoiAlign',
+                                 inputs=['x', 'rois', 'batch_ind'],
+                                 outputs=['y'])
+
+    return ([node], [x, roi, bi], [y])
+
+
+@onnx_test
+def roialign_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 5, 4, 7])
+    roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])
+    bi = helper.make_tensor_value_info('batch_ind', TensorProto.INT64, [8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8, 4, 5, 5])
+
+    node = onnx.helper.make_node(
+        'RoiAlign',
+        inputs=['x', 'rois', 'batch_ind'],
+        outputs=['y'],
+        spatial_scale=2.0,
+        output_height=5,
+        output_width=5,
+        sampling_ratio=3,
+        mode="avg",
+        coordinate_transformation_mode="output_half_pixel")
+
+    return ([node], [x, roi, bi], [y])
 
 
 @onnx_test

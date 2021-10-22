@@ -7,6 +7,7 @@ include(CheckCXXLinkerFlag)
 add_library(migraphx 
     adjust_allocation.cpp
     analyze_streams.cpp
+    apply_alpha_beta.cpp
     argument.cpp
     auto_contiguous.cpp
     common.cpp
@@ -14,7 +15,6 @@ add_library(migraphx
     convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
-    decompose.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -26,6 +26,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fuse_pointwise.cpp
     generate.cpp
     inline_module.cpp
     insert_pad.cpp
@@ -52,7 +53,6 @@ add_library(migraphx
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
-    remap.cpp
     simplify_qdq.cpp
     rewrite_batchnorm.cpp
     rewrite_pooling.cpp
@@ -131,8 +131,10 @@ register_migraphx_ops(
     multibroadcast
     multinomial
     neg
+    nonzero
     outline
     pad
+    pointwise
     pooling
     pow
     prefix_scan_sum
@@ -153,6 +155,7 @@ register_migraphx_ops(
     rnn_last_cell_output
     rnn_last_hs_output
     rnn_var_sl_last_output
+    roialign
     round
     rsqrt
     scalar
@@ -198,6 +201,9 @@ target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 
+find_package(Threads)
+target_link_libraries(migraphx PUBLIC Threads::Threads)
+
 find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
@@ -235,6 +241,7 @@ rocm_export_targets(
   TARGETS migraphx::migraphx migraphx_all_targets
   NAMESPACE migraphx::
   DEPENDS
+    Threads
     ${PACKAGE_DEPENDS}
 )
  

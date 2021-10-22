@@ -377,6 +377,8 @@ struct verify : command<verify>
     bool reduce          = false;
     bool offload_copy    = false;
     bool fast_math       = true;
+    static const int q_fp16 = 1;
+    int quantize      = 0;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
@@ -396,6 +398,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
     }
 
     void run()
@@ -412,15 +415,15 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, options, tolerance);
+            verify_instructions(p, t, options, quantize, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, options, m, tolerance);
+            verify_reduced_program(p, t, options, quantize, m, tolerance);
         }
         else
         {
-            verify_program(l.file, p, t, options, m, tolerance);
+            verify_program(l.file, p, t, options, quantize, m, tolerance);
         }
     }
 };

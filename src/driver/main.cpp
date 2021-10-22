@@ -372,13 +372,13 @@ struct verify : command<verify>
     loader l;
     program_params parameters;
     compiler_target ct;
-    double tolerance     = 80;
-    bool per_instruction = false;
-    bool reduce          = false;
-    bool offload_copy    = false;
-    bool fast_math       = true;
+    double tolerance        = 80;
+    bool per_instruction    = false;
+    bool reduce             = false;
+    bool offload_copy       = false;
+    bool fast_math          = true;
     static const int q_fp16 = 1;
-    int quantize      = 0;
+    int quantize            = 0;
     void parse(argument_parser& ap)
     {
         l.parse(ap);

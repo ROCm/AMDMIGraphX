@@ -382,7 +382,7 @@ struct mlir_program
 
         auto ops = create_operation_state("builtin.func");
         ops.add_attributes(
-            {{"type", make_function_type(inputs, outputs)}, {"sym_name", "\"main\""}});
+            {{"type", make_function_type(inputs, outputs)}, {"sym_name", std::string("main")}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

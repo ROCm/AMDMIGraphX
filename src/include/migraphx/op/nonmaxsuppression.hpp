@@ -168,7 +168,6 @@ struct nonmaxsuppression
 
         auto scores        = make_view<float>(args.at(1).get_shape(), args.at(1).cast<float>());
         const float* boxes = args.at(0).cast<float>();
-        // args.at(0).visit([&](auto boxes) {
         shape comp_s{shape::float_type, {batch_num, class_num}};
         shape_for_each(comp_s, [&](auto idx) {
             auto bidx = idx[0];
@@ -220,7 +219,6 @@ struct nonmaxsuppression
                 sorted_boxes.pop();
             }
         });
-        // });
 
         result.visit([&](auto out) {
             std::copy(selected_indices.begin(), selected_indices.end(), out.begin());

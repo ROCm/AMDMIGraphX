@@ -45,7 +45,10 @@ std::size_t compute_global(std::size_t n, std::size_t local = 1024)
     return nglobal;
 }
 
-operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda, const std::string& preamble)
+operation compile_pointwise(context&,
+                            const std::vector<shape>& inputs,
+                            const std::string& lambda,
+                            const std::string& preamble)
 {
     hip_compile_options options;
     options.global         = compute_global(inputs.front().elements());
@@ -57,7 +60,7 @@ operation compile_pointwise(context&, const std::vector<shape>& inputs, const st
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda},
-                                    {"preamble", preamble}});
+                                   {"preamble", preamble}});
     return compile_hip_code_object(src, options);
 }
 

@@ -58,8 +58,8 @@ struct miopen_apply
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
     std::function<instruction_ref(instruction_ref, const shape&)> allocation_inserter = nullptr;
-    bool offload_copy   = false;
-    bool int8_x4_format = true;
+    bool offload_copy                                                                 = false;
+    bool int8_x4_format                                                               = true;
     gpu_allocation_model alloc{};
 
     context& get_context() const
@@ -78,7 +78,7 @@ struct miopen_apply
 
     void create_output_names()
     {
-        this->last = instruction::get_output_alias(std::prev(mod->end()));
+        this->last                = instruction::get_output_alias(std::prev(mod->end()));
         this->allocation_inserter = alloc.allocation_inserter(*mod);
     }
 
@@ -95,7 +95,7 @@ struct miopen_apply
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
-        alloc = {offload_copy};
+        alloc        = {offload_copy};
         create_output_names();
 
         add_generic_op("acos");
@@ -240,7 +240,7 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if (tag.empty())
+        if(tag.empty())
             return this->allocation_inserter(ins, s);
         else
             return mod->insert_instruction(

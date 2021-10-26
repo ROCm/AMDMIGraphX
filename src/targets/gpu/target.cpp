@@ -9,6 +9,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/memory_coloring.hpp>
@@ -25,6 +26,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
@@ -85,6 +87,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
+        fuse_pointwise{},
+        dead_code_elimination{},
         mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
@@ -96,6 +100,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         adjust_allocation{alloc},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
+        dead_code_elimination{},
+        compile_ops{&ctx, alloc},
         dead_code_elimination{},
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},

@@ -26,16 +26,18 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         {
             names[ins] =
                 migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
-            continue;
         }
-        if(ins->name() == "@return")
+        else if(ins->name() == "@return")
         {
             assert(ins->inputs().size() == 1);
             return_ins = ins->inputs().front();
         }
-        std::string n = "z" + std::to_string(names.size());
-        names[ins]    = n;
-        ss << "auto " << n << " = " << g(ins, names) << ";\n";
+        else
+        {
+            std::string n = "z" + std::to_string(names.size());
+            names[ins]    = n;
+            ss << "auto " << n << " = " << g(ins, names) << ";\n";
+        }
     }
     ss << "return " << names.at(return_ins) << ";\n";
     body = ss.str();
@@ -85,7 +87,10 @@ std::string cpp_generator::generate_point_op(const operation& op,
                                              const std::vector<std::string>& args)
 {
     auto v = op.to_value();
-    return interpolate_string(op.attributes()["point_op"].to<std::string>(),
+    auto attributes = op.attributes();
+    if (not attributes.contains("point_op"))
+        MIGRAPHX_THROW("op is missing point_op attribute: " + op.name());
+    return interpolate_string(attributes["point_op"].to<std::string>(),
                               [&](auto start, auto last) -> std::string {
                                   auto key = trim({start, last});
                                   if(key.empty())

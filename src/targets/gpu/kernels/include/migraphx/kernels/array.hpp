@@ -9,39 +9,41 @@
 namespace migraphx {
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                                                         \
-    constexpr array& operator op(const array& x)                                                                        \
-    {                                                                                                                   \
-        for(index_int i = 0; i < N; i++)                                                                                \
-            d[i] op x[i];                                                                                               \
-        return *this;                                                                                                   \
-    }                                                                                                                   \
-    constexpr array& operator op(const T& x)                                                                            \
-    {                                                                                                                   \
-        for(index_int i = 0; i < N; i++)                                                                                \
-            d[i] op x;                                                                                                  \
-        return *this;                                                                                                   \
-    }                                                                                                                   \
-    template<class U>                                                                                                   \
-    friend constexpr array<decltype(U{} binary_op T{}), N> operator binary_op(const array<T, N>& x, const array<U, N>& y) \
-    {                                                                                                                   \
-        array<decltype(U{} binary_op T{}), N> z;                                                                        \
-        for(index_int i = 0; i < N; i++)                                                                                \
-            z[i] = x[i] binary_op y[i];                                                                                 \
-        return z;                                                                                                       \
-    }                                                                                                                   \
-    friend constexpr array operator binary_op(const array& x, const T& y)                                               \
-    {                                                                                                                   \
-        auto z = x;                                                                                                     \
-        return z op y;                                                                                                  \
-    }                                                                                                                   \
-    template<class U>                                                                                                   \
-    friend constexpr array<decltype(U{} binary_op T{}), N> operator binary_op(const T& x, const array<U, N>& y)         \
-    {                                                                                                                   \
-        array<decltype(U{} binary_op T{}), N> z;                                                                        \
-        for(index_int i = 0; i < N; i++)                                                                                \
-            z[i] = x binary_op y[i];                                                                                    \
-        return z;                                                                                                       \
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                 \
+    constexpr array& operator op(const array& x)                                \
+    {                                                                           \
+        for(index_int i = 0; i < N; i++)                                        \
+            d[i] op x[i];                                                       \
+        return *this;                                                           \
+    }                                                                           \
+    constexpr array& operator op(const T& x)                                    \
+    {                                                                           \
+        for(index_int i = 0; i < N; i++)                                        \
+            d[i] op x;                                                          \
+        return *this;                                                           \
+    }                                                                           \
+    template <class U>                                                          \
+    friend constexpr array<decltype(U {} binary_op T{}), N> operator binary_op( \
+        const array<T, N>& x, const array<U, N>& y)                             \
+    {                                                                           \
+        array<decltype(U {} binary_op T{}), N> z;                               \
+        for(index_int i = 0; i < N; i++)                                        \
+            z[i] = x[i] binary_op y[i];                                         \
+        return z;                                                               \
+    }                                                                           \
+    friend constexpr array operator binary_op(const array& x, const T& y)       \
+    {                                                                           \
+        auto z = x;                                                             \
+        return z op y;                                                          \
+    }                                                                           \
+    template <class U>                                                          \
+    friend constexpr array<decltype(U {} binary_op T{}), N> operator binary_op( \
+        const T& x, const array<U, N>& y)                                       \
+    {                                                                           \
+        array<decltype(U {} binary_op T{}), N> z;                               \
+        for(index_int i = 0; i < N; i++)                                        \
+            z[i] = x binary_op y[i];                                            \
+        return z;                                                               \
     }
 
 template <class T, index_int N>

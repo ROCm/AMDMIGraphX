@@ -16,7 +16,7 @@ struct context;
 
 struct compile_ops
 {
-    context* ctx   = nullptr;
+    context* ctx = nullptr;
     gpu_allocation_model alloc{false};
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module& m) const;

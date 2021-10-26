@@ -56,7 +56,7 @@ operation compile_pointwise(context&,
     options.inputs         = inputs;
     options.output         = inputs.back();
     options.reduced_inputs = reduce_dims(inputs);
-    options.params = "-Wno-float-equal";
+    options.params         = "-Wno-float-equal";
     auto src               = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},

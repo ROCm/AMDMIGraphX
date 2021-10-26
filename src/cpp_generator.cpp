@@ -86,9 +86,9 @@ void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { imp
 std::string cpp_generator::generate_point_op(const operation& op,
                                              const std::vector<std::string>& args)
 {
-    auto v = op.to_value();
+    auto v          = op.to_value();
     auto attributes = op.attributes();
-    if (not attributes.contains("point_op"))
+    if(not attributes.contains("point_op"))
         MIGRAPHX_THROW("op is missing point_op attribute: " + op.name());
     return interpolate_string(attributes["point_op"].to<std::string>(),
                               [&](auto start, auto last) -> std::string {

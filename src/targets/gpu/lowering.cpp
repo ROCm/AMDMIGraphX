@@ -18,6 +18,7 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
+#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -56,9 +57,10 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
+    std::function<instruction_ref(instruction_ref, const shape&)> allocation_inserter = nullptr;
     bool offload_copy   = false;
     bool int8_x4_format = true;
+    gpu_allocation_model alloc{};
 
     context& get_context() const
     {
@@ -77,22 +79,7 @@ struct miopen_apply
     void create_output_names()
     {
         this->last = instruction::get_output_alias(std::prev(mod->end()));
-        if(this->last->name() == "@return")
-        {
-            const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            std::size_t index = 0;
-            for(auto ins : outputs_alias)
-            {
-                prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
-            }
-        }
+        this->allocation_inserter = alloc.allocation_inserter(*mod);
     }
 
     void init()
@@ -108,6 +95,7 @@ struct miopen_apply
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
+        alloc = {offload_copy};
         create_output_names();
 
         add_generic_op("acos");
@@ -252,26 +240,11 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        // Instruction's output is an input of the ret instruction
-        if(offload_copy)
-        {
-            auto result = mod->insert_instruction(
+        if (tag.empty())
+            return this->allocation_inserter(ins, s);
+        else
+            return mod->insert_instruction(
                 ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
-            return result;
-        }
-
-        auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
-        {
-            return mod->add_parameter(prog_output_names[ins_alias], s);
-        }
-        else if(ins == last and tag.empty())
-        {
-            return mod->add_parameter("output", s);
-        }
-
-        return mod->insert_instruction(
-            ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
 
     void add_convolution_op()

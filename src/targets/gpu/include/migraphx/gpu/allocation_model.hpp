@@ -3,6 +3,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <string>
 
 namespace migraphx {
@@ -11,10 +12,12 @@ namespace gpu {
 
 struct gpu_allocation_model
 {
+    bool offload_copy = false;
     std::string name() const;
     std::string copy() const;
     operation allocate(const shape& s) const;
     operation preallocate(const shape& s, const std::string& id) const;
+    std::function<instruction_ref(instruction_ref, const shape&)> allocation_inserter(module& m) const;
 };
 
 } // namespace gpu

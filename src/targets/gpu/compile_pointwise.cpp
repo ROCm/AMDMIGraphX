@@ -1,6 +1,7 @@
 #include <migraphx/gpu/compile_pointwise.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
@@ -15,6 +16,8 @@ static const char* const pointwise_kernel = R"__migraphx__(
 #include <args.hpp>
 
 using namespace migraphx;
+
+${preamble}
 
 extern "C" {
 __global__ void kernel(${params}) 
@@ -42,7 +45,7 @@ std::size_t compute_global(std::size_t n, std::size_t local = 1024)
     return nglobal;
 }
 
-operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda)
+operation compile_pointwise(context&, const std::vector<shape>& inputs, const std::string& lambda, const std::string& preamble)
 {
     hip_compile_options options;
     options.global         = compute_global(inputs.front().elements());
@@ -53,8 +56,16 @@ operation compile_pointwise(context&, const std::vector<shape>& inputs, const st
     auto src               = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
-                                   {"lambda", lambda}});
+                                   {"lambda", lambda},
+                                    {"preamble", preamble}});
     return compile_hip_code_object(src, options);
+}
+
+operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, const module& m)
+{
+    cpp_generator g;
+    auto name = g.create_function(g.generate_module(m).set_attributes({"__device__"}));
+    return compile_pointwise((ctx), inputs, "&" + name, g.str());
 }
 
 } // namespace gpu

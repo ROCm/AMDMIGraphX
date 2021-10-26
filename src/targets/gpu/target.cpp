@@ -53,6 +53,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    gpu_allocation_model alloc{options.offload_copy};
     // clang-format off
     return
     {
@@ -92,7 +93,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         pack_int8_args{},
         dead_code_elimination{},
-        adjust_allocation{gpu_allocation_model{}},
+        adjust_allocation{alloc},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
@@ -100,7 +101,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
         sync_device{},
-        preallocate_param{"scratch", gpu_allocation_model{}},
+        preallocate_param{"scratch", alloc},
         dead_code_elimination{},
         eliminate_workspace{},
         eliminate_allocation{"hip::allocate"},

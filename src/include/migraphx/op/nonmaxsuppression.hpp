@@ -166,8 +166,8 @@ struct nonmaxsuppression
         std::vector<int64_t> selected_indices;
         selected_boxes_inside_class.reserve(output_shape.elements());
 
-        auto scores = make_view<float>(args.at(1).get_shape(), args.at(1).cast<float>());
-        const float* boxes  = args.at(0).cast<float>();
+        auto scores        = make_view<float>(args.at(1).get_shape(), args.at(1).cast<float>());
+        const float* boxes = args.at(0).cast<float>();
         // args.at(0).visit([&](auto boxes) {
         shape comp_s{shape::float_type, {batch_num, class_num}};
         shape_for_each(comp_s, [&](auto idx) {
@@ -175,7 +175,7 @@ struct nonmaxsuppression
             auto cidx = idx[1];
 
             std::size_t score_offset = (bidx * class_num + cidx) * box_num;
-            const float* batch_boxes  = boxes + bidx * box_num * 4;
+            const float* batch_boxes = boxes + bidx * box_num * 4;
             std::vector<std::pair<float, int64_t>> cand_boxes;
             cand_boxes.reserve(box_num);
 
@@ -187,11 +187,9 @@ struct nonmaxsuppression
                              box_idx++;
                              return sc >= score_threshold;
                          },
-                         [&](auto sc) {
-                             return std::make_pair(sc, box_idx - 1);
-                         });
-            std::priority_queue<std::pair<float, int64_t>, std::vector<std::pair<float, int64_t>>> sorted_boxes(
-                std::less<std::pair<float, int64_t>>(), std::move(cand_boxes));
+                         [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+            std::priority_queue<std::pair<float, int64_t>, std::vector<std::pair<float, int64_t>>>
+            sorted_boxes(std::less<std::pair<float, int64_t>>(), std::move(cand_boxes));
 
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold

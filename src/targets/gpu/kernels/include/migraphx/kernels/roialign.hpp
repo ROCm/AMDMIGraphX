@@ -94,11 +94,9 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     T output_val        = op.init();
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
-        // array<float, 2> id = {static_cast<float>(iy), static_cast<float>(ix)};
-        // array<float, 2> tmp_idx = {static_cast<float>(idx[0]), static_cast<float>(idx[1])};
-        array<std::size_t, 2> id = {iy, ix};
+        array<float, 2> id = {iy * 1.0f, ix * 1.0f};
         array<float, 2> locs =
-            roi_starts + idx * bin_size + ((0.5f + id) * bin_size) / bin_grid_size + roi_offset;
+            roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;
 
         auto val   = bilinear_interpolate(data, dims, locs, op);
         output_val = op(output_val, val);

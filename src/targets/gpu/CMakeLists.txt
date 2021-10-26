@@ -122,6 +122,7 @@ add_library(migraphx_gpu
     batch_norm_inference.cpp
     clip.cpp
     code_object_op.cpp
+    compile_ops.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_pointwise.cpp

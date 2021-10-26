@@ -30,7 +30,7 @@
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'breathe', 'sphinx.ext.mathjax', 'sphinx.ext.viewcode'
+    'breathe', 'sphinx.ext.mathjax', 'sphinx.ext.viewcode',
     'sphinx_rtd_theme'
 ]
 

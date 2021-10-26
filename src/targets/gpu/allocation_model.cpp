@@ -41,7 +41,7 @@ gpu_allocation_model::allocation_inserter(module& m) const
             prog_output_names[ins] = m.name() + ":#output_" + std::to_string(index++);
         }
     }
-    bool offload = this->offload_copy;
+    bool offload = (m.name() == "main") ? this->offload_copy : false;
     return [=, &m](instruction_ref ins, const shape& s) {
         // Instruction's output is an input of the ret instruction
         if(offload)

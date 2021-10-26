@@ -4,13 +4,13 @@
 namespace migraphx {
 
 // Multidimensional for loop
-inline __host__ __device__ auto dfor()
+inline constexpr auto dfor()
 {
     return [](auto f) { f(); };
 }
 
 template <class T, class... Ts>
-__host__ __device__ auto dfor(T x, Ts... xs)
+constexpr auto dfor(T x, Ts... xs)
 {
     return [=](auto f) {
         for(T i = 0; i < x; i++)

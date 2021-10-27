@@ -977,4 +977,58 @@ TEST_CASE(transpose_contiguous_reshape_unary)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(transpose_contiguous_squeeze_unary)
+{
+    migraphx::module m1;
+    {
+        auto l0 = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
+        auto tmp1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+        auto tmp2 = m1.add_instruction(migraphx::make_op("contiguous"), tmp1);
+        auto tmp3 =
+            m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), tmp2);
+        auto tmp4 = m1.add_instruction(migraphx::make_op("rsqrt"), tmp3);
+        m1.add_instruction(pass_op{}, tmp4);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l0 = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
+        auto tmp1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+        auto tmp2 = m2.add_instruction(migraphx::make_op("rsqrt"), tmp1);
+        auto tmp3 = m2.add_instruction(migraphx::make_op("contiguous"), tmp2);
+        auto tmp4 =
+            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), tmp3);
+        m2.add_instruction(pass_op{}, tmp4);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_contiguous_unsqueeze_unary)
+{
+    migraphx::module m1;
+    {
+        auto l0 = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto tmp1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+        auto tmp2 = m1.add_instruction(migraphx::make_op("contiguous"), tmp1);
+        auto tmp3 =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), tmp2);
+        auto tmp4 = m1.add_instruction(migraphx::make_op("round"), tmp3);
+        m1.add_instruction(pass_op{}, tmp4);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l0 = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto tmp1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), l0);
+        auto tmp2 = m2.add_instruction(migraphx::make_op("round"), tmp1);
+        auto tmp3 = m2.add_instruction(migraphx::make_op("contiguous"), tmp2);
+        auto tmp4 =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), tmp3);
+        m2.add_instruction(pass_op{}, tmp4);
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

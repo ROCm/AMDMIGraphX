@@ -540,9 +540,7 @@ struct find_reshape_cont
     }
 };
 
-inline auto find_depthtospace()
-{
-    return []() {
+inline auto match_depthtospace = []() {
         return match::name("reshape")(
                    match::used_once(),
                    match::args(
@@ -553,10 +551,8 @@ inline auto find_depthtospace()
                                            match::args(match::name("reshape")(match::used_once())))
                                            .bind("trans_ins")))
                            .bind("cont_ins")))
-            .bind("d2s_ins");
-    };
-};
-
+            .bind("d2s_ins");};
+ 
 // depthtospace is implemented as reshape --> transpose --> contiguous --> reshape.
 // this matcher moves the unary operation before the contiguous so it becomes reshape -->
 // transpose --> unary --> contigous --> reshape. later pointwise sub-module can be created out
@@ -565,7 +561,7 @@ struct find_depthtospace_unary
 {
     auto matcher() const
     {
-        return pointwise(match::used_once(), match::args(find_depthtospace()()));
+        return pointwise(match::used_once(), match::args(match_depthtospace()));
     }
 
     void apply(module& p, match::matcher_result r) const

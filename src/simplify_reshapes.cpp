@@ -540,19 +540,22 @@ struct find_reshape_cont
     }
 };
 
-inline auto find_depthtospace() {
-    return [](){return match::args(
-                match::name("reshape")(
-                    match::used_once(),
-                    match::args(match::name("contiguous")(
-                                      match::used_once(),
-                                      match::args(match::name("transpose")(
-                                                        match::used_once(),
-                                                        match::args(match::name("reshape")(
-                                                            match::used_once())))
-                                                        .bind("trans_ins")))
-                                      .bind("cont_ins")))
-                    .bind("d2s_ins"));};
+inline auto find_depthtospace()
+{
+    return []() {
+        return match::args(
+            match::name("reshape")(
+                match::used_once(),
+                match::args(
+                    match::name("contiguous")(
+                        match::used_once(),
+                        match::args(match::name("transpose")(
+                                        match::used_once(),
+                                        match::args(match::name("reshape")(match::used_once())))
+                                        .bind("trans_ins")))
+                        .bind("cont_ins")))
+                .bind("d2s_ins"));
+    };
 };
 
 // depthtospace is implemented as reshape --> transpose --> contiguous --> reshape.
@@ -561,12 +564,7 @@ inline auto find_depthtospace() {
 // of `binary --> contigous --> reshape`
 struct find_depthtospace_unary
 {
-    auto matcher() const
-    {
-        return pointwise(
-            match::used_once(),
-            find_depthtospace()());
-    }
+    auto matcher() const { return pointwise(match::used_once(), find_depthtospace()()); }
 
     void apply(module& p, match::matcher_result r) const
     {
@@ -582,7 +580,6 @@ struct find_depthtospace_unary
         p.replace_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), new_cont_ins);
     }
 };
-
 
 void simplify_reshapes::apply(module& p) const
 {

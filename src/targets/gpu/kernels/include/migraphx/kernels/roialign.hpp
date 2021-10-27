@@ -104,8 +104,7 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-__device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t)
-{
+__device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t) {
     const float roi_offset       = ROIS_OFFSET;
     const bool is_avg_pooling    = IS_AVG_POOLING;
     const int64_t sampling_ratio = SAMPLING_RATIO;
@@ -146,9 +145,8 @@ __device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t)
         const int batch_ind     = ind[n];
 
         array<float, 2> roi_starts = {offset_rois[1] * spatial_scale,
-                                        offset_rois[0] * spatial_scale};
-        array<float, 2> roi_ends   = {offset_rois[3] * spatial_scale,
-                                    offset_rois[2] * spatial_scale};
+                                      offset_rois[0] * spatial_scale};
+        array<float, 2> roi_ends = {offset_rois[3] * spatial_scale, offset_rois[2] * spatial_scale};
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
@@ -168,24 +166,24 @@ __device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t)
         if constexpr(is_avg_pooling)
         {
             out_ptr[i] = calc_pooling(offset_x,
-                                        roi_starts,
-                                        bin_size,
-                                        {ph, pw},
-                                        bin_grid_size,
-                                        in_dims,
-                                        roi_offset,
-                                        avg_pool{});
+                                      roi_starts,
+                                      bin_size,
+                                      {ph, pw},
+                                      bin_grid_size,
+                                      in_dims,
+                                      roi_offset,
+                                      avg_pool{});
         }
         else
         {
             out_ptr[i] = calc_pooling(offset_x,
-                                        roi_starts,
-                                        bin_size,
-                                        {ph, pw},
-                                        bin_grid_size,
-                                        in_dims,
-                                        roi_offset,
-                                        max_pool{});
+                                      roi_starts,
+                                      bin_size,
+                                      {ph, pw},
+                                      bin_grid_size,
+                                      in_dims,
+                                      roi_offset,
+                                      max_pool{});
         }
     }
 };

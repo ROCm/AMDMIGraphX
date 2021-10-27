@@ -19,7 +19,7 @@
 # import os
 # import sys
 from datetime import date
-import regex as re
+import re
 # sys.path.insert(0, os.path.abspath('.'))
 
 # -- General configuration ------------------------------------------------

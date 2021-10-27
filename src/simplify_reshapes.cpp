@@ -540,7 +540,8 @@ struct find_reshape_cont
 };
 
 // match sequence of transpose --> contiguous --> reshaper_op
-auto match_transpose_contiguous_reshaper()  {
+auto match_transpose_contiguous_reshaper()
+{
     return match::name({"reshape", "squeeze", "unsqueeze"})(
                match::used_once(),
                match::args(

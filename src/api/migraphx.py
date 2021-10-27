@@ -212,7 +212,9 @@ def program(h):
 @auto_handle()
 def operation(h):
     h.constructor('create',
-                  api.params(name='const char*', attributes='const char*'),
+                  api.params(name='const char*',
+                             attributes='const char*',
+                             vlist='...'),
                   fname='migraphx::create_op')
     h.method('name', returns='std::string')
 
@@ -243,6 +245,30 @@ def onnx_options(h):
         api.params(value='size_t'),
         invoke='migraphx::set_default_dim_value($@)',
     )
+    h.method(
+        'set_default_loop_iterations',
+        api.params(value='int64_t'),
+        invoke='migraphx::set_default_loop_iterations($@)',
+    )
+
+
+@auto_handle()
+def file_options(h):
+    h.constructor('create')
+    h.method('set_file_format',
+             api.params(format='const char*'),
+             invoke='migraphx::set_file_format($@)')
+
+
+@auto_handle()
+def compile_options(h):
+    h.constructor('create')
+    h.method('set_offload_copy',
+             api.params(value='bool'),
+             invoke='migraphx::set_offload_copy($@)')
+    h.method('set_fast_math',
+             api.params(value='bool'),
+             invoke='migraphx::set_fast_math($@)')
 
 
 api.add_function('migraphx_parse_onnx',

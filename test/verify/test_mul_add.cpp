@@ -16,9 +16,9 @@ struct test_mul_add : verify_program<test_mul_add>
         auto a  = mm->add_parameter("a", bs);
         auto b  = mm->add_parameter("b", bs);
         auto ab = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), a);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), a);
         auto bb = mm->add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"dims", s.lens()}}), b);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", s.lens()}}), b);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), x, ab);
         mm->add_instruction(migraphx::make_op("add"), mul, bb);
         return p;

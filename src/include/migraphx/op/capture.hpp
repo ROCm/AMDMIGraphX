@@ -8,6 +8,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/context.hpp>
 #include <cmath>
 #include <utility>
 
@@ -29,7 +30,9 @@ struct capture
 
     shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
 
-    argument compute(const shape&, std::vector<argument> args) const
+    // the context argument is added to prevent the op from be eliminated by
+    // constant propagation
+    argument compute(context&, const shape&, const std::vector<argument>& args) const
     {
         if(f)
         {
@@ -42,6 +45,8 @@ struct capture
 
         return args.front();
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

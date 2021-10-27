@@ -41,6 +41,7 @@ add_library(migraphx_device
     device/equal.cpp
     device/erf.cpp
     device/exp.cpp
+    device/fill.cpp
     device/floor.cpp
     device/gather.cpp
     device/gelu.cpp
@@ -58,6 +59,8 @@ add_library(migraphx_device
     device/mul.cpp
     device/mul_add.cpp
     device/mul_add_relu.cpp
+    device/multinomial.cpp
+    device/nonzero.cpp
     device/pad.cpp
     device/pow.cpp
     device/prelu.cpp
@@ -84,7 +87,9 @@ add_library(migraphx_device
     device/sub.cpp
     device/tan.cpp
     device/tanh.cpp
+    device/topk.cpp
     device/unary_not.cpp
+    device/where.cpp
 )
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -136,9 +141,12 @@ add_library(migraphx_gpu
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
+    loop.cpp
     lrn.cpp
     leaky_relu.cpp
     mlir_conv.cpp
+    multinomial.cpp
+    nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
     pad.cpp
@@ -152,6 +160,7 @@ add_library(migraphx_gpu
     softmax.cpp
     sync_device.cpp
     target.cpp
+    topk.cpp
     write_literals.cpp
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
@@ -190,9 +199,12 @@ register_migraphx_gpu_ops(hip_
     logical_and
     logical_or
     logical_xor
+    loop
     max
     min
     mul
+    multinomial
+    nonzero
     pad
     pow
     prelu
@@ -218,7 +230,9 @@ register_migraphx_gpu_ops(hip_
     sub
     tanh
     tan
+    topk
     unary_not
+    where
 )
 register_migraphx_gpu_ops(miopen_
     abs
@@ -292,8 +306,10 @@ else()
 include(TargetFlags)
 target_flags(HIP_COMPILER_FLAGS hip::device)
 # Remove cuda arch flags
-string(REGEX REPLACE "--cuda-gpu-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-string(REGEX REPLACE "--offload-arch=[^ \t\r\n]+" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REPLACE "$<LINK_LANGUAGE:CXX>" "1" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+string(REPLACE "SHELL:" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
 target_compile_definitions(migraphx_gpu PRIVATE 
     "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}" 

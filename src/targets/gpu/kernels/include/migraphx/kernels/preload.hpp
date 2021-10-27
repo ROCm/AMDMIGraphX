@@ -6,14 +6,6 @@
 
 namespace migraphx {
 
-template <class Shape>
-constexpr bool is_preloadable()
-{
-    Shape s{};
-    if(not s.broadcasted())
-        return false;
-}
-
 template <class T, class... Shapes>
 constexpr auto traverse_preload(Shapes... ss)
 {

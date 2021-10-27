@@ -13,6 +13,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <algorithm>
+#include <cstdarg>
 
 namespace migraphx {
 
@@ -73,24 +74,20 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 
 target get_target(const std::string& name) { return make_target(name); }
 
-migraphx::compile_options to_compile_options(const migraphx_compile_options& options)
-{
-    migraphx::compile_options result{};
-    result.offload_copy = options.offload_copy;
-    result.fast_math    = options.fast_math;
-    return result;
-}
+void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
-migraphx::file_options to_file_options(const migraphx_file_options& options)
-{
-    migraphx::file_options result{};
-    result.format = options.format;
-    return result;
-}
+void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
+
+void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+}
+
+void set_default_loop_iterations(onnx_options& options, int64_t value)
+{
+    options.max_loop_iterations = value;
 }
 
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -159,17 +156,29 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
     migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
-operation create_op(const char* name, const char* attributes)
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+operation create_op(const char* name, const char* attributes, va_list vlist)
 {
+    std::string sattributes = attributes == nullptr ? "" : attributes;
+    std::vector<char> buffer(sattributes.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), sattributes.c_str(), vlist);
     value v = value::object{};
     if(attributes != nullptr)
     {
-        v = from_json_string(convert_to_json(std::string(attributes)));
+        v = from_json_string(convert_to_json(std::string(buffer.data())));
     }
     auto op = make_op(name, v);
 
     return op;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 template <class T>
 bool equal(const T& x, const T& y)

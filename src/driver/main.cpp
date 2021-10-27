@@ -3,6 +3,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 #include "models.hpp"
+#include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -483,6 +484,23 @@ struct perf : command<perf>
     }
 };
 
+struct roctx : command<roctx>
+{
+    compiler c;
+    void parse(argument_parser& ap) { c.parse(ap); }
+
+    void run()
+    {
+        std::cout << "Compiling ... " << std::endl;
+        auto p = c.compile();
+        std::cout << "Allocating params ... " << std::endl;
+        auto m = c.params(p);
+        std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
+        auto rtx = create_marker_roctx();
+        p.mark(m, std::move(rtx));
+    }
+};
+
 struct op : command<op>
 {
     bool show_ops = false;
@@ -498,6 +516,26 @@ struct op : command<op>
         if(show_ops)
         {
             for(const auto& name : get_operators())
+                std::cout << name << std::endl;
+        }
+    }
+};
+
+struct onnx : command<onnx>
+{
+    bool show_ops = false;
+    void parse(argument_parser& ap)
+    {
+        ap(show_ops,
+           {"--list", "-l"},
+           ap.help("List all onnx operators supported by MIGraphX"),
+           ap.set_value(true));
+    }
+    void run() const
+    {
+        if(show_ops)
+        {
+            for(const auto& name : get_onnx_operators())
                 std::cout << name << std::endl;
         }
     }

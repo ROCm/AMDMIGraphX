@@ -38,23 +38,23 @@ struct parse_instancenorm : op_parser<parse_instancenorm>
 
         auto mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto mean_bcast =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", dims}}), mean);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), mean);
         auto l0              = info.add_instruction(make_op("sqdiff"), x, mean_bcast);
         auto variance        = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), l0);
         auto l1              = info.add_instruction(make_op("sub"), x, mean_bcast);
         auto epsilon_literal = info.add_literal(epsilon);
-        auto epsilon_bcast   = info.add_instruction(
-            make_op("multibroadcast", {{"output_lens", dims}}), epsilon_literal);
+        auto epsilon_bcast =
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), epsilon_literal);
         auto variance_bcast =
-            info.add_instruction(make_op("multibroadcast", {{"output_lens", dims}}), variance);
+            info.add_instruction(make_op("multibroadcast", {{"out_lens", dims}}), variance);
         auto l2 = info.add_instruction(make_op("add"), variance_bcast, epsilon_bcast);
         auto l3 = info.add_instruction(make_op("rsqrt"), l2);
         auto l4 = info.add_instruction(make_op("mul"), l1, l3);
         auto scale_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"dims", dims}}), scale);
+            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), scale);
         ;
         auto bias_bcast =
-            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"dims", dims}}), bias);
+            info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         auto l5 = info.add_instruction(make_op("mul"), l4, scale_bcast);
         return info.add_instruction(make_op("add"), l5, bias_bcast);
     }

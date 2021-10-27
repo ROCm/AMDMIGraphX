@@ -18,19 +18,10 @@ namespace op {
 
 struct dot
 {
-    float alpha = 1.0;
-    float beta  = 1.0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.alpha, "alpha"), f(self.beta, "beta"));
-    }
-
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_type();
+        check_shapes{inputs, *this}.same_type().has(2);
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
@@ -58,25 +49,14 @@ struct dot
 
         auto out_lens   = a.lens();
         out_lens[dim_1] = b.lens()[dim_1];
-        if(inputs.size() == 3 && out_lens != inputs.at(2).lens())
-        {
-            MIGRAPHX_THROW("DOT: dimension mismatch, operand C: {" +
-                           to_string_range(inputs.at(2).lens()) +
-                           "}, cannot add to operand A * B: {" + to_string_range(out_lens) + "}");
-        }
-
         return {t, out_lens};
     }
 
     argument compute(shape output_shape, std::vector<argument> args) const
     {
-        argument result;
-        if(args.size() == 3)
-            result = args[2];
-        else
-            result = argument{output_shape};
+        argument result = argument{output_shape};
         visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, alpha, beta); });
+            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
         return result;
     }
 };

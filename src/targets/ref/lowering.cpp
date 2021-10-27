@@ -10,10 +10,10 @@
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/elu.hpp>
-#include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/logsoftmax.hpp>
+#include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/pad.hpp>
 #include <migraphx/op/pooling.hpp>
@@ -269,99 +269,6 @@ struct ref_convolution : auto_register_op<ref_convolution<Op>>
     }
 };
 
-template <class Op>
-struct ref_deconvolution : auto_register_op<ref_deconvolution<Op>>
-{
-    ref_deconvolution() = default;
-
-    ref_deconvolution(Op pop) : op(std::move(pop)) {}
-
-    Op op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::" + op.name(); }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, shape output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        visit_all(result, args[0], args[1])([&](auto output, auto input, auto weights) {
-            using type = typename decltype(output)::value_type;
-
-            std::fill(output.begin(), output.end(), type{0});
-
-            auto in_lens = input.get_shape().lens();
-            auto in_n    = in_lens[0];
-            auto in_c    = in_lens[1];
-
-            auto wei   = weights.get_shape().lens();
-            auto wei_n = wei[0];
-            auto wei_c = wei[1];
-
-            auto out_lens = output_shape.lens();
-            auto kdims    = op.kdims();
-
-            std::vector<std::size_t> win_size{in_c};
-            std::copy(in_lens.begin() + 2, in_lens.end(), std::back_inserter(win_size));
-            std::copy(wei.begin() + 2, wei.end(), std::back_inserter(win_size));
-            shape win_shape{output_shape.type(), win_size};
-
-            par_dfor(in_n, wei_c)([&](int o, int k) {
-
-                shape_for_each(win_shape, [&](auto idx_win) {
-                    const int w = idx_win[0];
-
-                    auto input_dims_start = idx_win.begin() + 1;
-                    auto wei_dims_start   = idx_win.begin() + kdims + 1;
-
-                    std::vector<std::ptrdiff_t> win_start;
-                    for(std::size_t n = 0; n < kdims; ++n)
-                    {
-                        win_start.push_back(std::ptrdiff_t(*(input_dims_start + n) * op.stride[n]) -
-                                            std::ptrdiff_t(op.padding[n]));
-                    }
-
-                    const int group_id = w / (wei_n / op.group);
-                    const int in_ch    = group_id * wei_c + k;
-
-                    std::vector<std::ptrdiff_t> idx_out{o, in_ch};
-
-                    for(size_t n = 0; n < kdims; n++)
-                    {
-                        idx_out.push_back(win_start[n] + *(wei_dims_start + n) * op.dilation[n]);
-                    }
-
-                    std::vector<std::ptrdiff_t> idx_wei{w, k};
-                    std::copy(wei_dims_start, idx_win.end(), std::back_inserter(idx_wei));
-
-                    std::vector<std::ptrdiff_t> idx_in{o, w};
-                    std::copy(input_dims_start, wei_dims_start, std::back_inserter(idx_in));
-
-                    if(std::all_of(
-                           idx_out.begin() + 2, idx_out.end(), [&](auto ii) { return ii >= 0; }) and
-                       std::equal(idx_out.begin() + 2,
-                                  idx_out.end(),
-                                  out_lens.begin() + 2,
-                                  out_lens.end(),
-                                  std::less<std::ptrdiff_t>{}))
-                    {
-                        output(idx_out.begin(), idx_out.end()) +=
-                            input(idx_in.begin(), idx_in.end()) *
-                            weights(idx_wei.begin(), idx_wei.end());
-                    }
-                });
-
-            });
-
-        });
-        return result;
-    }
-};
-
 struct ref_im2col
 {
     op::im2col op;
@@ -611,42 +518,12 @@ struct ref_gemm
         return migraphx::reflect(self.op, f);
     }
     std::string name() const { return "ref::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrices, and C is of the same shape as A * B
-        if(args.size() == 3)
-        {
-            // no need to consider the value of args[2]
-            if(op.beta == 0.0f)
-            {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            }
-            else
-            {
-                visit_all(result, args[2])([&](auto output, auto input) {
-                    std::copy(input.begin(), input.end(), output.begin());
-                });
-            }
-
-            migemm(result, args[0], args[1], op.alpha, op.beta);
-
-            return result;
-        }
-
-        // 2 input arguments
-        migemm(result, args[0], args[1], op.alpha, 0.0f);
+        migemm(result, args[0], args[1], 1.0f, 0.0f);
 
         return result;
     }
@@ -664,22 +541,11 @@ struct ref_quant_gemm
     }
 
     std::string name() const { return "ref::quant_dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        if(inputs.size() == 3)
-        {
-            auto c_shape = inputs.at(2);
-            check_shapes{{c_shape}, *this}.not_broadcasted();
-        }
-        return op.compute_shape(inputs);
-    }
+    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
 
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        // 3 inputs, it is alpha * A * B + beta * C, then
-        // A and B are matrices, and C is of the same shape to A * B
-
         // first, convert the args[0] and args[1] from int8_t to int32_t
         argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
         argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
@@ -693,27 +559,7 @@ struct ref_quant_gemm
                 [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
         });
 
-        if(args.size() == 3)
-        {
-            // no need to consider the value of args[2]
-            if(op.beta == 0)
-            {
-                result.visit([&](auto output) { std::fill(output.begin(), output.end(), 0); });
-            }
-            else
-            {
-                visit_all(result, args[2])([&](auto output, auto input) {
-                    std::copy(input.begin(), input.end(), output.begin());
-                });
-            }
-
-            migemm(result, arg_0, arg_1, op.alpha, op.beta);
-
-            return result;
-        }
-
-        // 2 input arguments
-        migemm(result, arg_0, arg_1, op.alpha, int32_t{0});
+        migemm(result, arg_0, arg_1, int32_t{1}, int32_t{0});
 
         return result;
     }
@@ -917,10 +763,8 @@ struct ref_apply
         apply_map["batch_norm_inference"] =
             extend_op<ref_batch_norm_inference, op::batch_norm_inference>();
         apply_map["convolution"] = extend_op<ref_convolution<op::convolution>, op::convolution>();
-        apply_map["deconvolution"] =
-            extend_op<ref_deconvolution<op::deconvolution>, op::deconvolution>();
-        apply_map["dot"]       = extend_op<ref_gemm, op::dot>();
-        apply_map["quant_dot"] = extend_op<ref_quant_gemm, op::quant_dot>();
+        apply_map["dot"]         = extend_op<ref_gemm, op::dot>();
+        apply_map["quant_dot"]   = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["quant_convolution"] =
             extend_op<ref_convolution<op::quant_convolution>, op::quant_convolution>();
         apply_map["elu"]        = extend_op<ref_unary<elu_op>, op::elu>();

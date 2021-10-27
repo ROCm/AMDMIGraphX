@@ -36,7 +36,8 @@ struct parse_binary_op : op_parser<parse_binary_op>
             {
                 uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
                 auto l        = info.add_instruction(
-                    make_op("broadcast", {{"axis", axis}, {"dims", args[0]->get_shape().lens()}}),
+                    make_op("broadcast",
+                            {{"axis", axis}, {"out_lens", args[0]->get_shape().lens()}}),
                     args[1]);
                 return info.add_instruction(make_op(opd.op_name), args[0], l);
             }

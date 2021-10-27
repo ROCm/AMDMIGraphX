@@ -1,3 +1,4 @@
+#include <iterator>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -28,6 +29,7 @@ struct module_impl
     std::unordered_set<instruction*> instruction_set;
     std::string name;
     uint32_t nparams = 0;
+    bool bypass      = false;
 
     bool contains(instruction_ref ins) const
     {
@@ -47,6 +49,13 @@ struct module_impl
     instruction_ref insert(instruction_ref pos, const instruction& ins)
     {
         return emplace(pos, ins);
+    }
+
+    void clear()
+    {
+        instructions.clear();
+        instruction_set.clear();
+        nparams = 0;
     }
 
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
@@ -100,18 +109,21 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
+bool module::bypass() const { return impl->bypass; }
+void module::set_bypass(bool b) { impl->bypass = b; }
+
 void module::assign(const module& m)
 {
-    // clean the current module
+    // copy the impl
     if(!impl)
-    {
         impl = std::make_unique<module_impl>();
-    }
-    else if(!impl->instructions.empty())
+    *impl = *m.impl;
+
+    // clear instructions
+    if(!impl->instructions.empty())
     {
-        impl->instructions.clear();
+        impl->clear();
     }
-    impl->name = m.impl->name;
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;
     for(auto ins : iterator_for(m))
@@ -125,9 +137,10 @@ void module::assign(const module& m)
         else if(ins->name() == "@param")
         {
             auto&& name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
-            copy_ins =
-                impl->insert(impl->instructions.end(), {builtin::param{name}, std::move(s), {}});
+            copy_ins    = impl->insert(impl->instructions.end(),
+                                    {builtin::param{name, order}, std::move(s), {}});
         }
         else if(ins->name() == "@outline")
         {
@@ -290,6 +303,55 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
+std::vector<instruction_ref> module::insert_module_instructions(
+    instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    std::vector<instruction_ref> mod_outputs;
+    for(auto sins : iterator_for(*m))
+    {
+        if(contains(map_ins, sins))
+            continue;
+        instruction_ref copy_ins;
+        if(sins->name() == "@literal")
+        {
+            auto l   = sins->get_literal();
+            copy_ins = this->add_literal(l);
+        }
+        else if(sins->name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(sins->get_operator()).parameter;
+            auto s      = sins->get_shape();
+            copy_ins    = this->add_parameter(name, s);
+        }
+        else if(sins->name() == "@outline")
+        {
+            auto s   = sins->get_shape();
+            copy_ins = this->add_outline(s);
+        }
+        else
+        {
+            auto mod_args = sins->module_inputs();
+            auto inputs   = sins->inputs();
+            std::vector<instruction_ref> copy_inputs(inputs.size());
+            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
+                return contains(map_ins, i) ? map_ins[i] : i;
+            });
+
+            if(sins->name() == "@return")
+            {
+                mod_outputs = copy_inputs;
+                break;
+            }
+
+            copy_ins = this->insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+        }
+        map_ins[sins] = copy_ins;
+    }
+    if(mod_outputs.empty())
+        mod_outputs = {map_ins.at(std::prev(m->end()))};
+    return mod_outputs;
+}
+
 instruction_ref module::add_literal(literal l)
 {
     impl->emplace_front(std::move(l));
@@ -320,6 +382,20 @@ instruction_ref module::add_return(std::vector<instruction_ref> args)
     return result;
 }
 
+instruction_ref module::replace_return(std::vector<instruction_ref> args)
+{
+    auto last = std::prev(this->end());
+    // If there is no return then add a return
+    if(last->name() != "@return")
+        return this->add_return(args);
+
+    shape r = compute_shape(last->get_operator(), args);
+    instruction::replace(last, last->get_operator(), r, std::move(args));
+    assert(last->valid(begin()));
+
+    return last;
+}
+
 shape module::get_parameter_shape(std::string name) const
 {
     auto ins = std::find_if(
@@ -334,7 +410,6 @@ shape module::get_parameter_shape(std::string name) const
             }
         });
     if(ins != this->end())
-
         return ins->get_shape();
     else
         return {};
@@ -430,7 +505,6 @@ instruction_ref module::validate() const
             bool check_order = std::all_of(inputs.begin(), inputs.end(), [&](auto in) {
                 return contains(impl->instructions, *in);
             });
-
             return !i.valid(impl->instructions.begin(), check_order);
         });
 }

@@ -334,7 +334,7 @@ struct parse_resize : op_parser<parse_resize>
                 auto ins_delta = info.add_literal(dim_s, delta_data);
 
                 // slice the data
-                int64_t slc_stride = static_cast<int64_t>(dim_lens[0]);
+                int64_t slc_stride = dim_lens[0];
                 auto low           = info.add_instruction(
                     make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {slc_stride}}}),
                     data);

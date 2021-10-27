@@ -36,7 +36,7 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 1.3)
+rocm_setup_version(VERSION 2.0)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -190,6 +190,7 @@ rocm_enable_cppcheck(
         shadowVariable
         unsafeClassDivZero
         definePrefix:*test/include/test.hpp
+        ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
         constParameter:*src/targets/gpu/*.cpp
@@ -223,7 +224,7 @@ rocm_create_package(
     MAINTAINER "Paul Fultz II <paul.fultz@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-hcc half
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

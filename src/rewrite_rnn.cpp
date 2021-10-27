@@ -241,11 +241,11 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     // squeeze and transpose w
     std::vector<int64_t> perm{1, 0};
     auto sw      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tran_sw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
+    auto tran_sw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // squeeze and transpose r
     auto sr      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
-    auto tran_sr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sr);
+    auto tran_sr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sr);
 
     // initial hidden state
     auto sih      = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
@@ -263,13 +263,13 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
             ins, make_op("slice", {{"axes", {0}}, {"starts", {hs}}, {"ends", {2 * hs}}}), sbias);
         auto wrb = prog.insert_instruction(ins, make_op("add"), wb, rb);
         bb       = prog.insert_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"dims", sih_lens}}), wrb);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", sih_lens}}), wrb);
     }
 
     instruction_ref hidden_out = prog.end();
     instruction_ref last_out{};
     last_out     = prog.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), sih);
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -556,7 +556,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     instruction_ref last_output{};
     migraphx::shape seq_shape = seq->get_shape();
     migraphx::shape r_shape   = r->get_shape();
-    long hs                   = static_cast<long>(r_shape.lens()[2]);
+    long hs                   = r_shape.lens()[2];
 
     migraphx::shape ss(seq_shape.type(), {seq_shape.lens()[1], r_shape.lens()[2]});
     std::vector<float> data(ss.elements(), 1.0f);
@@ -565,17 +565,17 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
     // w matrix squeeze to 2-dim and do a transpose
     std::vector<int64_t> perm{1, 0};
     auto sw = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
+    auto tw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // r slide to two part, zr and h
     auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
     auto rzr = prog.insert_instruction(
         ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2 * hs}}}), sr);
-    auto trzr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), rzr);
+    auto trzr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), rzr);
 
     auto rh = prog.insert_instruction(
         ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), sr);
-    auto trh = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), rh);
+    auto trh = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), rh);
 
     // initial states
     auto sih  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
@@ -592,7 +592,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3 * hs}}}), sbias);
         bwb = prog.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(3 * hs)}}}),
+            make_op("broadcast", {{"axis", 1}, {"out_lens", {bs, static_cast<size_t>(3 * hs)}}}),
             wb);
 
         auto rb_zr = prog.insert_instruction(
@@ -605,15 +605,15 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             sbias);
         brb_zr = prog.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(2 * hs)}}}),
+            make_op("broadcast", {{"axis", 1}, {"out_lens", {bs, static_cast<size_t>(2 * hs)}}}),
             rb_zr);
         brb_h = prog.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 1}, {"dims", {bs, static_cast<size_t>(hs)}}}),
+            make_op("broadcast", {{"axis", 1}, {"out_lens", {bs, static_cast<size_t>(hs)}}}),
             rb_h);
     }
 
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -1032,17 +1032,17 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref last_cell_output{};
 
     migraphx::shape r_shape = r->get_shape();
-    long hs                 = static_cast<long>(r_shape.lens()[2]);
+    long hs                 = r_shape.lens()[2];
     auto bs                 = ih->get_shape().lens()[1];
 
     std::vector<int64_t> perm{1, 0};
     // w matrix, squeeze and transpose
     auto sw  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), w);
-    auto tsw = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sw);
+    auto tsw = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sw);
 
     // r matrix, squeeze and transpose
     auto sr  = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), r);
-    auto tsr = prog.insert_instruction(ins, make_op("transpose", {{"dims", perm}}), sr);
+    auto tsr = prog.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sr);
 
     // initial hidden state
     auto sih = prog.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
@@ -1067,7 +1067,7 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
 
         wrb = prog.insert_instruction(
             ins,
-            make_op("broadcast", {{"axis", 1}, {"dims", {bs, 4 * static_cast<size_t>(hs)}}}),
+            make_op("broadcast", {{"axis", 1}, {"out_lens", {bs, 4 * static_cast<size_t>(hs)}}}),
             ub_wrb);
     }
 
@@ -1081,20 +1081,20 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         auto pphi = prog.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), spph);
         pphi_brcst = prog.insert_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), pphi);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), pphi);
 
         auto ppho = prog.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {hs}}, {"ends", {2 * hs}}}), spph);
         ppho_brcst = prog.insert_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), ppho);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), ppho);
 
         auto pphf = prog.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {2 * hs}}, {"ends", {3 * hs}}}), spph);
         pphf_brcst = prog.insert_instruction(
-            ins, make_op("broadcast", {{"axis", 1}, {"dims", ic_lens}}), pphf);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), pphf);
     }
 
-    long seq_len = static_cast<long>(get_seq_len(prog, seq, seq_lens));
+    long seq_len = get_seq_len(prog, seq, seq_lens);
     for(long i = 0; i < seq_len; ++i)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);

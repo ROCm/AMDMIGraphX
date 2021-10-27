@@ -6,9 +6,11 @@
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_pointwise.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -207,6 +209,28 @@ TEST_CASE(compile_code_object_hip)
     options.output = input;
 
     auto co = migraphx::gpu::compile_hip_code_object(simple_pointwise_increment, options);
+
+    migraphx::program p;
+    auto* mm            = p.get_main_module();
+    auto input_literal  = migraphx::generate_literal(input);
+    auto output_literal = migraphx::transform(input_literal, [](auto x) { return x + 1; });
+    auto x              = mm->add_literal(input_literal);
+    auto y              = mm->add_parameter("output", input);
+    mm->add_instruction(co, x, y);
+    p.compile(migraphx::gpu::target{}, migraphx::compile_options{});
+
+    auto result =
+        migraphx::gpu::from_gpu(p.eval({{"output", migraphx::gpu::allocate_gpu(input)}}).front());
+
+    EXPECT(result == output_literal.get_argument());
+}
+
+TEST_CASE(compile_pointwise)
+{
+    migraphx::shape input{migraphx::shape::float_type, {5, 2}};
+
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_pointwise(ctx, {input, input}, "[](auto x) { return x + 1; }");
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

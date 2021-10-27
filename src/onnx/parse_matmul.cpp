@@ -58,18 +58,16 @@ struct parse_matmul : op_parser<parse_matmul>
             if(l0_lens != l0_broadcasted_lens)
             {
                 bl0 = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", l0_broadcasted_lens}}), l0);
+                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), l0);
             }
             if(l1_lens != l1_broadcasted_lens)
             {
                 bl1 = info.add_instruction(
-                    make_op("multibroadcast", {{"output_lens", l1_broadcasted_lens}}), l1);
+                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), l1);
             }
         }
-
-        auto dot_res =
-            info.add_instruction(make_op(opd.op_name, {{"alpha", 1}, {"beta", 0}}), bl0, bl1);
-        int64_t num_axis = static_cast<int64_t>(dot_res->get_shape().lens().size());
+        instruction_ref dot_res = info.add_instruction(make_op(opd.op_name), bl0, bl1);
+        int64_t num_axis        = static_cast<int64_t>(dot_res->get_shape().lens().size());
         if(is_a_prepended)
         {
             dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);

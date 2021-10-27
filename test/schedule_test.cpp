@@ -962,4 +962,23 @@ TEST_CASE(if_pl_test)
     EXPECT(t.has_stream(r2) == false);
 }
 
+TEST_CASE(unused_param_test)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    auto x = mm.add_parameter("x", s);
+    auto y = mm.add_parameter("y", s);
+    auto z = mm.add_parameter("z", s);
+
+    auto r = mm.add_instruction(migraphx::make_op("add"), x, y);
+    mm.add_return({r});
+
+    scheduler t{};
+    t.run_pass(mm);
+
+    EXPECT(t.has_stream(z) == false);
+    EXPECT(t.has_stream(r) == false);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

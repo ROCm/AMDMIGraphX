@@ -46,10 +46,12 @@ struct parse_matmul : op_parser<parse_matmul>
         // swap the last two elements
         std::iter_swap(perm.end() - 1, perm.end() - 2);
 
-        auto l1 = (transa) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[0])
-                           : args[0];
-        auto l2 = (transb) ? info.add_instruction(make_op("transpose", {{"dims", perm}}), args[1])
-                           : args[1];
+        auto l1 = (transa)
+                      ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0])
+                      : args[0];
+        auto l2 = (transb)
+                      ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
+                      : args[1];
 
         return info.add_instruction(make_op("dot"), l1, l2);
     }

@@ -239,6 +239,18 @@ struct stream_info
                 }
             }
         }
+
+        // move dangling parameter to the front so as not be removed
+        auto ins = std::next(last);
+        while(ins != p.end())
+        {
+            auto next = std::next(ins);
+            if(ins->name() == "@param")
+            {
+                p.move_instruction(ins, p.begin());
+            }
+            ins = next;
+        }
     }
 
     void set_stream(const partition& p, std::size_t n)
@@ -510,6 +522,9 @@ void schedule::apply(module& p) const
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
         p.annotate(std::cout, [&](auto ins) {
+            if(ins->name() == "@param" and not contains(si.weights, ins))
+                return;
+
             std::cout << ":";
             std::cout << " weight=" << si.weights.at(ins);
             std::cout << " input={";
@@ -550,11 +565,9 @@ void schedule::apply(module& p) const
         {
             for(auto i : si.get_recorded_instructions(ins))
             {
-                if(not si.has_stream(i))
+                if(not si.has_stream(i) or si.get_stream(i) == stream)
                     continue;
-                auto istream = si.get_stream(i);
-                if(stream == istream)
-                    continue;
+
                 // Create a new event if it hasn't been recorded
                 if(not contains(ins2wait, i))
                 {

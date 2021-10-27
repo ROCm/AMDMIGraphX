@@ -58,7 +58,9 @@ author = u'AMD'
 #
 # The short X.Y version.
 with open('../../CMakeLists.txt') as file:
-    version = next((re.findall('[0-9.]+', line)[0] for line in file.readlines() if 'rocm_setup_version' in line))
+    version = next((re.findall('[0-9.]+', line)[0]
+                    for line in file.readlines()
+                    if 'rocm_setup_version' in line))
 # The full version, including alpha/beta/rc tags.
 release = version
 

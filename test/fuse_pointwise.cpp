@@ -227,7 +227,7 @@ TEST_CASE(contiguous_input)
         auto one = mm->add_literal(1.0f);
         auto yb =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), one);
-        auto y = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto y    = mm->add_instruction(migraphx::make_op("contiguous"), yb);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         mm->add_return({add1});
     }

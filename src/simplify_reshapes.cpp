@@ -1,3 +1,4 @@
+#include "migraphx/op/reshape.hpp"
 #include <iterator>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
@@ -539,6 +540,50 @@ struct find_reshape_cont
     }
 };
 
+inline auto find_depthtospace() {
+    return [](){return match::args(
+                match::name("reshape")(
+                    match::used_once(),
+                    match::args(match::name("contiguous")(
+                                      match::used_once(),
+                                      match::args(match::name("transpose")(
+                                                        match::used_once(),
+                                                        match::args(match::name("reshape")(
+                                                            match::used_once())))
+                                                        .bind("trans_ins")))
+                                      .bind("cont_ins")))
+                    .bind("d2s_ins"));};
+};
+
+// depthtospace is implemented as reshape --> transpose --> contiguous --> reshape.
+// this matcher moves the unary operation before the contiguous so it becomes reshape -->
+// transpose --> unary --> contigous --> reshape. later pointwise sub-module can be created out
+// of `binary --> contigous --> reshape`
+struct find_depthtospace_unary
+{
+    auto matcher() const
+    {
+        return pointwise(
+            match::used_once(),
+            find_depthtospace()());
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins           = r.result;
+        auto d2s_ins       = r.instructions["d2s_ins"];
+        auto trans_ins     = r.instructions["trans_ins"];
+        auto cont_ins      = r.instructions["cont_ins"];
+        auto unary_op_name = ins->get_operator().name();
+        auto unary_ins     = p.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
+        auto new_cont_ins  = p.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
+        auto reshape_dims  = any_cast<op::reshape>(d2s_ins->get_operator()).dims;
+        // older cont and reshape are removed by deadcode elimination
+        p.replace_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), new_cont_ins);
+    }
+};
+
+
 void simplify_reshapes::apply(module& p) const
 {
     for(int i = 0; i < 2; i++)
@@ -553,7 +598,8 @@ void simplify_reshapes::apply(module& p) const
                             find_concat_transpose{},
                             find_nested_convert{},
                             find_nested_slice{},
-                            find_nested_concat{});
+                            find_nested_concat{},
+                            find_depthtospace_unary{});
         dead_code_elimination{}.apply(p);
     }
 }

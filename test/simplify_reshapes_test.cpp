@@ -945,4 +945,36 @@ TEST_CASE(reshape_cont_nonpw)
     EXPECT(m1 == create_module());
 }
 
+TEST_CASE(depthtospace_unary)
+{
+    migraphx::module m1;
+    {
+        auto l0 = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto tmp1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
+        auto tmp2 = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
+        auto tmp3 = m1.add_instruction(migraphx::make_op("contiguous"), tmp2);
+        auto tmp4 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp3);
+        auto tmp5 = m1.add_instruction(migraphx::make_op("relu"), tmp4);
+        m1.add_instruction(pass_op{}, tmp5);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l0 = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto tmp1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
+        auto tmp2 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
+        auto tmp3 = m2.add_instruction(migraphx::make_op("relu"), tmp2);
+        auto tmp4 = m2.add_instruction(migraphx::make_op("contiguous"), tmp3);
+        auto tmp5 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp4);
+        m2.add_instruction(pass_op{}, tmp5);
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

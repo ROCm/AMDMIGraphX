@@ -539,9 +539,9 @@ struct find_reshape_cont
     }
 };
 
-// match sequence of transpose --> contiguous --> reshape
-const auto match_transpose_contiguous_reshape = []() {
-    return match::name("reshape")(
+// match sequence of transpose --> contiguous --> reshaper_op
+auto match_transpose_contiguous_reshaper()  {
+    return match::name({"reshape", "squeeze", "unsqueeze"})(
                match::used_once(),
                match::args(
                    match::name("contiguous")(
@@ -550,16 +550,16 @@ const auto match_transpose_contiguous_reshape = []() {
         .bind("reshape_ins");
 };
 
-// finds the pattern of transpose --> contiguous --> reshape --> unary
+// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
 // application of this matcher moves the unary operation before the contiguous so it becomes
-// transpose --> unary --> contiguous --> reshape. later pointwise sub-module can be created out
-// of `unary --> contiguous --> reshape`. Such pattern appears in depthToSpace or spaceToDepth
+// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
+// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
 // operator.
 struct find_transpose_contiguous_reshape_unary
 {
     auto matcher() const
     {
-        return pointwise(match::used_once(), match::args(match_transpose_contiguous_reshape()));
+        return pointwise(match::used_once(), match::args(match_transpose_contiguous_reshaper()));
     }
 
     void apply(module& p, match::matcher_result r) const

@@ -10,7 +10,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct precompile_op {
+struct precompile_op
+{
     operation op;
 
     template <class Self, class F>
@@ -21,7 +22,8 @@ struct precompile_op {
 
     std::string name() const { return "gpu::precompile_op"; }
 
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const {
+    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
+    {
         inputs.pop_back();
         return op.compute_shape(inputs, mods);
     }
@@ -68,11 +70,11 @@ void compile_ops::apply(module& m) const
     auto insert_allocation = alloc.allocation_inserter(m);
     for(auto ins : iterator_for(m))
     {
-        if (ins->name() != "gpu::precompile_op")
+        if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         assert(contains(compilers, preop.name()));
-        auto op     = compilers[preop.name()](*ctx, ins, preop);
+        auto op = compilers[preop.name()](*ctx, ins, preop);
         m.replace_instruction(ins, op, ins->inputs());
     }
 }

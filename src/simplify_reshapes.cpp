@@ -540,7 +540,7 @@ struct find_reshape_cont
     }
 };
 
-inline auto match_depthtospace = []() {
+auto match_depthtospace = []() {
     return match::name("reshape")(
                match::used_once(),
                match::args(

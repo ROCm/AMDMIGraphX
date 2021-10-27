@@ -18,7 +18,6 @@
 #include <migraphx/op/quant_convolution.hpp>
 #include <migraphx/op/quant_dot.hpp>
 
-#include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -57,10 +56,9 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
-    std::function<instruction_ref(instruction_ref, const shape&)> allocation_inserter = nullptr;
-    bool offload_copy                                                                 = false;
-    bool int8_x4_format                                                               = true;
-    gpu_allocation_model alloc{};
+    std::unordered_map<instruction_ref, std::string> prog_output_names{};
+    bool offload_copy   = false;
+    bool int8_x4_format = true;
 
     context& get_context() const
     {
@@ -78,8 +76,23 @@ struct miopen_apply
 
     void create_output_names()
     {
-        this->last                = instruction::get_output_alias(std::prev(mod->end()));
-        this->allocation_inserter = alloc.allocation_inserter(*mod);
+        this->last = instruction::get_output_alias(std::prev(mod->end()));
+        if(this->last->name() == "@return")
+        {
+            const auto& prog_outputs = last->inputs();
+            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
+
+            std::transform(prog_outputs.begin(),
+                           prog_outputs.end(),
+                           outputs_alias.begin(),
+                           [](const auto& i) { return instruction::get_output_alias(i); });
+
+            std::size_t index = 0;
+            for(auto ins : outputs_alias)
+            {
+                prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
+            }
+        }
     }
 
     void init()
@@ -95,7 +108,6 @@ struct miopen_apply
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
-        alloc        = {offload_copy};
         create_output_names();
 
         add_generic_op("acos");
@@ -170,6 +182,8 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
+        add_precompile_op("pointwise");
+
         add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
@@ -240,11 +254,26 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        if(tag.empty())
-            return this->allocation_inserter(ins, s);
-        else
-            return mod->insert_instruction(
+        // Instruction's output is an input of the ret instruction
+        if(offload_copy)
+        {
+            auto result = mod->insert_instruction(
                 ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+            return result;
+        }
+
+        auto ins_alias = instruction::get_output_alias(ins);
+        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
+        {
+            return mod->add_parameter(prog_output_names[ins_alias], s);
+        }
+        else if(ins == last and tag.empty())
+        {
+            return mod->add_parameter("output", s);
+        }
+
+        return mod->insert_instruction(
+            ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
 
     void add_convolution_op()
@@ -352,6 +381,17 @@ struct miopen_apply
         });
     }
 
+    void add_precompile_op(const std::string& name)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
+
+            return mod->replace_instruction(ins, make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}), refs, ins->module_inputs());
+        });
+    }
+
     void add_batch_norm_inference_op()
     {
         apply_map.emplace("batch_norm_inference", [=](instruction_ref ins) {
@@ -422,7 +462,7 @@ struct miopen_apply
             }
 
             bool ins_output_allocated = false;
-            for(const auto& pn : name_shapes)
+            for(auto& pn : name_shapes)
             {
                 const auto& s = pn.second;
                 instruction_ref output{};

@@ -35,7 +35,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
         if(ins->name() == "convert")
             continue;
         assert(ins->get_operator().attributes().contains("point_op"));
-        auto* pm = mpm.create_module("pointwise" + std::to_string(n++));
+        auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> param_map;

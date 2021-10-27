@@ -4,6 +4,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compile_pointwise.hpp>
 
 namespace migraphx {
@@ -12,7 +13,7 @@ namespace gpu {
 
 struct precompile_op
 {
-    operation op;
+    operation op = op::identity{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -44,9 +45,7 @@ struct pointwise_compiler
     {
         assert(not ins->module_inputs().empty());
         auto* pm    = ins->module_inputs().front();
-        auto inputs = to_shapes(ins->inputs());
-        inputs.push_back(ins->get_shape());
-        return compile_pointwise(ctx, inputs, *pm);
+        return compile_pointwise(ctx, to_shapes(ins->inputs()), *pm);
     }
 };
 

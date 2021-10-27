@@ -125,7 +125,12 @@ std::string cpp_generator::str() const { return impl->fs.str(); }
 cpp_generator::function cpp_generator::generate_module(const module& m)
 {
     function f;
-    f.set_name(m.name()).set_types(m).set_body(
+    auto name = transform_string(m.name(), [](char c) {
+        if (with_char(::isalnum)(c) or c == '_')
+            return c;
+        return '_';
+    });
+    f.set_name(name).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
                 return shape::cpp_type(ins->get_shape().type()) + "(" +

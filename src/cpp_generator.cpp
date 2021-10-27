@@ -126,7 +126,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
 {
     function f;
     auto name = transform_string(m.name(), [](char c) {
-        if (with_char(::isalnum)(c) or c == '_')
+        if(with_char(::isalnum)(c) or c == '_')
             return c;
         return '_';
     });

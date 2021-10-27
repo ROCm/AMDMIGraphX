@@ -388,7 +388,11 @@ struct miopen_apply
             std::vector<instruction_ref> refs = ins->inputs();
             refs.push_back(output);
 
-            return mod->replace_instruction(ins, make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}), refs, ins->module_inputs());
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                refs,
+                ins->module_inputs());
         });
     }
 

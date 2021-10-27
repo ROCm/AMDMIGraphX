@@ -44,7 +44,7 @@ struct pointwise_compiler
     operation apply(context& ctx, instruction_ref ins, operation) const
     {
         assert(not ins->module_inputs().empty());
-        auto* pm    = ins->module_inputs().front();
+        auto* pm = ins->module_inputs().front();
         return compile_pointwise(ctx, to_shapes(ins->inputs()), *pm);
     }
 };

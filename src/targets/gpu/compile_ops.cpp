@@ -66,7 +66,6 @@ std::unordered_map<std::string, compiler_function> make_compilers(Ts... xs)
 void compile_ops::apply(module& m) const
 {
     auto compilers         = make_compilers(pointwise_compiler{});
-    auto insert_allocation = alloc.allocation_inserter(m);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")

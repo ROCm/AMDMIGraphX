@@ -543,8 +543,7 @@ struct find_reshape_cont
 inline auto find_depthtospace()
 {
     return []() {
-        return match::args(
-            match::name("reshape")(
+        return match::name("reshape")(
                 match::used_once(),
                 match::args(
                     match::name("contiguous")(
@@ -554,7 +553,7 @@ inline auto find_depthtospace()
                                         match::args(match::name("reshape")(match::used_once())))
                                         .bind("trans_ins")))
                         .bind("cont_ins")))
-                .bind("d2s_ins"));
+                .bind("d2s_ins");
     };
 };
 
@@ -564,7 +563,7 @@ inline auto find_depthtospace()
 // of `binary --> contigous --> reshape`
 struct find_depthtospace_unary
 {
-    auto matcher() const { return pointwise(match::used_once(), find_depthtospace()()); }
+    auto matcher() const { return pointwise(match::used_once(), match::args(find_depthtospace()())); }
 
     void apply(module& p, match::matcher_result r) const
     {

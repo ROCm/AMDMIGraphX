@@ -33,7 +33,8 @@ struct pointwise
         auto type = pm->get_output_shapes().front().type();
 
         // Scalar output if all inputs are scalar
-        if (inputs.front().elements() == 1 and all_of(inputs, [](const auto& s) { return s.scalar(); }))
+        if(inputs.front().elements() == 1 and
+           all_of(inputs, [](const auto& s) { return s.scalar(); }))
             return shape{type};
 
         return shape::from_permutation(type, inputs.front().lens(), find_permutation(inputs));

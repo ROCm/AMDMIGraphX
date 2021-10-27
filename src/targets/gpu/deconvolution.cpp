@@ -38,7 +38,7 @@ argument miopen_deconvolution::compute(context& ctx,
 
     float alpha = 1;
     float beta  = 0;
-auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
+    auto status = miopenConvolutionForward(ctx.get_stream().get_miopen(),
                                            &alpha,
                                            x_desc.get(),
                                            args[0].implicit(),

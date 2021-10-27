@@ -21,7 +21,7 @@ using namespace migraphx;
 extern "C" {
 __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
 {
-    roialign(in_x, in_rois, in_ind, y);
+    make_tensors()(in_x, in_rois, in_ind, y)(roialign);
 }
 }
 

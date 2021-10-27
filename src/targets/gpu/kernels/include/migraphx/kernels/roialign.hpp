@@ -104,93 +104,91 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-__device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
+__device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t)
 {
     const float roi_offset       = ROIS_OFFSET;
     const bool is_avg_pooling    = IS_AVG_POOLING;
     const int64_t sampling_ratio = SAMPLING_RATIO;
     const float spatial_scale    = SPATIAL_SCALE;
-    make_tensors()(
-        in_x, in_rois, in_ind, y)([=](auto x_t, auto rois_t, auto ind_t, auto y_t) __device__ {
-        auto index       = make_index();
-        const auto* x    = x_t.data();
-        const auto* rois = rois_t.data();
-        const auto* ind  = ind_t.data();
 
-        auto* out_ptr = y_t.data();
+    auto index       = make_index();
+    const auto* x    = x_t.data();
+    const auto* rois = rois_t.data();
+    const auto* ind  = ind_t.data();
 
-        // input shape
-        auto x_lens      = x_t.get_shape().lens;
-        auto channel_num = x_lens[1];
-        // input dims of height and width, in all 2-dim arrays, the first dim
-        // is for height and second dim is for width
-        array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
+    auto* out_ptr = y_t.data();
 
-        const auto stride   = index.nglobal();
-        auto out_s          = y_t.get_shape();
-        auto roi_column_num = rois_t.get_shape().lens[1];
+    // input shape
+    auto x_lens      = x_t.get_shape().lens;
+    auto channel_num = x_lens[1];
+    // input dims of height and width, in all 2-dim arrays, the first dim
+    // is for height and second dim is for width
+    array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
 
-        // output dims of height and width, in all 2-dim arrays, the first dim
-        // is for height and second dim is for width
-        const auto& out_lens           = out_s.lens;
-        array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
+    const auto stride   = index.nglobal();
+    auto out_s          = y_t.get_shape();
+    auto roi_column_num = rois_t.get_shape().lens[1];
 
-        for(index_int i = index.global; i < out_s.elements(); i += stride)
+    // output dims of height and width, in all 2-dim arrays, the first dim
+    // is for height and second dim is for width
+    const auto& out_lens           = out_s.lens;
+    array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
+
+    for(index_int i = index.global; i < out_s.elements(); i += stride)
+    {
+        auto idx = out_s.multi(i);
+        int n    = idx[0];
+        int c    = idx[1];
+        int ph   = idx[2];
+        int pw   = idx[3];
+
+        const auto* offset_rois = rois + (n * roi_column_num);
+        const int batch_ind     = ind[n];
+
+        array<float, 2> roi_starts = {offset_rois[1] * spatial_scale,
+                                        offset_rois[0] * spatial_scale};
+        array<float, 2> roi_ends   = {offset_rois[3] * spatial_scale,
+                                    offset_rois[2] * spatial_scale};
+
+        array<float, 2> roi_size{};
+        array<float, 2> bin_size{};
+        array<std::size_t, 2> bin_grid_size{};
+
+        for(std::size_t ii = 0; ii < roi_size.size(); ++ii)
         {
-            auto idx = out_s.multi(i);
-            int n    = idx[0];
-            int c    = idx[1];
-            int ph   = idx[2];
-            int pw   = idx[3];
+            roi_size[ii] = roi_ends[ii] - roi_starts[ii];
+            roi_size[ii] = max(roi_size[ii], 1.0f);
 
-            const auto* offset_rois = rois + (n * roi_column_num);
-            const int batch_ind     = ind[n];
-
-            array<float, 2> roi_starts = {offset_rois[1] * spatial_scale,
-                                          offset_rois[0] * spatial_scale};
-            array<float, 2> roi_ends   = {offset_rois[3] * spatial_scale,
-                                        offset_rois[2] * spatial_scale};
-
-            array<float, 2> roi_size{};
-            array<float, 2> bin_size{};
-            array<std::size_t, 2> bin_grid_size{};
-
-            for(std::size_t ii = 0; ii < roi_size.size(); ++ii)
-            {
-                roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-                roi_size[ii] = max(roi_size[ii], 1.0f);
-
-                bin_size[ii] = roi_size[ii] / out_dims[ii];
-                bin_grid_size[ii] =
-                    (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
-            }
-
-            const auto* offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-            if constexpr(is_avg_pooling)
-            {
-                out_ptr[i] = calc_pooling(offset_x,
-                                          roi_starts,
-                                          bin_size,
-                                          {ph, pw},
-                                          bin_grid_size,
-                                          in_dims,
-                                          roi_offset,
-                                          avg_pool{});
-            }
-            else
-            {
-                out_ptr[i] = calc_pooling(offset_x,
-                                          roi_starts,
-                                          bin_size,
-                                          {ph, pw},
-                                          bin_grid_size,
-                                          in_dims,
-                                          roi_offset,
-                                          max_pool{});
-            }
+            bin_size[ii] = roi_size[ii] / out_dims[ii];
+            bin_grid_size[ii] =
+                (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
         }
-    });
-}
+
+        const auto* offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+        if constexpr(is_avg_pooling)
+        {
+            out_ptr[i] = calc_pooling(offset_x,
+                                        roi_starts,
+                                        bin_size,
+                                        {ph, pw},
+                                        bin_grid_size,
+                                        in_dims,
+                                        roi_offset,
+                                        avg_pool{});
+        }
+        else
+        {
+            out_ptr[i] = calc_pooling(offset_x,
+                                        roi_starts,
+                                        bin_size,
+                                        {ph, pw},
+                                        bin_grid_size,
+                                        in_dims,
+                                        roi_offset,
+                                        max_pool{});
+        }
+    }
+};
 
 } // namespace migraphx
 #endif

@@ -15,7 +15,7 @@ struct max_pool
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x, T y)
     {
-        return x > y ? x : y;
+        return max(x, y);
     }
 
     template <class T>
@@ -57,7 +57,7 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
             return 0;
         }
 
-        xy[ii]   = std::max(xy[ii], 0.0f);
+        xy[ii]   = max(xy[ii], 0.0f);
         low[ii]  = xy[ii];
         high[ii] = low[ii] + 1;
         if(low[ii] >= dims[ii] - 1)
@@ -158,7 +158,7 @@ __device__ void roialign(void* in_x, void* in_rois, void* in_ind, void* y)
             for(std::size_t ii = 0; ii < roi_size.size(); ++ii)
             {
                 roi_size[ii] = roi_ends[ii] - roi_starts[ii];
-                roi_size[ii] = max{}(roi_size[ii], 1.0f);
+                roi_size[ii] = max(roi_size[ii], 1.0f);
 
                 bin_size[ii] = roi_size[ii] / out_dims[ii];
                 bin_grid_size[ii] =

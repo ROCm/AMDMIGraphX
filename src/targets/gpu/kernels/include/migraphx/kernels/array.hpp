@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ARRAY_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ARRAY_HPP
 
-#include <initializer_list>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/debug.hpp>

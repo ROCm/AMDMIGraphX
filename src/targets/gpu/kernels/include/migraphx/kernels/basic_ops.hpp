@@ -8,7 +8,7 @@ namespace migraphx {
 struct sum
 {
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    constexpr auto operator()(T x, U y) const
     {
         return x + y;
     }
@@ -17,7 +17,7 @@ struct sum
 struct product
 {
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    constexpr auto operator()(T x, U y) const
     {
         return x * y;
     }
@@ -26,7 +26,7 @@ struct product
 struct id
 {
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
+    constexpr auto operator()(T x) const
     {
         return x;
     }
@@ -36,34 +36,37 @@ struct mean
 {
     size_t item_num = 1;
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x) const
+    constexpr auto operator()(T x) const
     {
         return x / static_cast<T>(item_num);
     }
 };
 
-struct max
+struct max_f
 {
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    constexpr auto operator()(T x, U y) const
     {
         return (x > y) ? x : y;
     }
 };
 
-struct min
+inline constexpr auto max = max_f{};
+
+struct min_f
 {
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    constexpr auto operator()(T x, U y) const
     {
         return (x < y) ? x : y;
     }
 };
+inline constexpr auto min = min_f{};
 
 struct lowest
 {
     template <class T>
-    constexpr __device__ __host__ operator T() const
+    constexpr operator T() const
     {
         return std::numeric_limits<T>::lowest();
     }
@@ -72,7 +75,7 @@ struct lowest
 struct highest
 {
     template <class T>
-    constexpr __device__ __host__ operator T() const
+    constexpr operator T() const
     {
         return std::numeric_limits<T>::max();
     }

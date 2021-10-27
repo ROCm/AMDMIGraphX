@@ -422,7 +422,7 @@ struct miopen_apply
             }
 
             bool ins_output_allocated = false;
-            for(auto& pn : name_shapes)
+            for(const auto& pn : name_shapes)
             {
                 const auto& s = pn.second;
                 instruction_ref output{};

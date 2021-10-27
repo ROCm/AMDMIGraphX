@@ -945,7 +945,7 @@ TEST_CASE(reshape_cont_nonpw)
     EXPECT(m1 == create_module());
 }
 
-TEST_CASE(depthtospace_unary)
+TEST_CASE(transpose_contiguous_reshape_unary)
 {
     migraphx::module m1;
     {

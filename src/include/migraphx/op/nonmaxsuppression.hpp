@@ -70,10 +70,10 @@ struct nonmaxsuppression
     };
 
     template <class T>
-    box batch_box(const T*& boxes, std::size_t bidx) const
+    box batch_box(const T* boxes, std::size_t bidx) const
     {
         box result{};
-        const auto& start = boxes + 4 * bidx;
+        const T* start = boxes + 4 * bidx;
         if(center_point_box)
         {
             float half_width  = start[2] / 2.0f;
@@ -133,7 +133,7 @@ struct nonmaxsuppression
 
         result.visit([&](auto out) { std::fill(out.begin(), out.end(), 0); });
 
-        int64_t max_output_boxes_per_class = 0;
+        std::size_t max_output_boxes_per_class = 0;
         float iou_threshold                = 0.0f;
         float score_threshold              = 0.0f;
 
@@ -193,7 +193,7 @@ struct nonmaxsuppression
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold
             while(!sorted_boxes.empty() &&
-                  static_cast<int64_t>(selected_boxes_inside_class.size()) <
+                  selected_boxes_inside_class.size() <
                       max_output_boxes_per_class)
             {
                 const std::pair<float, int64_t>& next_top_score = sorted_boxes.top();

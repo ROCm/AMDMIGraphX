@@ -125,6 +125,7 @@ add_library(migraphx_gpu
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_pointwise.cpp
+    compile_roialign.cpp
     concat.cpp
     convert.cpp
     convolution.cpp

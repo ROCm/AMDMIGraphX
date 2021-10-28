@@ -134,8 +134,8 @@ struct nonmaxsuppression
         result.visit([&](auto out) { std::fill(out.begin(), out.end(), 0); });
 
         std::size_t max_output_boxes_per_class = 0;
-        float iou_threshold                = 0.0f;
-        float score_threshold              = 0.0f;
+        float iou_threshold                    = 0.0f;
+        float score_threshold                  = 0.0f;
 
         if(args.size() > 2)
         {
@@ -193,8 +193,7 @@ struct nonmaxsuppression
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold
             while(!sorted_boxes.empty() &&
-                  selected_boxes_inside_class.size() <
-                      max_output_boxes_per_class)
+                  selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
                 const std::pair<float, int64_t>& next_top_score = sorted_boxes.top();
 

@@ -566,7 +566,7 @@ struct find_transpose_contiguous_reshaper_unary
     void apply(module& p, match::matcher_result r) const
     {
         auto ins           = r.result;
-        auto reshaper_ins   = r.instructions["reshaper_ins"];
+        auto reshaper_ins  = r.instructions["reshaper_ins"];
         auto trans_ins     = r.instructions["trans_ins"];
         auto cont_ins      = r.instructions["cont_ins"];
         auto unary_op_name = ins->get_operator().name();

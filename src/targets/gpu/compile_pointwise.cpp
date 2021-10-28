@@ -5,6 +5,10 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,8 +69,9 @@ operation compile_pointwise(context&,
     return compile_hip_code_object(src, options);
 }
 
-operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, const module& m)
+operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m)
 {
+    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
     auto name = g.create_function(g.generate_module(m).set_attributes({"__device__"}));
     return compile_pointwise((ctx), inputs, "&" + name, g.str());

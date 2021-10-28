@@ -16,7 +16,7 @@ operation compile_pointwise(context& ctx,
                             const std::string& lambda,
                             const std::string& preamble = "");
 
-operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, const module& m);
+operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -176,22 +176,19 @@ struct nonmaxsuppression
 
             std::size_t score_offset = (bidx * class_num + cidx) * box_num;
             const float* batch_boxes = boxes + bidx * box_num * 4;
-            std::vector<std::pair<float, int64_t>> cand_boxes;
-            cand_boxes.reserve(box_num);
+            std::priority_queue<std::pair<float, int64_t>> sorted_boxes;
+            auto insert_to_sorted_boxes =
+                make_function_output_iterator([&](const auto& x) { sorted_boxes.push(x); });
 
             int64_t box_idx = 0;
             transform_if(scores.begin() + score_offset,
                          scores.begin() + score_offset + box_num,
-                         std::back_inserter(cand_boxes),
+                         insert_to_sorted_boxes,
                          [&](auto sc) {
                              box_idx++;
                              return sc >= score_threshold;
                          },
                          [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
-            std::priority_queue<std::pair<float, int64_t>> sorted_boxes;
-            auto insert_to_sorted_boxes =
-                make_function_output_iterator([&](const auto& x) { sorted_boxes.push(x); });
-            std::copy(cand_boxes.begin(), cand_boxes.end(), insert_to_sorted_boxes);
 
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold

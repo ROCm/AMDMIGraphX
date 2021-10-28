@@ -1,3 +1,5 @@
-sphinx==2.2.2
-breathe==4.13.1
+docutils==0.17.1
+sphinx==4.2.0
+breathe==4.31.0
+sphinx_rtd_theme==1.0.0
 # git+https://github.com/arximboldi/breathe@fix-node-parent

@@ -51,8 +51,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(scalar.empty())
             {
                 pointwise_inputs.push_back(input);
-                param_map[input] = pm->add_parameter("x" + std::to_string(i),
-                                                     shape{input->get_shape().type()});
+                param_map[input] =
+                    pm->add_parameter("x" + std::to_string(i), shape{input->get_shape().type()});
                 i++;
             }
             else
@@ -86,15 +86,15 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
 
     assert(pm->get_parameter_names().size() == ins->inputs().size());
     assert(xm->get_parameter_names().size() == output->inputs().size());
-    
+
     std::vector<instruction_ref> inputs = ins->inputs();
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::unordered_map<instruction_ref, instruction_ref> input_map;
     // Copy inputs to input_map
     for(auto i : range(inputs.size()))
     {
-        auto input       = inputs[i];
-        auto param       = pm->get_parameter("x" + std::to_string(i));
+        auto input = inputs[i];
+        auto param = pm->get_parameter("x" + std::to_string(i));
         assert(param != pm->end());
         input_map[input] = param;
     }

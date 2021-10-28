@@ -23,7 +23,7 @@ struct precompile_op
 
     std::string name() const { return "gpu::precompile_op"; }
 
-    shape compute_shape(std::vector<shape> inputs, std::vector<module_ref> mods) const
+    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         inputs.pop_back();
         return op.compute_shape(inputs, mods);
@@ -41,7 +41,7 @@ struct pointwise_compiler
 {
     std::string name() const { return "pointwise"; }
 
-    operation apply(context& ctx, instruction_ref ins, operation) const
+    operation apply(context& ctx, instruction_ref ins, const operation&) const
     {
         assert(not ins->module_inputs().empty());
         auto* pm = ins->module_inputs().front();

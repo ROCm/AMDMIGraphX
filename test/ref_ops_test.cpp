@@ -2754,6 +2754,75 @@ TEST_CASE(neg_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(nms_not_center_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {1.0, 1.0,  0.0, 0.0,  0.0, 0.1,   1.0, 1.1,
+                                    0.0, 0.9,  1.0, -0.1, 0.0, 10.0,  1.0, 11.0,
+                                    1.0, 10.1, 0.0, 11.1, 1.0, 101.0, 0.0, 100.0};
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                 boxes_l,
+                                 scores_l,
+                                 max_out_l,
+                                 iou_threshold,
+                                 score_threshold);
+    mm->add_return({r});
+
+    p.compile(migraphx::ref::target{});
+    auto output = p.eval({}).back();
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::cout << "output = " << output << std::endl;
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(result, gold));
+}
+
+TEST_CASE(nms_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}),
+                                 boxes_l,
+                                 scores_l,
+                                 max_out_l,
+                                 iou_threshold,
+                                 score_threshold);
+    mm->add_return({r});
+
+    p.compile(migraphx::ref::target{});
+    auto output = p.eval({}).back();
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    std::cout << "output = " << output << std::endl;
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify_range(result, gold));
+}
+
 TEST_CASE(nonzero_test)
 {
     migraphx::program p;

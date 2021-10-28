@@ -44,6 +44,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_POINTWISE_FUSION)
+
+struct id_pass
+{
+    std::string name() const { return "id"; }
+    void apple(const module&) const {}
+};
+
+pass enable_pass(bool enabled, pass p)
+{
+    if (enabled)
+        return p;
+    return id_pass{};  
+}
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -86,7 +100,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        fuse_pointwise{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
         dead_code_elimination{},
         mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},

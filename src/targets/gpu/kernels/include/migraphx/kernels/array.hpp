@@ -9,44 +9,44 @@
 namespace migraphx {
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                          \
-    template <class U>                                                                   \
-    constexpr array& operator op(const array<U, N>& x)                                   \
-    {                                                                                    \
-        for(index_int i = 0; i < N; i++)                                                 \
-            d[i] op x[i];                                                                \
-        return *this;                                                                    \
-    }                                                                                    \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                        \
-    constexpr array& operator op(const U& x)                                             \
-    {                                                                                    \
-        for(index_int i = 0; i < N; i++)                                                 \
-            d[i] op x;                                                                   \
-        return *this;                                                                    \
-    }                                                                                    \
-    template <class U>                                                                   \
-    friend constexpr auto operator binary_op(const array& x, const array<U, N>& y)       \
-    {                                                                                    \
-        array<decltype(T{} binary_op U{}), N> z{};                                       \
-        for(index_int i = 0; i < N; i++)                                                 \
-            z[i] = x[i] binary_op y[i];                                                  \
-        return z;                                                                        \
-    }                                                                                    \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                        \
-    friend constexpr auto operator binary_op(const array& x, const U& y)                 \
-    {                                                                                    \
-        array<decltype(T{} binary_op U{}), N> z{};                                       \
-        for(index_int i = 0; i < N; i++)                                                 \
-            z[i] = x[i] binary_op y;                                                     \
-        return z;                                                                        \
-    }                                                                                    \
-    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                        \
-    friend constexpr auto operator binary_op(const U& x, const array& y)                 \
-    {                                                                                    \
-        array<decltype(T{} binary_op U{}), N> z{};                                       \
-        for(index_int i = 0; i < N; i++)                                                 \
-            z[i] = x binary_op y[i];                                                     \
-        return z;                                                                        \
+#define MIGRAPHX_DEVICE_ARRAY_OP(op, binary_op)                                    \
+    template <class U>                                                             \
+    constexpr array& operator op(const array<U, N>& x)                             \
+    {                                                                              \
+        for(index_int i = 0; i < N; i++)                                           \
+            d[i] op x[i];                                                          \
+        return *this;                                                              \
+    }                                                                              \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
+    constexpr array& operator op(const U& x)                                       \
+    {                                                                              \
+        for(index_int i = 0; i < N; i++)                                           \
+            d[i] op x;                                                             \
+        return *this;                                                              \
+    }                                                                              \
+    template <class U>                                                             \
+    friend constexpr auto operator binary_op(const array& x, const array<U, N>& y) \
+    {                                                                              \
+        array<decltype(T {} binary_op U{}), N> z{};                                \
+        for(index_int i = 0; i < N; i++)                                           \
+            z[i] = x[i] binary_op y[i];                                            \
+        return z;                                                                  \
+    }                                                                              \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
+    friend constexpr auto operator binary_op(const array& x, const U& y)           \
+    {                                                                              \
+        array<decltype(T {} binary_op U{}), N> z{};                                \
+        for(index_int i = 0; i < N; i++)                                           \
+            z[i] = x[i] binary_op y;                                               \
+        return z;                                                                  \
+    }                                                                              \
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>                  \
+    friend constexpr auto operator binary_op(const U& x, const array& y)           \
+    {                                                                              \
+        array<decltype(T {} binary_op U{}), N> z{};                                \
+        for(index_int i = 0; i < N; i++)                                           \
+            z[i] = x binary_op y[i];                                               \
+        return z;                                                                  \
     }
 
 template <class T, index_int N>

@@ -539,6 +539,44 @@ struct find_reshape_cont
     }
 };
 
+// match sequence of transpose --> contiguous --> reshaper_op
+auto match_transpose_contiguous_reshaper()
+{
+    return match::name({"reshape", "squeeze", "unsqueeze"})(
+               match::used_once(),
+               match::args(
+                   match::name("contiguous")(
+                       match::used_once(), match::args(match::transpose_shape().bind("trans_ins")))
+                       .bind("cont_ins")))
+        .bind("reshaper_ins");
+};
+
+// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
+// application of this matcher moves the unary operation before the contiguous so it becomes
+// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
+// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
+// operator.
+struct find_transpose_contiguous_reshaper_unary
+{
+    auto matcher() const
+    {
+        return pointwise(match::used_once(), match::args(match_transpose_contiguous_reshaper()));
+    }
+
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins           = r.result;
+        auto reshaper_ins  = r.instructions["reshaper_ins"];
+        auto trans_ins     = r.instructions["trans_ins"];
+        auto cont_ins      = r.instructions["cont_ins"];
+        auto unary_op_name = ins->get_operator().name();
+        auto unary_ins     = p.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
+        auto new_cont_ins  = p.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
+        // older cont and reshape are removed by deadcode elimination
+        p.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+    }
+};
+
 void simplify_reshapes::apply(module& p) const
 {
     for(int i = 0; i < 2; i++)
@@ -553,7 +591,8 @@ void simplify_reshapes::apply(module& p) const
                             find_concat_transpose{},
                             find_nested_convert{},
                             find_nested_slice{},
-                            find_nested_concat{});
+                            find_nested_concat{},
+                            find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(p);
     }
 }

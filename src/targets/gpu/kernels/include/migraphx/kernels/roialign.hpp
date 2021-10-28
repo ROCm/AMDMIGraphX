@@ -104,7 +104,8 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-__device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t) {
+template<class T, class U, class V, class W>
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t) {
     const float roi_offset       = ROIS_OFFSET;
     const bool is_avg_pooling    = IS_AVG_POOLING;
     const int64_t sampling_ratio = SAMPLING_RATIO;
@@ -186,7 +187,7 @@ __device__ auto roialign = [](auto x_t, auto rois_t, auto ind_t, auto y_t) {
                                       max_pool{});
         }
     }
-};
+}
 
 } // namespace migraphx
 #endif

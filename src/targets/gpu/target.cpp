@@ -54,9 +54,9 @@ struct id_pass
 
 pass enable_pass(bool enabled, pass p)
 {
-    if (enabled)
+    if(enabled)
         return p;
-    return id_pass{};  
+    return id_pass{};
 }
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const

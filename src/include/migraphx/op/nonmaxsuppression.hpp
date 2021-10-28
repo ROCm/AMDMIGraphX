@@ -12,6 +12,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/output_iterator.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -139,7 +140,7 @@ struct nonmaxsuppression
 
         if(args.size() > 2)
         {
-            max_output_boxes_per_class = args.at(2).at<int64_t>();
+            max_output_boxes_per_class = args.at(2).at<std::size_t>();
         }
         // max_output_boxes_per_class is 0, no output
         if(max_output_boxes_per_class == 0)
@@ -187,8 +188,11 @@ struct nonmaxsuppression
                              return sc >= score_threshold;
                          },
                          [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
-            std::priority_queue<std::pair<float, int64_t>, std::vector<std::pair<float, int64_t>>>
-            sorted_boxes(std::less<std::pair<float, int64_t>>(), std::move(cand_boxes));
+            std::priority_queue<std::pair<float, int64_t>> sorted_boxes;
+            auto insert_to_sorted_boxes = make_function_output_iterator([&](const auto& x) {
+                sorted_boxes.push(x);
+            });
+            std::copy(cand_boxes.begin(), cand_boxes.end(), insert_to_sorted_boxes);
 
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold

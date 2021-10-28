@@ -50,7 +50,6 @@ struct max_f
         return (x > y) ? x : y;
     }
 };
-
 inline constexpr auto max = max_f{};
 
 struct min_f

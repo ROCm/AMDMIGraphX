@@ -53,7 +53,6 @@ template <class T, index_int N>
 struct array
 {
     T d[N];
-
     constexpr T& operator[](index_int i)
     {
         MIGRAPHX_ASSERT(i < N);

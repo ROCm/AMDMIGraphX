@@ -189,9 +189,8 @@ struct nonmaxsuppression
                          },
                          [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
             std::priority_queue<std::pair<float, int64_t>> sorted_boxes;
-            auto insert_to_sorted_boxes = make_function_output_iterator([&](const auto& x) {
-                sorted_boxes.push(x);
-            });
+            auto insert_to_sorted_boxes =
+                make_function_output_iterator([&](const auto& x) { sorted_boxes.push(x); });
             std::copy(cand_boxes.begin(), cand_boxes.end(), insert_to_sorted_boxes);
 
             selected_boxes_inside_class.clear();

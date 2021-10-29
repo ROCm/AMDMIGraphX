@@ -12,7 +12,7 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add>
                                             std::size_t seed = 1)
     {
         migraphx::shape vars{migraphx::shape::float_type, {channels}};
-        auto* mm = p.get_main_module();
+        auto* mm      = p.get_main_module();
         auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + seed)));
         auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + seed)));
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + seed)));
@@ -24,7 +24,7 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm              = p.get_main_module();
         std::size_t ichannels = 64;
         std::size_t ochannels = 256;
         auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, ichannels, 56, 56}});

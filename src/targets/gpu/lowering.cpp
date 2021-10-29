@@ -191,6 +191,7 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
+        add_nms_op();
         add_quant_convolution_op();
         add_roialign();
     }
@@ -522,6 +523,26 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
+        });
+    }
+
+    void add_nms_op()
+    {
+        apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

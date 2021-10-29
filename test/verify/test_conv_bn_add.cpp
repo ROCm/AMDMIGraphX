@@ -26,11 +26,11 @@
 //        auto* mm              = p.get_main_module();
 //        std::size_t ichannels = 64;
 //        std::size_t ochannels = 256;
-//        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
-//        auto w     = mm->add_literal(migraphx::generate_literal(
+//        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, ichannels, 56,
+//        56}}); auto w     = mm->add_literal(migraphx::generate_literal(
 //            {migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 1));
-//        auto y     = mm->add_parameter("y", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
-//        auto v     = mm->add_literal(migraphx::generate_literal(
+//        auto y     = mm->add_parameter("y", {migraphx::shape::float_type, {1, ichannels, 56,
+//        56}}); auto v     = mm->add_literal(migraphx::generate_literal(
 //            {migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 2));
 //        auto relu1 = mm->add_instruction(migraphx::make_op("relu"), x);
 //        auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), relu1, w);

@@ -1031,7 +1031,7 @@ TEST_CASE(transpose_contiguous_unsqueeze_unary)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(find_transpose_contiguous_reshape_binary_packed)
+TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {
     migraphx::module m1;
     {
@@ -1087,7 +1087,6 @@ TEST_CASE(find_transpose_contiguous_reshape_binary_packed)
         auto x_rsp =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 14, 2, 14, 2}}}), x);
         auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_trans, x_rsp);
-        // no contiguous required since add had atleast one of its input packed
         auto add_rsp =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), add_ins);
         m2.add_instruction(pass_op{}, add_rsp);

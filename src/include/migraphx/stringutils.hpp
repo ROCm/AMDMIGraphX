@@ -163,7 +163,7 @@ inline std::string to_string_range(const std::initializer_list<T>& r)
 }
 
 template <class T>
-inline std::string to_string(const T& x)
+inline auto to_string(const T& x) -> decltype((std::declval<std::stringstream>() << x), std::string{})
 {
     std::stringstream ss;
     ss << x;

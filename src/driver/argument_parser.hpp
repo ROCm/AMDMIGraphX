@@ -17,6 +17,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/rank.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -27,6 +28,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 #else
 #define MIGRAPHX_DRIVER_STATIC static
 #endif
+
+enum class precision
+{
+    fp32,
+    fp16,
+    int8
+};
 
 template <class T>
 using bare = std::remove_cv_t<std::remove_reference_t<T>>;
@@ -106,10 +114,22 @@ struct argument_parser
         return to_string_range(x);
     }
 
+    template <class T>
+    auto as_string_value(rank<1>, const T& x) -> decltype(to_string(x))
+    {
+        return to_string(x);
+    }
+
+    template <class T>
+    std::string as_string_value(rank<0>, const T&)
+    {
+        throw std::runtime_error("Can't convert to string");
+    }
+
     template <class T, MIGRAPHX_REQUIRES(not is_multi_value<T>{})>
     std::string as_string_value(const T& x)
     {
-        return to_string(x);
+        return as_string_value(rank<2>{}, x);
     }
 
     template <class T, class... Fs>
@@ -124,8 +144,9 @@ struct argument_parser
 
         argument& arg     = arguments.back();
         arg.type          = migraphx::get_type_name<T>();
-        arg.default_value = as_string_value(x);
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
+        if(not arg.default_value.empty() and arg.nargs > 0)
+            arg.default_value = as_string_value(x);
     }
 
     template <class... Fs>

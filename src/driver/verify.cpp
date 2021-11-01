@@ -23,11 +23,10 @@ std::vector<argument> run_ref(program p, const parameter_map& inputs)
 std::vector<argument> run_target(program p,
                                  const target& t,
                                  const compile_options& options,
-                                 int quantize,
+                                 precision quantize,
                                  const parameter_map& inputs)
 {
-    static const int q_fp16 = 1;
-    if(quantize == q_fp16)
+    if(quantize == precision::fp16)
     {
         quantize_fp16(p);
     }
@@ -52,7 +51,7 @@ void verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
-                    int quantize,
+                    precision quantize,
                     const parameter_map& inputs,
                     double tolerance)
 {
@@ -67,7 +66,7 @@ void verify_program(const std::string& name,
 }
 
 void verify_instructions(
-    const program& prog, const target& t, compile_options options, int quantize, double tolerance)
+    const program& prog, const target& t, compile_options options, precision quantize, double tolerance)
 {
     const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))
@@ -113,7 +112,7 @@ void verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,
-                    int quantize,
+                    precision quantize,
                     const parameter_map& inputs,
                     double tolerance)
 {
@@ -128,7 +127,7 @@ void verify_reduced(program p,
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options,
-                            int quantize,
+                            precision quantize,
                             const parameter_map& inputs,
                             double tolerance)
 {

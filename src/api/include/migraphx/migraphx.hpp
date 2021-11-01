@@ -325,9 +325,8 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {
-        return {
-            make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed),
-            own{}};
+        return {make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed),
+                own{}};
     }
 
     friend bool operator==(const argument& px, const argument& py)

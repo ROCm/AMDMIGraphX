@@ -10,8 +10,7 @@ std::vector<char> msgpack_buffer(const T& src)
     std::stringstream buffer;
     msgpack::pack(buffer, src);
     buffer.seekg(0);
-    std::string str = buffer.str();
-    return std::vector<char>(str.data(), str.data() + str.size());
+    return {buffer.str().data(), buffer.str().data() + buffer.str().size()};
 }
 
 TEST_CASE(test_msgpack_empty_value)

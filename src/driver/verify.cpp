@@ -65,8 +65,11 @@ void verify_program(const std::string& name,
     }
 }
 
-void verify_instructions(
-    const program& prog, const target& t, compile_options options, precision quantize, double tolerance)
+void verify_instructions(const program& prog,
+                         const target& t,
+                         compile_options options,
+                         precision quantize,
+                         double tolerance)
 {
     const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))

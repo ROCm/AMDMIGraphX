@@ -291,9 +291,9 @@ struct compiler
     loader l;
     program_params parameters;
     compiler_target ct;
-    bool offload_copy = false;
-    bool fast_math    = true;
-    precision quantize      = precision::fp32;
+    bool offload_copy  = false;
+    bool fast_math     = true;
+    precision quantize = precision::fp32;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -370,12 +370,12 @@ struct verify : command<verify>
     loader l;
     program_params parameters;
     compiler_target ct;
-    double tolerance        = 80;
-    bool per_instruction    = false;
-    bool reduce             = false;
-    bool offload_copy       = false;
-    bool fast_math          = true;
-    precision quantize      = precision::fp32;
+    double tolerance     = 80;
+    bool per_instruction = false;
+    bool reduce          = false;
+    bool offload_copy    = false;
+    bool fast_math       = true;
+    precision quantize   = precision::fp32;
     void parse(argument_parser& ap)
     {
         l.parse(ap);

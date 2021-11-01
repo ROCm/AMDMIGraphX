@@ -142,8 +142,8 @@ struct argument_parser
                                  return false;
                              }});
 
-        argument& arg     = arguments.back();
-        arg.type          = migraphx::get_type_name<T>();
+        argument& arg = arguments.back();
+        arg.type      = migraphx::get_type_name<T>();
         migraphx::each_args([&](auto f) { f(x, arg); }, fs...);
         if(not arg.default_value.empty() and arg.nargs > 0)
             arg.default_value = as_string_value(x);

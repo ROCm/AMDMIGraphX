@@ -1098,13 +1098,13 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
 {
     migraphx::module m1;
     {
-        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+        migraphx::shape sx{migraphx::shape::float_type, {4}};
         migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
 
         auto x = m1.add_parameter("x", sx);
         auto y = m1.add_parameter("y", sy);
         auto x_brcst =
-            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), x);
+            m1.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 6}}}), x);
         auto y_trans =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
         auto y_cont = m1.add_instruction(migraphx::make_op("contiguous"), y_trans);

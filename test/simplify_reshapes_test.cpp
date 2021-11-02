@@ -1108,8 +1108,9 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
         auto y_trans =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
         auto y_cont = m1.add_instruction(migraphx::make_op("contiguous"), y_trans);
-        auto y_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
-        auto r     = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
+        auto y_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
+        auto r = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
         m1.add_return({r});
     }
     migraphx::module m2 = m1;

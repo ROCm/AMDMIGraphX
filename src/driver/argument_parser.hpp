@@ -129,7 +129,7 @@ struct argument_parser
     template <class T, MIGRAPHX_REQUIRES(not is_multi_value<T>{})>
     std::string as_string_value(const T& x)
     {
-        return as_string_value(rank<2>{}, x);
+        return as_string_value(rank<1>{}, x);
     }
 
     template <class T, class... Fs>

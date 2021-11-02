@@ -1096,26 +1096,25 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
 
 TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
 {
-    auto create_module = []() {
-        migraphx::module m;
+    migraphx::module m1;
+    {
         migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
         migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
 
-        auto x = m.add_parameter("x", sx);
-        auto y = m.add_parameter("y", sy);
+        auto x = m1.add_parameter("x", sx);
+        auto y = m1.add_parameter("y", sy);
         auto x_brcst =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), x);
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), x);
         auto y_trans =
-            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
-        auto y_cont = m.add_instruction(migraphx::make_op("contiguous"), y_trans);
-        auto y_rsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
-        auto r     = m.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
-        m.add_return({r});
-        return m;
-    };
-    auto m1 = create_module();
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto y_cont = m1.add_instruction(migraphx::make_op("contiguous"), y_trans);
+        auto y_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
+        auto r     = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
+        m1.add_return({r});
+    }
+    migraphx::module m2 = m1;
     run_pass(m1);
-    EXPECT(m1 == create_module());
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

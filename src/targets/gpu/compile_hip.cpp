@@ -1,6 +1,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
@@ -228,6 +229,20 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         };
 
     return {compiler.compile(srcs)};
+}
+
+std::string enum_params(std::size_t count, std::string param)
+{
+    std::vector<std::string> items(count);
+    transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
+    return join_strings(items, ",");
+}
+
+std::size_t compute_global(std::size_t n, std::size_t local)
+{
+    std::size_t groups  = (n + local - 1) / local;
+    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
+    return nglobal;
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

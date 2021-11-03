@@ -46,8 +46,8 @@ def parse(file):
     list_names = []
     for i in data:
         if (i):
-            if ("Marker start:" in i['name']) and (i['name']
-                                                   not in list_names):
+            if ("Marker start:" in i['name']) and (
+                    i['name'] not in list_names):
                 list_names.append(i['name'])
 
     # Get timing information for each marker name
@@ -59,12 +59,12 @@ def parse(file):
                     name == entry['name']
             ):  # name can match on gpu or cpu side, for gpu, we need data from gpu markers.
                 if (("gpu::" in name)
-                        and ("UserMarker frame:"
-                             in entry['args']['desc'])):  #gpu side information
+                        and ("UserMarker frame:" in entry['args']['desc'])
+                    ):  #gpu side information
                     temp_list.append(int(entry.get('dur')))
                 elif (("gpu::" not in name)
-                      and ("Marker start:"
-                           in entry['args']['desc'])):  #cpu side information
+                      and ("Marker start:" in entry['args']['desc'])
+                      ):  #cpu side information
                     temp_list.append(int(entry.get('dur')))
         list_times_per_names.append(temp_list)
 

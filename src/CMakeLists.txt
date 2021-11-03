@@ -131,6 +131,7 @@ register_migraphx_ops(
     multibroadcast
     multinomial
     neg
+    nonmaxsuppression
     nonzero
     outline
     pad

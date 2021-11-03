@@ -599,9 +599,10 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
     operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
 
-    operation(const char* name, const char* attributes = nullptr)
+    template <class... Ts>
+    operation(const char* name, const char* attributes = nullptr, Ts... xs)
     {
-        this->make_handle(&migraphx_operation_create, name, attributes);
+        this->make_handle(&migraphx_operation_create, name, attributes, xs...);
     }
 
     std::string name()

@@ -155,7 +155,7 @@ struct fusion
 
 std::vector<std::string> get_supported_archs()
 {
-    static std::vector<std::string> supported_archs{"gfx900", "gfx906", "gfx908"};
+    static std::vector<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
 

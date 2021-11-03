@@ -5,6 +5,7 @@
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/mul.hpp>
@@ -152,6 +153,12 @@ struct fusion
     }
 };
 
+std::vector<std::string> get_supported_archs()
+{
+    static std::vector<std::string> supported_archs{"gfx900", "gfx906", "gfx908"};
+    return supported_archs;
+}
+
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -161,6 +168,10 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
+    const auto device_name = get_device_name();
+    const auto supported_archs = get_supported_archs();
+    if (std::none_of(supported_archs.begin(), supported_archs.end(), [&](auto s){ return device_name.find(s) != std::string::npos; }))
+        return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
     if(ins->name() != "gpu::convolution")

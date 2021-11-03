@@ -115,7 +115,6 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
 }, clang_release_navi: rocmnode('navi21') { cmake_build ->
     stage('HIP Clang Release Navi') {
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
-        stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 }
 

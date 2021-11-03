@@ -560,7 +560,9 @@ struct find_transpose_contiguous_reshaper_unary
 {
     auto matcher() const
     {
-        return pointwise(match::used_once(), match::args(match_transpose_contiguous_reshaper()));
+        return pointwise(match::used_once(),
+                         match::nargs(1),
+                         match::args(match_transpose_contiguous_reshaper()));
     }
 
     void apply(module& p, match::matcher_result r) const

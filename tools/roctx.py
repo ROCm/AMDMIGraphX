@@ -9,22 +9,18 @@ import csv
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Parser for MIGraphX ROCTX Markers")
-    parser.add_argument('--json_path',
+    parser.add_argument('--json-path',
                         type=str,
                         metavar='json_path',
                         help='path to json file')
-    parser.add_argument('--migraphx_args',
-                        type=str,
-                        metavar='migraphx_args',
-                        help='args to pass to migraphx-driver')
     parser.add_argument('--out',
                         type=str,
                         metavar='out',
                         help='output directory for run')
     parser.add_argument(
-        '--study_name',
+        '--study-name',
         type=str,
-        metavar='study_name',
+        metavar='study-name',
         help='study name is used for naming the output CSV file.')
     parser.add_argument('--repeat',
                         type=int,
@@ -32,9 +28,11 @@ def parse_args():
                         help='defines number of runs',
                         default=1)
     parser.add_argument('--parse', default=False, action='store_true')
-    parser.add_argument('--run', default=False, action='store_true')
+    parser.add_argument('--run',
+                        type=str,
+                        metavar='run',
+                        help='enables run and fetches run configs.')
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--onnx_file', type=str)
 
     args = parser.parse_args()
     return args
@@ -54,7 +52,6 @@ def parse(file):
                 list_names.append(i['name'])
 
     # Get timing information for each marker name
-    # print(list_names)
     list_times_per_names = []
     for name in list_names:
         temp_list = []
@@ -126,21 +123,15 @@ def parse(file):
 
 def run():
     args = parse_args()
-    onnx_path = args.onnx_file
     repeat_count = args.repeat
     if (repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
         raise Exception(
             "Repeat count is either, 0, infinity or not defined. Quitting.")
-    migraphx_args = args.migraphx_args
-    if not (onnx_path):
-        raise Exception("No ONNX file is provided to run.")
-    onnx_rpath = os.path.realpath(onnx_path)
-    print(onnx_rpath)
+    run_args = args.run
     #configurations
     configs = '--hip-trace --roctx-trace --flush-rate 10ms --timestamp on'
     output_dir = '-d %s' % args.out
-    executable = '/opt/rocm/bin/migraphx-driver roctx %s %s' % (onnx_rpath,
-                                                                migraphx_args)
+    executable = '/opt/rocm/bin/migraphx-driver roctx %s' % run_args
     process_args = configs + ' ' + output_dir + ' ' + executable
     for i in range(repeat_count):
         os.system('rocprof ' + process_args)
@@ -160,9 +151,7 @@ def main():
             "%Y_%m_%d-%I:%M:%S_%p") + ".csv"
 
     with open(filename, 'a') as f:
-        f.write(args.onnx_file)
-        f.write('\n')
-        f.write(args.migraphx_args)
+        f.write(args.run)
         f.write('\n')
 
     if (args.run):
@@ -206,8 +195,7 @@ def main():
                 print("JSON FILE PATH: " + path + "trace.json")
         tmp_sum = df_tot.loc[:, df_tot.columns.str.contains('SUM')].astype(int)
         tmp_min = df_tot.loc[:, df_tot.columns.str.contains('MIN')].astype(int)
-        tmp_max = df_tot.loc[:,
-                             df_tot.columns.str.match("^MAX_.$")].astype(int)
+        tmp_max = df_tot.loc[:, df_tot.columns.str.match("^MAX$")].astype(int)
 
         tmp_sum['SUM_avg'] = tmp_sum.mean(axis=1).astype(int)
         tmp_min['MIN_avg'] = tmp_min.mean(axis=1).astype(int)

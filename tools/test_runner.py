@@ -95,6 +95,7 @@ def model_parameter_names(model_file_name):
 
         return param_names
 
+
 def model_output_names(model_file_name):
     with open(model_file_name, 'rb') as pfile:
         data_str = pfile.read()
@@ -103,6 +104,7 @@ def model_output_names(model_file_name):
         output_names = [out.name for out in model_proto.graph.output]
 
         return output_names
+
 
 def get_input_shapes(sample_case, param_names):
     param_shape_map = {}
@@ -147,8 +149,6 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
     out_num = len(gold_outputs)
     ret = True
     for i in range(out_num):
-        # print("Expected value: \n{}".format(gold_outputs[i]))
-        # print("Actual value: \n{}".format(outputs[i]))
         if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
             print("Output {} is incorrect ...".format(i))
             print("Expected value: \n{}".format(gold_outputs[i]))

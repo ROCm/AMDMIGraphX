@@ -25,7 +25,7 @@ def parse_args():
                         type=int,
                         metavar='repeat',
                         help='defines number of runs',
-                        default=1)
+                        default=2)
     parser.add_argument('--parse', default=False, action='store_true')
     parser.add_argument('--run',
                         type=str,
@@ -68,10 +68,16 @@ def parse(file):
                     temp_list.append(int(entry.get('dur')))
         list_times_per_names.append(temp_list)
 
-    # Sum duration for each entry for a given name
     sum_per_name = []
     for list in list_times_per_names:
         sum_per_name.append(sum(list))
+
+    count_per_name = []
+    for list in list_times_per_names:
+        try:
+            count_per_name.append(len(list))
+        except:
+            count_per_name.append(0)
 
     max_per_name = []
     for list in list_times_per_names:
@@ -107,6 +113,7 @@ def parse(file):
         'SUM': sum_per_name,
         'MIN': min_per_name,
         'MAX': max_per_name,
+        'COUNT': count_per_name,
         'MAX_INDEX': max_index_per_name,
         'MAX_OCCUR': max_occur_per_name
     }
@@ -192,9 +199,16 @@ def main():
                               right_index=True)
             if (args.debug):
                 print("JSON FILE PATH: " + path + "trace.json")
+
+        if (args.debug):
+            print(df_tot)
+
         tmp_sum = df_tot.loc[:, df_tot.columns.str.contains('SUM')].astype(int)
         tmp_min = df_tot.loc[:, df_tot.columns.str.contains('MIN')].astype(int)
-        tmp_max = df_tot.loc[:, df_tot.columns.str.match("^MAX$")].astype(int)
+        tmp_max = df_tot.loc[:, df_tot.columns.str.match("^MAX_.$")].astype(
+            int)
+        tmp_count = df_tot.loc[:, df_tot.columns.str.match("COUNT")].astype(
+            int)
 
         tmp_sum['SUM_avg'] = tmp_sum.mean(axis=1).astype(int)
         tmp_min['MIN_avg'] = tmp_min.mean(axis=1).astype(int)
@@ -211,6 +225,12 @@ def main():
                        how='outer',
                        left_index=True,
                        right_index=True)
+        df2 = pd.merge(df2,
+                       tmp_count['COUNT_x'],
+                       how='outer',
+                       left_index=True,
+                       right_index=True)
+        df2.rename(columns={'COUNT_x': 'COUNT'}, inplace=True)
         df2.sort_values(by=['SUM_avg'], inplace=True, ascending=False)
 
         if (args.debug):

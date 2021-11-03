@@ -27,6 +27,7 @@
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -153,9 +154,9 @@ struct fusion
     }
 };
 
-std::vector<std::string> get_supported_archs()
+std::unordered_set<std::string> get_supported_archs()
 {
-    static std::vector<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
 }
 
@@ -168,11 +169,9 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
-    const auto device_name     = get_device_name();
+    const auto device_name     = split_string(get_device_name(), ':').front();
     const auto supported_archs = get_supported_archs();
-    if(std::none_of(supported_archs.begin(), supported_archs.end(), [&](auto s) {
-           return device_name.find(s) != std::string::npos;
-       }))
+    if(not contains(supported_archs, device_name))
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;

@@ -42,13 +42,46 @@ def parse(file):
     with open(file, "r") as read_file:
         data = json.load(read_file)
 
-    #Get marker names
+    #Get marker names and first marker's time
     list_names = []
+    first_marker = True
+    first_marker_time = 0
     for i in data:
         if (i):
             if ("Marker start:" in i['name']) and (
                     i['name'] not in list_names):
                 list_names.append(i['name'])
+                if first_marker:
+                    first_marker_time = i['ts']
+                    first_marker = False
+                    
+    if(args.debug):
+        print("FIRST MARKER TIME DETERMINED: %s"%first_marker_time)
+    
+    if(first_marker_time == 0):
+        raise("FIRST MARKER TIME IS ZERO. EXITING...")
+    
+    kernel_launch_info = [] #kernel description
+    kernel_launch_list = [] #kernel launch details
+    kernel_launch_time = [] #kernel execution time
+    for i in data:
+        if (i and i.get('args')):
+                try:
+                    if (("KernelExecution" in i['args']['desc']) and (i['ts'] >= first_marker_time)):
+                        kernel_launch_info.append(i['args']['desc'])
+                        kernel_launch_list.append(i)
+                        kernel_launch_time.append(int(i['dur']))
+                except:
+                    continue
+    
+    max_index = kernel_launch_time.index(max(kernel_launch_time))
+    max_value = max(kernel_launch_time)
+    max_kernel_info = kernel_launch_list[max_index]
+    
+    if(args.debug):
+        with open('rocTX_kernel_launch_list.txt','w') as f:
+            for i in kernel_launch_list:
+                f.write('%s\n'%i)
 
     # Get timing information for each marker name
     list_times_per_names = []
@@ -66,7 +99,10 @@ def parse(file):
                       and ("Marker start:" in entry['args']['desc'])
                       ):  #cpu side information
                     temp_list.append(int(entry.get('dur')))
-        list_times_per_names.append(temp_list)
+        list_times_per_names.append(temp_list)   
+    
+    if(args.debug):
+        print(list_times_per_names)
 
     sum_per_name = []
     for list in list_times_per_names:
@@ -124,7 +160,7 @@ def parse(file):
     if (args.debug):
         print(df2)
         print("\nTOTAL TIME: %s us" % total_time)
-    return df2, total_time
+    return df2, total_time, max_kernel_info
 
 
 def run():
@@ -132,7 +168,7 @@ def run():
     repeat_count = args.repeat
     if (repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
         raise Exception(
-            "Repeat count is either, 0, infinity or not defined. Quitting.")
+            "REPEAT COUNT CANNOT BE ZERO/INFINITY/NULL")
     run_args = args.run
     #configurations
     configs = '--hip-trace --roctx-trace --flush-rate 10ms --timestamp on'
@@ -163,7 +199,7 @@ def main():
     if (args.run):
         curr = os.path.abspath(os.getcwd())
         if not os.path.exists('/tmp/rocmProfileData'):
-            print("rocmProfileData does not exist. Cloning.")
+            print("rocmProfileData DOES NOT EXIST. CLONING...")
             os.system(
                 'git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git /tmp/rocmProfileData'
             )
@@ -175,10 +211,11 @@ def main():
         run()
         os.chdir(curr + "/%s/" % args.out)
         out_path = os.popen("ls -td $PWD/*/*/ | head -%s" % args.repeat).read()
-        print("\nFollowing paths will be parsed:\n%s" % out_path)
+        print("\nFOLLOWING PATHS WILL BE PARSED:\n%s" % out_path)
         out_path = out_path.splitlines()
         df_tot = pd.DataFrame()
         tot_time = []
+        max_kernel_info_list = []
         for path in out_path:
             path = path.strip('\n')
             print("\nPARSING OUTPUT PATH: " + path)
@@ -190,7 +227,8 @@ def main():
                 "python /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json"
             )
             os.chdir(curr)
-            df, total_time = parse(path + "trace.json")
+            df, total_time, path_max_kernel_info = parse(path + "trace.json")
+            max_kernel_info_list.append(path_max_kernel_info)
             tot_time.append(total_time)
             df_tot = pd.merge(df_tot,
                               df,
@@ -200,6 +238,7 @@ def main():
             if (args.debug):
                 print("JSON FILE PATH: " + path + "trace.json")
 
+        df_tot.to_csv("rocTX_runs_dataframe.csv")
         if (args.debug):
             print(df_tot)
 
@@ -235,19 +274,33 @@ def main():
 
         if (args.debug):
             pd.set_option('display.max_columns', None)
-            print(df_tot)
+            print(df_tot) #all data from all runs
+        
         print("\n*** RESULTS ***")
         print(df2)
         out_time = sum(tot_time) / len(tot_time)
         print("\nAVG TOTAL TIME: %s us\n" % int(out_time))
+        
         df2.to_csv(filename, mode='a')
         with open(filename, 'a') as f:
             f.write("AVG TOTAL TIME: %s us\n" % int(out_time))
-        print("OUTPUT CSV FILE: %s" % filename)
+        print("OUTPUT CSV FILE:\t%s" % filename)
+        
+        if(args.debug):
+            #kernels that took the longest time printed
+            for item in max_kernel_info_list:
+                print("KERNEL NAME: %s\t\t%s"%(item['name'], item['dur']))
+        
+        with open('rocTX_kernel_timing_details.txt','w') as f:
+            f.write("MOST TIME CONSUMING KERNELS IN EACH ITERATION (EXPECTED TO BE SAME KERNEL):\n")
+            for i in max_kernel_info_list:
+                f.write("KERNEL NAME: %s\t\t%s\n"%(i['name'], i['dur']))
+        print("KERNEL TIMING DETAILS:\trocTX_kernel_timing_details.txt")
+        print("ALL DATA FROM ALL RUNS:\trocTX_runs_dataframe.csv")
 
     if (args.parse):
         if not (file):
-            raise Exception("JSON path is not provided for parsing.")
+            raise Exception("JSON PATH IS NOT PROVIDED FOR PARSING.")
         parse(file)
 
 

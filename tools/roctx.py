@@ -269,7 +269,12 @@ def main():
                        how='outer',
                        left_index=True,
                        right_index=True)
+        print(df2)
         df2.rename(columns={'COUNT_x': 'COUNT'}, inplace=True)
+        print(df2)
+        df2 = df2.loc[:, ~df2.columns.duplicated(
+        )]  #there will be many COUNT_x in df2
+        print(df2)
         df2.sort_values(by=['SUM_avg'], inplace=True, ascending=False)
 
         if (args.debug):

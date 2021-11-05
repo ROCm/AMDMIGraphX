@@ -71,7 +71,7 @@ std::string trim(const std::string& s, F f)
 {
     auto start = std::find_if_not(s.begin(), s.end(), f);
     auto last  = std::find_if_not(s.rbegin(), std::string::const_reverse_iterator(start), f).base();
-    return std::string(start, last);
+    return {start, last};
 }
 
 inline std::string trim(const std::string& s)

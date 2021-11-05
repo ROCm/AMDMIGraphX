@@ -45,7 +45,7 @@ struct topk
         shape s_val{type, lens};
         shape s_ind{shape::int64_type, lens};
 
-        return shape({s_val, s_ind});
+        return {{s_val, s_ind}};
     }
 
     template <class T, class Compare>
@@ -131,7 +131,7 @@ struct topk
             });
         });
 
-        return argument({res_val, res_ind});
+        return {{res_val, res_ind}};
     }
 };
 

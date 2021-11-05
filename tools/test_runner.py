@@ -221,7 +221,6 @@ def main():
 
     # get param names
     param_names = model_parameter_names(model_path_name)
-    print("param_name = {}".format(param_names))
 
     # get output names
     output_names = model_output_names(model_path_name)
@@ -232,6 +231,7 @@ def main():
     param_shapes = get_input_shapes(sample_case, param_names)
     for name, dims in param_shapes.items():
         print("Input: {}, shape: {}".format(name, dims))
+    print()
 
     # read and compile model
     model = migraphx.parse_onnx(model_path_name, map_input_dims=param_shapes)

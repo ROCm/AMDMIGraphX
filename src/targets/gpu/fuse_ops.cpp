@@ -154,7 +154,7 @@ struct fusion
     }
 };
 
-std::unordered_set<std::string> get_supported_archs()
+const std::unordered_set<std::string>& get_supported_archs()
 {
     static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
     return supported_archs;
@@ -170,8 +170,7 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     const auto device_name     = split_string(get_device_name(), ':').front();
-    const auto supported_archs = get_supported_archs();
-    if(not contains(supported_archs, device_name))
+    if(not contains(get_supported_archs(), device_name))
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;

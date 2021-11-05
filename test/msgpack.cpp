@@ -11,7 +11,7 @@ std::vector<char> msgpack_buffer(const T& src)
     msgpack::pack(buffer, src);
     buffer.seekg(0);
     std::string str = buffer.str();
-    return std::vector<char>(str.data(), str.data() + str.size());
+    return std::vector<char>(str.data(), str.data() + str.size()); // NOLINT
 }
 
 TEST_CASE(test_msgpack_empty_value)

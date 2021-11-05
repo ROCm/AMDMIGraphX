@@ -146,7 +146,7 @@ struct mlir_program
     {
         assert(s.standard());
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
-        return mlirRankedTensorTypeGet(lens.size(), lens.data(), make_type(s.type()));
+        return mlirRankedTensorTypeGet(lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());
     }
 
     template <class Range>

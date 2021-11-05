@@ -211,7 +211,7 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
-    find_library(MLIRAPI_LIBRARY MLIRPublicAPI 
+    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
         PATH_SUFFIXES
         # Workaournd broken mlir install
         lib/ lib/lib)

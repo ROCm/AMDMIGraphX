@@ -136,6 +136,7 @@ def get_input_shapes(sample_case, param_names):
     for i in range(len(param_names)):
         file_name = sample_case + '/input_' + str(i) + '.pb'
         name, data = read_pb_file(file_name)
+        param_shape_map[name] = data.shape
         shape_array.append(data.shape)
         if name:
             name_array.append(name)

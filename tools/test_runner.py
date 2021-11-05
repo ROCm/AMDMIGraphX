@@ -184,9 +184,10 @@ def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
     ret = True
     for i in range(out_num):
         if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
-            print("Output {} is incorrect ...".format(i))
+            print("\nOutput {} is incorrect ...".format(i))
             print("Expected value: \n{}".format(gold_outputs[i]))
-            print("Actual value: \n{}".format(outputs[i]))
+            print("......")
+            print("Actual value: \n{}\n".format(outputs[i]))
             ret = False
 
     return ret

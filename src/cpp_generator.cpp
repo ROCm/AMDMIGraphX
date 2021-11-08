@@ -140,7 +140,6 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
                            ins->inputs().end(),
                            std::back_inserter(args),
                            [&](auto i) { return names.at(i); });
-            auto s = this->generate_point_op(ins->get_operator(), args);
             return this->generate_point_op(ins->get_operator(), args);
         });
     return f;

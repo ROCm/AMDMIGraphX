@@ -75,7 +75,7 @@ struct test_loop_op
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
-        return migraphx::shape(ins_out_shapes);
+        return {ins_out_shapes};
     }
 
     struct test_loop : public migraphx::op::loop::ref_loop

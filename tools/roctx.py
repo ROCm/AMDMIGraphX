@@ -79,7 +79,6 @@ def parse(file):
                 continue
 
     max_index = kernel_launch_time.index(max(kernel_launch_time))
-    max_value = max(kernel_launch_time)
     max_kernel_info = kernel_launch_list[max_index]
 
     if (args.debug):
@@ -214,7 +213,7 @@ def main():
             )
 
         os.chdir("/tmp/rocmProfileData/rocpd_python/")
-        os.system('%s setup.py install'%python_bin)
+        os.system('%s setup.py install' % python_bin)
         os.chdir("/tmp/rocmProfileData/")
         os.chdir(curr)
         run()
@@ -230,11 +229,11 @@ def main():
             print("\nPARSING OUTPUT PATH: " + path)
             os.chdir(path)
             os.system(
-                "%s -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"%python_bin
-            )
+                "%s -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
+                % python_bin)
             os.system(
-                "%s /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json"%python_bin
-            )
+                "%s /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json" %
+                python_bin)
             os.chdir(curr)
             df, total_time, path_max_kernel_info = parse(path + "trace.json")
             max_kernel_info_list.append(path_max_kernel_info)

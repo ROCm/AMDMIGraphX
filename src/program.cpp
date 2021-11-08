@@ -526,7 +526,10 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch) const
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch) const
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself

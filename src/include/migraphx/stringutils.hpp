@@ -127,15 +127,20 @@ interpolate_string(const std::string& input, F f, std::string start = "${", std:
     return result;
 }
 inline std::string interpolate_string(const std::string& input,
-                                      const std::unordered_map<std::string, std::string>& vars, std::string start = "${", std::string end = "}")
+                                      const std::unordered_map<std::string, std::string>& vars,
+                                      std::string start = "${",
+                                      std::string end   = "}")
 {
-    return interpolate_string(input, [&](auto start_it, auto last_it) {
-        auto key = trim({start_it, last_it});
-        auto it  = vars.find(key);
-        if(it == vars.end())
-            throw std::runtime_error("Unknown key: " + key);
-        return it->second;
-    }, std::move(start), std::move(end));
+    return interpolate_string(input,
+                              [&](auto start_it, auto last_it) {
+                                  auto key = trim({start_it, last_it});
+                                  auto it  = vars.find(key);
+                                  if(it == vars.end())
+                                      throw std::runtime_error("Unknown key: " + key);
+                                  return it->second;
+                              },
+                              std::move(start),
+                              std::move(end));
 }
 
 template <class Iterator>

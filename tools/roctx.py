@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
 import json
 import argparse
 import os
+from sys import argv as sysargs
 import pandas as pd
 from datetime import datetime
 
@@ -182,7 +185,13 @@ def run():
 
 def main():
 
+    print("Initiating virtual environment...")
+    os.system("python -m venv tempenv")
+    python_bin = os.path.abspath(os.getcwd()) + "/tempenv/bin/python"
+
     args = parse_args()
+    if not len(sysargs) > 1:
+        raise Exception("No arg is passed. Exiting...")
     print(args)
     file = args.json_path
 
@@ -205,7 +214,7 @@ def main():
             )
 
         os.chdir("/tmp/rocmProfileData/rocpd_python/")
-        os.system('python setup.py install')
+        os.system('%s setup.py install'%python_bin)
         os.chdir("/tmp/rocmProfileData/")
         os.chdir(curr)
         run()
@@ -221,10 +230,10 @@ def main():
             print("\nPARSING OUTPUT PATH: " + path)
             os.chdir(path)
             os.system(
-                "python -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
+                "%s -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"%python_bin
             )
             os.system(
-                "python /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json"
+                "%s /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json"%python_bin
             )
             os.chdir(curr)
             df, total_time, path_max_kernel_info = parse(path + "trace.json")

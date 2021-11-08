@@ -55,4 +55,25 @@ TEST_CASE(interpolate_string_missing)
     EXPECT(test::throws([&] { migraphx::interpolate_string(input, {{"h", "bye"}}); }));
 }
 
+TEST_CASE(interpolate_string_custom1)
+{
+    std::string input = "****{{a}}****";
+    auto s            = migraphx::interpolate_string(input, {{"a", "b"}}, "{{", "}}");
+    EXPECT(s == "****b****");
+}
+
+TEST_CASE(interpolate_string_custom2)
+{
+    std::string input = "****{{{a}}}****";
+    auto s            = migraphx::interpolate_string(input, {{"a", "b"}}, "{{{", "}}}");
+    EXPECT(s == "****b****");
+}
+
+TEST_CASE(interpolate_string_custom3)
+{
+    std::string input = "****{{{{a}}}}****";
+    auto s            = migraphx::interpolate_string(input, {{"a", "b"}}, "{{{{", "}}}}");
+    EXPECT(s == "****b****");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

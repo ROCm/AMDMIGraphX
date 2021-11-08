@@ -245,4 +245,32 @@ TEST_CASE(contiguous_input)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(all_scalar_input)
+{
+    migraphx::shape s{migraphx::shape::float_type};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) {
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+        });
+        mm->add_return({add1});
+    }
+    EXPECT(p1.get_output_shapes().size() == 1);
+    EXPECT(p1.get_output_shapes().front().scalar());
+    EXPECT(p1.get_output_shapes() == p2.get_output_shapes());
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

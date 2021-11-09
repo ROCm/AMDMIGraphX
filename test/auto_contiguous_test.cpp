@@ -118,8 +118,8 @@ TEST_CASE(two_transpose_gather)
         return m;
     };
 
-    auto m = create_module();
-    run_pass(m);
+    auto mdl = create_module();
+    run_pass(mdl);
 
     auto create_cont_module = [] {
         migraphx::module m;
@@ -138,7 +138,7 @@ TEST_CASE(two_transpose_gather)
         return m;
     };
 
-    EXPECT(m == create_cont_module());
+    EXPECT(mdl == create_cont_module());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -232,7 +232,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     return ins;
 }
 
-instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
+instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep, bool stop)
 {
     assert(has_instruction(ins));
     assert(has_instruction(rep));
@@ -255,7 +255,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         // TODO: Check for possible cycles
         if(out != rep)
         {
-            instruction::replace_argument(out, ins, rep);
+            instruction::replace_argument(out, ins, rep, stop);
         }
         assert(out->valid(begin()));
     }

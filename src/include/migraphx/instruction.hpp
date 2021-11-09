@@ -36,7 +36,7 @@ struct instruction
 
     void replace(operation o);
 
-    void recompute_shape();
+    void recompute_shape(bool non_std_stop = false);
 
     void clear_arguments();
 
@@ -83,7 +83,7 @@ struct instruction
 
     static void backreference(instruction_ref ref);
 
-    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins);
+    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins, bool stop = false);
 
     static void replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod);
 
@@ -139,7 +139,7 @@ struct instruction
     // internal
     void replace_mod_argument(module_ref old, module_ref new_mod);
 
-    void replace(const shape& r);
+    void replace(const shape& r, bool stop = false);
 
     operation op;
     shape result{};

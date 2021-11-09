@@ -16,7 +16,7 @@ void auto_contiguous::apply(module& p) const
         if(not s.standard() and s.elements() != 0)
         {
             auto c = p.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-            p.replace_instruction(ins, c);
+            p.replace_instruction(ins, c, true);
         }
     }
 }

@@ -83,7 +83,10 @@ struct instruction
 
     static void backreference(instruction_ref ref);
 
-    static void replace_argument(instruction_ref ins, instruction_ref old, instruction_ref new_ins, bool stop = false);
+    static void replace_argument(instruction_ref ins,
+                                 instruction_ref old,
+                                 instruction_ref new_ins,
+                                 bool stop = false);
 
     static void replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod);
 

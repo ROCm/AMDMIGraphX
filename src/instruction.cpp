@@ -39,7 +39,8 @@ void instruction::replace(const shape& r, bool stop)
     if(r != result)
     {
         result = r;
-        if(stop and not r.standard()) return;
+        if(stop and not r.standard())
+            return;
 
         for(auto&& ins : output)
         {
@@ -59,9 +60,9 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape(bool non_std_stop) 
+void instruction::recompute_shape(bool non_std_stop)
 {
-    replace(compute_shape(op, arguments, module_args), non_std_stop); 
+    replace(compute_shape(op, arguments, module_args), non_std_stop);
 }
 
 void instruction::clear_arguments()

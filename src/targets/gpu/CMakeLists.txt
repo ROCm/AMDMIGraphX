@@ -144,6 +144,7 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     leaky_relu.cpp
+    mlir.cpp
     mlir_conv.cpp
     multinomial.cpp
     nonzero.cpp
@@ -283,6 +284,30 @@ endif()
 
 message(STATUS "clang-offload-bundler: ${MIGRAPHX_OFFLOADBUNDLER_BIN}")
 message(STATUS "extractkernel: ${MIGRAPHX_EXTRACT_KERNEL}")
+
+set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
+if(MIGRAPHX_ENABLE_MLIR)
+    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
+        PATH_SUFFIXES
+        # Workaournd broken mlir install
+        lib/ lib/lib)
+    # REQUIRED is not supported before cmake 3.18
+    if(NOT MLIRAPI_LIBRARY)
+        message(FATAL_ERROR "libMLIRPublicAPI not found")
+    else()
+        message(STATUS "Build with libMLIRPublicAPI: " ${MLIRAPI_LIBRARY})
+    endif()
+
+    find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
+    # Workaround MLIR broken installation
+    find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
+        PATH_SUFFIXES 
+        include/external/include external/include)
+
+    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+    target_include_directories(migraphx_gpu SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
+    target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
+endif()
 
 set(MIGRAPHX_ENABLE_MLIR_MIOPEN OFF CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR_MIOPEN)

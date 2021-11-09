@@ -34,7 +34,6 @@ add_library(migraphx
     json.cpp
     load_save.cpp
     make_op.cpp
-    mlir.cpp
     module.cpp
     msgpack.cpp
     normalize_attributes.cpp
@@ -208,30 +207,6 @@ find_package(msgpack REQUIRED)
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 # Make this available to the tests
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
-
-set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
-if(MIGRAPHX_ENABLE_MLIR)
-    find_library(MLIRAPI_LIBRARY MLIRMIOpen 
-        PATH_SUFFIXES
-        # Workaournd broken mlir install
-        lib/ lib/lib)
-    # REQUIRED is not supported before cmake 3.18
-    if(NOT MLIRAPI_LIBRARY)
-        message(FATAL_ERROR "libMLIRPublicAPI not found")
-    else()
-        message(STATUS "Build with libMLIRPublicAPI: " ${MLIRAPI_LIBRARY})
-    endif()
-
-    find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)
-    # Workaround MLIR broken installation
-    find_path(MLIRAPI_HEADERS2 NAMES mlir-c/Registration.h
-        PATH_SUFFIXES 
-        include/external/include external/include)
-
-    target_compile_definitions(migraphx PRIVATE "-DMIGRAPHX_MLIR")
-    target_include_directories(migraphx SYSTEM PRIVATE ${MLIRAPI_HEADERS} ${MLIRAPI_HEADERS2})
-    target_link_libraries(migraphx PUBLIC ${MLIRAPI_LIBRARY})
-endif()
 
 add_library(migraphx_all_targets INTERFACE)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)

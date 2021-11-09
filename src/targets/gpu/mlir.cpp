@@ -1,4 +1,4 @@
-#include <migraphx/mlir.hpp>
+#include <migraphx/gpu/mlir.hpp>
 
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
@@ -20,6 +20,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
 template <class T, class F, F f> // NOLINT
 struct mlir_handle
@@ -69,7 +70,7 @@ struct mlir_handle
     std::unique_ptr<ptr, deleter> handle;
 };
 
-#define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::mlir_handle<T, decltype(&F), &F> // NOLINT
+#define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
 using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
 using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
@@ -431,5 +432,6 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

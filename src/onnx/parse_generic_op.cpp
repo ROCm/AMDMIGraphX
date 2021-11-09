@@ -56,7 +56,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"IsNaN", "isnan"},
                 {"LeakyRelu", "leaky_relu"},
                 {"Log", "log"},
-                {"LRN", "lrn"},
                 {"Neg", "neg"},
                 {"Reciprocal", "recip"},
                 {"Relu", "relu"},

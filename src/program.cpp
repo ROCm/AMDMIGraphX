@@ -13,6 +13,7 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/marker.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -309,8 +310,11 @@ std::vector<argument> program::eval(parameter_map params) const
                                 double t2 = t.record<milliseconds>();
                                 std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
                                 if(trace_level > 1 and ins->name().front() != '@' and
-                                   ins->name() != "load")
-                                    std::cout << "Output: " << result << std::endl;
+                                   ins->name() != "load" and not result.empty())
+                                {
+                                    target tgt = make_target(this->impl->target_name);
+                                    std::cout << "Output: " << tgt.copy_from(result) << std::endl;
+                                }
                                 return result;
                             }));
     }
@@ -504,7 +508,28 @@ std::string perf_group(const operation& op)
     return op.name();
 }
 
-void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+void program::mark(const parameter_map& params, marker&& m)
+{
+    auto& ctx = this->impl->ctx;
+    // Run once by itself
+    eval(params);
+    ctx.finish();
+    // Start marking
+    m.mark_start(*this);
+    generic_eval(*this, ctx, params, always([&](auto ins, auto f) {
+        argument result;
+        m.mark_start(ins);
+        result = f();
+        m.mark_stop(ins);
+        return result;
+    }));
+    m.mark_stop(*this);
+}
+
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch) const
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself
@@ -597,7 +622,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
 
-    os << "Rate: " << rate << "/sec" << std::endl;
+    os << "Batch size: " << batch << std::endl;
+    os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

@@ -5,6 +5,7 @@
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/clip.hpp>
 #include <migraphx/gpu/convolution.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/add.hpp>
 #include <migraphx/gpu/mul.hpp>
@@ -26,6 +27,7 @@
 #include <migraphx/array.hpp>
 #include <migraphx/op/clip.hpp>
 #include <cmath>
+#include <set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -152,6 +154,12 @@ struct fusion
     }
 };
 
+const std::unordered_set<std::string>& get_supported_archs()
+{
+    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
+    return supported_archs;
+}
+
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -161,6 +169,9 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
+    const auto device_name = split_string(get_device_name(), ':').front();
+    if(not contains(get_supported_archs(), device_name))
+        return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))
         return false;
     if(ins->name() != "gpu::convolution")
@@ -717,7 +728,7 @@ struct find_gemm_add
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
-        if(not float_equal(gemm.op.beta, 0))
+        if(not float_equal(gemm.beta, 0))
             return;
 
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
@@ -738,7 +749,7 @@ struct find_gemm_add
         inputs.push_back(copy_ins);
         inputs.push_back(copy_ins);
 
-        gemm.op.beta = 1;
+        gemm.beta = 1;
         p.replace_instruction(ins, gemm, inputs);
     }
 };

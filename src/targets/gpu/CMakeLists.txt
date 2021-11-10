@@ -60,6 +60,7 @@ add_library(migraphx_device
     device/mul_add.cpp
     device/mul_add_relu.cpp
     device/multinomial.cpp
+    device/nonzero.cpp
     device/pad.cpp
     device/pow.cpp
     device/prelu.cpp
@@ -124,6 +125,7 @@ add_library(migraphx_gpu
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_pointwise.cpp
+    compile_roialign.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -145,6 +147,7 @@ add_library(migraphx_gpu
     leaky_relu.cpp
     mlir_conv.cpp
     multinomial.cpp
+    nonzero.cpp
     pack_args.cpp
     pack_int8_args.cpp
     pad.cpp
@@ -202,6 +205,7 @@ register_migraphx_gpu_ops(hip_
     min
     mul
     multinomial
+    nonzero
     pad
     pow
     prelu

@@ -54,7 +54,7 @@ struct loop
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
-        return shape(ins_out_shapes);
+        return {ins_out_shapes};
     }
 
     struct ref_loop

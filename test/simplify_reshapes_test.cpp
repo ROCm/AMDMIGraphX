@@ -945,4 +945,177 @@ TEST_CASE(reshape_cont_nonpw)
     EXPECT(m1 == create_module());
 }
 
+TEST_CASE(transpose_contiguous_reshape_unary)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto reshape_ins1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        auto transpose_ins = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
+        auto cont_ins = m1.add_instruction(migraphx::make_op("contiguous"), transpose_ins);
+        auto reshape_ins2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), cont_ins);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), reshape_ins2);
+        m1.add_instruction(pass_op{}, relu);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto reshape_ins1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        auto transpose_ins = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), transpose_ins);
+        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), relu);
+        auto reshape_ins2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), cont_ins);
+        m2.add_instruction(pass_op{}, reshape_ins2);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_contiguous_squeeze_unary)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
+        auto transpose_ins =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto cont_ins = m1.add_instruction(migraphx::make_op("contiguous"), transpose_ins);
+        auto sq_ins   = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), cont_ins);
+        auto rsqrt    = m1.add_instruction(migraphx::make_op("rsqrt"), sq_ins);
+        m1.add_instruction(pass_op{}, rsqrt);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
+        auto transpose_ins =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto rsqrt    = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
+        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), rsqrt);
+        auto sq_ins   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), cont_ins);
+        m2.add_instruction(pass_op{}, sq_ins);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_contiguous_unsqueeze_unary)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto transpose_ins =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto cont_ins = m1.add_instruction(migraphx::make_op("contiguous"), transpose_ins);
+        auto unsq_ins =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cont_ins);
+        auto round = m1.add_instruction(migraphx::make_op("round"), unsq_ins);
+        m1.add_instruction(pass_op{}, round);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
+        auto transpose_ins =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+        auto round    = m2.add_instruction(migraphx::make_op("round"), transpose_ins);
+        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), round);
+        auto unsq_ins =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cont_ins);
+        m2.add_instruction(pass_op{}, unsq_ins);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_contiguous_reshape_binary_packed)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {2, 128, 28, 28}});
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+        auto conv1 = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+            x,
+            w1); // (2, 256, 28, 28)
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {512, 256, 1, 1}}));
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            conv1,
+            w2); // (2, 512, 14, 14)
+
+        auto conv2_rsp1 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 2, 2, 128, 14, 14}}}), conv2);
+        auto conv2_trans = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp1);
+        auto conv2_cont = m1.add_instruction(migraphx::make_op("contiguous"), conv2_trans);
+        auto conv2_rsp2 = m1.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), conv2_cont);
+        auto add_ins = m1.add_instruction(migraphx::make_op("add"), conv2_rsp2, x);
+        m1.add_instruction(pass_op{}, add_ins);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {2, 128, 28, 28}});
+        auto w1 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {256, 128, 1, 1}}));
+        auto conv1 = m2.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+            x,
+            w1); // (2, 256, 28, 28)
+        auto w2 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {512, 256, 1, 1}}));
+        auto conv2 = m2.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {0, 0}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            conv1,
+            w2); // (2, 512, 14, 14)
+
+        auto conv2_rsp = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 2, 2, 128, 14, 14}}}), conv2);
+        auto conv2_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp);
+        auto x_rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 14, 2, 14, 2}}}), x);
+        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_trans, x_rsp);
+        auto add_rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), add_ins);
+        m2.add_instruction(pass_op{}, add_rsp);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {4}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
+
+        auto x       = m1.add_parameter("x", sx);
+        auto y       = m1.add_parameter("y", sy);
+        auto x_brcst = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 6}}}), x);
+        auto y_trans =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+        auto y_cont = m1.add_instruction(migraphx::make_op("contiguous"), y_trans);
+        auto y_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
+        auto r = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
+        m1.add_return({r});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

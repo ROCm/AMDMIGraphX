@@ -276,7 +276,6 @@ else()
         PATH_SUFFIXES bin
         HINTS ${CMAKE_CXX_COMPILER_PATH}
         PATHS
-            /opt/rocm/hip
             /opt/rocm/hcc
             /opt/rocm
     )

@@ -82,15 +82,11 @@ void compile_ops::apply(module& m) const
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         assert(contains(compilers, preop.name()));
         auto c = compilers[preop.name()];
-        compiles.emplace_back([=]() -> compiled_result {
-            return {c(*ctx, ins, preop), ins};
-        });
+        compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
     }
     std::vector<compiled_result> results(compiles.size());
-    par_for(compiles.size(), 1, [&](auto i) {
-        results[i] = compiles[i]();
-    });
-    for(auto cr:results)
+    par_for(compiles.size(), 1, [&](auto i) { results[i] = compiles[i](); });
+    for(auto cr : results)
     {
         m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());
     }

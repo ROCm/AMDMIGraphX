@@ -11,7 +11,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inputs, const std::vector<module_ref>& mods)
+static bool try_compute_shape(instruction_ref ins,
+                              const std::vector<shape>& inputs,
+                              const std::vector<module_ref>& mods)
 {
     try
     {
@@ -59,7 +61,9 @@ static bool try_compute_shape(instruction_ref ins, const std::vector<shape>& inp
     return true;
 }
 
-static bool try_compute_shape(instruction_ref ins, const std::vector<instruction_ref>& args, const std::vector<module_ref>& mods)
+static bool try_compute_shape(instruction_ref ins,
+                              const std::vector<instruction_ref>& args,
+                              const std::vector<module_ref>& mods)
 {
     auto inputs = to_shapes(args);
     return try_compute_shape(ins, inputs, mods);

@@ -192,17 +192,19 @@ TEST_CASE(contiguous_pointwise)
     migraphx::program p;
     auto* mm = p.get_main_module();
     {
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
-        auto yb = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
-        auto yc = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto x  = mm->add_parameter("x", s);
+        auto y  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto yb = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
+        auto yc  = mm->add_instruction(migraphx::make_op("contiguous"), yb);
         auto add = add_pointwise(p, "main:pointwise0", {x, yc}, single_pointwise("add"));
         mm->add_instruction(pass_op{}, add);
     }
     auto count = std::distance(mm->begin(), mm->end());
     run_pass(*mm);
     EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
-    EXPECT(std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

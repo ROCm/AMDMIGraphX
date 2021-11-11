@@ -133,19 +133,21 @@ shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 
 template <class T>
 auto mod_compute_shape_op(rank<1>,
-                      const T& x,
-                      const std::vector<shape>& inputs,
-                      const std::vector<module_ref>& mod_args)
+                          const T& x,
+                          const std::vector<shape>& inputs,
+                          const std::vector<module_ref>& mod_args)
     -> decltype(x.compute_shape(inputs, mod_args))
 {
     return x.compute_shape(inputs, mod_args);
 }
 
 template <class T>
-shape
-    mod_compute_shape_op(rank<0>, const T& x, const std::vector<shape>& inputs, const std::vector<module_ref>& mod_args)
+shape mod_compute_shape_op(rank<0>,
+                           const T& x,
+                           const std::vector<shape>& inputs,
+                           const std::vector<module_ref>& mod_args)
 {
-    if (mod_args.empty())
+    if(mod_args.empty())
         return compute_shape_op(x, inputs);
     std::string name = x.name();
     MIGRAPHX_THROW("Shape not computable: " + name);
@@ -153,8 +155,8 @@ shape
 
 template <class T>
 shape mod_compute_shape_op(const T& x,
-                       const std::vector<shape>& inputs,
-                       const std::vector<module_ref>& mod_args)
+                           const std::vector<shape>& inputs,
+                           const std::vector<module_ref>& mod_args)
 {
     return mod_compute_shape_op(rank<1>{}, x, inputs, mod_args);
 }

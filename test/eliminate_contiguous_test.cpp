@@ -1,6 +1,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -115,7 +116,7 @@ TEST_CASE(no_packed_unary_op)
     m.add_instruction(pass_standard_op{}, sn);
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
-    EXPECT(std::distance(m.begin(), m.end()) == count - 1);
+    EXPECT(std::distance(m.begin(), m.end()) == count - 2);
 }
 
 TEST_CASE(non_standard_return_input)
@@ -157,6 +158,51 @@ TEST_CASE(standard_flatten_op)
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
+}
+
+template <class F>
+migraphx::instruction_ref add_pointwise(migraphx::program& p,
+                                        const std::string& name,
+                                        std::vector<migraphx::instruction_ref> inputs,
+                                        F f)
+{
+    auto* pm = p.create_module(name);
+    auto* mm = p.get_main_module();
+    pm->set_bypass();
+    std::vector<migraphx::instruction_ref> params;
+    std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
+        return pm->add_parameter("x" + std::to_string(params.size()),
+                                 migraphx::shape{input->get_shape().type()});
+    });
+    auto r = f(pm, params);
+    pm->add_return({r});
+    return mm->add_instruction(migraphx::make_op("pointwise"), inputs, {pm});
+}
+
+auto single_pointwise(const std::string& name)
+{
+    return [=](auto* pm, const auto& inputs) {
+        return pm->add_instruction(migraphx::make_op(name), inputs);
+    };
+}
+
+TEST_CASE(contiguous_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 8, 8}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    {
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto yb = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
+        auto yc = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto add = add_pointwise(p, "main:pointwise0", {x, yc}, single_pointwise("add"));
+        mm->add_instruction(pass_op{}, add);
+    }
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(*mm);
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
+    EXPECT(std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

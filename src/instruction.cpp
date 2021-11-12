@@ -34,21 +34,18 @@ instruction::instruction(literal l)
 {
 }
 
-void instruction::replace(const shape& r, bool stop)
+void instruction::replace(const shape& r)
 {
     if(r != result)
     {
         result = r;
-        if(stop and not r.standard())
-            return;
-
         for(auto&& ins : output)
         {
             if(ins->name() == "@return")
                 continue;
 
             assert(ins->name().front() != '@');
-            ins->recompute_shape(stop);
+            ins->recompute_shape();
         }
     }
 }
@@ -60,10 +57,7 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape(bool non_std_stop)
-{
-    replace(compute_shape(op, arguments, module_args), non_std_stop);
-}
+void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
 
 void instruction::clear_arguments()
 {
@@ -180,12 +174,11 @@ void instruction::backreference(instruction_ref ref)
 
 void instruction::replace_argument(instruction_ref ins,
                                    instruction_ref old,
-                                   instruction_ref new_ins,
-                                   bool stop)
+                                   instruction_ref new_ins)
 {
     ins->replace_argument(old, new_ins);
     backreference(ins);
-    ins->recompute_shape(stop);
+    ins->recompute_shape();
 }
 
 void instruction::replace_mod_argument(instruction_ref ins, module_ref old, module_ref new_mod)

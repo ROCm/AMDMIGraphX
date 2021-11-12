@@ -103,42 +103,36 @@ TEST_CASE(after_param_broadcast)
 
 TEST_CASE(two_transpose_gather)
 {
-    auto create_module = [] {
-        migraphx::module m;
-        auto data = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
-        auto ind  = m.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+    migraphx::module m1;
+    {
+        auto data = m1.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto ind  = m1.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
+        auto td = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
                                     data);
-        auto sd = m.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), td);
+        auto sd = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), td);
         auto bd =
-            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
-        auto r = m.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), bd, ind);
-        m.add_return({r});
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
+        auto r = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), bd, ind);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-        return m;
-    };
-
-    auto mdl = create_module();
-    run_pass(mdl);
-
-    auto create_cont_module = [] {
-        migraphx::module m;
-        auto data = m.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
-        auto ind  = m.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
+    migraphx::module m2;
+    {
+        auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
+        auto ind  = m2.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
+        auto td = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
                                     data);
-        auto ctd = m.add_instruction(migraphx::make_op("contiguous"), td);
-        auto sd  = m.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);
+        auto ctd = m2.add_instruction(migraphx::make_op("contiguous"), td);
+        auto sd  = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);
         auto bd =
-            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
-        auto cbd = m.add_instruction(migraphx::make_op("contiguous"), bd);
-        auto r   = m.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cbd, ind);
-        m.add_return({r});
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
+        auto cbd = m2.add_instruction(migraphx::make_op("contiguous"), bd);
+        auto r   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cbd, ind);
+        m2.add_return({r});
+    }
 
-        return m;
-    };
-
-    EXPECT(mdl == create_cont_module());
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

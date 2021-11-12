@@ -88,8 +88,7 @@ struct module
                                         std::vector<instruction_ref> args,
                                         std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
 
-    instruction_ref
-    replace_instruction(instruction_ref ins, instruction_ref rep, bool stop = false);
+    instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);

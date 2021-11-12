@@ -19,7 +19,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
     auto batch_lens          = result.get_shape().lens();
     index_int batch_item_num = batch_lens[axis];
     assert(batch_item_num <= MAX_BATCH_ITEM_NUM);
-    batch_lens[axis]         = 1;
+    batch_lens[axis] = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
@@ -45,13 +45,13 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
             auto batch_sum =
                 block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
-                    auto val = sinput_data[j] - batch_max;
+                    auto val       = sinput_data[j] - batch_max;
                     sinput_data[j] = val;
                     return ::exp(to_hip_type(val));
                 });
 
             idx.local_stride(batch_item_num, [&](auto j) __device__ {
-                data_idx[axis] = j;
+                data_idx[axis]   = j;
                 output[data_idx] = ::exp(to_hip_type(sinput_data[j])) / batch_sum;
             });
         });

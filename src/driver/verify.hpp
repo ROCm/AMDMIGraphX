@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 
-#include "argument_parser.hpp"
+#include "precision.hpp"
 #include <migraphx/program.hpp>
 
 namespace migraphx {

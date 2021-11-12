@@ -29,13 +29,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 #define MIGRAPHX_DRIVER_STATIC static
 #endif
 
-enum class precision
-{
-    fp32,
-    fp16,
-    int8
-};
-
 template <class T>
 using bare = std::remove_cv_t<std::remove_reference_t<T>>;
 

@@ -107,8 +107,8 @@ TEST_CASE(two_transpose_gather)
     {
         auto data = m1.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
         auto ind  = m1.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
-                                    data);
+        auto td   = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
         auto sd = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), td);
         auto bd =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
@@ -121,8 +121,8 @@ TEST_CASE(two_transpose_gather)
     {
         auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
         auto ind  = m2.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
-        auto td = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}),
-                                    data);
+        auto td   = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
         auto ctd = m2.add_instruction(migraphx::make_op("contiguous"), td);
         auto sd  = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);
         auto bd =

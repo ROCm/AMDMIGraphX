@@ -1,10 +1,10 @@
+#include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
-#include "verify.hpp"
+#include "precision.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
-#include "precision.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>

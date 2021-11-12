@@ -12,10 +12,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+#define MAX_BATCH_ITEM_NUM 1024
+
 void softmax(hipStream_t stream, const argument& result, const argument& arg, int64_t axis)
 {
     auto batch_lens          = result.get_shape().lens();
     index_int batch_item_num = batch_lens[axis];
+    assert(batch_item_num <= MAX_BATCH_ITEM_NUM);
     batch_lens[axis]         = 1;
     migraphx::shape batch_shape{result.get_shape().type(), batch_lens};
 
@@ -28,24 +31,28 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
             auto data_idx = batch.multi(i / block_size);
             using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
             type init     = lowest();
+            MIGRAPHX_DEVICE_SHARED type sinput_data[MAX_BATCH_ITEM_NUM];
+            idx.local_stride(batch_item_num, [&](auto j) {
+                data_idx[axis] = j;
+                sinput_data[j] = input[data_idx];
+            });
+            __syncthreads();
 
             auto batch_max = block_reduce<max_block_size>(
                 idx, max{}, init, batch_item_num, [&](auto j) __device__ {
-                    data_idx[axis] = j;
-                    return input[data_idx];
+                    return sinput_data[j];
                 });
 
             auto batch_sum =
                 block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
-                    data_idx[axis] = j;
-                    auto val       = input[data_idx] - batch_max;
+                    auto val = sinput_data[j] - batch_max;
+                    sinput_data[j] = val;
                     return ::exp(to_hip_type(val));
                 });
 
             idx.local_stride(batch_item_num, [&](auto j) __device__ {
-                data_idx[axis]   = j;
-                auto val         = input[data_idx] - batch_max;
-                output[data_idx] = ::exp(to_hip_type(val)) / batch_sum;
+                data_idx[axis] = j;
+                output[data_idx] = ::exp(to_hip_type(sinput_data[j])) / batch_sum;
             });
         });
     });

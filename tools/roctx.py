@@ -6,6 +6,7 @@ import os
 from sys import argv as sysargs
 import pandas as pd
 from datetime import datetime
+import venv
 
 
 def parse_args():
@@ -30,6 +31,10 @@ def parse_args():
                         help='defines number of runs',
                         default=2)
     parser.add_argument('--parse', default=False, action='store_true')
+    parser.add_argument('--clean',
+                        default=False,
+                        action='store_true',
+                        help='Removes temporary paths')
     parser.add_argument('--run',
                         type=str,
                         metavar='run',
@@ -182,11 +187,16 @@ def run():
     print("RUN COMPLETE.")
 
 
+def clean():
+    os.system('rm -r /tmp/rocm-profile-data/')
+
+
 def main():
 
     print("Initiating virtual environment...")
-    os.system("python -m venv tempenv")
-    python_bin = os.path.abspath(os.getcwd()) + "/tempenv/bin/python"
+    builder = venv.EnvBuilder(clear=True, with_pip=True)
+    builder.create('/tmp/rocm-profile-data/py/')
+    python_bin = '/tmp/rocm-profile-data/py' + '/bin/python'
 
     args = parse_args()
     if not len(sysargs) > 1:
@@ -206,15 +216,15 @@ def main():
 
     if (args.run):
         curr = os.path.abspath(os.getcwd())
-        if not os.path.exists('/tmp/rocmProfileData'):
+        rpd_path = '/tmp/rocm-profile-data/rocmProfileData/'
+        if not os.path.exists(rpd_path):
             print("rocmProfileData DOES NOT EXIST. CLONING...")
             os.system(
-                'git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git /tmp/rocmProfileData'
-            )
-
-        os.chdir("/tmp/rocmProfileData/rocpd_python/")
-        os.system('%s setup.py install' % python_bin)
-        os.chdir("/tmp/rocmProfileData/")
+                'git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git %s'
+                % rpd_path)
+        os.chdir(rpd_path + "rocpd_python/")
+        os.system(python_bin + ' -m pip install --upgrade pip')
+        os.system(python_bin + ' setup.py install')
         os.chdir(curr)
         run()
         os.chdir(curr + "/%s/" % args.out)
@@ -231,9 +241,8 @@ def main():
             os.system(
                 "%s -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
                 % python_bin)
-            os.system(
-                "%s /tmp/rocmProfileData/rpd2tracing.py trace.rpd trace.json" %
-                python_bin)
+            os.system("%s %s/rpd2tracing.py trace.rpd trace.json" %
+                      (python_bin, rpd_path))
             os.chdir(curr)
             df, total_time, path_max_kernel_info = parse(path + "trace.json")
             max_kernel_info_list.append(path_max_kernel_info)
@@ -313,10 +322,14 @@ def main():
         print("KERNEL TIMING DETAILS:\trocTX_kernel_timing_details.txt")
         print("ALL DATA FROM ALL RUNS:\trocTX_runs_dataframe.csv")
 
-    if (args.parse):
+    elif (args.parse):
         if not (file):
             raise Exception("JSON PATH IS NOT PROVIDED FOR PARSING.")
         parse(file)
+    elif (args.clean):
+        clean()
+    else:
+        raise Exception("PLEASE PROVIDE A COMMAND: RUN, PARSE, CLEAN")
 
 
 if __name__ == "__main__":

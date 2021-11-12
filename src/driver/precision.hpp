@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_PRECISION_HPP
 #define MIGRAPHX_GUARD_RTGLIB_PRECISION_HPP
 
-
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {

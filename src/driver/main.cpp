@@ -4,7 +4,7 @@
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
-#indluce "precision.hpp"
+#include "precision.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>

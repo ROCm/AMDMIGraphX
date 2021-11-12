@@ -13,6 +13,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static literal get_scalar(instruction_ref ins)
 {
+    if(ins->name() == "contiguous")
+        return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
     if(not(s.elements() == 1 or s.scalar()))
         return {};
@@ -31,11 +33,16 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
-        auto* pm = mpm.create_module("pointwise" + std::to_string(n++));
+        // Skip convert op for now
+        if(ins->name() == "convert")
+            continue;
+        assert(ins->get_operator().attributes().contains("point_op"));
+        auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         std::vector<instruction_ref> pointwise_inputs;
+        std::size_t i = 0;
         for(auto input : ins->inputs())
         {
             if(contains(param_map, input))
@@ -44,8 +51,9 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(scalar.empty())
             {
                 pointwise_inputs.push_back(input);
-                param_map[input] = pm->add_parameter("x" + std::to_string(param_map.size()),
-                                                     shape{input->get_shape().type()});
+                param_map[input] =
+                    pm->add_parameter("x" + std::to_string(i), shape{input->get_shape().type()});
+                i++;
             }
             else
             {
@@ -68,6 +76,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
 static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
                                                             instruction_ref output)
 {
+    assert(contains(output->inputs(), ins));
     module_ref pm = ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
 
@@ -75,14 +84,18 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
     assert(last->name() == "@return");
     assert(last->inputs().size() == 1);
 
+    assert(pm->get_parameter_names().size() == ins->inputs().size());
+    assert(xm->get_parameter_names().size() == output->inputs().size());
+
     std::vector<instruction_ref> inputs = ins->inputs();
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     std::unordered_map<instruction_ref, instruction_ref> input_map;
     // Copy inputs to input_map
     for(auto i : range(inputs.size()))
     {
-        auto input       = inputs[i];
-        auto param       = pm->get_parameter("x" + std::to_string(i));
+        auto input = inputs[i];
+        auto param = pm->get_parameter("x" + std::to_string(i));
+        assert(param != pm->end());
         input_map[input] = param;
     }
     // Add the new parameter and additional inputs
@@ -90,6 +103,7 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
     {
         auto input = output->inputs()[i];
         auto param = xm->get_parameter("x" + std::to_string(i));
+        assert(param != xm->end());
         if(input == ins)
         {
             map_ins[param]   = last->inputs().front();

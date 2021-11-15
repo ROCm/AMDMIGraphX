@@ -15,8 +15,9 @@ struct test_nonstd_gather : verify_program<test_nonstd_gather>
         std::vector<int> indices{1, 1, 0, 2};
         auto d  = mm->add_parameter("data", s);
         auto td = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d);
-        auto ind  = mm->add_literal(migraphx::literal{s_indices, indices});
-        auto tind = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
+        auto ind = mm->add_literal(migraphx::literal{s_indices, indices});
+        auto tind =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
         auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), td, tind);
         mm->add_return({r});
 

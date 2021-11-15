@@ -1484,14 +1484,16 @@ TEST_CASE(gather_non_std_test)
         auto d = mm->add_literal(migraphx::literal{s, data});
         migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
         std::vector<int> indices{-3, -3, -1, -1};
-        auto ind  = mm->add_literal(migraphx::literal{s_indices, indices});
+        auto ind = mm->add_literal(migraphx::literal{s_indices, indices});
         auto td = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d);
-        auto tind = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
+        auto tind =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
 
         mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), td, tind);
         p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f, 0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
+        auto result               = p.eval({}).back();
+        std::vector<float> golden = {
+            0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f, 0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
         std::vector<float> res_data;
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
         EXPECT(migraphx::verify_range(res_data, golden));

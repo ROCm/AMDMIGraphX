@@ -183,6 +183,8 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
+        add_precompile_op("pointwise");
+
         add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
@@ -378,6 +380,21 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
+        });
+    }
+
+    void add_precompile_op(const std::string& name)
+    {
+        apply_map.emplace(name, [=](instruction_ref ins) {
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
+
+            return mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                refs,
+                ins->module_inputs());
         });
     }
 

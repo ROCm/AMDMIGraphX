@@ -193,15 +193,14 @@ def clean():
 
 def main():
 
+    args = parse_args()
+    if not len(sysargs) > 1:
+        raise Exception("No arg is passed. Exiting...")
+
     print("Initiating virtual environment...")
     builder = venv.EnvBuilder(clear=True, with_pip=True)
     builder.create('/tmp/rocm-profile-data/py/')
     python_bin = '/tmp/rocm-profile-data/py' + '/bin/python'
-
-    args = parse_args()
-    if not len(sysargs) > 1:
-        raise Exception("No arg is passed. Exiting...")
-    print(args)
     file = args.json_path
 
     if (args.study_name):

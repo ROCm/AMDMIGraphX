@@ -103,6 +103,14 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
+auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs))
+{
+    return x.compute_shape(inputs);
+}
+
+
+template <class T>
 auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))
 {
@@ -128,7 +136,7 @@ shape compute_shape_op(rank<0>, const T& x, const std::vector<shape>&)
 template <class T>
 shape compute_shape_op(const T& x, const std::vector<shape>& inputs)
 {
-    return compute_shape_op(rank<2>{}, x, inputs);
+    return compute_shape_op(rank<3>{}, x, inputs);
 }
 
 template <class T>

@@ -23,9 +23,9 @@
 #include <functional>
 #include <algorithm>
 
-#ifdef MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#ifdef MIGRAPHX_MLIR
 #include <Miir.h>
-#endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#endif // MIGRAPHX_MLIR
 
 #include <cstdio>
 
@@ -72,7 +72,7 @@ struct mlir_apply
     {
         std::shared_ptr<execution_spec> result;
 
-#ifdef MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#ifdef MIGRAPHX_MLIR
         auto conv  = any_cast<op::convolution>(op_r->get_operator());
         auto inp_t = op_r->inputs().at(0)->get_shape();
         auto flt_t = op_r->inputs().at(1)->get_shape();
@@ -181,9 +181,9 @@ struct mlir_apply
         {
             result = bin_i->second;
         }
-#else  // MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#else  // MIGRAPHX_MLIR
         (void)op_r;
-#endif // MIGRAPHX_MLIR_MIOPEN_SUPPORT
+#endif // MIGRAPHX_MLIR
         return result;
     }
 

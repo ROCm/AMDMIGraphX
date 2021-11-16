@@ -1,5 +1,6 @@
 #include <migraphx/gpu/mlir.hpp>
 
+#ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
@@ -8,6 +9,7 @@
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Registration.h>
+#endif
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/module.hpp>
@@ -22,6 +24,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+#ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
 struct mlir_handle
 {
@@ -355,7 +358,7 @@ struct mlir_program
         std::vector<MlirValue> result;
         mlir_operation op = ops.create_operation();
         auto weak_op      = op.get();
-        mlirBlockInsertOwnedOperation(body, 0, op.release());
+        mlirBlockAppendOwnedOperation(body, op.release());
 
         auto n = mlirOperationGetNumResults(weak_op);
         result.reserve(n);
@@ -431,6 +434,15 @@ std::string dump_mlir(const module& m)
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
+
+#else
+
+std::string dump_mlir(const module&)
+{
+    return {};
+}
+
+#endif
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -15,22 +15,25 @@ def parse_args():
     parser.add_argument('--json-path',
                         type=str,
                         metavar='json_path',
-                        help='path to json file')
+                        help='Path to json file')
     parser.add_argument('--out',
                         type=str,
                         metavar='out',
-                        help='output directory for run')
+                        help='Output directory for run.')
     parser.add_argument(
         '--study-name',
         type=str,
         metavar='study-name',
-        help='study name is used for naming the output CSV file.')
+        help='Study-name is used for naming the output CSV file.')
     parser.add_argument('--repeat',
                         type=int,
                         metavar='repeat',
-                        help='defines number of runs',
+                        help='Defines number of runs.',
                         default=2)
-    parser.add_argument('--parse', default=False, action='store_true')
+    parser.add_argument('--parse',
+                        default=False,
+                        action='store_true',
+                        help='Parses given JSON file.')
     parser.add_argument('--clean',
                         default=False,
                         action='store_true',
@@ -38,15 +41,19 @@ def parse_args():
     parser.add_argument('--run',
                         type=str,
                         metavar='run',
-                        help='enables run and fetches run configs.')
+                        help='Enables run and fetches run configs.')
     parser.add_argument('--debug', default=False, action='store_true')
 
     args = parser.parse_args()
     return args
 
 
+args = parse_args()
+if not len(sysargs) > 1:
+    raise Exception("No arg is passed. Exiting...")
+
+
 def parse(file):
-    args = parse_args()
     with open(file, "r") as read_file:
         data = json.load(read_file)
 
@@ -172,7 +179,6 @@ def parse(file):
 
 
 def run():
-    args = parse_args()
     repeat_count = args.repeat
     if (repeat_count == 0 or repeat_count == float('inf') or not repeat_count):
         raise Exception("REPEAT COUNT CANNOT BE ZERO/INFINITY/NULL")
@@ -192,10 +198,6 @@ def clean():
 
 
 def main():
-
-    args = parse_args()
-    if not len(sysargs) > 1:
-        raise Exception("No arg is passed. Exiting...")
 
     print("Initiating virtual environment...")
     builder = venv.EnvBuilder(clear=True, with_pip=True)

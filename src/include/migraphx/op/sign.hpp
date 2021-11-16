@@ -18,6 +18,7 @@ namespace op {
 
 struct sign : unary<sign>
 {
+    std::string point_op() const { return "(${0} > 0 ? 1 : ((${0} < 0) ? -1 : 0))"; }
     auto apply() const
     {
         return [](auto x) { return (x > 0 ? 1 : ((x < 0) ? -1 : 0)); };

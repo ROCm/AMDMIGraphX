@@ -16,9 +16,10 @@ struct test_scatter0 : verify_program<test_scatter0>
         migraphx::shape su{migraphx::shape::float_type, {2, 3}};
 
         auto pd = mm->add_parameter("data", sd);
+        auto pdt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -1}}), pd, li, pu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -1}}), pdt, li, pu);
         mm->add_return({r});
 
         return p;

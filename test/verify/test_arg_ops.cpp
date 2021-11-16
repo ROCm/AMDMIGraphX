@@ -2,6 +2,7 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 
@@ -14,7 +15,8 @@ struct test_arg_ops : verify_program<test_arg_ops<T, Axis>>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 1025}};
         auto param = mm->add_parameter("data", s);
-        mm->add_instruction(T{Axis}, param);
+        auto trans_param = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), param);
+        mm->add_instruction(T{Axis}, trans_param);
 
         return p;
     }

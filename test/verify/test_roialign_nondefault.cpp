@@ -18,6 +18,7 @@ struct test_roialign_nondefault : verify_program<test_roialign_nondefault>
         std::vector<int64_t> ind_vec = {0, 2, 3, 4, 1};
 
         auto x   = mm->add_parameter("x", x_s);
+        auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), x);
         auto roi = mm->add_parameter("roi", roi_s);
         auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
         auto r   = mm->add_instruction(
@@ -28,7 +29,7 @@ struct test_roialign_nondefault : verify_program<test_roialign_nondefault>
                                {"output_height", 5},
                                {"output_width", 5},
                                {"sampling_ratio", 2}}),
-            x,
+            xt,
             roi,
             ind);
         mm->add_return({r});

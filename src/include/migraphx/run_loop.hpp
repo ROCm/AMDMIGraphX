@@ -106,7 +106,7 @@ argument run_loop(const LoopModel& model,
     std::copy(in_args.begin() + 2, in_args.end(), out_args.begin());
     model.set_zero(ctx, scan_outputs, iter);
 
-    return argument(out_args);
+    return {out_args};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

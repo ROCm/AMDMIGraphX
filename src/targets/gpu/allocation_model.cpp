@@ -1,5 +1,7 @@
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

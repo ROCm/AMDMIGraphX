@@ -252,7 +252,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         const size_t* pout;
         size_t pout_size;
         call(&migraphx_shape_lengths, &pout, &pout_size, this->get_handle_ptr());
-        return std::vector<size_t>(pout, pout + pout_size);
+        return {pout, pout + pout_size};
     }
 
     std::vector<size_t> strides() const
@@ -260,7 +260,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         const size_t* pout;
         size_t pout_size;
         call(&migraphx_shape_strides, &pout, &pout_size, this->get_handle_ptr());
-        return std::vector<size_t>(pout, pout + pout_size);
+        return {pout, pout + pout_size};
     }
 
     migraphx_shape_datatype_t type() const
@@ -312,7 +312,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_argument_shape, &pout, this->get_handle_ptr());
-        return shape(pout);
+        return {pout};
     }
 
     char* data() const
@@ -325,9 +325,8 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {
-        return argument(
-            make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed),
-            own{});
+        return {make<migraphx_argument>(&migraphx_argument_generate, ps.get_handle_ptr(), pseed),
+                own{}};
     }
 
     friend bool operator==(const argument& px, const argument& py)
@@ -378,7 +377,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_program_parameter_shapes_get, &pout, this->get_handle_ptr(), pname);
-        return shape(pout);
+        return {pout};
     }
 
     std::vector<const char*> names() const
@@ -438,7 +437,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
     {
         const_migraphx_argument_t pout;
         call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
-        return argument(pout);
+        return {pout};
     }
 
     struct iterator_read
@@ -449,7 +448,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
             const_migraphx_argument_t pout;
             call(&migraphx_arguments_get, &pout, self, pidx);
 
-            return argument(pout);
+            return {pout};
         }
     };
 };
@@ -471,7 +470,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     {
         const_migraphx_shape_t pout;
         call(&migraphx_shapes_get, &pout, this->get_handle_ptr(), pidx);
-        return shape(pout);
+        return {pout};
     }
 
     struct iterator_read
@@ -481,7 +480,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
         {
             const_migraphx_shape_t pout;
             call(&migraphx_shapes_get, &pout, self, pidx);
-            return shape(pout);
+            return {pout};
         }
     };
 };
@@ -609,7 +608,7 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
     {
         std::array<char, 1024> out_name;
         call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
-        return std::string(out_name.data());
+        return {out_name.data()};
     }
 };
 

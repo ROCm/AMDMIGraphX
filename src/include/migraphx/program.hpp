@@ -67,7 +67,8 @@ struct program
 
     void finalize();
 
-    void perf_report(std::ostream& os, std::size_t n, parameter_map params) const;
+    void
+    perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
 
     void mark(const parameter_map& params, marker&& m);
 

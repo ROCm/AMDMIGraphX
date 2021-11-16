@@ -311,20 +311,6 @@ if(MIGRAPHX_ENABLE_MLIR)
     target_link_libraries(migraphx_gpu PUBLIC ${MLIRAPI_LIBRARY})
 endif()
 
-set(MIGRAPHX_ENABLE_MLIR_MIOPEN OFF CACHE BOOL "")
-if(MIGRAPHX_ENABLE_MLIR_MIOPEN)
-    find_library(LIBMLIRMIOPEN MLIRMIOpenThin REQUIRED)
-    # REQUIRED is not supported before cmake 3.18
-    if(NOT LIBMLIRMIOPEN)
-        message(FATAL_ERROR "libMLIRMIOpenThin not found")
-    else()
-        message(STATUS "Build with libMLIRMIOpenThin: " ${LIBMLIRMIOPEN})
-    endif()
-
-    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR_MIOPEN_SUPPORT")
-    target_link_libraries(migraphx_gpu PUBLIC ${LIBMLIRMIOPEN})
-endif()
-
 set(MIGRAPHX_USE_HIPRTC OFF CACHE BOOL "")
 if(MIGRAPHX_USE_HIPRTC)
 target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)

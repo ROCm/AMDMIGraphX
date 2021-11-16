@@ -295,9 +295,9 @@ if(MIGRAPHX_ENABLE_MLIR)
         lib/ lib/lib)
     # REQUIRED is not supported before cmake 3.18
     if(NOT MLIRAPI_LIBRARY)
-        message(FATAL_ERROR "libMLIRPublicAPI not found")
+        message(FATAL_ERROR "libMLIRMIOpen not found")
     else()
-        message(STATUS "Build with libMLIRPublicAPI: " ${MLIRAPI_LIBRARY})
+        message(STATUS "Build with libMLIRMIOpen: " ${MLIRAPI_LIBRARY})
     endif()
 
     find_path(MLIRAPI_HEADERS NAMES mlir-c/Dialect/MIGraphX.h)

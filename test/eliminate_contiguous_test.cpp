@@ -117,7 +117,7 @@ TEST_CASE(no_packed_unary_op)
     m.add_instruction(pass_standard_op{}, sn);
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
-    EXPECT(std::distance(m.begin(), m.end()) == count - 2);
+    EXPECT(std::distance(m.begin(), m.end()) == count - 1);
 }
 
 TEST_CASE(non_standard_return_input)

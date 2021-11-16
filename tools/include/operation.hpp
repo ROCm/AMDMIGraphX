@@ -109,7 +109,6 @@ auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
     return x.compute_shape(inputs);
 }
 
-
 template <class T>
 auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))

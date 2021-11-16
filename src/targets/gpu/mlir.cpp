@@ -437,10 +437,7 @@ std::string dump_mlir(const module& m)
 
 #else
 
-std::string dump_mlir(const module&)
-{
-    return {};
-}
+std::string dump_mlir(const module&) { return {}; }
 
 #endif
 

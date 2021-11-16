@@ -44,7 +44,7 @@ si64]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     m.add_instruction(migraphx::make_op("convolution"), x, w);
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
-    if (s.empty())
+    if(s.empty())
         return;
     EXPECT(encode(s) == encode(mlir_output));
 }
@@ -61,15 +61,15 @@ module  {
 }
 )__migraphx__";
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-    auto w = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
-    auto b = m.add_parameter("b", {migraphx::shape::float_type, {1, 2, 2, 2}});
+    auto x    = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w    = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto b    = m.add_parameter("b", {migraphx::shape::float_type, {1, 2, 2, 2}});
     auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
-    auto add = m.add_instruction(migraphx::make_op("add"), conv, b);
+    auto add  = m.add_instruction(migraphx::make_op("add"), conv, b);
     m.add_instruction(migraphx::make_op("relu"), add);
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
-    if (s.empty())
+    if(s.empty())
         return;
     EXPECT(encode(s) == encode(mlir_output));
 }

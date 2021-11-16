@@ -14,8 +14,9 @@ struct test_arg_ops : verify_program<test_arg_ops<T, Axis>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 1025}};
-        auto param = mm->add_parameter("data", s);
-        auto trans_param = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), param);
+        auto param       = mm->add_parameter("data", s);
+        auto trans_param = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), param);
         mm->add_instruction(T{Axis}, trans_param);
 
         return p;

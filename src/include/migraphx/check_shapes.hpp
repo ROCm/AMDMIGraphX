@@ -165,11 +165,11 @@ struct check_shapes
         return *this;
     }
 
-    const check_shapes& not_tuple_type() const {
+    const check_shapes& not_tuple_type() const
+    {
         if(!this->all_of([](const shape& s) { return s.type() != shape::tuple_type; }))
             MIGRAPHX_THROW(prefix() + "Shapes are tuple!");
         return *this;
-
     }
 
     const check_shapes& not_transposed() const

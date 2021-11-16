@@ -86,7 +86,7 @@ void compile_ops::apply(module& m) const
     }
     std::vector<compiled_result> results(compiles.size());
     par_for(compiles.size(), 1, [&](auto i) { results[i] = compiles[i](); });
-    for(auto cr : results)
+    for(const auto& cr : results)
     {
         m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());
     }

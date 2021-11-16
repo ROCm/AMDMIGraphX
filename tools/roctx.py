@@ -4,9 +4,16 @@ import json
 import argparse
 import os
 from sys import argv as sysargs
+from sys import version_info as python_version
+from sys import exit as sys_exit
 import pandas as pd
 from datetime import datetime
 import venv
+import shutil
+
+if (python_version[0] < 3) or (python_version[0] < 3
+                               and python_version[1] < 6):
+    raise Exception("Please utilize Python version 3.6 and above. Exiting...")
 
 
 def parse_args():
@@ -71,7 +78,7 @@ def parse(file):
                     first_marker = False
 
     if (args.debug):
-        print("FIRST MARKER TIME DETERMINED: {}".format(first_marker_time))
+        print(f"FIRST MARKER TIME DETERMINED: {first_marker_time}")
 
     if (first_marker_time == 0):
         raise ("FIRST MARKER TIME IS ZERO. EXITING...")
@@ -96,7 +103,7 @@ def parse(file):
     if (args.debug):
         with open('rocTX_kernel_launch_list.txt', 'w') as f:
             for i in kernel_launch_list:
-                f.write('%s\n' % i)
+                f.write(f'{i}')
 
     # Get timing information for each marker name
     list_times_per_names = []
@@ -185,8 +192,8 @@ def run():
     run_args = args.run
     #configurations
     configs = '--hip-trace --roctx-trace --flush-rate 10ms --timestamp on'
-    output_dir = '-d %s' % args.out
-    executable = '/opt/rocm/bin/migraphx-driver roctx %s' % run_args
+    output_dir = f"-d {args.out}"
+    executable = f"/opt/rocm/bin/migraphx-driver roctx {run_args}"
     process_args = configs + ' ' + output_dir + ' ' + executable
     for i in range(repeat_count):
         os.system('rocprof ' + process_args)
@@ -194,10 +201,15 @@ def run():
 
 
 def clean():
-    os.system('rm -r /tmp/rocm-profile-data/')
+    shutil.rmtree('/tmp/rocm-profile-data/', ignore_errors=False)
 
 
 def main():
+
+    if (args.clean):
+        clean()
+        sys_exit()
+
     print("Initiating virtual environment...")
     builder = venv.EnvBuilder(clear=True, with_pip=True)
     builder.create('/tmp/rocm-profile-data/py/')
@@ -220,15 +232,15 @@ def main():
         if not os.path.exists(rpd_path):
             print("rocmProfileData DOES NOT EXIST. CLONING...")
             os.system(
-                'git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git %s'
-                % rpd_path)
+                f"git clone https://github.com/ROCmSoftwarePlatform/rocmProfileData.git {rpd_path}"
+            )
         os.chdir(rpd_path + "rocpd_python/")
         os.system(python_bin + ' -m pip install --upgrade pip')
         os.system(python_bin + ' setup.py install')
         os.chdir(curr)
         run()
         os.chdir(curr + f"/{args.out}/")
-        out_path = os.popen("ls -td $PWD/*/*/ | head -%s" % args.repeat).read()
+        out_path = os.popen(f"ls -td $PWD/*/*/ | head -{args.repeat}").read()
         print(f"\nFOLLOWING PATHS WILL BE PARSED:\n{out_path}")
         out_path = out_path.splitlines()
         df_tot = pd.DataFrame()
@@ -323,8 +335,6 @@ def main():
         if not (file):
             raise Exception("JSON PATH IS NOT PROVIDED FOR PARSING.")
         parse(file)
-    elif (args.clean):
-        clean()
     else:
         raise Exception("PLEASE PROVIDE A COMMAND: RUN, PARSE, CLEAN")
 

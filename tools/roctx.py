@@ -71,7 +71,7 @@ def parse(file):
                     first_marker = False
 
     if (args.debug):
-        print("FIRST MARKER TIME DETERMINED: %s" % first_marker_time)
+        print("FIRST MARKER TIME DETERMINED: {}".format(first_marker_time))
 
     if (first_marker_time == 0):
         raise ("FIRST MARKER TIME IS ZERO. EXITING...")
@@ -174,7 +174,7 @@ def parse(file):
 
     if (args.debug):
         print(df2)
-        print("\nTOTAL TIME: %s us" % total_time)
+        print(f"\nTOTAL TIME: {total_time} us")
     return df2, total_time, max_kernel_info
 
 
@@ -198,7 +198,6 @@ def clean():
 
 
 def main():
-
     print("Initiating virtual environment...")
     builder = venv.EnvBuilder(clear=True, with_pip=True)
     builder.create('/tmp/rocm-profile-data/py/')
@@ -228,9 +227,9 @@ def main():
         os.system(python_bin + ' setup.py install')
         os.chdir(curr)
         run()
-        os.chdir(curr + "/%s/" % args.out)
+        os.chdir(curr + f"/{args.out}/")
         out_path = os.popen("ls -td $PWD/*/*/ | head -%s" % args.repeat).read()
-        print("\nFOLLOWING PATHS WILL BE PARSED:\n%s" % out_path)
+        print(f"\nFOLLOWING PATHS WILL BE PARSED:\n{out_path}")
         out_path = out_path.splitlines()
         df_tot = pd.DataFrame()
         tot_time = []
@@ -240,10 +239,10 @@ def main():
             print("\nPARSING OUTPUT PATH: " + path)
             os.chdir(path)
             os.system(
-                "%s -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
-                % python_bin)
-            os.system("%s %s/rpd2tracing.py trace.rpd trace.json" %
-                      (python_bin, rpd_path))
+                f"{python_bin} -m rocpd.rocprofiler_import --ops_input_file hcc_ops_trace.txt --api_input_file hip_api_trace.txt --roctx_input_file roctx_trace.txt trace.rpd"
+            )
+            os.system(
+                f"{python_bin} {rpd_path}/rpd2tracing.py trace.rpd trace.json")
             os.chdir(curr)
             df, total_time, path_max_kernel_info = parse(path + "trace.json")
             max_kernel_info_list.append(path_max_kernel_info)
@@ -287,12 +286,9 @@ def main():
                        how='outer',
                        left_index=True,
                        right_index=True)
-        print(df2)
         df2.rename(columns={'COUNT_x': 'COUNT'}, inplace=True)
-        print(df2)
         df2 = df2.loc[:, ~df2.columns.duplicated(
         )]  #there will be many COUNT_x in df2
-        print(df2)
         df2.sort_values(by=['SUM_avg'], inplace=True, ascending=False)
 
         if (args.debug):
@@ -302,24 +298,24 @@ def main():
         print("\n*** RESULTS ***")
         print(df2)
         out_time = sum(tot_time) / len(tot_time)
-        print("\nAVG TOTAL TIME: %s us\n" % int(out_time))
+        print(f"\nAVG TOTAL TIME: {out_time} us\n")
 
         df2.to_csv(filename, mode='a')
         with open(filename, 'a') as f:
-            f.write("AVG TOTAL TIME: %s us\n" % int(out_time))
-        print("OUTPUT CSV FILE:\t%s" % filename)
+            f.write(f"AVG TOTAL TIME: {out_time} us\n")
+        print(f"OUTPUT CSV FILE:\t{filename}")
 
         if (args.debug):
             #kernels that took the longest time printed
             for item in max_kernel_info_list:
-                print("KERNEL NAME: %s\t\t%s" % (item['name'], item['dur']))
+                print(f"KERNEL NAME: {item['name']}\t\t{item['dur']}")
 
         with open('rocTX_kernel_timing_details.txt', 'w') as f:
             f.write(
                 "MOST TIME CONSUMING KERNELS IN EACH ITERATION (EXPECTED TO BE SAME KERNEL):\n"
             )
             for i in max_kernel_info_list:
-                f.write("KERNEL NAME: %s\t\t%s\n" % (i['name'], i['dur']))
+                f.write(f"KERNEL NAME: {i['name']}\t\t{i['dur']}\n")
         print("KERNEL TIMING DETAILS:\trocTX_kernel_timing_details.txt")
         print("ALL DATA FROM ALL RUNS:\trocTX_runs_dataframe.csv")
 

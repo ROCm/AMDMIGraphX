@@ -1,9 +1,11 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
 
+#include <pointwise.hpp>
 #include <test.hpp>
 
 void run_pass(migraphx::module& m)
@@ -157,6 +159,27 @@ TEST_CASE(standard_flatten_op)
     auto count = std::distance(m.begin(), m.end());
     run_pass(m);
     EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
+}
+
+TEST_CASE(contiguous_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 8, 8}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    {
+        auto x  = mm->add_parameter("x", s);
+        auto y  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {3}});
+        auto yb = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 3, 8, 8}}}), y);
+        auto yc  = mm->add_instruction(migraphx::make_op("contiguous"), yb);
+        auto add = add_pointwise(p, "main:pointwise0", {x, yc}, single_pointwise("add"));
+        mm->add_instruction(pass_op{}, add);
+    }
+    auto count = std::distance(mm->begin(), mm->end());
+    run_pass(*mm);
+    EXPECT(std::distance(mm->begin(), mm->end()) == (count - 1));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "contiguous"; }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

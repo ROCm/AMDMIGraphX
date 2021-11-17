@@ -18,7 +18,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 auto with_char(F f)
 {
-    return [=](unsigned char c) { return f(c); };
+    return [=](unsigned char c) -> bool { return f(c); };
 }
 
 inline std::string
@@ -120,22 +120,27 @@ interpolate_string(const std::string& input, F f, std::string start = "${", std:
         result.append(it, next_start);
         if(next_start == input.end())
             break;
-        auto r = f(next_start + start.size(), next_end - end.size() + 1);
+        auto r = f(next_start + start.size(), next_end);
         result.append(r.begin(), r.end());
-        it = next_end + 1;
+        it = next_end + end.size();
     }
     return result;
 }
 inline std::string interpolate_string(const std::string& input,
-                                      const std::unordered_map<std::string, std::string>& vars)
+                                      const std::unordered_map<std::string, std::string>& vars,
+                                      std::string start = "${",
+                                      std::string end   = "}")
 {
-    return interpolate_string(input, [&](auto start, auto last) {
-        auto key = trim({start, last});
-        auto it  = vars.find(key);
-        if(it == vars.end())
-            throw std::runtime_error("Unknown key: " + key);
-        return it->second;
-    });
+    return interpolate_string(input,
+                              [&](auto start_it, auto last_it) {
+                                  auto key = trim({start_it, last_it});
+                                  auto it  = vars.find(key);
+                                  if(it == vars.end())
+                                      throw std::runtime_error("Unknown key: " + key);
+                                  return it->second;
+                              },
+                              std::move(start),
+                              std::move(end));
 }
 
 template <class Iterator>

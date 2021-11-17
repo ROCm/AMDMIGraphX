@@ -26,18 +26,16 @@ struct pointwise
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
-        for(auto i : range(pnames.size()))
-        {
-            auto s1 = pm->get_parameter(pnames[i])->get_shape();
-            auto s2 = inputs[i];
-            if(s1.type() != s2.type())
-                MIGRAPHX_THROW("Mismatch type");
-        }
 
         if(pm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("submodule should have only one output.");
 
         auto type = pm->get_output_shapes().front().type();
+
+        // Scalar output if all inputs are scalar
+        if(inputs.front().elements() == 1 and
+           all_of(inputs, [](const auto& s) { return s.scalar(); }))
+            return shape{type};
 
         return shape::from_permutation(type, inputs.front().lens(), find_permutation(inputs));
     }

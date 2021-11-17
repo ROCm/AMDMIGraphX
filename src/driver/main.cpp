@@ -481,7 +481,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m);
+        p.perf_report(std::cout, n, m, c.l.batch);
     }
 };
 

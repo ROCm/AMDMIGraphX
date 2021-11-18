@@ -126,7 +126,7 @@ def parse(file):
     if (args.debug):
         print(list_times_per_names)
 
-    sum_per_name = []
+    sum_per_name = [] #TODO: refactor stat collection
     for list in list_times_per_names:
         sum_per_name.append(sum(list))
 
@@ -223,8 +223,7 @@ def main():
             "%Y_%m_%d-%I:%M:%S_%p") + ".csv"
 
     with open(filename, 'a') as f:
-        f.write(args.run)
-        f.write('\n')
+        f.write(f"{args.run}\n")
 
     if (args.run):
         curr = os.path.abspath(os.getcwd())

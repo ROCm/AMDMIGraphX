@@ -18,6 +18,7 @@ namespace op {
 
 struct sigmoid : unary<sigmoid>
 {
+    std::string point_op() const { return "1.f / (1.f + ${function:exp}(-${0}))"; }
     auto apply() const
     {
         return [](auto x) { return 1.f / (1.f + std::exp(-x)); };

@@ -9,6 +9,7 @@ namespace op {
 
 struct recip : unary<recip>
 {
+    std::string point_op() const { return "1 / ${0}"; }
     auto apply() const
     {
         return [](auto x) { return 1 / x; };

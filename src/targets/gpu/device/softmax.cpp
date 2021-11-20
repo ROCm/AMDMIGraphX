@@ -25,36 +25,71 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
         const index_int max_block_size = 256;
         const index_int block_size     = compute_block_size(batch_item_num, max_block_size);
-        gs_launch(stream,
-                  batch_shape.elements() * block_size,
-                  block_size)([=](auto i, auto idx) __device__ {
-            auto data_idx = batch.multi(i / block_size);
-            using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
-            type init     = lowest();
-            MIGRAPHX_DEVICE_SHARED type sinput_data[MAX_BATCH_ITEM_NUM];
-            idx.local_stride(batch_item_num, [&](auto j) {
-                data_idx[axis] = j;
-                sinput_data[j] = input[data_idx];
-            });
-            __syncthreads();
 
-            auto batch_max = block_reduce<max_block_size>(
-                idx, max{}, init, batch_item_num, [&](auto j) __device__ {
-                    return sinput_data[j];
+        if (axis == batch_lens.size() - 1)
+        {
+            gs_launch(stream,
+                    batch_shape.elements() * block_size,
+                    block_size)([=](auto i, auto idx) __device__ {
+                using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
+                type init     = lowest();
+                auto start_loc = i / block_size * batch_item_num;
+                MIGRAPHX_DEVICE_SHARED type sinput_data[MAX_BATCH_ITEM_NUM];
+                idx.local_stride(batch_item_num, [&](auto j) {
+                    sinput_data[j] = input[start_loc + j];
                 });
+                __syncthreads();
 
-            auto batch_sum =
-                block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
-                    auto val       = sinput_data[j] - batch_max;
-                    sinput_data[j] = val;
-                    return ::exp(to_hip_type(val));
+                auto batch_max = block_reduce<max_block_size>(
+                    idx, max{}, init, batch_item_num, [&](auto j) __device__ {
+                        return sinput_data[j];
+                    });
+
+                auto batch_sum =
+                    block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
+                        auto val       = sinput_data[j] - batch_max;
+                        sinput_data[j] = val;
+                        return ::exp(to_hip_type(val));
+                    });
+
+                idx.local_stride(batch_item_num, [&](auto j) __device__ {
+                    output[start_loc + j] = ::exp(to_hip_type(sinput_data[j])) / batch_sum;
                 });
-
-            idx.local_stride(batch_item_num, [&](auto j) __device__ {
-                data_idx[axis]   = j;
-                output[data_idx] = ::exp(to_hip_type(sinput_data[j])) / batch_sum;
             });
-        });
+        }
+        else
+        {
+            gs_launch(stream,
+                    batch_shape.elements() * block_size,
+                    block_size)([=](auto i, auto idx) __device__ {
+                auto data_idx = batch.multi(i / block_size);
+                using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
+                type init     = lowest();
+                MIGRAPHX_DEVICE_SHARED type sinput_data[MAX_BATCH_ITEM_NUM];
+                idx.local_stride(batch_item_num, [&](auto j) {
+                    data_idx[axis] = j;
+                    sinput_data[j] = input[data_idx];
+                });
+                __syncthreads();
+
+                auto batch_max = block_reduce<max_block_size>(
+                    idx, max{}, init, batch_item_num, [&](auto j) __device__ {
+                        return sinput_data[j];
+                    });
+
+                auto batch_sum =
+                    block_reduce<max_block_size>(idx, sum{}, 0, batch_item_num, [&](auto j) __device__ {
+                        auto val       = sinput_data[j] - batch_max;
+                        sinput_data[j] = val;
+                        return ::exp(to_hip_type(val));
+                    });
+
+                idx.local_stride(batch_item_num, [&](auto j) __device__ {
+                    data_idx[axis]   = j;
+                    output[data_idx] = ::exp(to_hip_type(sinput_data[j])) / batch_sum;
+                });
+            });
+        }
     });
 }
 

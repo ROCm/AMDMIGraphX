@@ -3,6 +3,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compile_pointwise.hpp>
@@ -63,17 +64,31 @@ std::unordered_map<std::string, compiler_function> make_compilers(Ts... xs)
     return {{xs.name(), make_compiler_function(xs)}...};
 }
 
+struct compiled_result
+{
+    operation op;
+    instruction_ref ins;
+};
+
 void compile_ops::apply(module& m) const
 {
     auto compilers = make_compilers(pointwise_compiler{});
+    std::vector<std::function<compiled_result()>> compiles;
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         assert(contains(compilers, preop.name()));
-        auto op = compilers[preop.name()](*ctx, ins, preop);
-        m.replace_instruction(ins, op, ins->inputs());
+        auto c = compilers[preop.name()];
+        compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
+    }
+    std::vector<compiled_result> results(compiles.size());
+    par_for(compiles.size(), 1, [&](auto i) { results[i] = compiles[i](); });
+    for(const auto& cr : results)
+    {
+        m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());
     }
 }
 

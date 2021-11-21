@@ -10,24 +10,28 @@ namespace migraphx {
 
 namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
-template<class T>
-constexpr T as_float(T x) { return x; }
+template <class T>
+constexpr T as_float(T x)
+{
+    return x;
+}
 } // namespace math
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH(name, fname)                                    \
-    template <class... Ts>                                                   \
+#define MIGRAPHX_DEVICE_MATH(name, fname) \
+    template <class... Ts>                \
     auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(fname(xs...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                                    \
-    template <class... Ts>                                                   \
+#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname) \
+    template <class... Ts>                          \
     auto __device__ name(type x, Ts... xs) MIGRAPHX_RETURNS(fname(x, xs...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                               \
-    template <class... Ts>                                                   \
-    auto __device__ name(migraphx::half x, Ts... xs) MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
+#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)       \
+    template <class... Ts>                           \
+    auto __device__ name(migraphx::half x, Ts... xs) \
+        MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
 MIGRAPHX_DEVICE_MATH(acos, ::acos)
@@ -93,13 +97,13 @@ MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 
-template<class T, class U> 
+template <class T, class U>
 constexpr auto& max(const T& a, const U& b)
 {
     return (a < b) ? b : a;
 }
 
-template<class T, class U> 
+template <class T, class U>
 constexpr auto& min(const T& a, const U& b)
 {
     return (a > b) ? b : a;

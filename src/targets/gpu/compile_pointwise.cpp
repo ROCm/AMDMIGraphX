@@ -62,6 +62,9 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
 {
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
+    g.fmap([](const std::string& fname) {
+        return "migraphx::" + fname;
+    });
     auto name = g.create_function(g.generate_module(m).set_attributes({"__device__"}));
     return compile_pointwise((ctx), inputs, "&" + name, g.str());
 }

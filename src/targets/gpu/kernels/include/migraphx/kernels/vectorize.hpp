@@ -89,15 +89,14 @@ constexpr index_int find_vector_axis(Shapes... ss)
 template <index_int N, class Axis, class... Shapes>
 constexpr auto is_vectorizable(Axis axis, Shapes... ss)
 {
-    return (((ss.lens[axis] % N) == 0 and ss.strides[axis] == 1) and
-            ...);
+    return (((ss.lens[axis] % N) == 0 and ss.strides[axis] == 1) and ...);
 }
 
 template <index_int N, class Shape>
 constexpr bool is_vectorizable(Shape s)
 {
     auto it = find(s.strides.begin(), s.strides.end(), 1);
-    if (it == s.strides.end())
+    if(it == s.strides.end())
         return false;
     auto axis = it - s.strides.begin();
     return (s.lens[axis] % N) == 0 and s.strides[axis] == 1;

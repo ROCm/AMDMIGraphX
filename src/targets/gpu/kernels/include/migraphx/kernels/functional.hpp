@@ -16,6 +16,19 @@ struct swallow
 template <index_int>
 using ignore = swallow;
 
+template<class... Fs>
+struct overloaded : Fs... 
+{ 
+    using Fs::operator()...;
+    overloaded(Fs... fs) : Fs(fs)... {}
+};
+
+template<class... Fs>
+overloaded<Fs...> overload(Fs... fs)
+{
+    return {fs...};
+}
+
 namespace detail {
 
 template <class R>
@@ -168,8 +181,11 @@ constexpr auto transform_args(F f, Fs... fs)
     return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
 }
 
+#define MIGRAPHX_RETURNS(...) -> decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
 #define MIGRAPHX_LIFT(...) \
-    ([](auto&&... xs) { return (__VA_ARGS__)(static_cast<decltype(xs)>(xs)...); })
+    ([](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

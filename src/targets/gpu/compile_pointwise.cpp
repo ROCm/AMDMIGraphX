@@ -20,7 +20,7 @@ static const char* const pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <args.hpp>
 
-using namespace migraphx;
+namespace migraphx {
 
 ${preamble}
 
@@ -31,6 +31,8 @@ __global__ void kernel(${params})
 }
     
 }
+
+} // namespace migraphx
 
 int main() {}
 

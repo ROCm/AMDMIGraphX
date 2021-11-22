@@ -26,16 +26,18 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         {
             names[ins] =
                 migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
-            continue;
         }
-        if(ins->name() == "@return")
+        else if(ins->name() == "@return")
         {
             assert(ins->inputs().size() == 1);
             return_ins = ins->inputs().front();
         }
-        std::string n = "z" + std::to_string(names.size());
-        names[ins]    = n;
-        ss << "auto " << n << " = " << g(ins, names) << ";\n";
+        else
+        {
+            std::string n = "z" + std::to_string(names.size());
+            names[ins]    = n;
+            ss << "auto " << n << " = " << g(ins, names) << ";\n";
+        }
     }
     ss << "return " << names.at(return_ins) << ";\n";
     body = ss.str();
@@ -84,8 +86,11 @@ void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { imp
 std::string cpp_generator::generate_point_op(const operation& op,
                                              const std::vector<std::string>& args)
 {
-    auto v = op.to_value();
-    return interpolate_string(op.attributes()["point_op"].to<std::string>(),
+    auto v          = op.to_value();
+    auto attributes = op.attributes();
+    if(not attributes.contains("point_op"))
+        MIGRAPHX_THROW("op is missing point_op attribute: " + op.name());
+    return interpolate_string(attributes["point_op"].to<std::string>(),
                               [&](auto start, auto last) -> std::string {
                                   auto key = trim({start, last});
                                   if(key.empty())
@@ -120,7 +125,12 @@ std::string cpp_generator::str() const { return impl->fs.str(); }
 cpp_generator::function cpp_generator::generate_module(const module& m)
 {
     function f;
-    f.set_name(m.name()).set_types(m).set_body(
+    auto name = transform_string(m.name(), [](char c) {
+        if(with_char(::isalnum)(c) or c == '_')
+            return c;
+        return '_';
+    });
+    f.set_name(name).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
                 return shape::cpp_type(ins->get_shape().type()) + "(" +
@@ -130,7 +140,6 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
                            ins->inputs().end(),
                            std::back_inserter(args),
                            [&](auto i) { return names.at(i); });
-            auto s = this->generate_point_op(ins->get_operator(), args);
             return this->generate_point_op(ins->get_operator(), args);
         });
     return f;

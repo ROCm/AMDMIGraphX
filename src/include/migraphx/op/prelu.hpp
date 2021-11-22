@@ -9,6 +9,7 @@ namespace op {
 
 struct prelu : binary<prelu>
 {
+    std::string point_op() const { return "(${0} < 0) ? (${0} * ${1}) : ${0}"; }
     auto apply() const
     {
         return [](auto x, auto slope) { return ((x < 0) ? (x * slope) : x); };

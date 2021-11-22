@@ -2444,6 +2444,33 @@ TEST_CASE(neg_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(nms_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
+    auto b = mm->add_parameter("boxes", sb);
+
+    migraphx::shape ss{migraphx::shape::float_type, {1, 1, 6}};
+    auto s = mm->add_parameter("scores", ss);
+
+    migraphx::shape smo{migraphx::shape::int64_type, {1}};
+    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+
+    migraphx::shape siou{migraphx::shape::float_type, {1}};
+    auto iou = mm->add_parameter("iou_threshold", siou);
+
+    migraphx::shape sst{migraphx::shape::float_type, {1}};
+    auto st = mm->add_parameter("score_threshold", sst);
+
+    auto ret = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}), b, s, mo, iou, st);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("nms_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(nonzero_dynamic_test)
 {
     migraphx::program p;
@@ -3636,6 +3663,55 @@ TEST_CASE(resize_upsample_pf_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_upsample_pf_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(roialign_default_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {10, 4, 7, 8}};
+    migraphx::shape srois{migraphx::shape::float_type, {8, 4}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {8}};
+
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", sx);
+    auto rois = mm->add_parameter("rois", srois);
+    auto bi   = mm->add_parameter("batch_ind", sbi);
+
+    auto r = mm->add_instruction(migraphx::make_op("roialign"), x, rois, bi);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("roialign_default_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(roialign_test)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {10, 5, 4, 7}};
+    migraphx::shape srois{migraphx::shape::float_type, {8, 4}};
+    migraphx::shape sbi{migraphx::shape::int64_type, {8}};
+
+    migraphx::program p;
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", sx);
+    auto rois = mm->add_parameter("rois", srois);
+    auto bi   = mm->add_parameter("batch_ind", sbi);
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("roialign",
+                          {{"coordinate_transformation_mode", "output_half_pixel"},
+                           {"spatial_scale", 2.0f},
+                           {"output_height", 5},
+                           {"output_width", 5},
+                           {"sampling_ratio", 3}}),
+        x,
+        rois,
+        bi);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("roialign_test.onnx");
 
     EXPECT(p == prog);
 }

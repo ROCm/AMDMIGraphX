@@ -526,7 +526,10 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os, std::size_t n, parameter_map params) const
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch) const
 {
     auto& ctx = this->impl->ctx;
     // Run once by itself
@@ -619,7 +622,8 @@ void program::perf_report(std::ostream& os, std::size_t n, parameter_map params)
 
     os << std::endl;
 
-    os << "Rate: " << rate << "/sec" << std::endl;
+    os << "Batch size: " << batch << std::endl;
+    os << "Rate: " << rate * batch << "/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

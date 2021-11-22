@@ -104,7 +104,7 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-template<class T1, class T2, class T3, class T4>
+template <class T1, class T2, class T3, class T4>
 struct roalign_settings
 {
     T1 roi_offset{};
@@ -113,14 +113,15 @@ struct roalign_settings
     T4 spatial_scale{};
 };
 
-template<class... Ts>
+template <class... Ts>
 constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
 {
     return {xs...};
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings settings)
+__device__ void
+roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings settings)
 {
     constexpr const float roi_offset       = settings.roi_offset;
     constexpr const bool is_avg_pooling    = settings.is_avg_pooling;

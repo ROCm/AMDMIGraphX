@@ -26,7 +26,7 @@ struct index
 #ifdef MIGRAPHX_NLOCAL
         return MIGRAPHX_NLOCAL;
 #else
-        return blockDim.x; // NOLINT
+        return blockDim.x;             // NOLINT
 #endif
     }
 

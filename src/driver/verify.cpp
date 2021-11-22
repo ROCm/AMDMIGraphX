@@ -6,6 +6,7 @@
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/quantization.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -19,9 +20,16 @@ std::vector<argument> run_ref(program p, const parameter_map& inputs)
     return out;
 }
 
-std::vector<argument>
-run_target(program p, const target& t, const compile_options& options, const parameter_map& inputs)
+std::vector<argument> run_target(program p,
+                                 const target& t,
+                                 const compile_options& options,
+                                 precision quantize,
+                                 const parameter_map& inputs)
 {
+    if(quantize == precision::fp16)
+    {
+        quantize_fp16(p);
+    }
     p.compile(t, options);
 
     parameter_map m;
@@ -43,24 +51,24 @@ void verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options,
+                    precision quantize,
                     const parameter_map& inputs,
                     double tolerance)
 {
     auto x = run_ref(p, inputs);
-    auto y = run_target(p, t, options, inputs);
+    auto y = run_target(p, t, options, quantize, inputs);
 
     std::size_t output_num = x.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
         verify_args(name, x[i], y[i], tolerance);
     }
-    // std::cout << "cpu: " << x << std::endl;
-    // std::cout << "gpu: " << y << std::endl;
 }
 
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
+                         precision quantize,
                          double tolerance)
 {
     const auto* mm_prog = prog.get_main_module();
@@ -92,7 +100,8 @@ void verify_instructions(const program& prog,
         {
             std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << p << std::endl;
-            verify_program(ins.name(), p, t, options, create_param_map(p, false), tolerance);
+            verify_program(
+                ins.name(), p, t, options, quantize, create_param_map(p, false), tolerance);
         }
         catch(...)
         {
@@ -106,6 +115,7 @@ void verify_reduced(program p,
                     int n,
                     const target& t,
                     compile_options options,
+                    precision quantize,
                     const parameter_map& inputs,
                     double tolerance)
 {
@@ -114,12 +124,13 @@ void verify_reduced(program p,
     mm->remove_instructions(last, mm->end());
     std::cout << "Verify: " << std::endl;
     std::cout << p << std::endl;
-    verify_program(std::to_string(n), p, t, options, inputs, tolerance);
+    verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
 }
 
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options,
+                            precision quantize,
                             const parameter_map& inputs,
                             double tolerance)
 {
@@ -127,7 +138,7 @@ void verify_reduced_program(const program& p,
     auto n         = std::distance(mm->begin(), mm->end());
     for(std::size_t i = 0; i < n; i++)
     {
-        verify_reduced(p, i, t, options, inputs, tolerance);
+        verify_reduced(p, i, t, options, quantize, inputs, tolerance);
     }
 }
 

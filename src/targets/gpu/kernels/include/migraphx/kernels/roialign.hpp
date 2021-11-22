@@ -120,8 +120,7 @@ constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void
-roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
 {
     auto index       = make_index();
     const auto* x    = x_t.data();
@@ -159,7 +158,8 @@ roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s
 
         array<float, 2> roi_starts = {offset_rois[1] * s.spatial_scale,
                                       offset_rois[0] * s.spatial_scale};
-        array<float, 2> roi_ends = {offset_rois[3] * s.spatial_scale, offset_rois[2] * s.spatial_scale};
+        array<float, 2> roi_ends   = {offset_rois[3] * s.spatial_scale,
+                                    offset_rois[2] * s.spatial_scale};
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};

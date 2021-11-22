@@ -4,7 +4,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/basic_ops.hpp>
-#include <args.hpp>
+#include <migraphx/kernels/array.hpp>
 
 namespace migraphx {
 
@@ -104,13 +104,28 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-template <class T, class U, class V, class W>
-__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t)
+template<class T1, class T2, class T3, class T4>
+struct roalign_settings
 {
-    const float roi_offset       = ROIS_OFFSET;
-    const bool is_avg_pooling    = IS_AVG_POOLING;
-    const int64_t sampling_ratio = SAMPLING_RATIO;
-    const float spatial_scale    = SPATIAL_SCALE;
+    T1 roi_offset{};
+    T2 is_avg_pooling{};
+    T3 sampling_ratio{};
+    T4 spatial_scale{};
+};
+
+template<class... Ts>
+constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
+{
+    return {xs...};
+}
+
+template <class T, class U, class V, class W, class Settings>
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings settings)
+{
+    constexpr const float roi_offset       = settings.roi_offset;
+    constexpr const bool is_avg_pooling    = settings.is_avg_pooling;
+    constexpr const int64_t sampling_ratio = settings.sampling_ratio;
+    constexpr const float spatial_scale    = settings.spatial_scale;
 
     auto index       = make_index();
     const auto* x    = x_t.data();

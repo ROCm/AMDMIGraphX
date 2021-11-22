@@ -126,7 +126,7 @@ def parse(file):
     if (args.debug):
         print(list_times_per_names)
 
-    sum_per_name = [] #TODO: refactor stat collection
+    sum_per_name = []  #TODO: refactor stat collection
     for list in list_times_per_names:
         sum_per_name.append(sum(list))
 

@@ -15,6 +15,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
+
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
     (void)mod;
@@ -82,6 +84,8 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
+    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        trace = tracer{std::cout};
     for(const auto& p : passes)
     {
         module_pm{&mod, nullptr, &trace}.run_pass(p);
@@ -90,6 +94,8 @@ void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
+    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        trace = tracer{std::cout};
     for(const auto& p : passes)
     {
         auto mods = prog.get_modules();

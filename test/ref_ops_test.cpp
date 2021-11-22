@@ -1490,7 +1490,7 @@ TEST_CASE(gather_non_std_test)
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
 
         mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), td, tind);
-        p.compile(migraphx::ref::target{});
+        // p.compile(migraphx::ref::target{});
         auto result               = p.eval({}).back();
         std::vector<float> golden = {
             0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f, 0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};

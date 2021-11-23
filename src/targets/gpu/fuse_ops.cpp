@@ -683,6 +683,25 @@ void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
     p.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
 
+inline auto precompile_name(std::string s) // NOLINT
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if (ins->name() != "gpu::precompile")
+            return false;
+        auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
+        return (op.name() == s);
+    });
+}
+
+template <class... Ms>
+auto conv_bias_pointwise(Ms... ms)
+{
+    return precompile_name("pointwise")(
+        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
+                                fusable_conv(match::used_once()).bind("conv")),
+        ms...);
+}
+
 struct find_conv_bias
 {
     context* ctx = nullptr;

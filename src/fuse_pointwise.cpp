@@ -129,7 +129,7 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
 static bool find_pointwise_modules(module& m)
 {
     bool changed = false;
-    auto last = std::prev(m.end());
+    auto last    = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "pointwise")

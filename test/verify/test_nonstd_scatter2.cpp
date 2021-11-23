@@ -15,14 +15,16 @@ struct test_nonstd_scatter2 : verify_program<test_nonstd_scatter2>
         migraphx::shape su{migraphx::shape::float_type, {2, 3}};
 
         auto pd = mm->add_parameter("data", sd);
-        auto pdt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pd);
+        auto pdt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto lit = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), li);
+        auto lit =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), li);
         auto pu = mm->add_parameter("update", su);
-        auto put = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pu);
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 1}}), pdt, lit, put);
+        auto put =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pu);
+        auto r = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 1}}), pdt, lit, put);
         mm->add_return({r});
         return p;
     }
 };
-

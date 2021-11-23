@@ -16,7 +16,7 @@ struct test_nonstd_scatter0 : verify_program<test_nonstd_scatter0>
 
         auto pd = mm->add_parameter("data", sd);
         auto pdt =
-           mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pd);
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), pd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
         auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 1}}), pdt, li, pu);
@@ -24,4 +24,3 @@ struct test_nonstd_scatter0 : verify_program<test_nonstd_scatter0>
         return p;
     }
 };
-

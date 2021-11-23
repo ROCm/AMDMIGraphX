@@ -26,10 +26,10 @@ argument scatter(
             const auto* indices_ptr = device_cast(indices.data());
             gs_launch(stream, inds.elements())([=](auto i) __device__ {
                 auto out_idx    = inds1.multi(i);
-                auto upd_idx = upds1.index(out_idx);
-                auto idx      = indices_ptr[i];
-                idx           = idx < 0 ? idx + axis_dim_size : idx;
-                out_idx[axis] = idx;
+                auto upd_idx    = upds1.index(out_idx);
+                auto idx        = indices_ptr[i];
+                idx             = idx < 0 ? idx + axis_dim_size : idx;
+                out_idx[axis]   = idx;
                 output[out_idx] = upd_ptr[upd_idx];
             });
         });

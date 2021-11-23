@@ -686,7 +686,7 @@ void apply_conv_bias(context& ctx, module& p, match::matcher_result r)
 inline auto precompile_name(std::string s) // NOLINT
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if (ins->name() != "gpu::precompile")
+        if(ins->name() != "gpu::precompile")
             return false;
         auto op = from_value<operation>(ins->get_operator().to_value().at("op"));
         return (op.name() == s);

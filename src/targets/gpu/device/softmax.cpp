@@ -25,6 +25,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
         using type    = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
         type init     = lowest();
 
+
         if(axis == batch_lens.size() - 1)
         {
             gs_launch(stream,

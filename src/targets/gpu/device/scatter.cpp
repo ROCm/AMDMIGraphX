@@ -15,8 +15,9 @@ argument scatter(
 {
     auto ds            = arg0.get_shape();
     auto inds          = arg1.get_shape();
+    auto upds          = arg2.get_shape();
     auto axis_dim_size = ds.lens()[axis];
-    hip_visit_all(result, arg0, inds)([&](auto output, auto data, auto s1) {
+    hip_visit_all(result, arg0, inds, upds)([&](auto output, auto data, auto inds1, auto upds1) {
         auto* output_ptr     = device_cast(output.data());
         const auto* data_ptr = device_cast(data.data());
         gs_launch(stream, ds.elements())([=](auto i) __device__ { output_ptr[i] = data_ptr[i]; });
@@ -24,11 +25,12 @@ argument scatter(
             const auto* upd_ptr     = device_cast(update.data());
             const auto* indices_ptr = device_cast(indices.data());
             gs_launch(stream, inds.elements())([=](auto i) __device__ {
-                auto out_idx    = s1.multi(i);
-                auto index      = indices_ptr[i];
-                index           = index < 0 ? index + axis_dim_size : index;
-                out_idx[axis]   = index;
-                output[out_idx] = upd_ptr[i];
+                auto out_idx    = inds1.multi(i);
+                auto upd_idx = upds1.index(out_idx);
+                auto idx      = indices_ptr[i];
+                idx           = idx < 0 ? idx + axis_dim_size : idx;
+                out_idx[axis] = idx;
+                output[out_idx] = upd_ptr[upd_idx];
             });
         });
     });

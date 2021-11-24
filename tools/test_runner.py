@@ -111,7 +111,10 @@ def model_parameter_names(model_file_name):
         model_proto = onnx.ModelProto()
         model_proto.ParseFromString(data_str)
         init_names = set([(i.name) for i in model_proto.graph.initializer])
-        param_names = [input.name for input in model_proto.graph.input if input.name not in init_names]
+        param_names = [
+            input.name for input in model_proto.graph.input
+            if input.name not in init_names
+        ]
 
         return param_names
 

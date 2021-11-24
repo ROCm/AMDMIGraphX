@@ -4452,35 +4452,21 @@ TEST_CASE(squeeze_test)
         auto result = p.eval({}).back();
         EXPECT(result.get_shape() == s2);
     }
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-        auto l0       = mm->add_literal(migraphx::literal{s1, data});
-        auto l0_trans = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0, 4}}}), l0);
-        mm->add_instruction(migraphx::make_op("squeeze"), l0_trans);
-        auto p_uncompiled = p;
-        p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        auto expected_result = p_uncompiled.eval({}).back();
-        EXPECT(result.get_shape() == expected_result.get_shape());
-    }
 }
 
-TEST_CASE(squeeze_nonstd_test) {
+TEST_CASE(squeeze_nonstd_test)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<float> data(4 * 3 * 3);
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
-    auto l0       = mm->add_literal(migraphx::literal{s1, data});
-    auto l0_trans = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0, 4}}}), l0);
+    auto l0 = mm->add_literal(migraphx::literal{s1, data});
+    auto l0_trans =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0, 4}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_trans);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
+    auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == expected_result.get_shape());
 }
@@ -4707,7 +4693,8 @@ TEST_CASE(unsqueeze_test)
     }
 }
 
-TEST_CASE(unsqueeze_nonstd_test) {
+TEST_CASE(unsqueeze_nonstd_test)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<float> data(4 * 3 * 3);
@@ -4718,7 +4705,7 @@ TEST_CASE(unsqueeze_nonstd_test) {
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0_trans);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
+    auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == expected_result.get_shape());
 }

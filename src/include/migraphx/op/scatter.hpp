@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SCATTER_HPP
 
-#include "migraphx/argument.hpp"
 #include <array>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
@@ -9,6 +8,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>

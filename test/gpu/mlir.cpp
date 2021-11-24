@@ -40,8 +40,8 @@ si64]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
 }
 )__migraphx__";
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-    auto w = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto x    = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w    = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
     auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
     m.add_return({conv});
     auto s = migraphx::gpu::dump_mlir(m);

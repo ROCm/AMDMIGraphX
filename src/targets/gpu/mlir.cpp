@@ -398,14 +398,14 @@ struct mlir_program
 
     static std::string get_name(instruction_ref ins)
     {
-        if (ins->name() == "@return")
+        if(ins->name() == "@return")
             return "std.return";
         return "migraphx." + ins->name();
     }
 
     static shape get_shape(instruction_ref ins)
     {
-        if (ins->name() == "@return")
+        if(ins->name() == "@return")
         {
             assert(ins->inputs().size() == 1);
             return ins->inputs().front()->get_shape();

@@ -396,6 +396,23 @@ struct mlir_program
         return result;
     }
 
+    static std::string get_name(instruction_ref ins)
+    {
+        if (ins->name() == "@return")
+            return "std.return";
+        return "migraphx." + ins->name();
+    }
+
+    static shape get_shape(instruction_ref ins)
+    {
+        if (ins->name() == "@return")
+        {
+            assert(ins->inputs().size() == 1);
+            return ins->inputs().front()->get_shape();
+        }
+        return ins->get_shape();
+    }
+
     void parse(const module& m)
     {
         auto mbody = mlirModuleGetBody(mmodule.get());
@@ -405,10 +422,10 @@ struct mlir_program
         {
             if(ins->name() == "@param")
                 continue;
-            auto name = "migraphx." + ins->name();
+            auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(ins->get_operator().to_value());
-            ops.add_results({ins->get_shape()});
+            ops.add_results({get_shape(ins)});
 
             std::vector<MlirValue> inputs;
             transform(

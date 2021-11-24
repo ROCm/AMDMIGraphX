@@ -8,6 +8,7 @@ namespace gpu {
 
 shape hip_nonzero::compute_shape(std::vector<shape> inputs) const
 {
+    check_shapes({inputs.front()}, *this).has(1).standard();
     return op.compute_shape({inputs.front()});
 }
 

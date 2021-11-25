@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_INDEX_HPP
 #define MIGRAPHX_GUARD_KERNELS_INDEX_HPP
 
-#include <hip/hip_runtime.h>
+#include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
@@ -17,7 +17,7 @@ struct index
 #ifdef MIGRAPHX_NGLOBAL
         return MIGRAPHX_NGLOBAL;
 #else
-        return blockDim.x * gridDim.x;
+        return blockDim.x * gridDim.x; // NOLINT
 #endif
     }
 
@@ -26,7 +26,7 @@ struct index
 #ifdef MIGRAPHX_NLOCAL
         return MIGRAPHX_NLOCAL;
 #else
-        return blockDim.x;
+        return blockDim.x;             // NOLINT
 #endif
     }
 
@@ -53,7 +53,7 @@ struct index
 
 inline __device__ index make_index()
 {
-    return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x};
+    return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
 
 } // namespace migraphx

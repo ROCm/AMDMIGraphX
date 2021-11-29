@@ -4258,7 +4258,8 @@ TEST_CASE(scatter_test)
     }
 }
 
-TEST_CASE(scatter_test_nonstd_shape) {
+TEST_CASE(scatter_test_nonstd_shape)
+{
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
@@ -4270,11 +4271,11 @@ TEST_CASE(scatter_test_nonstd_shape) {
     migraphx::shape su{migraphx::shape::float_type, {2, 3}};
     std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
 
-    auto ld = mm->add_literal(migraphx::literal{sd, vd});
-    auto li = mm->add_literal(migraphx::literal{si, vi});
-    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto ld  = mm->add_literal(migraphx::literal{sd, vd});
+    auto li  = mm->add_literal(migraphx::literal{si, vi});
+    auto lu  = mm->add_literal(migraphx::literal{su, vu});
     auto ldt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ld);
-    auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ldt, li, lu);
+    auto r   = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ldt, li, lu);
     mm->add_return({r});
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
@@ -4767,21 +4768,6 @@ TEST_CASE(unsqueeze_test)
         migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
         auto l0 = mm->add_literal(migraphx::literal{s1, data});
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0);
-        p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        EXPECT(result.get_shape() == s2);
-    }
-
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        std::vector<float> data(4 * 3 * 3);
-        migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {3, 4, 1, 3}};
-        auto l0 = mm->add_literal(migraphx::literal{s1, data});
-        auto l0_trans =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), l0);
-        mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0_trans);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         EXPECT(result.get_shape() == s2);

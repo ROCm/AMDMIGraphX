@@ -4,7 +4,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/basic_ops.hpp>
-#include <args.hpp>
+#include <migraphx/kernels/array.hpp>
 
 namespace migraphx {
 
@@ -104,14 +104,24 @@ MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
     return op.final(output_val, count);
 }
 
-template <class T, class U, class V, class W>
-__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t)
+template <class T1, class T2, class T3, class T4>
+struct roalign_settings
 {
-    const float roi_offset       = ROIS_OFFSET;
-    const bool is_avg_pooling    = IS_AVG_POOLING;
-    const int64_t sampling_ratio = SAMPLING_RATIO;
-    const float spatial_scale    = SPATIAL_SCALE;
+    T1 roi_offset{};
+    T2 is_avg_pooling{};
+    T3 sampling_ratio{};
+    T4 spatial_scale{};
+};
 
+template <class... Ts>
+constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
+{
+    return {xs...};
+}
+
+template <class T, class U, class V, class W, class Settings>
+__device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
+{
     auto index       = make_index();
     const auto* x    = x_t.data();
     const auto* rois = rois_t.data();
@@ -146,9 +156,10 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
         const auto* offset_rois = rois + (n * roi_column_num);
         const int batch_ind     = ind[n];
 
-        array<float, 2> roi_starts = {offset_rois[1] * spatial_scale,
-                                      offset_rois[0] * spatial_scale};
-        array<float, 2> roi_ends = {offset_rois[3] * spatial_scale, offset_rois[2] * spatial_scale};
+        array<float, 2> roi_starts = {offset_rois[1] * s.spatial_scale,
+                                      offset_rois[0] * s.spatial_scale};
+        array<float, 2> roi_ends   = {offset_rois[3] * s.spatial_scale,
+                                    offset_rois[2] * s.spatial_scale};
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
@@ -161,11 +172,11 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
 
             bin_size[ii] = roi_size[ii] / out_dims[ii];
             bin_grid_size[ii] =
-                (sampling_ratio > 0) ? sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
+                (s.sampling_ratio > 0) ? s.sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
         }
 
         const auto* offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
-        if constexpr(is_avg_pooling)
+        if constexpr(s.is_avg_pooling)
         {
             out_ptr[i] = calc_pooling(offset_x,
                                       roi_starts,
@@ -173,7 +184,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
                                       {ph, pw},
                                       bin_grid_size,
                                       in_dims,
-                                      roi_offset,
+                                      s.roi_offset,
                                       avg_pool{});
         }
         else
@@ -184,7 +195,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
                                       {ph, pw},
                                       bin_grid_size,
                                       in_dims,
-                                      roi_offset,
+                                      s.roi_offset,
                                       max_pool{});
         }
     }

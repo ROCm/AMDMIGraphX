@@ -91,27 +91,33 @@ add_library(migraphx_device
     device/unary_not.cpp
     device/where.cpp
 )
-set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
-rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_device)
-target_compile_options(migraphx_device PRIVATE -std=c++17 -fno-gpu-rdc -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(migraphx_device migraphx hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc")
-    set(AMDGPU_TARGETS "gfx803;gfx900;gfx906" CACHE STRING "")
-    foreach(AMDGPU_TARGET ${AMDGPU_TARGETS})
-        target_compile_options(migraphx_device PRIVATE -amdgpu-target=${AMDGPU_TARGET})
-        target_link_libraries(migraphx_device -amdgpu-target=${AMDGPU_TARGET})
-    endforeach()
-else()
-    target_compile_options(migraphx_device PRIVATE -Wno-cuda-compat)
-endif()
+add_library(compile_for_gpu INTERFACE)
+target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
+target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
   message(STATUS "Enable -fhip-lambda-host-device")
-  target_compile_options(migraphx_device PRIVATE -fhip-lambda-host-device)
+  target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
+
+set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
+rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+rocm_clang_tidy_check(migraphx_device)
+target_link_libraries(migraphx_device PUBLIC migraphx)
+target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
+
+add_library(kernel_file_check EXCLUDE_FROM_ALL)
+foreach(KERNEL_FILE ${KERNEL_FILES})
+    get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
+    target_sources(kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
+endforeach()
+target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
+target_link_libraries(kernel_file_check compile_for_gpu)
+
+rocm_clang_tidy_check(kernel_file_check)
 
 add_library(migraphx_gpu
     abs.cpp
@@ -341,7 +347,7 @@ target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 add_subdirectory(driver)
 
 rocm_install_targets(
-  TARGETS migraphx_gpu migraphx_device
+  TARGETS migraphx_gpu migraphx_device compile_for_gpu
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

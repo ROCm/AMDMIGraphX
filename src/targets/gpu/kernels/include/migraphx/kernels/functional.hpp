@@ -181,9 +181,11 @@ constexpr auto transform_args(F f, Fs... fs)
     return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_RETURNS(...) \
     ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...) \
     ([](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
 

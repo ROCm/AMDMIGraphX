@@ -223,11 +223,12 @@ TEST_CASE(argmax_test_nonstd_shape)
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = mm->add_literal(migraphx::literal{data_shape, data});
-    auto dl_trans = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
+    auto dl_trans =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
     mm->add_instruction(migraphx::make_op("argmax", {{"axis", -3}}), dl_trans);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
+    auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
     std::vector<int64_t> result_vec;
     std::vector<int64_t> res_gold_vec;
@@ -321,11 +322,12 @@ TEST_CASE(argmin_test_nonstd_shape)
                                0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
     migraphx::shape data_shape{migraphx::shape::float_type, {2, 3, 4}};
     auto dl = mm->add_literal(migraphx::literal{data_shape, data});
-    auto dl_trans = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
+    auto dl_trans =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
     mm->add_instruction(migraphx::make_op("argmin", {{"axis", -1}}), dl_trans);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result = p.eval({}).back();
+    auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
     std::vector<int64_t> result_vec;
     std::vector<int64_t> res_gold_vec;
@@ -2884,6 +2886,29 @@ TEST_CASE(nonzero_test)
     std::vector<int64_t> gold = {0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0,
                                  1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
     EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(nonzero_test_nonstd_shape)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 2}};
+    std::vector<float> data = {
+        1.0f, 1.3f, 0.0f, -1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.2f, 0.0f, 0.5f, 
+        0.5f, 0.0f, 0.0f,  1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.0f, 0.0f, 1.5f};
+    auto input = mm->add_literal(migraphx::literal(s, data));
+    auto input_trans = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0}}}), input);
+    auto ret   = mm->add_instruction(migraphx::make_op("nonzero"), input_trans);
+    mm->add_return({ret});
+    auto p_uncompiled = p;
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    auto gold = p_uncompiled.eval({}).back();
+    std::vector<int64_t> result_vector;
+    std::vector<int64_t> gold_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    gold.visit([&](auto output) { gold_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(result_vector, gold_vector));
 }
 
 TEST_CASE(not_test)

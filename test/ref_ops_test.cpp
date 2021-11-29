@@ -230,8 +230,7 @@ TEST_CASE(argmax_test_nonstd_shape)
     p.compile(migraphx::ref::target{});
     auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
-    std::vector<int64_t> result_vec;
-    std::vector<int64_t> res_gold_vec;
+    std::vector<int64_t> result_vec, res_gold_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(result_vec, res_gold_vec));
@@ -329,8 +328,7 @@ TEST_CASE(argmin_test_nonstd_shape)
     p.compile(migraphx::ref::target{});
     auto result   = p.eval({}).back();
     auto res_gold = p_uncompiled.eval({}).back();
-    std::vector<int64_t> result_vec;
-    std::vector<int64_t> res_gold_vec;
+    std::vector<int64_t> result_vec, res_gold_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(result_vec, res_gold_vec));
@@ -2893,19 +2891,19 @@ TEST_CASE(nonzero_test_nonstd_shape)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 2}};
-    std::vector<float> data = {
-        1.0f, 1.3f, 0.0f, -1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.2f, 0.0f, 0.5f, 
-        0.5f, 0.0f, 0.0f,  1.2f, 0.0f, -100.f, 200.f, 0.0f, 0.1f, 0.0f, 0.0f, 1.5f};
-    auto input = mm->add_literal(migraphx::literal(s, data));
-    auto input_trans = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0}}}), input);
-    auto ret   = mm->add_instruction(migraphx::make_op("nonzero"), input_trans);
+    std::vector<float> data = {1.0f, 1.3f,   0.0f,  -1.2f, 0.0f, -100.f, 200.f, 0.0f,
+                               0.1f, 0.2f,   0.0f,  0.5f,  0.5f, 0.0f,   0.0f,  1.2f,
+                               0.0f, -100.f, 200.f, 0.0f,  0.1f, 0.0f,   0.0f,  1.5f};
+    auto input              = mm->add_literal(migraphx::literal(s, data));
+    auto input_trans =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0}}}), input);
+    auto ret = mm->add_instruction(migraphx::make_op("nonzero"), input_trans);
     mm->add_return({ret});
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
-    auto gold = p_uncompiled.eval({}).back();
-    std::vector<int64_t> result_vector;
-    std::vector<int64_t> gold_vector;
+    auto gold   = p_uncompiled.eval({}).back();
+    std::vector<int64_t> result_vector, gold_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     gold.visit([&](auto output) { gold_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(result_vector, gold_vector));
@@ -4258,6 +4256,34 @@ TEST_CASE(scatter_test)
         std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
+}
+
+TEST_CASE(scatter_test_nonstd_shape) {
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> vd(sd.elements(), 0.0f);
+
+    migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+
+    migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto ldt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ld);
+    auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ldt, li, lu);
+    mm->add_return({r});
+    auto p_uncompiled = p;
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector, gold_vector;
+    auto gold = p_uncompiled.eval({}).back();
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    gold.visit([&](auto output) { gold_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold_vector));
 }
 
 TEST_CASE(sigmoid_test)

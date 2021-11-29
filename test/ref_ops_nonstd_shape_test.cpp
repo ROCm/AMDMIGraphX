@@ -7,7 +7,6 @@
 #include <migraphx/make_op.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(argmax_test_nonstd_shape)
 {
     migraphx::program p;

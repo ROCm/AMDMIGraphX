@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_PRINT_HPP
 #define MIGRAPHX_GUARD_KERNELS_PRINT_HPP
 
-#include <hip/hip_runtime.h>
+#include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/algorithm.hpp>

@@ -1,6 +1,7 @@
+#include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
-#include "verify.hpp"
+#include "precision.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
@@ -288,14 +289,12 @@ struct compiler_target
 
 struct compiler
 {
-    static const int q_fp16 = 1;
-    static const int q_int8 = 2;
     loader l;
     program_params parameters;
     compiler_target ct;
-    bool offload_copy = false;
-    bool fast_math    = true;
-    int quantize      = 0;
+    bool offload_copy  = false;
+    bool fast_math     = true;
+    precision quantize = precision::fp32;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -312,8 +311,8 @@ struct compiler
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(q_fp16));
-        ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(q_int8));
+        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
+        ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
     }
 
     auto params(const program& p) { return parameters.generate(p, ct.get_target(), offload_copy); }
@@ -325,11 +324,11 @@ struct compiler
         if(p.is_compiled())
             return p;
         auto t = ct.get_target();
-        if(quantize == q_fp16)
+        if(quantize == precision::fp16)
         {
             quantize_fp16(p);
         }
-        else if(quantize == q_int8)
+        else if(quantize == precision::int8)
         {
             quantize_int8(p, t, {params(p)});
         }
@@ -377,6 +376,7 @@ struct verify : command<verify>
     bool reduce          = false;
     bool offload_copy    = false;
     bool fast_math       = true;
+    precision quantize   = precision::fp32;
     void parse(argument_parser& ap)
     {
         l.parse(ap);
@@ -396,6 +396,7 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
     }
 
     void run()
@@ -412,15 +413,15 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, options, tolerance);
+            verify_instructions(p, t, options, quantize, tolerance);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, options, m, tolerance);
+            verify_reduced_program(p, t, options, quantize, m, tolerance);
         }
         else
         {
-            verify_program(l.file, p, t, options, m, tolerance);
+            verify_program(l.file, p, t, options, quantize, m, tolerance);
         }
     }
 };
@@ -480,7 +481,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m);
+        p.perf_report(std::cout, n, m, c.l.batch);
     }
 };
 

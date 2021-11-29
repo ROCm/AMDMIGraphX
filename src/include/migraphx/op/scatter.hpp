@@ -38,7 +38,7 @@ struct scatter
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).not_tuple_type();
+        check_shapes{inputs, *this}.has(3);
         check_shapes{{inputs.at(1), inputs.at(2)}, *this}.same_dims();
         return inputs.front();
     }

@@ -37,7 +37,7 @@ struct unsqueeze
     std::string name() const { return "unsqueeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).not_tuple_type();
+        check_shapes{inputs, *this}.has(1);
         auto input_shape = inputs[0];
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();

@@ -4149,7 +4149,8 @@ TEST_CASE(roialign_test)
     }
 }
 
-TEST_CASE(roialign_test_nonstd_shape) {
+TEST_CASE(roialign_test_nonstd_shape)
+{
     const std::string& trans_mode   = "half_pixel";
     const std::string& pooling_mode = "avg";
     int64_t sampling_ratio          = 2;
@@ -4174,24 +4175,25 @@ TEST_CASE(roialign_test_nonstd_shape) {
     migraphx::shape ind_s{migraphx::shape::int64_type, {3}};
     std::vector<int64_t> ind_vec = {0, 0, 0};
 
-    auto x   = mm->add_literal(migraphx::literal(x_s, x_vec));
-    auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+    auto x = mm->add_literal(migraphx::literal(x_s, x_vec));
+    auto xt =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
     auto roi = mm->add_literal(migraphx::literal(roi_s, roi_vec));
     auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
     mm->add_instruction(migraphx::make_op("roialign",
-                                                {{"coordinate_transformation_mode", trans_mode},
-                                                {"spatial_scale", 1.0},
-                                                {"output_height", 5},
-                                                {"output_width", 5},
-                                                {"sampling_ratio", sampling_ratio},
-                                                {"mode", pooling_mode}}),
-                            xt,
-                            roi,
-                            ind);
-    auto p_uncompiled = p;       
+                                          {{"coordinate_transformation_mode", trans_mode},
+                                           {"spatial_scale", 1.0},
+                                           {"output_height", 5},
+                                           {"output_width", 5},
+                                           {"sampling_ratio", sampling_ratio},
+                                           {"mode", pooling_mode}}),
+                        xt,
+                        roi,
+                        ind);
+    auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
-    auto gold = p_uncompiled.eval({}).back();
+    auto gold   = p_uncompiled.eval({}).back();
     std::vector<float> results_vector, gold_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     gold.visit([&](auto output) { gold_vector.assign(output.begin(), output.end()); });

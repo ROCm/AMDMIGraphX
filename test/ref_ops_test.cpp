@@ -4149,6 +4149,55 @@ TEST_CASE(roialign_test)
     }
 }
 
+TEST_CASE(roialign_test_nonstd_shape) {
+    const std::string& trans_mode   = "half_pixel";
+    const std::string& pooling_mode = "avg";
+    int64_t sampling_ratio          = 2;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape x_s{migraphx::shape::float_type, {1, 1, 10, 10}};
+    std::vector<float> x_vec = {
+        0.2764, 0.7150, 0.1958, 0.3416, 0.4638, 0.0259, 0.2963, 0.6518, 0.4856, 0.7250,
+        0.9637, 0.0895, 0.2919, 0.6753, 0.0234, 0.6132, 0.8085, 0.5324, 0.8992, 0.4467,
+        0.3265, 0.8479, 0.9698, 0.2471, 0.9336, 0.1878, 0.4766, 0.4308, 0.3400, 0.2162,
+        0.0206, 0.1720, 0.2155, 0.4394, 0.0653, 0.3406, 0.7724, 0.3921, 0.2541, 0.5799,
+        0.4062, 0.2194, 0.4473, 0.4687, 0.7109, 0.9327, 0.9815, 0.6320, 0.1728, 0.6119,
+        0.3097, 0.1283, 0.4984, 0.5068, 0.4279, 0.0173, 0.4388, 0.0430, 0.4671, 0.7119,
+        0.1011, 0.8477, 0.4726, 0.1777, 0.9923, 0.4042, 0.1869, 0.7795, 0.9946, 0.9689,
+        0.1366, 0.3671, 0.7011, 0.6234, 0.9867, 0.5585, 0.6985, 0.5609, 0.8788, 0.9928,
+        0.5697, 0.8511, 0.6711, 0.9406, 0.8751, 0.7496, 0.1650, 0.1049, 0.1559, 0.2514,
+        0.7012, 0.4056, 0.7879, 0.3461, 0.0415, 0.2998, 0.5094, 0.3727, 0.5482, 0.0502};
+
+    migraphx::shape roi_s{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> roi_vec = {0, 0, 9, 9, 0, 5, 4, 9, 5, 5, 9, 9};
+
+    migraphx::shape ind_s{migraphx::shape::int64_type, {3}};
+    std::vector<int64_t> ind_vec = {0, 0, 0};
+
+    auto x   = mm->add_literal(migraphx::literal(x_s, x_vec));
+    auto xt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
+    auto roi = mm->add_literal(migraphx::literal(roi_s, roi_vec));
+    auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
+    mm->add_instruction(migraphx::make_op("roialign",
+                                                {{"coordinate_transformation_mode", trans_mode},
+                                                {"spatial_scale", 1.0},
+                                                {"output_height", 5},
+                                                {"output_width", 5},
+                                                {"sampling_ratio", sampling_ratio},
+                                                {"mode", pooling_mode}}),
+                            xt,
+                            roi,
+                            ind);
+    auto p_uncompiled = p;       
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+    auto gold = p_uncompiled.eval({}).back();
+    std::vector<float> results_vector, gold_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    gold.visit([&](auto output) { gold_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify_range(results_vector, gold_vector));
+}
+
 TEST_CASE(round_test)
 {
     migraphx::program p;

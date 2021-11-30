@@ -575,9 +575,7 @@ struct miopen_fusion
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.op, "op"),
-                        f(self.alpha, "alpha"),
-                        f(self.beta, "beta"));
+            return pack(f(self.op, "op"), f(self.alpha, "alpha"), f(self.beta, "beta"));
         }
     };
     std::vector<fuse_op> ops = {};
@@ -876,10 +874,7 @@ struct find_conv_pointwise
             op.ops.push_back({{i.get_operator()}});
         }
         std::vector<instruction_ref> inputs = {input_ins, weights_ins, bias_ins, alloc_ins};
-        auto v =
-            op.compile(*ctx,
-                       ins->get_shape(),
-                       to_shapes(inputs));
+        auto v                              = op.compile(*ctx, ins->get_shape(), to_shapes(inputs));
         if(not v.is_object())
             return;
         m.replace_instruction(ins, op, inputs);

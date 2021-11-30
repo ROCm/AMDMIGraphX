@@ -16,7 +16,8 @@ constexpr auto get_rank(const Shape&)
     return decltype(typename Shape::hip_index{}.size()){};
 }
 
-argument scatter(hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis)
+argument scatter(
+    hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis)
 {
     auto ds            = arg0.get_shape();
     auto inds          = arg1.get_shape();
@@ -28,15 +29,16 @@ argument scatter(hipStream_t stream, argument result, argument arg0, argument ar
         gs_launch(stream, ds.elements())([=](auto i) __device__ { output_ptr[i] = data_ptr[i]; });
         hip_visit_all(arg1, arg2)([&](auto indices, auto update) {
             const auto* indices_ptr = device_cast(indices.data());
-            if constexpr (get_rank(update.get_shape()) == get_rank(output.get_shape())) {
+            if constexpr(get_rank(update.get_shape()) == get_rank(output.get_shape()))
+            {
                 gs_launch(stream, inds.elements())([=](auto i) __device__ {
-                                auto out_idx    = indices.get_shape().multi(i);
-                                auto upd_idx    = out_idx;
-                                auto idx        = indices_ptr[i];
-                                idx             = idx < 0 ? idx + axis_dim_size : idx;
-                                out_idx[axis]   = idx;
-                                output[out_idx] = update[upd_idx];
-                            });
+                    auto out_idx    = indices.get_shape().multi(i);
+                    auto upd_idx    = out_idx;
+                    auto idx        = indices_ptr[i];
+                    idx             = idx < 0 ? idx + axis_dim_size : idx;
+                    out_idx[axis]   = idx;
+                    output[out_idx] = update[upd_idx];
+                });
             }
         });
     });

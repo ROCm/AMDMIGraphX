@@ -130,7 +130,8 @@ struct fusion
     bool compile(context& ctx)
     {
         assert(fp);
-        return miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get()) != miopenStatusSuccess;
+        return miopenCompileFusionPlan(ctx.get_stream().get_miopen(), fp.get()) !=
+               miopenStatusSuccess;
     }
 
     argument execute(context& ctx,
@@ -575,11 +576,14 @@ struct miopen_fusion
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.op, "op"), f(self.inputs, "inputs"), f(self.alpha, "alpha"), f(self.beta, "beta"));
+            return pack(f(self.op, "op"),
+                        f(self.inputs, "inputs"),
+                        f(self.alpha, "alpha"),
+                        f(self.beta, "beta"));
         }
     };
     std::vector<fuse_op> ops = {};
-    fusion f          = {};
+    fusion f                 = {};
     std::function<void(context&, const fusion&, const std::vector<argument>&)> execute;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -587,7 +591,7 @@ struct miopen_fusion
         return pack(f(self.ops, "ops"));
     }
 
-    template<class... Ts>
+    template <class... Ts>
     void add_op(Ts&&... xs)
     {
         ops.push_back({{}, {}, {static_cast<Ts&&>(xs)...}});
@@ -598,36 +602,42 @@ struct miopen_fusion
         // Compensate for allocation
         inputs.pop_back();
         std::size_t i = 0;
-        f = fusion(inputs[i]);
+        f             = fusion(inputs[i]);
         i++;
-        std::vector<std::function<void(const fused_operator_args&, const std::vector<argument>&)>> invokers;
-        for(auto&& fop:ops)
+        std::vector<std::function<void(const fused_operator_args&, const std::vector<argument>&)>>
+            invokers;
+        for(auto&& fop : ops)
         {
-            if (i >= inputs.size())
+            if(i >= inputs.size())
             {
-                f= {};
+                f = {};
                 return {};
             }
-            if (fop.op.name() == "convolution")
+            if(fop.op.name() == "convolution")
             {
                 auto mop = f.create_conv(any_cast<op::convolution>(fop.op), inputs[i]);
-                invokers.push_back([=](const fused_operator_args& fargs, const std::vector<argument>& args) {
-                    miopenSetOpArgsConvForward(fargs.get(), mop, &fop.alpha, &fop.beta, args[i].implicit());
-                });
+                invokers.push_back(
+                    [=](const fused_operator_args& fargs, const std::vector<argument>& args) {
+                        miopenSetOpArgsConvForward(
+                            fargs.get(), mop, &fop.alpha, &fop.beta, args[i].implicit());
+                    });
                 i++;
             }
-            else if (fop.op.name() == "add")
+            else if(fop.op.name() == "add")
             {
                 auto mop = f.create_bias(inputs[i]);
-                invokers.push_back([=](const fused_operator_args& fargs, const std::vector<argument>& args) {
-                    miopenSetOpArgsBiasForward(fargs.get(), mop, &fop.alpha, &fop.beta, args[i].implicit());
-                });
+                invokers.push_back(
+                    [=](const fused_operator_args& fargs, const std::vector<argument>& args) {
+                        miopenSetOpArgsBiasForward(
+                            fargs.get(), mop, &fop.alpha, &fop.beta, args[i].implicit());
+                    });
                 i++;
             }
-            else if (fop.op.name() == "relu")
+            else if(fop.op.name() == "relu")
             {
                 auto mop = f.create_relu();
-                invokers.push_back([=](const fused_operator_args& fargs, const std::vector<argument>&) {
+                invokers.push_back([=](const fused_operator_args& fargs,
+                                       const std::vector<argument>&) {
                     miopenSetOpArgsActivForward(fargs.get(), mop, &fop.alpha, &fop.beta, 0, 0, 0);
                 });
             }
@@ -637,14 +647,14 @@ struct miopen_fusion
                 return {};
             }
         }
-        if (not f.compile(ctx))
+        if(not f.compile(ctx))
         {
             f = {};
             return {};
         }
         execute = [invokers](context& c, const fusion& ff, const std::vector<argument>& args) {
-            auto fargs  = make_fused_args();
-            for(auto&& invoker:invokers)
+            auto fargs = make_fused_args();
+            for(auto&& invoker : invokers)
                 invoker(fargs, args);
             ff.execute(c, fargs, args.front(), args.back());
         };
@@ -652,16 +662,16 @@ struct miopen_fusion
     }
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
     {
-        if (not f.empty())
+        if(not f.empty())
             return;
         auto v = compile(ctx, output_shape, inputs);
-        if (not v.is_object())
+        if(not v.is_object())
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
     std::string name() const { return "gpu::miopen_fusion"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if (ops.empty())
+        if(ops.empty())
             return {};
         // TODO: Check number of arguments
         return ops.front().op.compute_shape({inputs[0], inputs[1]});
@@ -708,7 +718,7 @@ struct miopen_conv_bias
         f    = fusion(inputs[0]);
         conv = f.create_conv(op, inputs[1]);
         bias = f.create_bias(inputs[3]);
-        if (not f.compile(ctx))
+        if(not f.compile(ctx))
             MIGRAPHX_THROW("Failed to compile fusion plan");
     }
 
@@ -844,10 +854,11 @@ struct find_conv_bias_relu
 struct find_conv_pointwise
 {
     context* ctx = nullptr;
-    auto matcher() const { 
+    auto matcher() const
+    {
         return precompile_name("pointwise")(
-        match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
-                                fusable_conv(match::used_once()).bind("conv")));
+            match::either_arg(0, 1)(bias_shape(match::used_once()).bind("bias"),
+                                    fusable_conv(match::used_once()).bind("conv")));
     }
 
     void apply(module& m, match::matcher_result r) const
@@ -864,15 +875,18 @@ struct find_conv_pointwise
 
         miopen_fusion op{};
         op.ops.push_back({{conv_op, {input_ins->get_shape(), weights_ins->get_shape()}}});
-        for(auto&& i:*pm)
+        for(auto&& i : *pm)
         {
-            if (i.name()[0] == '@')
+            if(i.name()[0] == '@')
                 continue;
             auto inputs = to_shapes(i.inputs());
-            op.ops.push_back({{i.get_operator(), {inputs.begin()+1, inputs.end()}}});
+            op.ops.push_back({{i.get_operator(), {inputs.begin() + 1, inputs.end()}}});
         }
-        auto v = op.compile(*ctx, ins->get_shape(), {input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()});
-        if (not v.is_object())
+        auto v =
+            op.compile(*ctx,
+                       ins->get_shape(),
+                       {input_ins->get_shape(), weights_ins->get_shape(), bias_ins->get_shape()});
+        if(not v.is_object())
             return;
         m.replace_instruction(ins, op, {input_ins, weights_ins, bias_ins, alloc_ins});
     }

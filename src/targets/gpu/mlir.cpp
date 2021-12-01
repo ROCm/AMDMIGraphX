@@ -122,6 +122,8 @@ struct mlir_program
           location(mlirLocationUnknownGet(ctx.get())),
           mmodule(mlirModuleCreateEmpty(location))
     {
+        MlirDialectHandle mixrHandle = mlirGetDialectHandle__migraphx__();
+        mlirDialectHandleRegisterDialect(mixrHandle, ctx.get());
         mlirRegisterAllDialects(ctx.get());
         mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
     }

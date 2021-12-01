@@ -8,6 +8,7 @@
 #include <mlir-c/Dialect/Standard.h>
 #include <mlir-c/Dialect/MIGraphX.h>
 #include <mlir-c/IntegerSet.h>
+#include <mlir-c/Pass.h>
 #include <mlir-c/Registration.h>
 #endif
 
@@ -16,6 +17,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <deque>
 #include <variant>
@@ -82,6 +84,7 @@ using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
                                                            mlirOpPrintingFlagsDestroy);
 using mlir_region            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRegion, mlirRegionDestroy);
 using mlir_block             = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirBlock, mlirBlockDestroy);
+using mlir_pass_manager      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirPassManager, mlirPassManagerDestroy);
 
 std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -438,6 +441,40 @@ struct mlir_program
         }
     }
 
+    code_object_op compile()
+    {
+        mlir_pass_manager pm{mlirPassManagerCreate(ctx.get())};
+        // 1st pipeline to call
+        mlirMIGraphXAddHighLevelPipeline(pm.get());
+        // 2nd pipeline to call
+        const char *deviceName = "gfx908";
+        mlirMIGraphXAddBackendPipeline(pm.get(), deviceName);
+        mlirPassManagerRun(pm.get(), mmodule.get());
+
+        code_object_op op;
+        op.code_object = get_binary();
+        std::tie(op.global, op.local) = get_launch_params();
+        return op;
+    }
+
+    std::pair<std::size_t, std::size_t> get_launch_params()
+    {
+        int attrs[2];
+        // returns block and grid sizes
+        mlirGetKernelAttrs(mmodule.get(), attrs);
+        std::size_t local  = attrs[0];
+        std::size_t global = local * attrs[1];
+        return {global, local};
+    }
+
+    value::binary get_binary()
+    {
+        value::binary result(mlirGetBinarySize(mmodule.get()));
+        if(mlirGetBinary(mmodule.get(), reinterpret_cast<char*>(result.data())))
+            return result;
+        MIGRAPHX_THROW("Failed to compile mlir program");
+    }
+
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
@@ -450,6 +487,13 @@ std::string dump_mlir(const module& m)
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
+}
+
+code_object_op compile_mlir(const module& m)
+{
+    mlir_program mp;
+    mp.parse(m);
+    return mp.compile();
 }
 
 #else

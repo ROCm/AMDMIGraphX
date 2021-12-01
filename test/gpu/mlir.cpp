@@ -49,6 +49,7 @@ si64]} : (tensor<1x8x4x4xf32>, tensor<2x8x3x3xf32>) -> tensor<1x2x2x2xf32>
     if(s.empty())
         return;
     EXPECT(encode(s) == encode(mlir_output));
+    auto op = migraphx::gpu::compile_mlir(m);
 }
 
 TEST_CASE(conv_add_relu)

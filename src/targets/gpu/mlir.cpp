@@ -185,8 +185,11 @@ struct mlir_program
     {
         return mlirIntegerAttrGet(mlirIntegerTypeSignedGet(ctx.get(), 64), i);
     }
-    MlirAttribute attribute(std::uint64_t i) const { return attribute(std::int64_t(i)); }
-    MlirAttribute attribute(unsigned char i) const { return attribute(std::int64_t(i)); }
+    MlirAttribute attribute(std::uint64_t i) const
+    {
+        return mlirIntegerAttrGet(mlirIntegerTypeUnsignedGet(ctx.get(), 64), i);
+    }
+    MlirAttribute attribute(unsigned char i) const { return attribute(std::uint64_t(i)); }
     MlirAttribute attribute(bool b) const { return mlirBoolAttrGet(ctx.get(), b ? 1 : 0); }
     MlirAttribute attribute(double d) const
     {

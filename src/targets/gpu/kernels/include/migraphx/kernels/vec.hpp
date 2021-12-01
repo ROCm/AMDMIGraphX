@@ -13,7 +13,7 @@ constexpr auto vec_size(vec<T, N>)
 }
 
 template <class T>
-constexpr auto vec_size(T, ...)
+constexpr auto vec_size(T, ...) // NOLINT
 {
     return index_constant<0>{};
 }

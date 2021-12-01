@@ -168,6 +168,7 @@ constexpr auto transform_args(F f, Fs... fs)
     return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...) \
     ([](auto&&... xs) { return (__VA_ARGS__)(static_cast<decltype(xs)>(xs)...); })
 

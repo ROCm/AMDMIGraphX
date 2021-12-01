@@ -14,9 +14,7 @@ constexpr auto traverse_preload(Shapes... ss)
         auto each        = [&](auto x) {
             constexpr auto s    = decltype(x.get_shape()){};
             constexpr auto size = _c<s.element_space()>;
-            if constexpr(not s.broadcasted())
-                return f(x, offset, false_type{});
-            else if constexpr((s.elements() - size) < 64)
+            if constexpr(not s.broadcasted() or (s.elements() - size) < 64)
                 return f(x, offset, false_type{});
             else
             {

@@ -176,23 +176,23 @@ struct array
     }
 };
 
-template <class T, T... xs>
-struct integral_const_array : array<T, sizeof...(xs)>
+template <class T, T... Xs>
+struct integral_const_array : array<T, sizeof...(Xs)>
 {
-    using base_array = array<T, sizeof...(xs)>;
-    MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({xs...}) {}
+    using base_array = array<T, sizeof...(Xs)>;
+    MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 };
 
-template <class T, T... xs, class F>
-constexpr auto transform(integral_const_array<T, xs...>, F f)
+template <class T, T... Xs, class F>
+constexpr auto transform(integral_const_array<T, Xs...>, F f)
 {
-    return integral_const_array<T, f(xs)...>{};
+    return integral_const_array<T, f(Xs)...>{};
 }
 
-template <class T, T... xs, class U, U... ys, class F>
-constexpr auto transform(integral_const_array<T, xs...>, integral_const_array<U, ys...>, F f)
+template <class T, T... Xs, class U, U... Ys, class F>
+constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, F f)
 {
-    return integral_const_array<T, f(xs, ys)...>{};
+    return integral_const_array<T, f(Xs, Ys)...>{};
 }
 
 template <index_int... Ns>

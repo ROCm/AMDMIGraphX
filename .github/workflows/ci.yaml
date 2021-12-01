@@ -218,7 +218,7 @@ jobs:
       run: |
         echo "leak:dnnl::impl::malloc" > suppressions.txt
         export LSAN_OPTIONS="suppressions=$(pwd)/suppressions.txt"
-        rbuild build -d cget -s gh -t check \
+        rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \

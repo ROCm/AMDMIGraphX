@@ -38,7 +38,7 @@ struct gather
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).standard();
+        check_shapes{inputs, *this}.has(2);
         auto lens = inputs[0].lens();
         auto type = inputs[0].type();
         lens.erase(lens.begin() + axis);

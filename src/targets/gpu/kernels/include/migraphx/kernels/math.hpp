@@ -3,6 +3,7 @@
 
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <hip/hip_fp16.h>
 #include <hip/math_functions.h>
 

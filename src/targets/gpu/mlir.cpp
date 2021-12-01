@@ -447,12 +447,12 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        const char *deviceName = "gfx908";
+        const char* deviceName = "gfx908";
         mlirMIGraphXAddBackendPipeline(pm.get(), deviceName);
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;
-        op.code_object = get_binary();
+        op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;
     }

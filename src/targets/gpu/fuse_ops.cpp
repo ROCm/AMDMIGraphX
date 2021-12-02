@@ -605,7 +605,7 @@ struct miopen_fusion
             }
             if(fop.op.name() == "convolution")
             {
-                auto mop = f.create_conv(any_cast<op::convolution>(fop.op), inputs[i]);
+                auto* mop = f.create_conv(any_cast<op::convolution>(fop.op), inputs[i]);
                 invokers.push_back(
                     [=](const fused_operator_args& fargs, const std::vector<argument>& args) {
                         miopenSetOpArgsConvForward(
@@ -615,7 +615,7 @@ struct miopen_fusion
             }
             else if(fop.op.name() == "add")
             {
-                auto mop = f.create_bias(inputs[i]);
+                auto* mop = f.create_bias(inputs[i]);
                 invokers.push_back(
                     [=](const fused_operator_args& fargs, const std::vector<argument>& args) {
                         miopenSetOpArgsBiasForward(
@@ -625,7 +625,7 @@ struct miopen_fusion
             }
             else if(fop.op.name() == "relu")
             {
-                auto mop = f.create_relu();
+                auto* mop = f.create_relu();
                 invokers.push_back([=](const fused_operator_args& fargs,
                                        const std::vector<argument>&) {
                     miopenSetOpArgsActivForward(fargs.get(), mop, &fop.alpha, &fop.beta, 0, 0, 0);

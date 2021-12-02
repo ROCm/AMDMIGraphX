@@ -15,7 +15,7 @@ The `roctx.py` helper script provides two main functionality: `run` and `parse`.
 
 .. option::  --run
 
-Runs MIGraphX with rocTX and given MIGraphX knobs, and parses the results, providing GPU kernel timing information.
+Runs MIGraphX with rocTX command and given `migraphx-driver` knobs, and then parses the results, providing GPU kernel timing information.
 MIGraphX knobs can be given via a string to `--run` knob. Please see the examples below.
 
 .. option::  --parse

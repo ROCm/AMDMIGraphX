@@ -1,10 +1,10 @@
 Tools
-=======
+=====
 
-rocTX
-------------
-MIGraphX driver provides `roctx` knob which can be used with `rocprof` binary to get marker timing information for each MIGraphX operator.  
-In order to help user to process timing information, rocTX helper script is provided at `/tools/roctx.py`.
+rocTX.py
+-----
+MIGraphX driver provides `roctx` command which can be used with `rocprof` binary to get marker timing information for each MIGraphX operator.  
+In order to help user to process timing information, rocTX helper script is provided at `tools/roctx.py`.
 The `roctx.py` helper script provides two main functionality: `run` and `parse`. Available knobs and usage are given below:
 
 ::
@@ -15,7 +15,7 @@ The `roctx.py` helper script provides two main functionality: `run` and `parse`.
 
 .. option::  --run
 
-Runs MIGraphX with rocTX command and given `migraphx-driver` knobs, and then parses the results, providing GPU kernel timing information.
+Runs `migraphx-driver roctx` command and given `migraphx-driver` knobs, and then parses the results, providing GPU kernel timing information.
 MIGraphX knobs can be given via a string to `--run` knob. Please see the examples below.
 
 .. option::  --parse
@@ -53,11 +53,11 @@ Average total time is also provided. There are three files provided for referenc
 
 An example output:
 
-.. image:: ./driver/roctx1.jpg
+.. image:: ./roctx1.jpg
 
 Hotspot kerel timing information:
 
-.. image:: ./driver/roctx2.jpg
+.. image:: ./roctx2.jpg
 
 **Parsing an already existing JSON file:**
 ::

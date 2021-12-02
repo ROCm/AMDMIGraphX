@@ -33,9 +33,6 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
-        // Skip convert op for now
-        if(ins->name() == "convert")
-            continue;
         assert(ins->get_operator().attributes().contains("point_op"));
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();

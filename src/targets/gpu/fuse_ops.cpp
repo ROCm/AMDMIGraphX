@@ -170,7 +170,7 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
-    const auto device_name = split_string(get_device_name(), ':').front();
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
     if(not contains(get_supported_archs(), device_name))
         return false;
     if(enabled(MIGRAPHX_DISABLE_MIOPEN_FUSION{}))

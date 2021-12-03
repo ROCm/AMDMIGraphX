@@ -1,8 +1,8 @@
 Tools
 =====
 
-rocTX.py
------
+roctx.py
+--------
 MIGraphX driver provides `roctx` command which can be used with `rocprof` binary to get marker timing information for each MIGraphX operator.  
 In order to help user to process timing information, rocTX helper script is provided at `tools/roctx.py`.
 The `roctx.py` helper script provides two main functionality: `run` and `parse`. Available knobs and usage are given below:

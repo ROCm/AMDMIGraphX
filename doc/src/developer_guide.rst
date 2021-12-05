@@ -13,3 +13,4 @@ Developer Guide
    dev/quantization
    dev/pass
    dev/matchers
+   dev/tools

@@ -59,12 +59,12 @@ struct unsqueeze
         {
             if(std::find(axes.begin(), axes.end(), i) != axes.end())
             {
-                new_lens[i] = 1;
-                new_strides[i] = 0; 
+                new_lens[i]    = 1;
+                new_strides[i] = 0;
             }
             else
             {
-                new_lens[i] = old_lens[p];
+                new_lens[i]    = old_lens[p];
                 new_strides[i] = old_strides[p++];
             }
         }

@@ -5,6 +5,8 @@
 #include <migraphx/ref/target.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/auto_contiguous.hpp>
+#include <migraphx/pass_manager.hpp>
 #include "test.hpp"
 
 TEST_CASE(argmax_test_nonstd_shape)
@@ -159,7 +161,7 @@ TEST_CASE(scatter_test_nonstd_shape)
     EXPECT(migraphx::verify_range(results_vector, gold_vector));
 }
 
-TEST_CASE(squeeze_nonstd_test)
+TEST_CASE(squeeze_transpose_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -172,6 +174,46 @@ TEST_CASE(squeeze_nonstd_test)
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
+    auto* mm_uncompiled = p_uncompiled.get_main_module();
+    migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}}); 
+    auto expected_result = p_uncompiled.eval({}).back();
+    EXPECT(result.get_shape() == expected_result.get_shape());
+}
+
+TEST_CASE(squeeze_multibroadcast_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<float> data(3 * 3);
+    migraphx::shape s1{migraphx::shape::float_type, {1, 3, 1, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s1, data});
+    auto l0_brcst =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 3, 4, 3}}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze"), l0_brcst);
+    auto p_uncompiled = p;
+    p.compile(migraphx::ref::target{});
+    auto result          = p.eval({}).back();
+    auto* mm_uncompiled = p_uncompiled.get_main_module();
+    migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}}); 
+    auto expected_result = p_uncompiled.eval({}).back();
+    EXPECT(result.get_shape() == expected_result.get_shape());
+}
+
+TEST_CASE(squeeze_slice_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<float> data(2 * 3 * 4 * 4);
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 4}};
+    auto l0 = mm->add_literal(migraphx::literal{s1, data});
+    auto l0_slice =
+        mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze"), l0_slice);
+    auto p_uncompiled = p;
+    p.compile(migraphx::ref::target{});
+    auto result          = p.eval({}).back();
+    auto* mm_uncompiled = p_uncompiled.get_main_module();
+    migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}}); 
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result.get_shape() == expected_result.get_shape());
 }

@@ -41,7 +41,7 @@ struct unsqueeze
         auto input_shape = inputs[0];
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
-
+        auto old_strides = input_shape.strides();
         if(input_shape.scalar())
         {
             if(old_lens.size() == 1 and old_lens.front() == 1)
@@ -53,19 +53,22 @@ struct unsqueeze
         std::size_t new_size = old_lens.size() + axes.size();
 
         std::vector<std::size_t> new_lens(new_size);
+        std::vector<std::size_t> new_strides(new_size);
         std::size_t p = 0;
         for(std::size_t i = 0; i < new_size; i++)
         {
             if(std::find(axes.begin(), axes.end(), i) != axes.end())
             {
                 new_lens[i] = 1;
+                new_strides[i] = 0; 
             }
             else
             {
-                new_lens[i] = old_lens[p++];
+                new_lens[i] = old_lens[p];
+                new_strides[i] = old_strides[p++];
             }
         }
-        return shape{type, new_lens};
+        return shape{type, new_lens, new_strides};
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

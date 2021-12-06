@@ -54,11 +54,13 @@ struct squeeze
                          old_lens.end(),
                          std::back_inserter(new_lens),
                          [](auto len) { return len != 1; });
-            for(std::size_t i = 0; i < old_lens.size(); i++) {
-                if(old_lens[i] != 1) {
-                   new_strides.push_back(old_strides[i]); 
+            for(std::size_t i = 0; i < old_lens.size(); i++)
+            {
+                if(old_lens[i] != 1)
+                {
+                    new_strides.push_back(old_strides[i]);
                 }
-            } 
+            }
         }
         else
         {

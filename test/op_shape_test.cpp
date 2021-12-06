@@ -1446,19 +1446,22 @@ TEST_CASE(test_squeeze_all)
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 }
 
-TEST_CASE(test_squeeze_transpose) { 
+TEST_CASE(test_squeeze_transpose)
+{
     migraphx::shape s1{migraphx::shape::float_type, {4, 4, 1}, {4, 1, 4}};
     migraphx::shape s2{migraphx::shape::float_type, {4, 4}, {4, 1}};
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
 }
 
-TEST_CASE(test_squeeze_multibroadcast) {
+TEST_CASE(test_squeeze_multibroadcast)
+{
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 1, 4}, {0, 1, 1, 0}};
     migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
 }
 
-TEST_CASE(test_squeeze_slice) {
+TEST_CASE(test_squeeze_slice)
+{
     migraphx::shape s1{migraphx::shape::float_type, {2, 3, 1, 4}, {108, 36, 6, 1}};
     migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4}, {108, 36, 1}};
     expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
@@ -1480,14 +1483,14 @@ TEST_CASE(test_squeeze_wrong_axis)
 TEST_CASE(test_unsqueeze)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {9, 3, 0, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(test_unsqueeze_negative_axis)
 {
     migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {9, 3, 0, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s1);
 }
 
@@ -1508,6 +1511,27 @@ TEST_CASE(test_unsqueeze_scalar_tensor2)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 1}, {0, 0, 0}};
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s);
+}
+
+TEST_CASE(test_unsqueeze_transpose)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 4, 3}, {12, 1, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 4, 1, 3}, {12, 1, 0, 4}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multibroadcast)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {0, 1, 0, 0}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_slice)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {108, 36, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {108, 36, 0, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(transpose_shape)

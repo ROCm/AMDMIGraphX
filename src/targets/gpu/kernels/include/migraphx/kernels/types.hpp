@@ -1,7 +1,7 @@
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 
-#include <hip/hip_runtime.h>
+#include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {
 

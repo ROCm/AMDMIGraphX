@@ -34,7 +34,7 @@ struct cpp_generator
         std::string return_type             = "void";
         std::string name                    = "";
         std::vector<std::string> attributes = {};
-        std::vector<std::string> tparams = {};
+        std::vector<std::string> tparams    = {};
         function& set_body(const module& m, const generate_module_callback& g);
         function& set_body(const std::string& s)
         {

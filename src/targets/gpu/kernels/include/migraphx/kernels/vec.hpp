@@ -25,7 +25,7 @@ constexpr auto vec_size()
     return decltype(vec_size(T{})){};
 }
 
-template<class... Ts>
+template <class... Ts>
 constexpr auto is_any_vec()
 {
     if constexpr(sizeof...(Ts) == 0)
@@ -34,7 +34,7 @@ constexpr auto is_any_vec()
         return bool_constant<((vec_size<Ts>() + ...) > 0)>{};
 }
 
-template<class T, class I>
+template <class T, class I>
 constexpr auto vec_at(T x, I i)
 {
     if constexpr(vec_size<T>() == 0)
@@ -43,7 +43,7 @@ constexpr auto vec_at(T x, I i)
         return x[i];
 }
 
-template<class... Ts>
+template <class... Ts>
 constexpr auto common_vec_size()
 {
     return fold([](auto x, auto y) {
@@ -63,14 +63,14 @@ __device__ __host__ auto as_vec(T* x)
         return reinterpret_cast<vec<T, N>*>(x);
 }
 
-template<class... Ts>
+template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
     return [=](auto f) {
-        using type = decltype(f(vec_at(xs, 0)...));
-        constexpr auto size = common_vec_size<Ts...>();
+        using type             = decltype(f(vec_at(xs, 0)...));
+        constexpr auto size    = common_vec_size<Ts...>();
         vec<type, size> result = {0};
-        for(int i=0;i<size;i++)
+        for(int i = 0; i < size; i++)
             result[i] = f(vec_at(xs, i)...);
         return result;
     };

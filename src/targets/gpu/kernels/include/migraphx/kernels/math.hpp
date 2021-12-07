@@ -20,26 +20,27 @@ constexpr T as_float(T x)
 } // namespace math
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH(name, fname) \
-    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>                \
+#define MIGRAPHX_DEVICE_MATH(name, fname)                              \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(fname(xs...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_VEC(name) \
-    template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>                \
-    auto __device__ name(Ts... xs) { \
+#define MIGRAPHX_DEVICE_MATH_VEC(name)                                       \
+    template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>           \
+    auto __device__ name(Ts... xs)                                           \
+    {                                                                        \
         return vec_transform(xs...)([](auto... ys) { return name(ys...); }); \
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname) \
-    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>                          \
+#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(type x, Ts... xs) MIGRAPHX_RETURNS(fname(x, xs...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)       \
-    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>                           \
-    auto __device__ name(migraphx::half x, Ts... xs) \
+#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
+    auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 MIGRAPHX_DEVICE_MATH(abs, ::abs)

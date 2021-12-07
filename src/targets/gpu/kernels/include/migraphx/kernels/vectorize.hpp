@@ -30,16 +30,13 @@ constexpr auto as_vec_shape(Shape s)
     return make_shape(lens, strides);
 }
 
-template<class T>
+template <class T>
 __device__ __host__ T* remove_bool(T* x)
 {
     return x;
 }
 
-inline __device__ __host__ int8_t* remove_bool(bool* x)
-{
-    return reinterpret_cast<int8_t*>(x);
-}
+inline __device__ __host__ int8_t* remove_bool(bool* x) { return reinterpret_cast<int8_t*>(x); }
 
 template <index_int N, class T>
 __device__ __host__ auto as_vec(T x)

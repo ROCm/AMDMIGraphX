@@ -10,7 +10,7 @@
 
 namespace migraphx {
 
-template<class T>
+template <class T>
 struct implicit_conversion_op
 {
     T x;
@@ -21,14 +21,14 @@ struct implicit_conversion_op
         return __builtin_convertvector(x, vec<U, N>);
     }
 
-    template<class U>
+    template <class U>
     constexpr operator U() const
     {
         return x;
     }
 };
 
-template<class T>
+template <class T>
 constexpr implicit_conversion_op<T> implicit_conversion(T x)
 {
     return {x};

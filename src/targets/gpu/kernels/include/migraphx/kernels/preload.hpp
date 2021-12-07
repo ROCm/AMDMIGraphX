@@ -48,11 +48,21 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         [&](auto x, auto offset, auto copy) {
             if constexpr(copy)
             {
-                auto v = vectorize(x);
-                auto b = as_vec(tensor_vec_size(v), buffer + offset);
-                idx.local_stride(v.get_shape().element_space(),
-                                 [&](auto i) { b[i] = v.data()[i]; });
-                return x.with(buffer + offset);
+                if constexpr (decltype(tensor_vec_size(x)){} == 0)
+                {
+                    auto v = vectorize(x);
+                    auto b = as_vec(tensor_vec_size(v), buffer + offset);
+                    idx.local_stride(v.get_shape().element_space(),
+                                     [&](auto i) { b[i] = v.data()[i]; });
+                    return x.with(buffer + offset);
+                }
+                else
+                {
+                    auto b = as_vec(tensor_vec_size(x), buffer + offset);
+                    idx.local_stride(x.get_shape().element_space(),
+                                     [&](auto i) { b[i] = x.data()[i]; });
+                    return x.with(b);
+                }
             }
             else
             {

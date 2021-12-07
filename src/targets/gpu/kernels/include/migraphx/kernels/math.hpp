@@ -35,7 +35,7 @@ constexpr T as_float(T x)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
-    auto __device__ name(type x, Ts... xs) MIGRAPHX_RETURNS(fname(x, xs...))
+    auto __device__ name(type x, Ts... xs) -> type { return fname(x, xs...); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \

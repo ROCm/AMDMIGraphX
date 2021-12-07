@@ -7,9 +7,15 @@
 namespace migraphx {
 
 template <class T>
-constexpr auto tensor_vec_size(T)
+constexpr auto tensor_vec_size()
 {
     return vec_size<typename T::type>();
+}
+
+template <class T>
+constexpr auto tensor_vec_size(T)
+{
+    return tensor_vec_size<T>();
 }
 
 template <index_int N, class Shape>
@@ -124,7 +130,7 @@ constexpr auto find_vectorize_size(P pred)
 template <class T>
 __host__ __device__ auto vectorize(T x)
 {
-    if constexpr(vec_size<T>() == 0)
+    if constexpr(tensor_vec_size<T>() == 0)
     {
         constexpr auto n =
             find_vectorize_size([&](auto i) { return _c<is_vectorizable<i>(x.get_shape())>; });

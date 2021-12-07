@@ -48,7 +48,7 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         [&](auto x, auto offset, auto copy) {
             if constexpr(copy)
             {
-                if constexpr (decltype(tensor_vec_size(x)){} == 0)
+                if constexpr(decltype(tensor_vec_size(x)){} == 0)
                 {
                     auto v = vectorize(x);
                     auto b = as_vec(tensor_vec_size(v), buffer + offset);

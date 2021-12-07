@@ -50,7 +50,7 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     options.inputs         = io_shapes;
     options.output         = out_s;
     options.kernel_name    = "roialign_kernel";
-    options.reduced_inputs = io_shapes;
+    options.virtual_inputs = io_shapes;
 
     // sampling_ratio
     assert(val.contains("sampling_ratio"));

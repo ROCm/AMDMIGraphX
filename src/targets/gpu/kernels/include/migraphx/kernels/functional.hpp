@@ -137,8 +137,26 @@ constexpr void each_args(F)
 {
 }
 
+template <class F, class T>
+constexpr auto fold_impl(F&&, T&& x)
+{
+    return static_cast<T&&>(x);
+}
+
+template <class F, class T, class U, class... Ts>
+constexpr auto fold_impl(F&& f, T&& x, U&& y, Ts&&... xs)
+{
+    return fold_impl(f, f(static_cast<T&&>(x), static_cast<U&&>(y)), static_cast<Ts&&>(xs)...);
+}
+
+template <class F>
+constexpr auto fold(F f)
+{
+    return [=](auto&&... xs) { return fold_impl(f, static_cast<decltype(xs)&&>(xs)...); };
+}
+
 template <class... Ts>
-auto pack(Ts... xs)
+constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
 }
@@ -187,7 +205,7 @@ constexpr auto transform_args(F f, Fs... fs)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...) \
-    ([](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

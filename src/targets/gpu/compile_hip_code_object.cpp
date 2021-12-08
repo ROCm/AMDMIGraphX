@@ -114,6 +114,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
     options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
     options.params += " " + join_strings(compiler_warnings(), " ");
+    options.params += " -ftemplate-backtrace-limit=0";
     options.params += " -Werror";
     auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
     if(cos.size() != 1)

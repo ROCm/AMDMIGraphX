@@ -40,7 +40,10 @@ constexpr auto vec_at(T x, I i)
     if constexpr(vec_size<T>() == 0)
         return x;
     else
+    {
+        MIGRAPHX_ASSERT(i < vec_size<T>());
         return x[i];
+    }
 }
 
 template <class... Ts>

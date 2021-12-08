@@ -17,7 +17,6 @@ namespace migraphx {
 #define MIGRAPHX_HIP_NORETURN [[noreturn]]
 #endif
 
-
 namespace debug {
 struct swallow
 {
@@ -27,32 +26,32 @@ struct swallow
     }
 };
 
-template<size_t N>
+template <size_t N>
 struct print_buffer
 {
-    char buffer[N+1] = {0};
-    char* pos = buffer;
+    char buffer[N + 1] = {0};
+    char* pos          = buffer;
 
     constexpr void append(char c)
     {
-        if (c == 0)
+        if(c == 0)
             return;
-        if (pos < buffer+N)
+        if(pos < buffer + N)
         {
             *pos = c;
             pos++;
         }
     }
 
-    template<size_t M>
+    template <size_t M>
     constexpr void append(const char (&array)[M])
     {
-        for(int i=0;i<M;i++)
+        for(int i = 0; i < M; i++)
             append(array[i]);
     }
 };
 
-template<class... Ts>
+template <class... Ts>
 __host__ __device__ void print(const Ts&... xs)
 {
     const auto size = (sizeof(xs) + ...);
@@ -61,11 +60,10 @@ __host__ __device__ void print(const Ts&... xs)
     printf("%s", buffer.buffer);
 }
 
-}
-
+} // namespace debug
 
 // noreturn cannot be used on this function because abort in hip is broken
-template<class T1, class T2, class T3, class T4>
+template <class T1, class T2, class T3, class T4>
 MIGRAPHX_HIP_NORETURN inline __host__ __device__ void
 assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& function)
 {
@@ -76,9 +74,9 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 }
 
 #ifdef MIGRAPHX_DEBUG
-#define MIGRAPHX_ASSERT(cond)            \
+#define MIGRAPHX_ASSERT(cond)                               \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
-        assert_fail(private_migraphx_xs...);              \
+        assert_fail(private_migraphx_xs...);                \
     }(#cond, __FILE__, MIGRAPHX_STRINGIZE(__LINE__), __PRETTY_FUNCTION__))
 #else
 #define MIGRAPHX_ASSERT(cond)

@@ -161,22 +161,20 @@ constexpr auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
-template<class Compare, class P1, class P2>
+template <class Compare, class P1, class P2>
 constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 {
     return p1([&](auto... xs) {
         return p2([&](auto... ys) {
             auto c = [&](auto x, auto y) -> int {
-                if (compare(x, y))
+                if(compare(x, y))
                     return 1;
-                else if (compare(y, x))
+                else if(compare(y, x))
                     return -1;
                 else
                     return 0;
             };
-            return fold([](auto x, auto y) {
-                return x ? x : y;
-            })(c(xs, ys)..., 0);
+            return fold([](auto x, auto y) { return x ? x : y; })(c(xs, ys)..., 0);
         });
     });
 }

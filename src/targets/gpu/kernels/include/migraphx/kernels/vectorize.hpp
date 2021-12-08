@@ -18,12 +18,12 @@ constexpr auto tensor_vec_size(T)
     return tensor_vec_size<T>();
 }
 
-template<index_int N, class Shape, class Axis>
+template <index_int N, class Shape, class Axis>
 constexpr auto shape_step(Shape s, Axis)
 {
     static_assert(N > 0, "Vector size must be non-zero");
     return sequence(s.lens.size(), [&](auto... is) {
-        auto lens = transform(s.lens, index_ints<is...>{}, [&](auto i, auto j) {
+        auto lens    = transform(s.lens, index_ints<is...>{}, [&](auto i, auto j) {
             constexpr auto axis = Axis::to();
             MIGRAPHX_ASSERT(i != 0);
             MIGRAPHX_ASSERT(j != axis or i % N == 0);
@@ -35,7 +35,7 @@ constexpr auto shape_step(Shape s, Axis)
         auto strides = transform(s.strides, index_ints<is...>{}, [&](auto i, auto j) {
             constexpr auto axis = Axis::to();
             // If stride of the axis is zero then we dont need to adjust the other strides
-            if (Shape{}.strides[axis] == 0)
+            if(Shape{}.strides[axis] == 0)
                 return i;
             MIGRAPHX_ASSERT(j == axis or i % N == 0);
             if(j == axis)
@@ -44,7 +44,8 @@ constexpr auto shape_step(Shape s, Axis)
                 return i / N;
         });
         MIGRAPHX_ASSERT(make_shape(lens, strides).elements() * N == s.elements());
-        MIGRAPHX_ASSERT(strides[Axis{}] == 0 or make_shape(lens, strides).element_space() * N == s.element_space());
+        MIGRAPHX_ASSERT(strides[Axis{}] == 0 or
+                        make_shape(lens, strides).element_space() * N == s.element_space());
         return make_shape(lens, strides);
     });
 }
@@ -64,7 +65,8 @@ __device__ __host__ auto as_vec(T x, Axis axis)
     if constexpr(N == 0)
         return x;
     else
-        return make_tensor_view(as_vec<N>(remove_bool(x.data())), shape_step<N>(x.get_shape(), axis));
+        return make_tensor_view(as_vec<N>(remove_bool(x.data())),
+                                shape_step<N>(x.get_shape(), axis));
 }
 
 template <index_int N, class T, class Axis>
@@ -93,11 +95,12 @@ constexpr index_int find_vector_axis_c(Shape s)
 {
     // Find the fastest axis that is not broadcasted
     index_int axis = 0;
-    for(index_int i=1;i<s.lens.size();i++)
+    for(index_int i = 1; i < s.lens.size(); i++)
     {
-        if (s.strides[i] == 0)
+        if(s.strides[i] == 0)
             continue;
-        if (s.strides[axis] == 0 or pack_compare(less{}, pack(s.strides[i], s.lens[i]), pack(s.strides[axis], s.lens[axis])))
+        if(s.strides[axis] == 0 or
+           pack_compare(less{}, pack(s.strides[i], s.lens[i]), pack(s.strides[axis], s.lens[axis])))
             axis = i;
     }
     return axis;
@@ -107,19 +110,19 @@ template <class... Shapes>
 constexpr index_int find_vector_axis_c(Shapes... ss)
 {
     const bool all_broadcasted = (ss.broadcasted() and ...);
-    index_int axis = 0;
-    bool b         = false;
+    index_int axis             = 0;
+    bool b                     = false;
     by([&](auto s) {
         if(b)
             return;
         // Skip broadcasted shapes if there are shapes not broadcasted
-        if (not all_broadcasted and s.broadcasted())
+        if(not all_broadcasted and s.broadcasted())
             return;
         axis = find_vector_axis_c(s);
-        if (s.strides[axis] == 1)
-            b    = true;
+        if(s.strides[axis] == 1)
+            b = true;
     })(ss...);
-    if (not b)
+    if(not b)
         return -1;
     return axis;
 }
@@ -133,7 +136,9 @@ constexpr auto find_vector_axis(Shapes...)
 template <index_int N, class Axis, class... Shapes>
 constexpr auto is_vectorizable_c(Axis axis, Shapes... ss)
 {
-    return ((axis < ss.lens.size() and ss.lens[axis] % N == 0 and (ss.strides[axis] == 1 or ss.strides[axis] == 0)) and ...);
+    return ((axis < ss.lens.size() and ss.lens[axis] % N == 0 and
+             (ss.strides[axis] == 1 or ss.strides[axis] == 0)) and
+            ...);
 }
 
 template <index_int N, class Axis, class... Shapes>
@@ -160,9 +165,7 @@ __host__ __device__ auto vectorize(T x)
     {
         constexpr auto axis = find_vector_axis(x.get_shape());
         constexpr auto n =
-            find_vectorize_size([&](auto i) {
-                return is_vectorizable<i>(axis, x.get_shape());
-            });
+            find_vectorize_size([&](auto i) { return is_vectorizable<i>(axis, x.get_shape()); });
         return as_vec<n>(x, axis);
     }
     else

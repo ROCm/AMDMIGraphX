@@ -76,7 +76,8 @@ MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(
 inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 {
     index_int groups  = (n + local - 1) / local;
-    index_int nglobal = std::min<index_int>(1048576, groups) * local;
+    // max possible number of blocks is set to 1B
+    index_int nglobal = std::min<index_int>((1 << 30), groups) * local;
 
     return [=](auto f) {
         launch(stream, nglobal, local)([=](auto idx) __device__ {

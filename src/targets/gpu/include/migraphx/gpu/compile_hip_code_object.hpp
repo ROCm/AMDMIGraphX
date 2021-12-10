@@ -16,7 +16,7 @@ struct hip_compile_options
     shape output;
     std::string kernel_name           = "kernel";
     std::string params                = "";
-    std::vector<shape> reduced_inputs = {};
+    std::vector<shape> virtual_inputs = {};
 };
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options);

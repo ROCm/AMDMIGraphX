@@ -20,7 +20,7 @@ static const char* const pointwise_kernel = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <args.hpp>
 
-using namespace migraphx;
+namespace migraphx {
 
 ${preamble}
 
@@ -31,6 +31,8 @@ __global__ void kernel(${params})
 }
     
 }
+
+} // namespace migraphx
 
 int main() {}
 
@@ -46,7 +48,7 @@ operation compile_pointwise(context&,
     options.local          = 1024;
     options.inputs         = inputs;
     options.output         = inputs.back();
-    options.reduced_inputs = reduce_dims(inputs);
+    options.virtual_inputs = reduce_dims(inputs);
     options.params         = "-Wno-float-equal";
     auto src               = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},
@@ -60,6 +62,7 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
 {
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
+    g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     auto name = g.create_function(g.generate_module(m).set_attributes({"__device__"}));
     return compile_pointwise((ctx), inputs, "&" + name, g.str());
 }

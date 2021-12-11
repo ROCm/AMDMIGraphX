@@ -183,11 +183,15 @@ struct mlir_program
 
     MlirAttribute attribute(std::int64_t i) const
     {
-        return mlirIntegerAttrGet(mlirIntegerTypeSignedGet(ctx.get(), 64), i);
+        if (i < 0)
+            MIGRAPHX_THROW("MLIR cant handle negative values since they are ambiguous");
+        return mlirIntegerAttrGet(mlirIntegerTypeGet(ctx.get(), 64), i);
     }
     MlirAttribute attribute(std::uint64_t i) const
     {
-        return mlirIntegerAttrGet(mlirIntegerTypeUnsignedGet(ctx.get(), 64), i);
+        if (i > (std::numeric_limits<std::uint64_t>::max() / 2))
+            MIGRAPHX_THROW("MLIR cant handle large integer values since they are ambiguous");
+        return mlirIntegerAttrGet(mlirIntegerTypeGet(ctx.get(), 64), i);
     }
     MlirAttribute attribute(unsigned char i) const { return attribute(std::uint64_t(i)); }
     MlirAttribute attribute(bool b) const { return mlirBoolAttrGet(ctx.get(), b ? 1 : 0); }
@@ -433,7 +437,8 @@ struct mlir_program
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(ins->get_operator().to_value());
-            ops.add_results({get_shape(ins)});
+            if(ins->name() != "@return")
+                ops.add_results({get_shape(ins)});
 
             std::vector<MlirValue> inputs;
             transform(
@@ -441,8 +446,11 @@ struct mlir_program
             ops.add_operands(inputs);
 
             auto outputs = insert(fbody, std::move(ops));
-            assert(outputs.size() == 1);
-            ins_map[ins] = outputs.front();
+            if(ins->name() != "@return")
+            {
+                assert(outputs.size() == 1);
+                ins_map[ins] = outputs.front();
+            }
         }
     }
 

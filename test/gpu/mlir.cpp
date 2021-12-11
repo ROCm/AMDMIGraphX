@@ -36,7 +36,7 @@ std::string encode(std::string s)
 migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto names = mmlir.get_parameter_names();
     std::vector<migraphx::instruction_ref> inputs;
     std::transform(names.begin(), names.end(), std::back_inserter(inputs), [&](const auto& name) {

@@ -309,8 +309,10 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-std::vector<instruction_ref> module::insert_module_instructions(
-    instruction_ref ins, const_module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref>
+module::insert_module_instructions(instruction_ref ins,
+                                   const_module_ref m,
+                                   std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     std::vector<instruction_ref> mod_outputs;
     for(auto sins : iterator_for(*m))

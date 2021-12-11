@@ -10,6 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 using module_ref = module*;
+using const_module_ref = const module*;
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

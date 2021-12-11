@@ -98,7 +98,7 @@ struct module
 
     std::vector<instruction_ref>
     insert_module_instructions(instruction_ref ins,
-                               module_ref m,
+                               const_module_ref m,
                                std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>

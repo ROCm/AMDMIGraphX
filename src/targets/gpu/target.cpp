@@ -100,7 +100,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_reshapes{},
         propagate_constant{},
         dead_code_elimination{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_POINTWISE_FUSION{}), fuse_pointwise{}),
+        fuse_pointwise{},
         dead_code_elimination{},
         mlir_conv{&ctx},
         lowering{&ctx, options.offload_copy},

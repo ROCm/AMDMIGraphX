@@ -510,7 +510,10 @@ code_object_op compile_mlir(const module& m)
     return mp.compile();
 }
 
-instruction_ref insert_mlir(module& m, instruction_ref ins, const module& mmlir, const std::vector<instruction_ref>& inputs)
+instruction_ref insert_mlir(module& m,
+                            instruction_ref ins,
+                            const module& mmlir,
+                            const std::vector<instruction_ref>& inputs)
 {
     auto co = compile_mlir(mmlir);
 
@@ -527,10 +530,10 @@ instruction_ref insert_mlir(module& m, instruction_ref ins, const module& mmlir,
         return lit;
     };
 
-    for(auto input:inputs)
+    for(auto input : inputs)
     {
         const size_t offset = 0;
-        auto s         = input->get_shape();
+        auto s              = input->get_shape();
         refs.push_back(input);
         refs.push_back(input);
         refs.push_back(get_literal(offset)); // offset
@@ -550,7 +553,7 @@ instruction_ref insert_mlir(module& m, instruction_ref ins, const module& mmlir,
         refs.push_back(get_literal(1)); // G
     }
     co.expected_inputs = to_shapes(refs);
-    co.output = mmlir.get_output_shapes().front();
+    co.output          = mmlir.get_output_shapes().front();
     return m.insert_instruction(ins, co, refs);
 }
 

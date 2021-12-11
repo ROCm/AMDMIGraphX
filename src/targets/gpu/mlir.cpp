@@ -18,6 +18,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <deque>
 #include <variant>
@@ -507,6 +508,50 @@ code_object_op compile_mlir(const module& m)
     mlir_program mp;
     mp.parse(m);
     return mp.compile();
+}
+
+instruction_ref insert_mlir(module& m, instruction_ref ins, const module& mmlir, const std::vector<instruction_ref>& inputs)
+{
+    auto co = compile_mlir(mmlir);
+
+    std::vector<instruction_ref> refs;
+    refs.reserve(inputs.size() * 15);
+
+    std::unordered_map<uint64_t, instruction_ref> literal_map{};
+    auto get_literal = [&](uint64_t value) {
+        auto fi = literal_map.find(value);
+        if(fi != literal_map.end())
+            return fi->second;
+        auto lit = m.add_literal(value);
+        literal_map.emplace(value, lit);
+        return lit;
+    };
+
+    for(auto input:inputs)
+    {
+        const size_t offset = 0;
+        auto s         = input->get_shape();
+        refs.push_back(input);
+        refs.push_back(input);
+        refs.push_back(get_literal(offset)); // offset
+
+        // dim sizes
+        std::transform(s.lens().begin(),
+                       s.lens().end(),
+                       std::back_inserter(refs),
+                       [&](const auto& lval) { return get_literal(lval); });
+        refs.push_back(get_literal(1)); // G
+
+        // dim strides
+        std::transform(s.strides().begin(),
+                       s.strides().end(),
+                       std::back_inserter(refs),
+                       [&](const auto& lval) { return get_literal(lval); });
+        refs.push_back(get_literal(1)); // G
+    }
+    co.expected_inputs = to_shapes(refs);
+    co.output = mmlir.get_output_shapes().front();
+    return m.insert_instruction(ins, co, refs);
 }
 
 #else

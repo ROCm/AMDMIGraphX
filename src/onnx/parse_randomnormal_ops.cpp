@@ -73,7 +73,7 @@ struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
         std::mt19937 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         if(contains(info.attributes, "seed"))
             gen.seed(info.attributes.at("seed").f());
-        
+
         std::normal_distribution<> d(mean, scale);
         std::vector<double> rand_vals(out_shape.elements());
         std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });

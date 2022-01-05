@@ -32,6 +32,11 @@ struct convert : unary<convert>
         return {target_type, inputs.at(0).lens(), inputs.at(0).strides()};
     }
 
+    std::string point_op() const
+    {
+        return "${function:convert}<" + shape::cpp_type(target_type) + ">(${0})";
+    }
+
     auto apply() const
     {
         auto type = target_type;

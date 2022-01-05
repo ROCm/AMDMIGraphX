@@ -1473,6 +1473,32 @@ TEST_CASE(fp32_fp16_test)
     test_case({"add"});
 }
 
+TEST_CASE(gather_non_std_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        std::vector<float> data = {0.5f, 3.5f, 6.5f, 1.5f, 4.5f, 7.5f, 2.5f, 2.5f, 8.5f};
+        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        auto d = mm->add_literal(migraphx::literal{s, data});
+        migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
+        std::vector<int> indices{-3, -3, -1, -1};
+        auto ind = mm->add_literal(migraphx::literal{s_indices, indices});
+        auto td = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d);
+        auto tind =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), ind);
+
+        mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), td, tind);
+        auto result               = p.eval({}).back();
+        std::vector<float> golden = {
+            0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f, 0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
+        std::vector<float> res_data;
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+        EXPECT(migraphx::verify_range(res_data, golden));
+    }
+}
+
 TEST_CASE(gather_test)
 {
     {
@@ -2784,7 +2810,6 @@ TEST_CASE(nms_not_center_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::cout << "output = " << output << std::endl;
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     EXPECT(migraphx::verify_range(result, gold));
 }
@@ -2818,7 +2843,6 @@ TEST_CASE(nms_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::cout << "output = " << output << std::endl;
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     EXPECT(migraphx::verify_range(result, gold));
 }

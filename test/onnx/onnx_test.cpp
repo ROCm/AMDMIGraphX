@@ -2388,6 +2388,14 @@ TEST_CASE(multinomial_dtype_error_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("multinomial_dtype_error_test.onnx"); }));
 }
 
+TEST_CASE(multinomial_generated_seed_test)
+{
+    auto p1 = optimize_onnx("multinomial_generated_seed_test.onnx");
+    auto p2 = optimize_onnx("multinomial_generated_seed_test.onnx");
+
+    EXPECT(p1 != p2);
+}
+
 TEST_CASE(multinomial_int64_test)
 {
     migraphx::program p;
@@ -2891,6 +2899,14 @@ TEST_CASE(randomnormal_dtype_error_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormal_dtype_error_test.onnx"); }));
 }
 
+TEST_CASE(randomnormal_generated_seed_test)
+{
+    auto p1 = optimize_onnx("randomnormal_generated_seed_test.onnx");
+    auto p2 = optimize_onnx("randomnormal_generated_seed_test.onnx");
+
+    EXPECT(p1 != p2);
+}
+
 TEST_CASE(randomnormal_shape_error_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormal_shape_error_test.onnx"); }));
@@ -2951,6 +2967,14 @@ TEST_CASE(randomuniform_test)
 TEST_CASE(randomuniform_dtype_error_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("randomuniform_dtype_error_test.onnx"); }));
+}
+
+TEST_CASE(randomuniform_generated_seed_test)
+{
+    auto p1 = optimize_onnx("randomuniform_generated_seed_test.onnx");
+    auto p2 = optimize_onnx("randomuniform_generated_seed_test.onnx");
+
+    EXPECT(p1 != p2);
 }
 
 TEST_CASE(randomuniform_shape_error_test)

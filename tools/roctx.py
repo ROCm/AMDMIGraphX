@@ -21,7 +21,7 @@ def parse_args():
         description="Parser for MIGraphX ROCTX Markers")
     parser.add_argument('--json-path',
                         type=str,
-                        metavar='json_path',
+                        metavar='json-path',
                         help='Path to json file')
     parser.add_argument('--out',
                         type=str,

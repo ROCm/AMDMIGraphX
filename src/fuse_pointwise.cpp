@@ -33,9 +33,6 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
-        // Skip convert op for now
-        if(ins->name() == "convert")
-            continue;
         assert(ins->get_operator().attributes().contains("point_op"));
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
@@ -129,22 +126,25 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
 static bool find_pointwise_modules(module& m)
 {
     bool changed = false;
+    auto last    = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "pointwise")
             continue;
-        if(ins->outputs().empty())
+        if(ins->outputs().empty() and ins != last)
             continue;
         auto it = std::find_if(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
             return i->name() == "pointwise" and i->outputs().size() == 1;
         });
         if(it == ins->inputs().end())
             continue;
+        auto input = *it;
 
-        auto new_inputs = append_pointwise_module(*it, ins);
-        m.replace_instruction(*it, (*it)->get_operator(), new_inputs, (*it)->module_inputs());
-        m.replace_instruction(ins, *it);
-        m.move_instruction(*it, ins);
+        auto new_inputs = append_pointwise_module(input, ins);
+        m.replace_instruction(input, input->get_operator(), new_inputs, input->module_inputs());
+        m.replace_instruction(ins, input);
+        m.move_instruction(input, ins);
+
         changed = true;
     }
     return changed;

@@ -554,7 +554,7 @@ instruction_ref insert_mlir(module& m,
     }
     co.expected_inputs = to_shapes(refs);
     co.output          = mmlir.get_output_shapes().front();
-    co.symbol_name = "main";
+    co.symbol_name     = "main";
     return m.insert_instruction(ins, co, refs);
 }
 

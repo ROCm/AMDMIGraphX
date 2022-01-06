@@ -207,6 +207,7 @@ struct hip_allocate_memory
 
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
+printf("jjjjjjjjjjjjjjjjjjjj\n"); //brian
         argument a = allocate_gpu(s);
         store_preallocated_param(ctx, id, a);
     }

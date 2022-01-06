@@ -41,11 +41,14 @@ int main() {}
 operation compile_pointwise(context&,
                             const std::vector<shape>& inputs,
                             const std::string& lambda,
-                            const std::string& preamble)
+                            const std::string& preamble,
+                            const int global_workitems,
+                            const int local_workitems_per_CU
+)
 {
     hip_compile_options options;
-    options.global         = compute_global(inputs.front().elements());
-    options.local          = 1024;
+    options.global         = global_workitems;
+    options.local          = local_workitems_per_CU;
     options.inputs         = inputs;
     options.output         = inputs.back();
     options.virtual_inputs = reduce_dims(inputs);

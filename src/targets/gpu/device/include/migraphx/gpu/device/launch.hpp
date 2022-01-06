@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
 
 #include <hip/hip_runtime.h>
+#include <hip/hcc_detail/hip_prof_str.h>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/types.hpp>
 
@@ -15,6 +16,9 @@ struct index
     index_int global = 0;
     index_int local  = 0;
     index_int group  = 0;
+
+    //brian, for test
+    #define LOCAL_THREADS 2
 
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
@@ -48,6 +52,8 @@ __global__ void launcher(F f)
     f(idx);
 }
 
+// global:  number of global threads (?)
+// local: number of local threads  (?)
 inline auto launch(hipStream_t stream, index_int global, index_int local)
 {
     return [=](auto f) {
@@ -55,6 +61,7 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         assert(global > 0);
         using f_type = decltype(f);
         dim3 nblocks(global / local);
+        // printf("global:   %d nblocks:  %d ++++++++++++\n",global, global / local);
         dim3 nthreads(local);
         // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
@@ -73,8 +80,19 @@ MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(
     return f(i);
 }
 
-inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
+// n:  ?
+// global:  number of global work items (threads)
+// local: number of local work items (threads) per compute unit (CU) 
+inline auto gs_launch(hipStream_t stream, index_int n, index_int local = LOCAL_THREADS) //brian
 {
+    printf("calling gs_launch with n=%d ", n);
+    // Brian test:  get this device's properties to aid with auto tuning  see https://rocm-developer-tools.github.io/HIP/structhipDeviceProp__t.html
+    hipDeviceProp_t myProps;
+    hipError_t err;
+    err = hipGetDeviceProperties(&myProps, 0);
+    printf("brian++++ properties are max threads %d, warp (wavefront) size %d\n", myProps.maxThreadsPerBlock, myProps.warpSize );
+
+
     index_int groups = (n + local - 1) / local;
     // max possible number of blocks is set to 1B (1,073,741,824)
     index_int nglobal = std::min<index_int>(1073741824, groups) * local;

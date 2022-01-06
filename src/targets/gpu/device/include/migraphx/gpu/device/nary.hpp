@@ -86,9 +86,19 @@ void nary_broadcast_vec_impl(
     auto broadcast_idx = create_broadcast_index(bdim_len, bdim_stride);
 
     const index_int vec_size     = 4;
-    const index_int nlocal       = 1024;
-    const index_int nglobal      = 256 * nlocal;
+    // const index_int nlocal       = 1024;
+    const index_int nlocal       = LOCAL_THREADS;  // brian
+    const index_int nglobal      = 256 * nlocal;  // 256 ~~ nblocks
     const index_int bdim_vec_len = bdim_len / vec_size;
+    printf("nary++++ nglobal=%d, nlocal=%d\n", nglobal, nlocal );//brian
+
+    // brian do the iteration for test, printing out info for each kernel
+    hip_vec_visit_all<vec_size>(result, barg, args...)(
+        [&](auto output, auto binput, auto... inputs) {
+            printf("      global it. ++++ nglobal=%d, nlocal=%d\n", nglobal, nlocal );//brian
+        });
+    printf("nary done++++\n\n");
+
     hip_vec_visit_all<vec_size>(result, barg, args...)(
         [&](auto output, auto binput, auto... inputs) {
             using type                = typename decltype(output)::value_type;

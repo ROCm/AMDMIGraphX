@@ -1573,16 +1573,20 @@ TEST_CASE(hardsigmoid_default_test)
     auto x = mm->add_parameter("x", s);
 
     float alpha = 0.2;
-    float beta = 0.5;
+    float beta  = 0.5;
 
     auto mb_alpha = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
     auto mb_beta = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
-    auto mb_zero = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
-    auto mb_one = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
+    auto mb_one =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
     auto mul = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, x);
     auto add = mm->add_instruction(migraphx::make_op("add"), mb_beta, mul);
@@ -1602,16 +1606,20 @@ TEST_CASE(hardsigmoid_double_test)
     auto x = mm->add_parameter("x", s);
 
     float alpha = 0.3;
-    float beta = 0.7;
+    float beta  = 0.7;
 
     auto mb_alpha = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
     auto mb_beta = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
-    auto mb_zero = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
-    auto mb_one = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
+    auto mb_one =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
     auto mul = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, x);
     auto add = mm->add_instruction(migraphx::make_op("add"), mb_beta, mul);
@@ -1631,16 +1639,20 @@ TEST_CASE(hardsigmoid_half_test)
     auto x = mm->add_parameter("x", s);
 
     float alpha = 0.2;
-    float beta = 0.5;
+    float beta  = 0.5;
 
     auto mb_alpha = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
     auto mb_beta = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
-    auto mb_zero = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
-    auto mb_one = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {beta}}));
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
+    auto mb_one =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
     auto mul = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, x);
     auto add = mm->add_instruction(migraphx::make_op("add"), mb_beta, mul);

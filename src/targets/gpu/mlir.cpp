@@ -19,6 +19,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <deque>
 #include <variant>
@@ -461,11 +462,14 @@ struct mlir_program
         // 1st pipeline to call
         mlirMIGraphXAddHighLevelPipeline(pm.get());
         // 2nd pipeline to call
-        const char* deviceName = "gfx908";
-        mlirMIGraphXAddBackendPipeline(pm.get(), deviceName);
+        std::string tname = get_device_name();
+        // HACK: Since MLIR can't handle the full target name
+        auto hacked_tname = tname.substr(0, tname.find(":"));
+        mlirMIGraphXAddBackendPipeline(pm.get(), hacked_tname.c_str());
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;
+        op.symbol_name     = "main";
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;
@@ -554,7 +558,6 @@ instruction_ref insert_mlir(module& m,
     }
     co.expected_inputs = to_shapes(refs);
     co.output          = mmlir.get_output_shapes().front();
-    co.symbol_name     = "main";
     return m.insert_instruction(ins, co, refs);
 }
 

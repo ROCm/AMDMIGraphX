@@ -2760,6 +2760,21 @@ def multinomial_test():
 
 
 @onnx_test
+def multinomial_generated_seed_test():
+    sample_size = 10
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def multinomial_dtype_error_test():
     sample_size = 10
     dtype = 0
@@ -3211,6 +3226,21 @@ def randomnormal_dtype_error_test():
 
 
 @onnx_test
+def randomnormal_generated_seed_test():
+    sample_size = 10
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('RandomNormal',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test
 def randomnormal_shape_error_test():
     dtype = 1
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
@@ -3298,6 +3328,21 @@ def randomuniform_dtype_error_test():
                                  shape=shape)
 
     return ([node], [], [output])
+
+
+@onnx_test
+def randomuniform_generated_seed_test():
+    sample_size = 10
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [1, 10])
+
+    node = onnx.helper.make_node('RandomUniform',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
 
 
 @onnx_test

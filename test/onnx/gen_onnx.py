@@ -1635,6 +1635,50 @@ def group_conv_test():
 
 
 @onnx_test
+def hardsigmoid_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'HardSigmoid',
+        inputs=['x'],
+        outputs=['y']
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def hardsigmoid_double_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [1, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'HardSigmoid',
+        inputs=['x'],
+        outputs=['y'],
+        alpha=0.3,
+        beta=0.7
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def hardsigmoid_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 3, 4, 5])
+
+    node = onnx.helper.make_node(
+        'HardSigmoid',
+        inputs=['x'],
+        outputs=['y']
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def if_else_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])

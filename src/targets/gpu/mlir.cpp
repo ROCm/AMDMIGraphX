@@ -469,7 +469,7 @@ struct mlir_program
         mlirPassManagerRun(pm.get(), mmodule.get());
 
         code_object_op op;
-        op.symbol_name     = "main";
+        op.symbol_name                = "main";
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;

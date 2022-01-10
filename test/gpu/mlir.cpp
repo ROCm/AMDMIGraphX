@@ -44,6 +44,7 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     });
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
     migraphx::gpu::insert_mlir(*mm, mm->end(), mmlir, inputs);
+    std::cout << p << std::endl;
     return p;
 }
 

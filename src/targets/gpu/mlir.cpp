@@ -534,10 +534,12 @@ instruction_ref insert_mlir(module& m,
         return lit;
     };
 
+    std::size_t last = 0;
     for(auto input : inputs)
     {
         const size_t offset = 0;
         auto s              = input->get_shape();
+        last = refs.size();
         refs.push_back(input);
         refs.push_back(input);
         refs.push_back(get_literal(offset)); // offset
@@ -558,6 +560,7 @@ instruction_ref insert_mlir(module& m,
     }
     co.expected_inputs = to_shapes(refs);
     co.output          = mmlir.get_output_shapes().front();
+    co.output_arg = last;
     return m.insert_instruction(ins, co, refs);
 }
 

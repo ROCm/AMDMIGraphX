@@ -1669,6 +1669,16 @@ def hardsigmoid_half_test():
 
 
 @onnx_test
+def hardsigmoid_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5])
+
+    node = onnx.helper.make_node('HardSigmoid', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def if_else_test():
     x = onnx.helper.make_tensor_value_info('x', onnx.TensorProto.FLOAT, [2, 3])
     y = onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [2, 3])

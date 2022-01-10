@@ -135,7 +135,7 @@ TEST_CASE(hardsigmoid_verify_test)
     std::vector<float> data = {-10.0, -2.5, -1.0, -0.5, 0, 1.0, 2.0, 2.5, 2.6, 100.0};
 
     float alpha = 0.2;
-    float beta = 0.5;
+    float beta  = 0.5;
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s, data.data());
 
@@ -144,9 +144,10 @@ TEST_CASE(hardsigmoid_verify_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold(10);
-    std::transform(data.begin(), data.end(), gold.begin(), [&](auto x){ return std::max(0.0f, std::min(x * alpha + beta, 1.0f)); });
+    std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
+        return std::max(0.0f, std::min(x * alpha + beta, 1.0f));
+    });
     EXPECT(migraphx::verify_range(result_vector, gold));
-
 }
 
 TEST_CASE(if_else_test)

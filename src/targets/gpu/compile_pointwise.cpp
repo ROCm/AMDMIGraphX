@@ -48,7 +48,7 @@ operation compile_pointwise(context&,
     options.local          = 1024;
     options.inputs         = inputs;
     options.output         = inputs.back();
-    options.reduced_inputs = reduce_dims(inputs);
+    options.virtual_inputs = reduce_dims(inputs);
     options.params         = "-Wno-float-equal";
     auto src               = interpolate_string(pointwise_kernel,
                                   {{"params", enum_params(inputs.size(), "void * private_p")},

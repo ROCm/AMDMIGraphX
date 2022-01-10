@@ -152,5 +152,11 @@ constexpr auto min(const T& a, const U& b)
     return where(a > b, b, a);
 }
 
+template <class T, class U>
+constexpr T convert(U x)
+{
+    return x;
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_MATH_HPP

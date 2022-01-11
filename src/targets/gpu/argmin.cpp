@@ -9,7 +9,7 @@ namespace gpu {
 
 shape hip_argmin::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).standard();
+    check_shapes{inputs, *this}.has(2);
     return op.normalize_compute_shape({inputs.at(0)});
 }
 

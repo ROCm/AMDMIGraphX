@@ -70,7 +70,7 @@ template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
     return [=](auto f) {
-        if constexpr (is_any_vec<Ts...>())
+        if constexpr(is_any_vec<Ts...>())
         {
             using type             = decltype(f(vec_at(xs, 0)...));
             constexpr auto size    = common_vec_size<Ts...>();

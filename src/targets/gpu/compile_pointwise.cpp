@@ -64,6 +64,8 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
+    g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
+    g.add_point_op("sign", "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
     auto name =
         g.create_function(g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m));
     return compile_pointwise((ctx), inputs, "MIGRAPHX_LIFT(" + name + ")", g.str());

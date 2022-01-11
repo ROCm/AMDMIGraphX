@@ -70,12 +70,19 @@ template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
     return [=](auto f) {
-        using type             = decltype(f(vec_at(xs, 0)...));
-        constexpr auto size    = common_vec_size<Ts...>();
-        vec<type, size> result = {0};
-        for(int i = 0; i < size; i++)
-            result[i] = f(vec_at(xs, i)...);
-        return result;
+        if constexpr (is_any_vec<Ts...>())
+        {
+            using type             = decltype(f(vec_at(xs, 0)...));
+            constexpr auto size    = common_vec_size<Ts...>();
+            vec<type, size> result = {0};
+            for(int i = 0; i < size; i++)
+                result[i] = f(vec_at(xs, i)...);
+            return result;
+        }
+        else
+        {
+            return f(xs...);
+        }
     };
 }
 

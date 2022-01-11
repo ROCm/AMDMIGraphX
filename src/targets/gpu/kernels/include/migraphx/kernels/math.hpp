@@ -153,9 +153,9 @@ constexpr auto min(const T& a, const U& b)
 }
 
 template <class T, class U>
-constexpr T convert(U x)
+constexpr auto convert(U v)
 {
-    return x;
+    return vec_transform(v)([](auto x) -> T { return x; });
 }
 
 } // namespace migraphx

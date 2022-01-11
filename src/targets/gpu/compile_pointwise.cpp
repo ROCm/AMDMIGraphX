@@ -66,6 +66,10 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
     g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
     g.add_point_op("sign", "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
+    g.add_point_op("equal", "migraphx::abs(${0} == ${1})");
+    g.add_point_op("less", "migraphx::abs(${0} < ${1})");
+    g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
+    g.add_point_op("not", "migraphx::abs(not ${0})");
     auto name =
         g.create_function(g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m));
     return compile_pointwise((ctx), inputs, "MIGRAPHX_LIFT(" + name + ")", g.str());

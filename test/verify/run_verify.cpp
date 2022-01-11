@@ -127,7 +127,7 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
-    if (migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
+    if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
         migraphx::save(p, name + ".mx");
     std::vector<std::pair<std::string, result_future>> results;
     std::vector<std::string> target_names;

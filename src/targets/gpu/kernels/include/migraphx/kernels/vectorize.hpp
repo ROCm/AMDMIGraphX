@@ -137,7 +137,8 @@ template <index_int N, class Axis, class... Shapes>
 constexpr auto is_vectorizable_c(Axis axis, Shapes... ss)
 {
     return ((axis < ss.lens.size() and ss.lens[axis] % N == 0 and
-             (ss.strides[axis] == 1 or ss.strides[axis] == 0)) and
+             // Only vectorize broadcasted types with stride 0, since this causes issues in the preloader
+             ((not ss.broadcasted() and ss.strides[axis] == 1) or ss.strides[axis] == 0)) and
             ...);
 }
 

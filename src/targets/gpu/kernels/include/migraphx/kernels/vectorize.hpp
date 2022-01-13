@@ -176,42 +176,49 @@ __host__ __device__ auto vectorize(T x)
     }
 }
 
+template<class F, class... Ts>
+inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
+{
+    // TODO: Just check there a single axis of 1
+    constexpr bool packed_or_broadcasted =
+        ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
+    if constexpr(packed_or_broadcasted)
+    {
+        constexpr auto axis = decltype(find_vector_axis(xs.get_shape()...)){};
+        constexpr auto n    = find_vectorize_size(
+            [&](auto i) { return is_vectorizable<i>(axis, xs.get_shape()...); });
+        by(
+            [&](auto x) {
+                constexpr auto s = decltype(x.get_shape()){};
+                if constexpr(axis < s.strides.size())
+                {
+                    MIGRAPHX_ASSERT(s.strides[axis] == 0 or s.strides[axis] == 1);
+                    MIGRAPHX_ASSERT(s.lens[axis] > 0);
+                    MIGRAPHX_ASSERT(n == 0 or s.lens[axis] % n == 0);
+                    if constexpr(s.strides[axis] == 0)
+                        return tensor_step<n>(x, axis);
+                    else
+                        return as_vec<n>(x, axis);
+                }
+                else
+                {
+                    return x;
+                }
+            },
+            f)(xs...);
+    }
+    else
+    {
+        f(xs...);
+    }
+
+}
+
 inline __device__ __host__ auto auto_vectorize()
 {
     return [](auto... xs) {
         return [=](auto f) {
-            // TODO: Just check there a single axis of 1
-            constexpr bool packed_or_broadcasted =
-                ((xs.get_shape().packed() or xs.get_shape().broadcasted()) and ...);
-            if constexpr(packed_or_broadcasted)
-            {
-                constexpr auto axis = decltype(find_vector_axis(xs.get_shape()...)){};
-                constexpr auto n    = find_vectorize_size(
-                    [&](auto i) { return is_vectorizable<i>(axis, xs.get_shape()...); });
-                by(
-                    [&](auto x) {
-                        constexpr auto s = decltype(x.get_shape()){};
-                        if constexpr(axis < s.strides.size())
-                        {
-                            MIGRAPHX_ASSERT(s.strides[axis] == 0 or s.strides[axis] == 1);
-                            MIGRAPHX_ASSERT(s.lens[axis] > 0);
-                            MIGRAPHX_ASSERT(n == 0 or s.lens[axis] % n == 0);
-                            if constexpr(s.strides[axis] == 0)
-                                return tensor_step<n>(x, axis);
-                            else
-                                return as_vec<n>(x, axis);
-                        }
-                        else
-                        {
-                            return x;
-                        }
-                    },
-                    f)(xs...);
-            }
-            else
-            {
-                f(xs...);
-            }
+            auto_vectorize_impl(f, xs...);
         };
     };
 }

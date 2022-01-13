@@ -4104,9 +4104,9 @@ TEST_CASE(softplus_test)
     auto input_type = migraphx::shape::float_type;
 
     auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
-    auto mb_ones = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+    auto mb_ones =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
     auto exp = mm->add_instruction(migraphx::make_op("exp"), x);
     auto add = mm->add_instruction(migraphx::make_op("add"), exp, mb_ones);
     mm->add_instruction(migraphx::make_op("log"), add);
@@ -4124,9 +4124,9 @@ TEST_CASE(softplus_nd_test)
     auto input_type = migraphx::shape::half_type;
 
     auto x = mm->add_parameter("x", migraphx::shape{input_type, input_lens});
-    auto mb_ones = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+    auto mb_ones =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
     auto exp = mm->add_instruction(migraphx::make_op("exp"), x);
     auto add = mm->add_instruction(migraphx::make_op("add"), exp, mb_ones);
     mm->add_instruction(migraphx::make_op("log"), add);

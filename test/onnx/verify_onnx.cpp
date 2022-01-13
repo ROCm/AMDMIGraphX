@@ -126,7 +126,6 @@ TEST_CASE(gather_elements)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-<<<<<<< HEAD
 TEST_CASE(greaterorequal_test)
 {
     migraphx::program p = migraphx::parse_onnx("greaterorequal_test.onnx");
@@ -145,7 +144,9 @@ TEST_CASE(greaterorequal_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<bool> gold = {true, true, false};
-=======
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(hardsigmoid_verify_test)
 {
     migraphx::program p = migraphx::parse_onnx("hardsigmoid_verify_test.onnx");
@@ -167,7 +168,6 @@ TEST_CASE(hardsigmoid_verify_test)
     std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
         return std::max(0.0f, std::min(x * alpha + beta, 1.0f));
     });
->>>>>>> origin/develop
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

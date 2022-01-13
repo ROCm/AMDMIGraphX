@@ -1,23 +1,41 @@
 from matplotlib import pyplot as plt 
-from mpl_toolkits.axes_grid1 import Divider, Size
 import json
 import os
 import numpy as np
 import math
 from datetime import datetime
 
+#                 test_pointwise_perf.py
+
+# this script runs the gpu-driver while iterating over various combinations of 
+# tensor lens; global work items; and local work items.  It plots the results.
+# It saves output to a JSON File as well, so that it can be re-plotted by 
+# other tools.
+
+# This script version is for comparing speeds of simple pointwise operators,
+# our simplest use case.
+
+
+
+
 # with open("compile-pointwise-args.json", "r") as read_file:
 #     data = json.load(read_file)
 
 datatype='float'
-iterations=100
+iterations=10
 
-remark=' local as multiples of 64, iter=100'
+remark=' Searching for optimal global, local number of work items '
+
+# A dictionary which we will use to serialize results to a file
+json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
+
 
 #iterate over tensor sizes (one plot file per size)
 
-# for myshape in [[1024]]:
-for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
+json_data["shapes"] = [] # this should be a list of dict containing "shape": xxx, "global_list":
+# for myshape in [[32,32]]:
+# for myshape in [ [512, 16*16*4], [512, 16*16*16],  [512, 16*16*16*4],  [512, 16*16*16*16] ]:
+for myshape in [  [7680], [7681],  [7680, 30], [200000], [2*1024, 1024], [1024*1024, 30]]:
 
     tensorsize = 1
     for x in myshape:
@@ -25,42 +43,34 @@ for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
 
     dataset=[]
     # Create a plot
+    fig = plt.figure(figsize=(10,8))
 
-    fig = plt.figure(figsize=(10,5))
-
-    # loop over independent variables of interest
+    #####################################################################
+    #      loop over independent variables of interest
+    #####################################################################
 
     # loop over global_workitems.  Range is relative to tensor size
 
+    global_output_item_list=[]
+    json_data["shapes"].append({"shape": myshape, "global_outputs":     global_output_item_list})
+
     global_workitems = max(2,tensorsize/32)
-            # I added max check on  because migraphx throws exceptions if global gets out of range, e.g. 
-            #     In file included from main.cpp:2:
-            # ./migraphx/kernels/index.hpp:18:16: error: integer literal is too large to be represented in a signed integer type, interpreting as unsigned [-Werror,-Wimplicitly-unsigned-literal]
-            #         return MIGRAPHX_NGLOBAL;
-            #             ^
-            # <command line>:1:26: note: expanded from here
-            # #define MIGRAPHX_NGLOBAL 18446744071562067968
-            #                         ^
-            # 1 error generated when compiling for gfx908.
-            # terminate called after throwing an instance of 'migraphx::version_1::exception'
-            # what():  /home/bpickrel/AMDMIGraphX/src/compile_src.cpp:41: compile: Output file missing: main.o
-            # Aborted (core dumped)
-            # local work items= 32
-            # In file included from main.cpp:2:
-            # ./migraphx/kernels/index.hpp:18:16: error: integer literal is too large to be represented in a signed integer type, interpreting as unsigned [-Werror,-Wimplicitly-unsigned-literal]
-            #         return MIGRAPHX_NGLOBAL;
-            #             ^
-            # <command line>:1:26: note: expanded from here
-            # #define MIGRAPHX_NGLOBAL 18446744071562067968
-    while (global_workitems <= 2*tensorsize and global_workitems < 512*1024*1024):
+
+    # I don't know the exact limitation on global_workitems, but if it's bigger than roughly 1G it
+    # will cause a program crash. 
+    while (global_workitems <= tensorsize and global_workitems < 512*1024*1024):
     # for global_workitems in {32, 64, 128, 512, 1024, 4*1024, }:
         global_workitems = int(global_workitems*2)
         dataset=[]
 
+        this_global = []
 
-        # Apparently any value larger than 1024 is illegal
+        # json_data["shapes"][myshape].append(this_global)
+
+
+        # Any value larger than 1024 is rejected by hip library
         # for local_workitems_per_CU in { 32, 48, 64, 1024}:
-        for local_workitems_per_CU in {8, 11, 32, 64, 128, 192, 4*64, 5*64, 6*64, 8*64, 10*64, 12*64, 14*64,  1024}:
+        for local_workitems_per_CU in { 64, 66, 128,130, 192, 4*64,  6*64, 6*64+5, 8*64, 10*64, 12*64, 14*64,  1024}:
         # for local_workitems_per_CU in [64, 128]:
             print('local work items=', local_workitems_per_CU)
             if (local_workitems_per_CU > global_workitems):
@@ -73,7 +83,9 @@ for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
             f = open('./temp_file.json', 'w')
 
             cp  = {  }  # compile_pointwise
-            cp["lambda"] = "[](auto x, auto y, auto z) { return x+y+z; }"
+
+            # this lambda with more looping makes it easier to distinguish differences
+            cp["lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
 
             # inputs is a list of dict
             inputs = []
@@ -114,12 +126,18 @@ for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
 
             print(local_workitems_per_CU, mytime)
             dataset.append((local_workitems_per_CU, mytime))
+            data_point=(local_workitems_per_CU, mytime)
             stream.close()
 
         dataset = sorted(dataset, key=lambda item: item[0])
+        global_output_item_dict={'global_workitem_count': global_workitems, 
+                'comment': 'Each data item represents one test run as [local_workitems, time]', 
+                'data': dataset}
+        
+        global_output_item_list.append(global_output_item_dict)
+          
         x, y = np.array(dataset).T
 
-        # print("dataset is ", dataset, "\nbest y is  ***** ", min(y))
         plt.xscale('log')
         plt.xlabel('local workitems per CU')
         plt.ylabel('time(ms)')
@@ -128,11 +146,13 @@ for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
         ymax = ymax*200
 
         ymax = (round(ymax/10., 1)+1)
-        ymax = ymax / 20
+        ymax = ymax / 4
 
         plt.ylim(bottom=0, top=ymax)
-
-        plt.plot(x, y, marker='d', label='global workitems ' + str(global_workitems))
+        # plt.ylim(bottom=0)
+        plt.plot(x, y, marker='d', label='global workitems ' + str(global_workitems) \
+            + '  t/g=' + "{:.1f}".format(float(tensorsize)/global_workitems))
+        #  str(float(tensorsize)/global_workitems))
         plt.legend()
 
     # printing to file
@@ -140,26 +160,30 @@ for myshape in [ [512, 16*16*16],  [512, 16*16*16*16], [512,16*16*16*16, 15] ]:
     save_python_dir='./test/py/pointwise/'
     # get a unique digit string that will be used in the filenames of both the plot and backup script
     unique_no = datetime.now().microsecond
-    save_the_python_file = save_python_dir +os.path.splitext (os.path.basename(__file__))[0] +'_t' + str(unique_no) + '.py' 
+    save_python_filename = save_python_dir +os.path.splitext (os.path.basename(__file__))[0] +'_t' + str(unique_no) + '.py' 
 
 
     plt.suptitle('time vs local,  ' + remark + '   data shape= ' + json.dumps(myshape) 
         + '   tensor size= '+ str(tensorsize)
         + '   data=' + str(datatype)
-        + '\nsource: ' + save_the_python_file,  x=0.4, y=.98, fontsize='small')
+        + '\nsource: ' + save_python_filename,  x=0.4, y=.98, fontsize='small')
 
-    plt.text(0.5, 0.7, 'hello',
-         horizontalalignment='center',
-         fontsize='small')
-
-    outputfile=save_python_dir + 'plot_' + str(tensorsize) + '_' + str(unique_no) + '.png'
+    output_plot_file=save_python_dir + 'plot_' + str(tensorsize) + '_' + str(unique_no) + '.png'
 
     # copy this Python script to a distinctively named backup.
     # This lets us review the exact Python code used for each script run.
     os.popen('mkdir ' + save_python_dir)
-    os.popen('cp ' + __file__ + ' ' + save_the_python_file)
+    os.popen('cp ' + __file__ + ' ' + save_python_filename)
     # Save the plot to a file
-    plt.savefig(outputfile)
-    print ('your results have been plotted as ', outputfile, '  see also ' + save_the_python_file )
+    plt.savefig(output_plot_file)
+    print ('your results have been plotted as ', output_plot_file, '  see also ' + save_python_filename )
 
-    
+#   Write all the data from all the runs to a single JSON file.  Its name contains the last unique number in our set
+output_data_file = save_python_dir + 'pointwise_perf_results_' + str(unique_no) + '.json'
+f = open(output_data_file, 'w')
+# Format as JSON and write to file
+f.write(json.dumps( json_data, indent=4))
+f.close()
+
+print("\nDone.  dataset is saved as " + output_data_file)
+     

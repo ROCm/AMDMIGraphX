@@ -4380,6 +4380,30 @@ def softmax_nonstd_input_test():
 
 
 @onnx_test
+def softplus_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node('SoftPlus',
+                                 inputs=['x'],
+                                 outputs=['y'])
+    
+    return ([node], [x], [y])
+
+
+@onnx_test
+def softplus_nd_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 4, 5])
+
+    node = onnx.helper.make_node('SoftPlus',
+                                 inputs=['x'],
+                                 outputs=['y'])
+    
+    return ([node], [x], [y])
+
+
+@onnx_test
 def split_minus_axis_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 15])
     y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [10, 5])

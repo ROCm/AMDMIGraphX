@@ -176,7 +176,7 @@ __host__ __device__ auto vectorize(T x)
     }
 }
 
-template<class F, class... Ts>
+template <class F, class... Ts>
 inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
 {
     // TODO: Just check there a single axis of 1
@@ -211,16 +211,11 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
     {
         f(xs...);
     }
-
 }
 
 inline __device__ __host__ auto auto_vectorize()
 {
-    return [](auto... xs) {
-        return [=](auto f) {
-            auto_vectorize_impl(f, xs...);
-        };
-    };
+    return [](auto... xs) { return [=](auto f) { auto_vectorize_impl(f, xs...); }; };
 }
 
 } // namespace migraphx

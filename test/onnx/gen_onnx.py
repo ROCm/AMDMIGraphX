@@ -1619,6 +1619,22 @@ def greater_bool_test():
 
 
 @onnx_test
+def greaterorequal_test():
+
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        'GreaterOrEqual',
+        inputs=['x1', 'x2'],
+        outputs=['y'],
+    )
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test
 def group_conv_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 4, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 1, 3, 3])

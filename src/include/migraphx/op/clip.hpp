@@ -21,7 +21,11 @@ struct clip
 {
     std::string name() const { return "clip"; }
 
-    value attributes() const { return {{"pointwise", true}, {"point_op", "${function:min}(${function:max}(${1}, ${0}), ${2})"}}; }
+    value attributes() const
+    {
+        return {{"pointwise", true},
+                {"point_op", "${function:min}(${function:max}(${1}, ${0}), ${2})"}};
+    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -9,7 +9,7 @@ namespace onnx {
 
 struct parse_softplus : op_parser<parse_softplus>
 {
-    std::vector<op_desc> operators() const { return {{"SoftPlus"}}; }
+    std::vector<op_desc> operators() const { return {{"Softplus"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -16,7 +16,8 @@ struct parse_softplus : op_parser<parse_softplus>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto mb_ones = info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
+        auto mb_ones = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", args[0]->get_shape().lens()}}),
             info.add_literal(migraphx::literal{migraphx::shape{args[0]->get_shape().type()}, {1}}));
         auto exp = info.add_instruction(migraphx::make_op("exp"), args[0]);
         auto add = info.add_instruction(migraphx::make_op("add"), exp, mb_ones);

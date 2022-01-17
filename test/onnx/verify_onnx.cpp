@@ -140,7 +140,7 @@ TEST_CASE(greaterorequal_test)
     pp["x2"] = migraphx::argument(s, data2.data());
 
     auto result = p.eval(pp).back();
-    std::vector<bool> result_vector;
+    std::vector<bool> result_vector(3);
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<bool> gold = {true, true, false};

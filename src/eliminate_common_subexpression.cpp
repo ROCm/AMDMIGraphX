@@ -31,11 +31,6 @@ void cse_range(module& p, Range&& r)
             if(*eq != *ins)
                 continue;
             auto outputs = eq->outputs();
-            for(auto output : outputs)
-            {
-                if(not p.has_instruction(output))
-                    continue;
-            }
             p.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
 

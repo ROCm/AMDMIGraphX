@@ -38,7 +38,7 @@ void cse_range(module& p, Range&& r)
             }
             p.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
-            
+
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);
             });

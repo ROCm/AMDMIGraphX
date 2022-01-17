@@ -30,9 +30,15 @@ void cse_range(module& p, Range&& r)
                 continue;
             if(*eq != *ins)
                 continue;
+            auto outputs = eq->outputs();
+            for(auto output : outputs)
+            {
+                if(not p.has_instruction(output))
+                    continue;
+            }
             p.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
-            auto outputs = eq->outputs();
+            
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);
             });

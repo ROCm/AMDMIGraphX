@@ -1,6 +1,8 @@
 #ifndef MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 #define MIGRAPHX_GUARD_API_RTGLIB_MIGRAPHX_HPP
 
+#include "migraphx.h"
+#include <initializer_list>
 #include <migraphx/migraphx.h>
 #include <memory>
 #include <exception>
@@ -523,12 +525,110 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     };
 };
 
+struct operation : MIGRAPHX_HANDLE_BASE(operation)
+{
+    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
+
+    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    operation(const char* name, const char* attributes = nullptr, Ts... xs)
+    {
+        this->make_handle(&migraphx_operation_create, name, attributes, xs...);
+    }
+
+    std::string name()
+    {
+        std::array<char, 1024> out_name;
+        call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
+        return {out_name.data()};
+    }
+};
+
+struct instruction_ref : MIGRAPHX_HANDLE_BASE(instruction_ref)
+{
+    instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own()); }
+};
+
+struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<instruction_ref>
+{
+
+    instructions_refs(migraphx_instructions_refs* p, own) { this->set_handle(p, own{}); }
+
+    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    instructions_refs(Ts... xs)
+    {
+        std::array<migraphx_instruction_ref_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_instructions_refs_create, a.data(), a.size());
+    }
+};
+
+struct module;
+
+struct modules_refs : MIGRAPHX_HANDLE_BASE(modules_refs), array_base<module*>
+{
+
+    modules_refs(migraphx_modules_refs* p, own) { this->set_handle(p, own{}); }
+
+    modules_refs(migraphx_modules_refs* p, borrow) { this->set_handle(p, borrow{}); }
+
+    template <class... Ts>
+    modules_refs(Ts... xs)
+    {
+        std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.mm...};
+        this->make_handle(&migraphx_modules_refs_create, a.data(), a.size());
+    }
+};
+
 struct module
 {
     migraphx_module_t mm;
+
     module(const migraphx_module_t& m) : mm(m) {}
 
     void print() const { call(&migraphx_module_print, mm); }
+
+    instruction_ref add_instruction(const migraphx::operation& op,
+                                    const migraphx::instructions_refs& args)
+    {
+        migraphx_instruction_ref_t op_ins;
+        call(&migraphx_module_add_instruction,
+             &op_ins,
+             mm,
+             op.get_handle_ptr(),
+             args.get_handle_ptr());
+        return instruction_ref(op_ins, own{});
+    }
+
+    instruction_ref add_instruction(const migraphx::operation& op,
+                                    const migraphx::instructions_refs& args,
+                                    const migraphx::modules_refs& module_args)
+    {
+        migraphx_instruction_ref_t op_ins;
+        call(&migraphx_module_add_instruction_with_mod_args,
+             &op_ins,
+             mm,
+             op.get_handle_ptr(),
+             args.get_handle_ptr(),
+             module_args.get_handle_ptr());
+        return instruction_ref(op_ins, own{});
+    }
+
+    instruction_ref add_parameter(const std::string& name, shape s)
+    {
+        migraphx_instruction_ref_t param_ins;
+        call(&migraphx_module_add_parameter, &param_ins, mm, name.c_str(), s.get_handle_ptr());
+        return instruction_ref(param_ins, own{});
+    }
+
+    instruction_ref add_return(const migraphx::instructions_refs& args)
+    {
+        migraphx_instruction_ref_t ret_ins;
+        call(&migraphx_module_add_return, &ret_ins, mm, args.get_handle_ptr());
+        return instruction_ref(ret_ins, own{});
+    }
 };
 
 struct context
@@ -564,7 +664,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 /// A program represents the all computation graphs to be compiled and executed
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {
-    program() {}
+    program() { this->make_handle(&migraphx_program_create); }
 
     program(migraphx_program* p, own) { this->set_handle(p, own{}); }
 
@@ -642,26 +742,15 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
-};
 
-struct operation : MIGRAPHX_HANDLE_BASE(operation)
-{
-    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
-
-    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
-
-    template <class... Ts>
-    operation(const char* name, const char* attributes = nullptr, Ts... xs)
+    module create_module(const std::string& name)
     {
-        this->make_handle(&migraphx_operation_create, name, attributes, xs...);
+        migraphx_module_t p_modu;
+        call(&migraphx_program_create_module, &p_modu, this->get_handle_ptr(), name.data());
+        return module{p_modu};
     }
 
-    std::string name()
-    {
-        std::array<char, 1024> out_name;
-        call(&migraphx_operation_name, out_name.data(), 1024, this->get_handle_ptr());
-        return {out_name.data()};
-    }
+    friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
 
 // options for migraphx file format options

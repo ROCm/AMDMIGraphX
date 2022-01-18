@@ -178,14 +178,67 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
+@auto_handle()
+def instruction_ref(h):
+    h.constructor('create')
+
+
+@api.handle('migraphx_instructions_refs',
+            'std::vector<migraphx::instruction_ref>')
+def instructions_refs(h):
+    h.constructor('create',
+                  api.params(ptr='migraphx_instruction_ref_t*', size='size_t'),
+                  fname='migraphx::to_obj_vector<migraphx_instruction_ref_t>')
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::instruction_ref&')
+
+
+@api.handle('migraphx_modules_refs', 'std::vector<migraphx::module*>')
+def modules_refs(h):
+    h.constructor('create',
+                  api.params(ptr='migraphx_module_t*', size='size_t'),
+                  fname='migraphx::to_objptr_vector<migraphx::module*>')
+    h.method('size', returns='size_t')
+    h.method('get',
+             api.params(idx='size_t'),
+             fname='at',
+             cpp_name='operator[]',
+             returns='const migraphx::module&')
+
+
 @auto_handle(ref=True)
 def module(h):
+    h.constructor('create', api.params(name='std::string'))
     h.method('print', invoke='migraphx::print_module($@)', const=True)
+    h.method('add_instruction',
+             api.params(op='migraphx::operation',
+                        args='std::vector<migraphx::instruction_ref>'),
+             returns='migraphx::instruction_ref')
+    h.method('add_instruction_with_mod_args',
+             api.params(op='migraphx::operation',
+                        args='std::vector<migraphx::instruction_ref>',
+                        module_refs='std::vector<migraphx::module*>'),
+             fname='add_instruction',
+             returns='migraphx::instruction_ref')
+    h.method('add_parameter',
+             api.params(name='const char*', shape='const migraphx::shape&'),
+             returns='migraphx::instruction_ref')
+    h.method('add_return',
+             api.params(args='std::vector<migraphx::instruction_ref>'),
+             returns='migraphx::instruction_ref')
 
 
 @auto_handle()
 def program(h):
+    h.constructor('create')
     h.method('get_main_module', returns='migraphx::module*')
+    h.method('create_module',
+             api.params(name='const char*'),
+             returns='migraphx::module*')
     h.method(
         'compile',
         api.params(target='migraphx::target',

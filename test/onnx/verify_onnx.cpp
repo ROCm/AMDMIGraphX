@@ -604,7 +604,7 @@ TEST_CASE(softplus_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(5);
     std::transform(
-        data.begin(), data.end(), gold.begin(), [](auto x) { return std::log(std::exp(x) + 1.0); });
+        data.begin(), data.end(), gold.begin(), [](auto x) { return std::log1p(std::exp(x)); });
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

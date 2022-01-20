@@ -10,6 +10,10 @@ jobs:
         uses: styfle/cancel-workflow-action@0.6.0
         with:
           access_token: ${{ github.token }}
+
+      - name: File System Check
+        run: df -h
+
   tidy:
     runs-on: ubuntu-18.04
 
@@ -22,6 +26,9 @@ jobs:
     - uses: satackey/action-docker-layer-caching@v0.0.8
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
+
+    - name: File System Check
+      run: df -h
 
     - name: Prepare timestamp
       id: cache_timestamp
@@ -38,6 +45,9 @@ jobs:
         restore-keys: |
             tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
             tidy-cache-
+
+    - name: File System Check again
+      run: df -h
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -56,6 +66,9 @@ jobs:
           ..
         make -j2 -k onnx-proto tf-proto tidy
 
+    - name: File System Check
+      run: df -h
+
   cppcheck:
     runs-on: ubuntu-18.04
 
@@ -69,12 +82,16 @@ jobs:
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
 
+    - name: File System Check
+      run: df -h
+
     - name: Prepare timestamp
       id: cache_timestamp
       shell: cmake -P {0}
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
         message("::set-output name=timestamp::${current_date}")
+        df -h
 
     - name: Cache files for cppcheck
       uses: pat-s/always-upload-cache@v2.1.3
@@ -85,12 +102,24 @@ jobs:
             cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ steps.cache_timestamp.outputs.timestamp }}
             cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
+    - name: File System Check
+      run: df -h
+
     - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+      run: |
+        message("CHRIS DF BEFORE IMAGE")
+        df -h
+        docker build . --file hip-clang.docker --tag migraphx
+        message("CHRIS DF AFTER IMAGE")
+        df -h
 
     - name: Cppcheck
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
+               (while true; do
+              df -h
+              sleep 15
+              done) &
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
@@ -98,6 +127,9 @@ jobs:
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           ..
         make -j2 cppcheck
+
+    - name: File System Check after cppcheck
+      run: df -h
 
   format:
     runs-on: ubuntu-18.04

@@ -107,10 +107,8 @@ jobs:
 
     - name: Build the Docker image
       run: |
-        message("CHRIS DF BEFORE IMAGE")
         df -h
         docker build . --file hip-clang.docker --tag migraphx
-        message("CHRIS DF AFTER IMAGE")
         df -h
 
     - name: Cppcheck

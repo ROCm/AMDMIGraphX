@@ -114,10 +114,10 @@ jobs:
     - name: Cppcheck
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
-               (while true; do
-              df -h
-              sleep 15
-              done) &
+        (while true; do
+        df -h
+        sleep 15
+        done) &
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \

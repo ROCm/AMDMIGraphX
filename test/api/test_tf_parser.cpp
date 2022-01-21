@@ -44,7 +44,7 @@ TEST_CASE(load_tf_multi_outputs)
 
 TEST_CASE(tf_assign)
 {
-    auto p      = migraphx::parse_tf("add_test.pb");
+    auto p = migraphx::parse_tf("add_test.pb");
     migraphx::program p2;
     p2 = p;
     p2.print();

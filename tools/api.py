@@ -713,7 +713,10 @@ def add_handle(name, ctype, cpptype, destroy=None, ref=None):
                      params({name: opaque_type}),
                      fname='destroy')
         add_function(ctype + '_' + 'assign',
-                     params({name: opaque_type, 'other': opaque_type}),
+                     params({
+                         name: opaque_type,
+                         'other': opaque_type
+                     }),
                      invoke=name + '= other')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))

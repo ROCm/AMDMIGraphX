@@ -4380,6 +4380,15 @@ def softmax_nonstd_input_test():
 
 
 @onnx_test
+def softsign_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node('Softsign', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
 def softplus_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
@@ -4390,6 +4399,15 @@ def softplus_test():
 
 
 @onnx_test
+def softsign_nd_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 4, 5])
+
+    node = onnx.helper.make_node('Softsign', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
 def softplus_nd_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 4, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 4, 5])

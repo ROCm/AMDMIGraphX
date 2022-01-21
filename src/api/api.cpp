@@ -385,6 +385,12 @@ extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_shape_assign(migraphx_shape_t shape, migraphx_shape_t other)
+{
+    auto api_error_result = migraphx::try_([&] { shape = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                                  migraphx_shape_datatype_t type,
                                                  size_t* lengths,
@@ -502,6 +508,13 @@ extern "C" migraphx_status migraphx_argument_destroy(migraphx_argument_t argumen
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_argument_assign(migraphx_argument_t argument,
+                                                    migraphx_argument_t other)
+{
+    auto api_error_result = migraphx::try_([&] { argument = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer)
 {
@@ -565,6 +578,12 @@ extern "C" migraphx_status migraphx_target_destroy(migraphx_target_t target)
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_target_assign(migraphx_target_t target, migraphx_target_t other)
+{
+    auto api_error_result = migraphx::try_([&] { target = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_target_create(migraphx_target_t* target, const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -578,6 +597,14 @@ extern "C" migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program_parameter_shapes)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_parameter_shapes_assign(
+    migraphx_program_parameter_shapes_t program_parameter_shapes,
+    migraphx_program_parameter_shapes_t other)
+{
+    auto api_error_result = migraphx::try_([&] { program_parameter_shapes = other; });
     return api_error_result;
 }
 
@@ -632,6 +659,14 @@ migraphx_program_parameters_destroy(migraphx_program_parameters_t program_parame
 }
 
 extern "C" migraphx_status
+migraphx_program_parameters_assign(migraphx_program_parameters_t program_parameters,
+                                   migraphx_program_parameters_t other)
+{
+    auto api_error_result = migraphx::try_([&] { program_parameters = other; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_program_parameters_create(migraphx_program_parameters_t* program_parameters)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -663,6 +698,13 @@ extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t argum
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_arguments_assign(migraphx_arguments_t arguments,
+                                                     migraphx_arguments_t other)
+{
+    auto api_error_result = migraphx::try_([&] { arguments = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_arguments_size(size_t* out, migraphx_arguments_t arguments)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -687,6 +729,12 @@ migraphx_arguments_get(const_migraphx_argument_t* out, migraphx_arguments_t argu
 extern "C" migraphx_status migraphx_shapes_destroy(migraphx_shapes_t shapes)
 {
     auto api_error_result = migraphx::try_([&] { destroy((shapes)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shapes_assign(migraphx_shapes_t shapes, migraphx_shapes_t other)
+{
+    auto api_error_result = migraphx::try_([&] { shapes = other; });
     return api_error_result;
 }
 
@@ -724,6 +772,13 @@ extern "C" migraphx_status migraphx_module_print(const_migraphx_module_t module)
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_assign(migraphx_program_t program,
+                                                   migraphx_program_t other)
+{
+    auto api_error_result = migraphx::try_([&] { program = other; });
     return api_error_result;
 }
 
@@ -831,6 +886,13 @@ extern "C" migraphx_status migraphx_operation_destroy(migraphx_operation_t opera
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_operation_assign(migraphx_operation_t operation,
+                                                     migraphx_operation_t other)
+{
+    auto api_error_result = migraphx::try_([&] { operation = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
                                                      const char* name,
                                                      const char* attributes,
@@ -891,6 +953,13 @@ extern "C" migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_onnx_options_assign(migraphx_onnx_options_t onnx_options,
+                                                        migraphx_onnx_options_t other)
+{
+    auto api_error_result = migraphx::try_([&] { onnx_options = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -942,6 +1011,13 @@ extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_file_options_assign(migraphx_file_options_t file_options,
+                                                        migraphx_file_options_t other)
+{
+    auto api_error_result = migraphx::try_([&] { file_options = other; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_create(migraphx_file_options_t* file_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -965,6 +1041,14 @@ extern "C" migraphx_status
 migraphx_compile_options_destroy(migraphx_compile_options_t compile_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((compile_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_assign(migraphx_compile_options_t compile_options,
+                                migraphx_compile_options_t other)
+{
+    auto api_error_result = migraphx::try_([&] { compile_options = other; });
     return api_error_result;
 }
 
@@ -1030,6 +1114,13 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
 extern "C" migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((tf_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_tf_options_assign(migraphx_tf_options_t tf_options,
+                                                      migraphx_tf_options_t other)
+{
+    auto api_error_result = migraphx::try_([&] { tf_options = other; });
     return api_error_result;
 }
 
@@ -1111,6 +1202,14 @@ migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_name
 }
 
 extern "C" migraphx_status
+migraphx_quantize_op_names_assign(migraphx_quantize_op_names_t quantize_op_names,
+                                  migraphx_quantize_op_names_t other)
+{
+    auto api_error_result = migraphx::try_([&] { quantize_op_names = other; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1159,6 +1258,14 @@ extern "C" migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((quantize_int8_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_quantize_int8_options_assign(migraphx_quantize_int8_options_t quantize_int8_options,
+                                      migraphx_quantize_int8_options_t other)
+{
+    auto api_error_result = migraphx::try_([&] { quantize_int8_options = other; });
     return api_error_result;
 }
 

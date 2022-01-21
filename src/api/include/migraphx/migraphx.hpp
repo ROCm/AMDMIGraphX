@@ -575,6 +575,12 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return *this;
     }
 
+    program operator=(const program& other)
+    {
+        call(&migraphx_program_assign, this->get_handle_ptr(), other.get_handle_ptr());
+        return *this;
+    }
+
     friend bool operator==(const program& px, const program& py)
     {
         bool pout;

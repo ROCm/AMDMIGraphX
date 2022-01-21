@@ -14,7 +14,7 @@ c_api_body_preamble = []
 cpp_header_preamble = []
 
 
-def bad_param_error(msg):
+def bad_param_error(msg: str):
     return 'throw std::runtime_error("{}")'.format(msg)
 
 
@@ -88,7 +88,7 @@ class Type:
         else:
             return t.remove_const()
 
-    def const_compatible(self, t):
+    def const_compatible(self, t: 'Type'):
         if t.is_const():
             return self.add_const()
         return self
@@ -199,7 +199,7 @@ class Parameter:
                                            size=self.size_name,
                                            result=result or '')
 
-    def add_param(self, t, name=None):
+    def add_param(self, t: 'Type', name=None):
         if not isinstance(t, str):
             t = t.str()
         self.cparams.append((t, name or self.name))
@@ -289,7 +289,7 @@ def template_var(s):
     return '${' + s + '}'
 
 
-def to_template_vars(params):
+def to_template_vars(params: 'list[Parameter]'):
     return ', '.join([template_var(p.name) for p in params])
 
 
@@ -712,13 +712,16 @@ def add_handle(name, ctype, cpptype, destroy=None, ref=None):
         add_function(destroy or ctype + '_' + 'destroy',
                      params({name: opaque_type}),
                      fname='destroy')
+        add_function(ctype + '_' + 'assign',
+                     params({name: opaque_type, 'other': opaque_type}),
+                     invoke=name + '= other')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
     c_api_body_preamble.append(handle_definition.substitute(locals()))
 
 
 @cwrap('std::vector')
-def vector_c_wrap(p):
+def vector_c_wrap(p: 'Parameter'):
     t = p.type.inner_type().add_pointer()
     if p.returns:
         if p.type.is_reference():
@@ -747,7 +750,7 @@ def vector_c_wrap(p):
 
 
 @cwrap('std::string')
-def string_c_wrap(p):
+def string_c_wrap(p: 'Parameter'):
     t = Type('char*')
     if p.returns:
         if p.type.is_reference():
@@ -771,7 +774,7 @@ def string_c_wrap(p):
 
 
 class Handle:
-    def __init__(self, name, ctype, cpptype, ref=None):
+    def __init__(self, name, ctype: 'Type', cpptype: 'Type', ref=None):
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype

@@ -91,6 +91,8 @@ typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int
 
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
+migraphx_status migraphx_shape_assign(migraphx_shape_t shape, migraphx_shape_t other);
+
 migraphx_status migraphx_shape_create(migraphx_shape_t* shape,
                                       migraphx_shape_datatype_t type,
                                       size_t* lengths,
@@ -121,6 +123,8 @@ migraphx_shape_equal(bool* out, const_migraphx_shape_t shape, const_migraphx_sha
 
 migraphx_status migraphx_argument_destroy(migraphx_argument_t argument);
 
+migraphx_status migraphx_argument_assign(migraphx_argument_t argument, migraphx_argument_t other);
+
 migraphx_status
 migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer);
 
@@ -137,10 +141,16 @@ migraphx_argument_generate(migraphx_argument_t* out, const_migraphx_shape_t s, s
 
 migraphx_status migraphx_target_destroy(migraphx_target_t target);
 
+migraphx_status migraphx_target_assign(migraphx_target_t target, migraphx_target_t other);
+
 migraphx_status migraphx_target_create(migraphx_target_t* target, const char* name);
 
 migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes);
+
+migraphx_status migraphx_program_parameter_shapes_assign(
+    migraphx_program_parameter_shapes_t program_parameter_shapes,
+    migraphx_program_parameter_shapes_t other);
 
 migraphx_status migraphx_program_parameter_shapes_size(
     size_t* out, migraphx_program_parameter_shapes_t program_parameter_shapes);
@@ -156,6 +166,9 @@ migraphx_status migraphx_program_parameter_shapes_names(
 migraphx_status
 migraphx_program_parameters_destroy(migraphx_program_parameters_t program_parameters);
 
+migraphx_status migraphx_program_parameters_assign(migraphx_program_parameters_t program_parameters,
+                                                   migraphx_program_parameters_t other);
+
 migraphx_status
 migraphx_program_parameters_create(migraphx_program_parameters_t* program_parameters);
 
@@ -165,12 +178,17 @@ migraphx_status migraphx_program_parameters_add(migraphx_program_parameters_t pr
 
 migraphx_status migraphx_arguments_destroy(migraphx_arguments_t arguments);
 
+migraphx_status migraphx_arguments_assign(migraphx_arguments_t arguments,
+                                          migraphx_arguments_t other);
+
 migraphx_status migraphx_arguments_size(size_t* out, migraphx_arguments_t arguments);
 
 migraphx_status
 migraphx_arguments_get(const_migraphx_argument_t* out, migraphx_arguments_t arguments, size_t idx);
 
 migraphx_status migraphx_shapes_destroy(migraphx_shapes_t shapes);
+
+migraphx_status migraphx_shapes_assign(migraphx_shapes_t shapes, migraphx_shapes_t other);
 
 migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 
@@ -180,6 +198,8 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
 migraphx_status migraphx_module_print(const_migraphx_module_t module);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
+
+migraphx_status migraphx_program_assign(migraphx_program_t program, migraphx_program_t other);
 
 migraphx_status migraphx_program_get_main_module(migraphx_module_t* out,
                                                  migraphx_program_t program);
@@ -207,6 +227,9 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
 
 migraphx_status migraphx_operation_destroy(migraphx_operation_t operation);
 
+migraphx_status migraphx_operation_assign(migraphx_operation_t operation,
+                                          migraphx_operation_t other);
+
 migraphx_status migraphx_operation_create(migraphx_operation_t* operation,
                                           const char* name,
                                           const char* attributes,
@@ -222,6 +245,9 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
 
 migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t onnx_options);
 
+migraphx_status migraphx_onnx_options_assign(migraphx_onnx_options_t onnx_options,
+                                             migraphx_onnx_options_t other);
+
 migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options);
 
 migraphx_status migraphx_onnx_options_set_input_parameter_shape(
@@ -236,12 +262,18 @@ migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_o
 
 migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options);
 
+migraphx_status migraphx_file_options_assign(migraphx_file_options_t file_options,
+                                             migraphx_file_options_t other);
+
 migraphx_status migraphx_file_options_create(migraphx_file_options_t* file_options);
 
 migraphx_status migraphx_file_options_set_file_format(migraphx_file_options_t file_options,
                                                       const char* format);
 
 migraphx_status migraphx_compile_options_destroy(migraphx_compile_options_t compile_options);
+
+migraphx_status migraphx_compile_options_assign(migraphx_compile_options_t compile_options,
+                                                migraphx_compile_options_t other);
 
 migraphx_status migraphx_compile_options_create(migraphx_compile_options_t* compile_options);
 
@@ -260,6 +292,9 @@ migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
                                            migraphx_onnx_options_t options);
 
 migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
+
+migraphx_status migraphx_tf_options_assign(migraphx_tf_options_t tf_options,
+                                           migraphx_tf_options_t other);
 
 migraphx_status migraphx_tf_options_create(migraphx_tf_options_t* tf_options);
 
@@ -282,6 +317,9 @@ migraphx_parse_tf(migraphx_program_t* out, const char* name, migraphx_tf_options
 
 migraphx_status migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 
+migraphx_status migraphx_quantize_op_names_assign(migraphx_quantize_op_names_t quantize_op_names,
+                                                  migraphx_quantize_op_names_t other);
+
 migraphx_status migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names);
 
 migraphx_status migraphx_quantize_op_names_add(migraphx_quantize_op_names_t quantize_op_names,
@@ -294,6 +332,10 @@ migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
 
 migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);
+
+migraphx_status
+migraphx_quantize_int8_options_assign(migraphx_quantize_int8_options_t quantize_int8_options,
+                                      migraphx_quantize_int8_options_t other);
 
 migraphx_status
 migraphx_quantize_int8_options_create(migraphx_quantize_int8_options_t* quantize_int8_options);

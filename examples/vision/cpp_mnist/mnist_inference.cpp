@@ -18,6 +18,7 @@ int main(int argc, char** argv)
                   << "options:" << std::endl
                   << "\t -c, --cpu      Compile for CPU" << std::endl
                   << "\t -g, --gpu      Compile for GPU" << std::endl
+                  << "\t -f, --fpga     Compile for FPGA" << std::endl
                   << "\t -f, --fp16     FP16 Quantization" << std::endl
                   << "\t -i, --int8     Int8 Quantization" << std::endl
                   << "\t       --cal    Int8 Calibration ON" << std::endl
@@ -32,6 +33,8 @@ int main(int argc, char** argv)
                      std::find(begin, end, std::string("--cpu")) != end;
     const bool GPU = std::find(begin, end, std::string("-g")) != end ||
                      std::find(begin, end, std::string("--gpu")) != end;
+    const bool FPGA = std::find(begin, end, std::string("-f")) != end ||
+                      std::find(begin, end, std::string("--fpga")) != end;
     const bool FP16 = std::find(begin, end, std::string("-f")) != end ||
                       std::find(begin, end, std::string("--fp16")) != end;
     const bool INT8 = std::find(begin, end, std::string("-i")) != end ||
@@ -54,6 +57,8 @@ int main(int argc, char** argv)
         target_str = "cpu";
     else if(GPU)
         target_str = "gpu";
+    else if(FPGA)
+        target_str = "fpga";
     else
         target_str = "ref";
     migraphx::target targ = migraphx::target(target_str.c_str());

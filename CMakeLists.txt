@@ -56,6 +56,9 @@ else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
 endif()
 
+# Enable fpga backend by default
+set(MIGRAPHX_ENABLE_FPGA On CACHE BOOL "")
+
 # Disable cpu backend by default
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 

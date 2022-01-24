@@ -159,7 +159,11 @@ class BadParam:
 
 
 class Parameter:
-    def __init__(self, name: str, type: str, optional: bool=False, returns: bool=False) -> None:
+    def __init__(self,
+                 name: str,
+                 type: str,
+                 optional: bool = False,
+                 returns: bool = False) -> None:
         self.name = name
         self.type = Type(type)
         self.optional = optional
@@ -173,7 +177,7 @@ class Parameter:
         self.returns = returns
         self.bad_param_check: Optional[BadParam] = None
 
-    def get_name(self, prefix: Optional[str]=None) -> str:
+    def get_name(self, prefix: Optional[str] = None) -> str:
         if prefix:
             return prefix + self.name
         else:
@@ -189,7 +193,10 @@ class Parameter:
         else:
             return self.type.str()
 
-    def substitute(self, s: str, prefix: Optional[str]=None, result: Optional[str]=None) -> str:
+    def substitute(self,
+                   s: str,
+                   prefix: Optional[str] = None,
+                   result: Optional[str] = None) -> str:
         ctype = None
         if len(self.cparams) > 0:
             ctype = Type(self.cparams[0][0]).basic().str()
@@ -200,12 +207,13 @@ class Parameter:
                                            size=self.size_name,
                                            result=result or '')
 
-    def add_param(self, t: Union[str, Type], name: Optional[str]=None) -> None:
+    def add_param(self, t: Union[str, Type],
+                  name: Optional[str] = None) -> None:
         if not isinstance(t, str):
             t = t.str()
         self.cparams.append((t, name or self.name))
 
-    def add_size_param(self, name: None=None) -> None:
+    def add_size_param(self, name: None = None) -> None:
         self.size_cparam = len(self.cparams)
         self.size_name = name or self.name + '_size'
         if self.returns:
@@ -240,18 +248,18 @@ class Parameter:
             raise ValueError("Error for {}: write cannot be a string".format(
                 self.type.str()))
 
-    def cpp_param(self, prefix: Optional[str]=None) -> str:
+    def cpp_param(self, prefix: Optional[str] = None) -> str:
         return self.substitute('${cpptype} ${name}', prefix=prefix)
 
-    def cpp_arg(self, prefix: Optional[str]=None) -> str:
+    def cpp_arg(self, prefix: Optional[str] = None) -> str:
         return self.substitute(self.cpp_read, prefix=prefix)
 
-    def cpp_output_args(self, prefix: Optional[str]=None) -> List[str]:
+    def cpp_output_args(self, prefix: Optional[str] = None) -> List[str]:
         return [
             '&{prefix}{n}'.format(prefix=prefix, n=n) for t, n in self.cparams
         ]
 
-    def output_declarations(self, prefix: Optional[str]=None) -> List[str]:
+    def output_declarations(self, prefix: Optional[str] = None) -> List[str]:
         return [
             '{type} {prefix}{n};'.format(type=Type(t).remove_pointer().str(),
                                          prefix=prefix,
@@ -263,13 +271,13 @@ class Parameter:
             '&{prefix}{n};'.format(prefix=prefix, n=n) for t, n in self.cparams
         ]
 
-    def cpp_output(self, prefix: Optional[str]=None) -> str:
+    def cpp_output(self, prefix: Optional[str] = None) -> str:
         return self.substitute(self.cpp_write, prefix=prefix)
 
-    def input(self, prefix: None=None) -> str:
+    def input(self, prefix: None = None) -> str:
         return '(' + self.substitute(self.read, prefix=prefix) + ')'
 
-    def outputs(self, result: Optional[str]=None) -> List[str]:
+    def outputs(self, result: Optional[str] = None) -> List[str]:
         return [self.substitute(w, result=result) for w in self.write]
 
     def add_to_cfunction(self, cfunction: CFunction) -> None:
@@ -297,14 +305,13 @@ def to_template_vars(params: List[Union[Any, Parameter]]) -> str:
 class Function:
     def __init__(self,
                  name: str,
-                 params: Optional[List[Parameter]]=None,
-                 shared_size: bool=False,
-                 returns: Optional[str]=None,
-                 invoke: Optional[str]=None,
-                 fname: Optional[str]=None,
-                 return_name: Optional[str]=None,
-                 **kwargs
-    ) -> None:
+                 params: Optional[List[Parameter]] = None,
+                 shared_size: bool = False,
+                 returns: Optional[str] = None,
+                 invoke: Optional[str] = None,
+                 fname: Optional[str] = None,
+                 return_name: Optional[str] = None,
+                 **kwargs) -> None:
         self.name = name
         self.params = params or []
         self.shared_size = False
@@ -358,7 +365,8 @@ class Function:
     def get_cfunction(self) -> CFunction:
         if self.cfunction:
             return self.cfunction
-        raise Exception("self.cfunction is None: self.update() needs to be called.")
+        raise Exception(
+            "self.cfunction is None: self.update() needs to be called.")
 
     def create_cfunction(self) -> None:
         self.cfunction = CFunction(self.name)
@@ -426,7 +434,11 @@ cpp_class_constructor_template = Template('''
 
 
 class CPPMember:
-    def __init__(self, name: str, function: Function, prefix: str, method: bool=True) -> None:
+    def __init__(self,
+                 name: str,
+                 function: Function,
+                 prefix: str,
+                 method: bool = True) -> None:
         self.name = name
         self.function = function
         self.prefix = prefix
@@ -533,7 +545,8 @@ class CPPClass:
             methods=self.substitute(self.generate_methods()))
 
 
-def params(virtual: Optional[Dict[str, str]]=None, **kwargs) -> List[Parameter]:
+def params(virtual: Optional[Dict[str, str]] = None,
+           **kwargs) -> List[Parameter]:
     result = []
     v: Dict[str, str] = virtual or {}
     for name in v:
@@ -547,6 +560,7 @@ def add_function(name: str, *args, **kwargs) -> Function:
     f = Function(name, *args, **kwargs)
     functions.append(f)
     return f
+
 
 def once(f: Callable) -> Any:
     @wraps(f)
@@ -572,14 +586,16 @@ def generate_lines(p: List[str]) -> str:
 
 def generate_c_header() -> str:
     process_functions()
-    return generate_lines(c_header_preamble +
-                          [f.get_cfunction().generate_header() for f in functions])
+    return generate_lines(
+        c_header_preamble +
+        [f.get_cfunction().generate_header() for f in functions])
 
 
 def generate_c_api_body() -> str:
     process_functions()
-    return generate_lines(c_api_body_preamble +
-                          [f.get_cfunction().generate_body() for f in functions])
+    return generate_lines(
+        c_api_body_preamble +
+        [f.get_cfunction().generate_body() for f in functions])
 
 
 def generate_cpp_header() -> str:
@@ -698,7 +714,11 @@ def add_handle_preamble() -> None:
         string.Template(cpp_handle_preamble).substitute(success=success_type))
 
 
-def add_handle(name: str, ctype: str, cpptype: str, destroy: None=None, ref: Optional[bool]=None) -> None:
+def add_handle(name: str,
+               ctype: str,
+               cpptype: str,
+               destroy: None = None,
+               ref: Optional[bool] = None) -> None:
     opaque_type = ctype + '_t'
 
     def handle_wrap(p):
@@ -790,7 +810,11 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
-    def __init__(self, name: str, ctype: str, cpptype: str, ref: Optional[bool]=None) -> None:
+    def __init__(self,
+                 name: str,
+                 ctype: str,
+                 cpptype: str,
+                 ref: Optional[bool] = None) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
@@ -807,9 +831,12 @@ class Handle:
                                            cpptype=self.cpptype,
                                            **kwargs)
 
-    def constructor(self, name: str, params: Optional[List[Parameter]]=None, fname: Optional[str]=None, invoke: None=None,
-                    **kwargs
-    ) -> Handle:
+    def constructor(self,
+                    name: str,
+                    params: Optional[List[Parameter]] = None,
+                    fname: Optional[str] = None,
+                    invoke: None = None,
+                    **kwargs) -> Handle:
         create = self.substitute('allocate<${cpptype}>($@)')
         if fname:
             create = self.substitute('allocate<${cpptype}>(${fname}($@))',
@@ -826,13 +853,12 @@ class Handle:
 
     def method(self,
                name: str,
-               params: Optional[List[Parameter]]=None,
-               fname: Optional[str]=None,
-               invoke: Optional[str]=None,
-               cpp_name: Optional[str]=None,
-               const: Optional[bool]=None,
-               **kwargs
-    ) -> Handle:
+               params: Optional[List[Parameter]] = None,
+               fname: Optional[str] = None,
+               invoke: Optional[str] = None,
+               cpp_name: Optional[str] = None,
+               const: Optional[bool] = None,
+               **kwargs) -> Handle:
         cpptype = self.cpptype
         if const:
             cpptype = Type(cpptype).add_const().str()
@@ -857,7 +883,10 @@ class Handle:
         cpp_classes.append(self.cpp_class)
 
 
-def handle(ctype: str, cpptype: str, name: None=None, ref: Optional[bool]=None) -> Callable:
+def handle(ctype: str,
+           cpptype: str,
+           name: None = None,
+           ref: Optional[bool] = None) -> Callable:
     def with_handle(f):
         n = name or f.__name__
         h = Handle(n, ctype, cpptype, ref=ref)

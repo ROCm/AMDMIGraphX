@@ -1,3 +1,4 @@
+from __future__ import annotations
 import string, sys, re, runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union

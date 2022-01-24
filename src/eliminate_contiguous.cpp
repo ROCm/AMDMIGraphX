@@ -76,14 +76,15 @@ void eliminate_contiguous::apply(module& p) const
         // return instruction should have inputs with standard shape
         if(ins->name() == "@return")
         {
-            auto args     = ins->inputs();
+            auto args = ins->inputs();
             std::transform(args.begin(), args.end(), args.begin(), [&](auto in) {
-                if (in->name() != op_name) return in;
+                if(in->name() != op_name)
+                    return in;
                 auto prev = in->inputs().front();
                 return prev->get_shape().standard() ? prev : in;
             });
 
-            if (args != ins->inputs())
+            if(args != ins->inputs())
             {
                 p.replace_instruction(ins, ins->get_operator(), args);
             }

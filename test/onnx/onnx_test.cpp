@@ -1330,7 +1330,7 @@ TEST_CASE(gather_elements_axis0_test)
     auto l_ind_axis_indices =
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
     auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {4}});
-    auto cdata = mm->add_instruction(migraphx::make_op("contiguous"), data);
+    auto cdata    = mm->add_instruction(migraphx::make_op("contiguous"), data);
     auto cindices = mm->add_instruction(migraphx::make_op("contiguous"), indices);
 
     auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), cdata);
@@ -1360,9 +1360,9 @@ TEST_CASE(gather_elements_axis1_test)
         mm->add_literal(migraphx::literal{ind_s, ind_indices.begin(), ind_indices.end()});
     auto l_ind_axis_indices =
         mm->add_literal(migraphx::literal{ind_s, ind_axis_indices.begin(), ind_axis_indices.end()});
-    auto l_stride = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {1}});
-    auto cdata = mm->add_instruction(migraphx::make_op("contiguous"), data);
-    auto cindices = mm->add_instruction(migraphx::make_op("contiguous"), indices);
+    auto l_stride    = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {1}}, {1}});
+    auto cdata       = mm->add_instruction(migraphx::make_op("contiguous"), data);
+    auto cindices    = mm->add_instruction(migraphx::make_op("contiguous"), indices);
     auto rsp_data    = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), cdata);
     auto lbst_stride = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
@@ -2595,11 +2595,11 @@ TEST_CASE(nms_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st = mm->add_parameter("score_threshold", sst);
 
-    auto cb = mm->add_instruction(migraphx::make_op("contiguous"), b);
-    auto cs = mm->add_instruction(migraphx::make_op("contiguous"), s);
-    auto cmo = mm->add_instruction(migraphx::make_op("contiguous"), mo);
+    auto cb   = mm->add_instruction(migraphx::make_op("contiguous"), b);
+    auto cs   = mm->add_instruction(migraphx::make_op("contiguous"), s);
+    auto cmo  = mm->add_instruction(migraphx::make_op("contiguous"), mo);
     auto ciou = mm->add_instruction(migraphx::make_op("contiguous"), iou);
-    auto cst = mm->add_instruction(migraphx::make_op("contiguous"), st);
+    auto cst  = mm->add_instruction(migraphx::make_op("contiguous"), st);
 
     auto ret = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}), cb, cs, cmo, ciou, cst);
@@ -3373,8 +3373,8 @@ TEST_CASE(reshape_test)
     std::vector<int64_t> reshape_dims{3, 8};
     mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
-    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
-    op.dims = reshape_dims;
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
+    op.dims  = reshape_dims;
     auto cl0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
     mm->add_instruction(op, cl0);
     auto cl1 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
@@ -3418,9 +3418,9 @@ TEST_CASE(resize_downsample_c_test)
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {0, 2};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
-    auto cinx = mm->add_instruction(migraphx::make_op("contiguous"), inx);
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), cinx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto cinx            = mm->add_instruction(migraphx::make_op("contiguous"), inx);
+    auto lrsp            = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), cinx);
+    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_downsample_c_test.onnx");
@@ -3444,9 +3444,9 @@ TEST_CASE(resize_downsample_f_test)
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
     std::vector<int> ind = {0, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
-    auto cinx = mm->add_instruction(migraphx::make_op("contiguous"), inx);
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), cinx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto cinx            = mm->add_instruction(migraphx::make_op("contiguous"), inx);
+    auto lrsp            = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), cinx);
+    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
@@ -3486,7 +3486,7 @@ TEST_CASE(resize_downsample_linear_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto cx = mm->add_instruction(migraphx::make_op("contiguous"), x);
+    auto cx    = mm->add_instruction(migraphx::make_op("contiguous"), x);
     auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), cx);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
@@ -3540,9 +3540,9 @@ TEST_CASE(resize_outsize_test)
     migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
     std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3};
     auto li              = mm->add_literal(migraphx::literal(si, ind));
-    auto cinx = mm->add_instruction(migraphx::make_op("contiguous"), inx);
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), cinx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    auto cinx            = mm->add_instruction(migraphx::make_op("contiguous"), inx);
+    auto lrsp            = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), cinx);
+    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("resize_outsize_test.onnx");
@@ -3639,7 +3639,7 @@ TEST_CASE(resize_upsample_linear_ac_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto cx = mm->add_instruction(migraphx::make_op("contiguous"), x);
+    auto cx    = mm->add_instruction(migraphx::make_op("contiguous"), x);
     auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), cx);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
@@ -3735,7 +3735,7 @@ TEST_CASE(resize_upsample_linear_test)
     auto l1 = mm->add_literal(migraphx::literal(s1, d1));
 
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto cx = mm->add_instruction(migraphx::make_op("contiguous"), x);
+    auto cx    = mm->add_instruction(migraphx::make_op("contiguous"), x);
     auto rsp   = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), cx);
     auto data  = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, l_ind);
     auto slc80 = mm->add_instruction(
@@ -4288,7 +4288,7 @@ TEST_CASE(squeeze_unsqueeze_test)
     auto l0 =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 1, 1, 2, 1}});
     auto cl0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), cl0);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", squeeze_axes}}), cl0);
     auto cl1 = mm->add_instruction(migraphx::make_op("contiguous"), l1);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsqueeze_axes}}), cl1);
     auto prog = optimize_onnx("squeeze_unsqueeze_test.onnx");
@@ -4301,9 +4301,9 @@ TEST_CASE(squeeze_axes_input_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     mm->add_literal(migraphx::literal({migraphx::shape::int64_type, {2}}, {1, 3}));
-    auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
     auto cl0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3}}}), cl0);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 3}}}), cl0);
     mm->add_return({l1});
 
     auto prog = migraphx::parse_onnx("squeeze_axes_input_test.onnx");
@@ -4316,9 +4316,9 @@ TEST_CASE(squeeze_empty_axes_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     mm->add_literal({});
-    auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
+    auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
     auto cl0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), cl0);
+    auto l1  = mm->add_instruction(migraphx::make_op("squeeze"), cl0);
     mm->add_return({l1});
 
     auto prog = migraphx::parse_onnx("squeeze_empty_axes_test.onnx");

@@ -142,10 +142,12 @@ jobs:
       with:
         python-version: 3.6
     - name: Install pyflakes
-      run: pip install pyflakes==2.3.1
+      run: pip install pyflakes==2.3.1 mypy==0.931
 
     - name: Run pyflakes
-      run: pyflakes examples/ tools/ src/ test/ doc/
+      run: |
+        pyflakes examples/ tools/ src/ test/ doc/
+        mypy tools/api.py
 
   linux:
 

@@ -1,12 +1,11 @@
-from __future__ import annotations
 import string, sys, re, runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-type_map: Dict[str, Callable[[Parameter], None]] = {}
+type_map: Dict[str, Callable[['Parameter'], None]] = {}
 cpp_type_map: Dict[str, str] = {}
-functions: List[Function] = []
-cpp_classes: List[CPPClass] = []
+functions: List['Function'] = []
+cpp_classes: List['CPPClass'] = []
 error_type = ''
 success_type = ''
 try_wrap = ''
@@ -40,16 +39,16 @@ class Type:
     def is_variadic(self):
         return self.name.startswith('...')
 
-    def add_pointer(self) -> Type:
+    def add_pointer(self) -> 'Type':
         return Type(self.name + '*')
 
     def add_reference(self):
         return Type(self.name + '&')
 
-    def add_const(self) -> Type:
+    def add_const(self) -> 'Type':
         return Type('const ' + self.name)
 
-    def inner_type(self) -> Optional[Type]:
+    def inner_type(self) -> Optional['Type']:
         i = self.name.find('<')
         j = self.name.rfind('>')
         if i > 0 and j > 0:
@@ -57,7 +56,7 @@ class Type:
         else:
             return None
 
-    def remove_generic(self) -> Type:
+    def remove_generic(self) -> 'Type':
         i = self.name.find('<')
         j = self.name.rfind('>')
         if i > 0 and j > 0:
@@ -65,25 +64,25 @@ class Type:
         else:
             return self
 
-    def remove_pointer(self) -> Type:
+    def remove_pointer(self) -> 'Type':
         if self.is_pointer():
             return Type(self.name[0:-1])
         return self
 
-    def remove_reference(self) -> Type:
+    def remove_reference(self) -> 'Type':
         if self.is_reference():
             return Type(self.name[0:-1])
         return self
 
-    def remove_const(self) -> Type:
+    def remove_const(self) -> 'Type':
         if self.is_const():
             return Type(self.name[6:])
         return self
 
-    def basic(self) -> Type:
+    def basic(self) -> 'Type':
         return self.remove_pointer().remove_const().remove_reference()
 
-    def decay(self) -> Type:
+    def decay(self) -> 'Type':
         t = self.remove_reference()
         if t.is_pointer():
             return t
@@ -837,7 +836,7 @@ class Handle:
                     params: Optional[List[Parameter]] = None,
                     fname: Optional[str] = None,
                     invoke: None = None,
-                    **kwargs) -> Handle:
+                    **kwargs) -> 'Handle':
         create = self.substitute('allocate<${cpptype}>($@)')
         if fname:
             create = self.substitute('allocate<${cpptype}>(${fname}($@))',
@@ -859,7 +858,7 @@ class Handle:
                invoke: Optional[str] = None,
                cpp_name: Optional[str] = None,
                const: Optional[bool] = None,
-               **kwargs) -> Handle:
+               **kwargs) -> 'Handle':
         cpptype = self.cpptype
         if const:
             cpptype = Type(cpptype).add_const().str()

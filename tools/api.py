@@ -717,7 +717,7 @@ def add_handle(name, ctype, cpptype, destroy=None, ref=None):
                          name: opaque_type,
                          'other': opaque_type
                      }),
-                     invoke=name + '= other')
+                     invoke='*{} = *other'.format(name))
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
     c_api_body_preamble.append(handle_definition.substitute(locals()))

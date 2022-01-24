@@ -159,7 +159,7 @@ struct borrow
 {
 };
 
-template <class T, class D, D Deleter>
+template <class T, class D, D Deleter, class A, A Assigner>
 struct handle_base
 {
     handle_base() : m_handle(nullptr) {}
@@ -200,7 +200,9 @@ struct handle_base
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)     \
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
-                migraphx_##name##_destroy>
+                migraphx_##name##_destroy,            \
+                decltype(&migraphx_##name##_assign),  \
+                migraphx_##name##_assign>
 #endif
 // NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, )
@@ -572,12 +574,6 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     program sort()
     {
         call(&migraphx_program_sort, this->get_handle_ptr());
-        return *this;
-    }
-
-    program operator=(const program& other)
-    {
-        call(&migraphx_program_assign, this->get_handle_ptr(), other.get_handle_ptr());
         return *this;
     }
 

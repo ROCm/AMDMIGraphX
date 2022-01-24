@@ -918,7 +918,7 @@ def template_eval(template, **kwargs):
 
 def run(args: List[str]) -> None:
     runpy.run_path(args[0])
-    if len(args) > 2:
+    if len(args) > 1:
         f = open(args[1]).read()
         r = template_eval(f)
         sys.stdout.write(r)

@@ -126,6 +126,27 @@ TEST_CASE(gather_elements)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(greaterorequal_test)
+{
+    migraphx::program p = migraphx::parse_onnx("greaterorequal_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data1 = {0.25, 0.75, 0.9375};
+    std::vector<float> data2 = {0.25, 0.74, 0.9411};
+
+    migraphx::parameter_map pp;
+    pp["x1"] = migraphx::argument(s, data1.data());
+    pp["x2"] = migraphx::argument(s, data2.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1.0, 1.0, 0.0};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(hardsigmoid_verify_test)
 {
     migraphx::program p = migraphx::parse_onnx("hardsigmoid_verify_test.onnx");
@@ -605,6 +626,27 @@ TEST_CASE(softplus_test)
     std::vector<float> gold(5);
     std::transform(
         data.begin(), data.end(), gold.begin(), [](auto x) { return std::log1p(std::exp(x)); });
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(softsign_test)
+{
+    migraphx::program p = migraphx::parse_onnx("softsign_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    std::vector<float> data = {0, 1, 2, 3, 4};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold(5);
+    std::transform(
+        data.begin(), data.end(), gold.begin(), [](auto x) { return x / (1.0 + std::abs(x)); });
 
     EXPECT(migraphx::verify_range(result_vector, gold));
 }

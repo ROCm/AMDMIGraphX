@@ -213,7 +213,7 @@ class Parameter:
             t = t.str()
         self.cparams.append((t, name or self.name))
 
-    def add_size_param(self, name: None = None) -> None:
+    def add_size_param(self, name: Optional[str] = None) -> None:
         self.size_cparam = len(self.cparams)
         self.size_name = name or self.name + '_size'
         if self.returns:
@@ -274,7 +274,7 @@ class Parameter:
     def cpp_output(self, prefix: Optional[str] = None) -> str:
         return self.substitute(self.cpp_write, prefix=prefix)
 
-    def input(self, prefix: None = None) -> str:
+    def input(self, prefix: Optional[str] = None) -> str:
         return '(' + self.substitute(self.read, prefix=prefix) + ')'
 
     def outputs(self, result: Optional[str] = None) -> List[str]:
@@ -717,7 +717,7 @@ def add_handle_preamble() -> None:
 def add_handle(name: str,
                ctype: str,
                cpptype: str,
-               destroy: None = None,
+               destroy: Optional[str] = None,
                ref: Optional[bool] = None) -> None:
     opaque_type = ctype + '_t'
 
@@ -835,7 +835,7 @@ class Handle:
                     name: str,
                     params: Optional[List[Parameter]] = None,
                     fname: Optional[str] = None,
-                    invoke: None = None,
+                    invoke: Optional[str] = None,
                     **kwargs) -> 'Handle':
         create = self.substitute('allocate<${cpptype}>($@)')
         if fname:
@@ -885,7 +885,7 @@ class Handle:
 
 def handle(ctype: str,
            cpptype: str,
-           name: None = None,
+           name: Optional[str] = None,
            ref: Optional[bool] = None) -> Callable:
     def with_handle(f):
         n = name or f.__name__

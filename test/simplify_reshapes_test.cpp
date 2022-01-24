@@ -1,5 +1,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
@@ -13,7 +14,7 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::simplify_reshapes{}, migraphx::eliminate_contiguous{"contiguous"}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(double_contig)

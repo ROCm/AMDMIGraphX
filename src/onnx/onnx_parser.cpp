@@ -70,6 +70,11 @@ static literal from_repeated(shape::type_t t, const T& r)
 
 instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
 {
+    if(ins->name() == "contiguous")
+    {
+        return ins;
+    }
+
     return add_instruction(make_op("contiguous"), ins);
 }
 

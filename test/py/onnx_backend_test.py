@@ -266,10 +266,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_gathernd_example_float32_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_batch_dim1_cpu')
         backend_test.exclude(r'test_gathernd_example_int32_cpu')
-        backend_test.exclude(r'test_greater_equal_bcast_cpu')
-        backend_test.exclude(r'test_greater_equal_bcast_expanded_cpu')
-        backend_test.exclude(r'test_greater_equal_cpu')
-        backend_test.exclude(r'test_greater_equal_expanded_cpu')
         backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_mean_example_cpu')
@@ -282,12 +278,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_size_cpu')
         backend_test.exclude(r'test_size_example_cpu')
         backend_test.exclude(r'test_softmax_cross_entropy_*')
-        backend_test.exclude(r'test_softplus_cpu')
-        backend_test.exclude(r'test_softplus_example_cpu')
-        backend_test.exclude(r'test_softsign_cpu')
-        backend_test.exclude(r'test_softsign_example_cpu')
         backend_test.exclude(r'test_Embedding_cpu')
-        backend_test.exclude(r'test_Softplus_cpu')
 
         # real model tests
         backend_test.exclude(r'test_inception_v1_cpu')

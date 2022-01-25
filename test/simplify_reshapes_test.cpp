@@ -1129,7 +1129,7 @@ TEST_CASE(reshape_submodule)
     migraphx::shape s{migraphx::shape::int64_type, {1}};
     migraphx::shape sc{migraphx::shape::bool_type};
 
-    auto create_program = [&](bool remove_convert = false) {
+    auto create_program = [&](bool remove_nops = false) {
         migraphx::program p;
         std::vector<bool> vc    = {true};
         std::vector<int64_t> vd = {3};
@@ -1146,9 +1146,13 @@ TEST_CASE(reshape_submodule)
         auto ad1   = body1->add_instruction(migraphx::make_op("add"), l1, l1);
         auto val1  = body1->add_instruction(migraphx::make_op("add"), in_v1, ad1);
         auto cond1 = b0;
-        if(not remove_convert)
+        if(not remove_nops)
+        {
             cond1 = body1->add_instruction(
                 migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b0);
+            cond1 = body1->add_instruction(migraphx::make_op("transpose", {{"permutation", {0}}}), cond1);
+        }
+            
         body1->add_return({cond1, val1, val1});
 
         auto rl1 = mm->add_instruction(
@@ -1162,7 +1166,6 @@ TEST_CASE(reshape_submodule)
         return p;
     };
     auto p = create_program();
-    std::cout << p << std::endl;
     run_pass(p);
     EXPECT(p == create_program(true));
 }

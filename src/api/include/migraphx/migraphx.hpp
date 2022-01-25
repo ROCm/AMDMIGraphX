@@ -190,6 +190,12 @@ struct handle_base
         m_handle = std::shared_ptr<U>{ptr, [](U*) {}};
     }
 
+    template <class U>
+    void assign_handle(U& x)
+    {
+        Assigner(x.get_handle_ptr(), this->get_handle_ptr());
+    }
+
     protected:
     std::shared_ptr<T> m_handle;
 };

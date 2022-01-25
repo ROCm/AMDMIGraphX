@@ -272,9 +272,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_greater_equal_expanded_cpu')
         backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
-        backend_test.exclude(r'test_mean_example_cpu')
-        backend_test.exclude(r'test_mean_one_input_cpu')
-        backend_test.exclude(r'test_mean_two_inputs_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
         backend_test.exclude(r'test_scatternd_*')
 

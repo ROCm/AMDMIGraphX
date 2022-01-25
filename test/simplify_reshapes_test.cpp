@@ -13,8 +13,7 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(
-        p, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
 }
 
 void run_pass(migraphx::module& m)
@@ -1152,10 +1151,9 @@ TEST_CASE(reshape_submodule)
                 migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b0);
         body1->add_return({cond1, val1, val1});
 
-
         auto rl1 = mm->add_instruction(
             migraphx::make_op("loop", {{"max_iterations", 1}}), {in_cond, in_val}, {body1});
-        
+
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl1);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl1);
 

@@ -78,29 +78,49 @@ plt.savefig('./test/py/pointwise/a447.png')
 
 
 # plot local vs. time, stacked lines for each tensor size
-# filtering out only points where global=7500 (there's only one tensor size for this)
+# filtering out only points where global=964336 (there's only one tensor size for this)
+
 fig = plt.figure(figsize=(10,8))
-plot_vs_parameter(df[df['global_workitems']==7500], 'global_workitems',  'tensorsize', 'local_workitems_per_CU')
+plot_vs_parameter(df[df['global_workitems']==964336], 'global_workitems',  'tensorsize', 'local_workitems_per_CU')
 
 plt.savefig('./test/py/pointwise/a446.png')
 
 
-# new test:  
+# new test:  printing a table of optimum global/local
 #
 #     for each unique tensor size
 #         find arg min(time)
 #         list local, global for best time  ==>  append to results
-tensorsizes = np.unique(df['tensorsize'])
+
+# tensorsizes = np.unique(df['tensorsize'])
+# tensorsizes = np.sort(tensorsizes)
+# results=pandas.DataFrame(columns=df.columns)
+# for ts in tensorsizes:
+#     # filter for that size
+#     filt_tens = df[df['tensorsize']==ts]
+#     amin =  np.argmin(filt_tens['time'])
+#     filt_tens.iloc[[amin]]
+    
+#     # Append the row at the index given in amin.  Note the double [[]] and also that the "index" value is from the original df, not filt_tens
+#     results = results.append(filt_tens.iloc[[amin]])
+# print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False]],'-------\n')
+
+
+# test: same optimum table, adding a column for  ratio tensorsize/global items
+df_new = df
+df_new['tens/glo'] = df_new['tensorsize']/df_new['global_workitems']
+tensorsizes = np.unique(df_new['tensorsize'])
 tensorsizes = np.sort(tensorsizes)
-results=pandas.DataFrame(columns=df.columns)
+results=pandas.DataFrame(columns=df_new.columns)
 for ts in tensorsizes:
     # filter for that size
-    filt_tens = df[df['tensorsize']==ts]
+    filt_tens = df_new[df_new['tensorsize']==ts]
     amin =  np.argmin(filt_tens['time'])
     filt_tens.iloc[[amin]]
     
     # Append the row at the index given in amin.  Note the double [[]] and also that the "index" value is from the original df, not filt_tens
     results = results.append(filt_tens.iloc[[amin]])
-print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False]],'-------\n')
+print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False, True]],'-------\n')
+
 
 #      End   Demonstration of loading and filtering the data in tabular form.  Column headers are hardcoded here.

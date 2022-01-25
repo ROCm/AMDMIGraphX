@@ -26,7 +26,7 @@ from datetime import datetime
 datatype='float'
 iterations=10
 
-remark=' Broadcast test '
+remark=' Pointwise op test, broadcasting'
 
 # A dictionary which we will use to serialize results to a file
 json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
@@ -37,14 +37,20 @@ json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
 json_data["tensors"] = [] 
 
 # for the default case with no broadcasting, stride would be [1,1]
-stride=[1,0]
+stride=[1, 1024]
 
 # this will hold the results in tabular format
 result=[]
 
 
 # for myshape in [ [64,64], [512, 512], [7680], [7681], [7680*100], [7680*100+1], [7680*800], [7680*801]]:
-for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [7681, 801]]:
+for myshape in [  [1024, 240]
+    ]:
+    print('processing tensor ', myshape)
+
+    if len(myshape) != len(stride):
+        print('Warning!  tensor ' , myshape, ' doesn\'t have the same number of dimensions as stride ' , stride, ', skipping.')
+        continue
 
     tensorsize = 1
     for x in myshape:
@@ -65,11 +71,23 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
 
     global_workitems = max(2, tensorsize/32)
 
+    # construct an "interesting" range for global_workitems
+    gl_range=[]
+    xx = tensorsize/16
+    for i in range(5):
+        vv = int(3*i*xx)
+        ww = int(2**i*xx)
+        if vv > 63:
+            gl_range.append(vv)
+            gl_range.append(ww)
+    gl_range.sort()
+    print(tensorsize, '------------------>gl_range=', gl_range)
+
     # I don't know the exact limitation on global_workitems, but if it's bigger than roughly 1G it
     # will cause a program crash. 
-    while (global_workitems <= tensorsize and global_workitems < 512*1024*1024):
-    # for global_workitems in {32, 64, 128, 512, 1024, 4*1024, }:
-        global_workitems = int(global_workitems*2)
+    # while (global_workitems <= tensorsize and global_workitems < 512*1024*1024):
+    for global_workitems in gl_range:
+        # global_workitems = int(global_workitems*2)
 
         # result items to save in JSON form
         dataset=[]
@@ -84,7 +102,7 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
 
         # Any value larger than 1024 is rejected by hip library
         # for local_workitems_per_CU in { 32, 48, 64, 1024}:
-        for local_workitems_per_CU in [ 64, 66, 128,130, 192, 195, 4*64, 4*64+5,  6*64, 6*64+5, 8*64, 8*64+5, 10*64, 10*64+5, 12*64, 12*64+2, 14*64, 14*64+2,  1024]:
+        for local_workitems_per_CU in range(64, 1025,64):
         # for local_workitems_per_CU in [64, 128]:
             print('local work items=', local_workitems_per_CU)
             if (local_workitems_per_CU > global_workitems):
@@ -138,7 +156,7 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
             # print(output)
             mytime = float(output[startp+3:endp])
 
-            print(local_workitems_per_CU, mytime)
+            # print(local_workitems_per_CU, mytime)
 
             # as an unlabeled local,time pair
             plot_set.append((local_workitems_per_CU, mytime))
@@ -159,13 +177,14 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
         # if you change the containers holding the results!
         # if(len(plot_set) == 0 or len(dataset) == 0 or len(result) == 0):
         if(len(plot_set) == 0 ):
+            print('Warning: no output for tensor ' + myshape + " global items " + global_workitems)
             continue
 
         # dict contents:  sort by key
         dataset = sorted(dataset, key=lambda item: item['tensorsize'])
 
         global_output_item_dict={'global_workitem_count': global_workitems, 
-                'comment': 'Each data item represents one test run as [local_workitems, time]', 
+                'comment': 'Each data item represents one test run', 
                 'data': dataset}
         
         global_output_item_list.append(global_output_item_dict)
@@ -177,10 +196,10 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
         plt.ylabel('time(ms)')
         # scale y to make the smaller numbers (the only important ones) visible
         ymax = min(y)
-        ymax = ymax*200
+        ymax = ymax*240
 
         ymax = (round(ymax/10., 1)+1)
-        ymax = ymax / 4
+        ymax = ymax / 8
 
         plt.ylim(bottom=0, top=ymax)
         # plt.ylim(bottom=0)
@@ -191,7 +210,7 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
 
     # printing to file
     #  first, prepare to save a backup copy of this script
-    save_python_dir='./test/py/pointwise/'
+    save_python_dir='./test/py/pointwise/broadcast_narrow/'
     # get a unique digit string that will be used in the filenames of both the plot and backup script
     unique_no = datetime.now().microsecond
     save_python_filename = save_python_dir +os.path.splitext (os.path.basename(__file__))[0] +'_t' + str(unique_no) + '.py' 
@@ -200,7 +219,7 @@ for myshape in [  [7680, 1], [7681, 1], [7680, 100], [7681, 100], [7680, 800], [
     plt.suptitle('time vs local,  ' + remark + '   data shape= ' + json.dumps(myshape) 
         + '   tensor size= '+ str(tensorsize) + '   stride= ' + json.dumps(stride)
         + '   data=' + str(datatype)
-        + '\nsource: ' + save_python_filename,  x=0.4, y=.98, fontsize='small')
+        + '\nsource: ' + save_python_filename,  x=0.5, y=.98, fontsize='small')
 
     output_plot_file=save_python_dir + 'plot_' + str(tensorsize) + '_' + str(unique_no) + '.png'
 

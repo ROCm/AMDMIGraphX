@@ -1150,9 +1150,10 @@ TEST_CASE(reshape_submodule)
         {
             cond1 = body1->add_instruction(
                 migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b0);
-            cond1 = body1->add_instruction(migraphx::make_op("transpose", {{"permutation", {0}}}), cond1);
+            cond1 = body1->add_instruction(migraphx::make_op("transpose", {{"permutation", {0}}}),
+                                           cond1);
         }
-            
+
         body1->add_return({cond1, val1, val1});
 
         auto rl1 = mm->add_instruction(

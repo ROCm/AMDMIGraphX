@@ -413,21 +413,21 @@ TEST_CASE(mean_test)
     const int num_data = 10;
     const std::vector<double> scalars{1.0, 2.0, -2.5, 3.3, 10.7, -1.0, 100.0, 7.9, 0.01, -56.8};
     std::vector<std::vector<double>> data;
-    std::transform(scalars.begin(), scalars.end(), std::back_inserter(data), [&](const auto& i){
+    std::transform(scalars.begin(), scalars.end(), std::back_inserter(data), [&](const auto& i) {
         return std::vector<double>(num_elms, i);
     });
 
     migraphx::parameter_map pp;
-    for (std::size_t i = 0; i < num_data; ++i)
+    for(std::size_t i = 0; i < num_data; ++i)
         pp[std::to_string(i)] = migraphx::argument(s, data[i].data());
-    
+
     auto result = p.eval(pp).back();
     std::vector<double> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     const auto mean = std::accumulate(scalars.begin(), scalars.end(), 0.0) / num_data;
     std::vector<double> gold(num_elms, mean);
-    EXPECT(migraphx::verify_range(result_vector, gold));    
+    EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
 TEST_CASE(nonzero_test)

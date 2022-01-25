@@ -2739,18 +2739,18 @@ def maxpool_same_upper_test():
 @onnx_test
 def mean_broadcast_test():
     data_0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 4])
-    data_1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 2, 3, 4])
+    data_1 = helper.make_tensor_value_info('1', TensorProto.FLOAT,
+                                           [1, 2, 3, 4])
     data_2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     data_3 = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1])
     data_4 = helper.make_tensor_value_info('4', TensorProto.FLOAT, [2, 3, 1])
 
-    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1, 2, 3, 4])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT,
+                                         [1, 2, 3, 4])
 
-    node = onnx.helper.make_node(
-        "Mean",
-        inputs=["0", "1", "2", "3", "4"],
-        outputs=["mean"]
-    )
+    node = onnx.helper.make_node("Mean",
+                                 inputs=["0", "1", "2", "3", "4"],
+                                 outputs=["mean"])
 
     return ([node], [data_0, data_1, data_2, data_3, data_4], [mean])
 
@@ -2761,13 +2761,12 @@ def mean_fp16_test():
     data_1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 2, 3])
     data_2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1, 2, 3])
 
-    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT16, [1, 2, 3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT16,
+                                         [1, 2, 3])
 
-    node = onnx.helper.make_node(
-        "Mean",
-        inputs=["0", "1", "2"],
-        outputs=["mean"]
-    )
+    node = onnx.helper.make_node("Mean",
+                                 inputs=["0", "1", "2"],
+                                 outputs=["mean"])
 
     return ([node], [data_0, data_1, data_2], [mean])
 
@@ -2780,11 +2779,9 @@ def mean_invalid_broadcast_test():
 
     mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1, 2, 3])
 
-    node = onnx.helper.make_node(
-        "Mean",
-        inputs=["0", "1", "2"],
-        outputs=["mean"]
-    )
+    node = onnx.helper.make_node("Mean",
+                                 inputs=["0", "1", "2"],
+                                 outputs=["mean"])
 
     return ([node], [data_0, data_1, data_2], [mean])
 
@@ -2797,26 +2794,23 @@ def mean_mixed_type_test():
 
     mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1, 2, 3])
 
-    node = onnx.helper.make_node(
-        "Mean",
-        inputs=["0", "1", "2"],
-        outputs=["mean"]
-    )
+    node = onnx.helper.make_node("Mean",
+                                 inputs=["0", "1", "2"],
+                                 outputs=["mean"])
 
     return ([node], [data_0, data_1, data_2], [mean])
 
 
 @onnx_test
 def mean_test():
-    data = [helper.make_tensor_value_info(str(i), TensorProto.DOUBLE, [2, 2, 2]) for i in range(10)]
+    data = [
+        helper.make_tensor_value_info(str(i), TensorProto.DOUBLE, [2, 2, 2])
+        for i in range(10)
+    ]
     data_names = [str(i) for i in range(10)]
     mean = helper.make_tensor_value_info('mean', TensorProto.DOUBLE, [2, 2, 2])
 
-    node = onnx.helper.make_node(
-        "Mean",
-        inputs=data_names,
-        outputs=["mean"]
-    )
+    node = onnx.helper.make_node("Mean", inputs=data_names, outputs=["mean"])
 
     return ([node], data, [mean])
 

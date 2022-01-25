@@ -2470,7 +2470,7 @@ TEST_CASE(mean_mixed_type_test)
 TEST_CASE(mean_single_input_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
+    auto* mm   = p.get_main_module();
     auto data0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 3}});
     mm->add_return({data0});
 

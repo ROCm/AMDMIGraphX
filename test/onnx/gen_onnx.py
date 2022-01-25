@@ -2818,6 +2818,16 @@ def mean_mixed_type_test():
 
 
 @onnx_test
+def mean_single_input_test():
+    data_0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 2, 3])
+    mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [1, 2, 3])
+
+    node = onnx.helper.make_node("Mean", inputs=["0"], outputs=["mean"])
+
+    return ([node], [data_0], [mean])
+
+
+@onnx_test
 def mean_test():
     data = [
         helper.make_tensor_value_info(str(i), TensorProto.DOUBLE, [2, 2, 2])

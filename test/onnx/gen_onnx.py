@@ -1676,6 +1676,16 @@ def hardsigmoid_verify_test():
     node = onnx.helper.make_node('HardSigmoid', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
+    
+
+@onnx_test
+def hardswish_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 5])
+
+    node = onnx.helper.make_node('HardSwish', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
 
 
 @onnx_test

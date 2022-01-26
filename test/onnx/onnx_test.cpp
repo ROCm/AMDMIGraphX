@@ -1671,7 +1671,7 @@ TEST_CASE(hardswish_test)
     migraphx::shape s{input_type, input_lens};
     auto x = mm->add_parameter("x", s);
 
-    float alpha = 1/6;
+    float alpha = 1 / 6;
     float beta  = 0.5;
 
     auto mb_alpha = mm->add_instruction(
@@ -1687,8 +1687,8 @@ TEST_CASE(hardswish_test)
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
-    auto mul = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, x);
-    auto add = mm->add_instruction(migraphx::make_op("add"), mb_beta, mul);
+    auto mul         = mm->add_instruction(migraphx::make_op("mul"), mb_alpha, x);
+    auto add         = mm->add_instruction(migraphx::make_op("add"), mb_beta, mul);
     auto hardsigmoid = mm->add_instruction(migraphx::make_op("clip"), add, mb_zero, mb_one);
     mm->add_instruction(migraphx::make_op("mul"), x, hardsigmoid);
 

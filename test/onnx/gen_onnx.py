@@ -1676,7 +1676,7 @@ def hardsigmoid_verify_test():
     node = onnx.helper.make_node('HardSigmoid', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
-    
+
 
 @onnx_test
 def hardswish_test():

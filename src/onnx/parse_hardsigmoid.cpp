@@ -19,9 +19,9 @@ struct parse_hardsigmoid : op_parser<parse_hardsigmoid>
     {
         float alpha = 0.2;
         float beta  = 0.5;
-        if (opd.onnx_name == "HardSwish")
+        if(opd.onnx_name == "HardSwish")
         {
-            alpha = 1/6;
+            alpha = 1 / 6;
         }
         else
         {
@@ -47,12 +47,12 @@ struct parse_hardsigmoid : op_parser<parse_hardsigmoid>
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
-        auto mul = info.add_instruction(migraphx::make_op("mul"), mb_alpha, args[0]);
-        auto add = info.add_instruction(migraphx::make_op("add"), mb_beta, mul);
+        auto mul         = info.add_instruction(migraphx::make_op("mul"), mb_alpha, args[0]);
+        auto add         = info.add_instruction(migraphx::make_op("add"), mb_beta, mul);
         auto hardsigmoid = info.add_instruction(migraphx::make_op("clip"), add, mb_zero, mb_one);
-        if (opd.onnx_name == "HardSwish")
+        if(opd.onnx_name == "HardSwish")
             return info.add_instruction(migraphx::make_op("mul"), args[0], hardsigmoid);
-        
+
         return hardsigmoid;
     }
 };

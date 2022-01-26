@@ -35,56 +35,56 @@ struct test_arg_ops : verify_program<test_arg_ops<T, Axis, NonStdShape>>
         return p;
     }
 };
-
+// transpose argmax tests
+template struct test_arg_ops<migraphx::op::argmax, 0, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 1, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 2, 0>;
+template struct test_arg_ops<migraphx::op::argmax, 3, 0>;
+template struct test_arg_ops<migraphx::op::argmax, -1, 0>;
+template struct test_arg_ops<migraphx::op::argmax, -2, 0>;
+// transpose argmin tests
+template struct test_arg_ops<migraphx::op::argmin, 0, 0>;
+template struct test_arg_ops<migraphx::op::argmin, 1, 0>;
+template struct test_arg_ops<migraphx::op::argmin, 2, 0>;
+template struct test_arg_ops<migraphx::op::argmin, 3, 0>;
+template struct test_arg_ops<migraphx::op::argmin, -3, 0>;
+template struct test_arg_ops<migraphx::op::argmin, -4, 0>;
+// broadcast argmax tests
 template struct test_arg_ops<migraphx::op::argmax, 0, 1>;
 template struct test_arg_ops<migraphx::op::argmax, 1, 1>;
 template struct test_arg_ops<migraphx::op::argmax, 2, 1>;
 template struct test_arg_ops<migraphx::op::argmax, 3, 1>;
 template struct test_arg_ops<migraphx::op::argmax, -1, 1>;
 template struct test_arg_ops<migraphx::op::argmax, -2, 1>;
-
+// broadcast argmin tests
 template struct test_arg_ops<migraphx::op::argmin, 0, 1>;
 template struct test_arg_ops<migraphx::op::argmin, 1, 1>;
 template struct test_arg_ops<migraphx::op::argmin, 2, 1>;
 template struct test_arg_ops<migraphx::op::argmin, 3, 1>;
 template struct test_arg_ops<migraphx::op::argmin, -3, 1>;
 template struct test_arg_ops<migraphx::op::argmin, -4, 1>;
-
+// slice argmax tests
 template struct test_arg_ops<migraphx::op::argmax, 0, 2>;
 template struct test_arg_ops<migraphx::op::argmax, 1, 2>;
 template struct test_arg_ops<migraphx::op::argmax, 2, 2>;
 template struct test_arg_ops<migraphx::op::argmax, 3, 2>;
 template struct test_arg_ops<migraphx::op::argmax, -1, 2>;
 template struct test_arg_ops<migraphx::op::argmax, -2, 2>;
-
+// slice argmin tests
 template struct test_arg_ops<migraphx::op::argmin, 0, 2>;
 template struct test_arg_ops<migraphx::op::argmin, 1, 2>;
 template struct test_arg_ops<migraphx::op::argmin, 2, 2>;
 template struct test_arg_ops<migraphx::op::argmin, 3, 2>;
 template struct test_arg_ops<migraphx::op::argmin, -3, 2>;
 template struct test_arg_ops<migraphx::op::argmin, -4, 2>;
-
-template struct test_arg_ops<migraphx::op::argmax, 0, 3>;
-template struct test_arg_ops<migraphx::op::argmax, 1, 3>;
-template struct test_arg_ops<migraphx::op::argmax, 2, 3>;
-template struct test_arg_ops<migraphx::op::argmax, 3, 3>;
-template struct test_arg_ops<migraphx::op::argmax, -1, 3>;
-template struct test_arg_ops<migraphx::op::argmax, -2, 3>;
-
-template struct test_arg_ops<migraphx::op::argmin, 0, 3>;
-template struct test_arg_ops<migraphx::op::argmin, 1, 3>;
-template struct test_arg_ops<migraphx::op::argmin, 2, 3>;
-template struct test_arg_ops<migraphx::op::argmin, 3, 3>;
-template struct test_arg_ops<migraphx::op::argmin, -3, 3>;
-template struct test_arg_ops<migraphx::op::argmin, -4, 3>;
-
+// default case, standard shape argmax tests
 template struct test_arg_ops<migraphx::op::argmax, 0, 4>;
 template struct test_arg_ops<migraphx::op::argmax, 1, 4>;
 template struct test_arg_ops<migraphx::op::argmax, 2, 4>;
 template struct test_arg_ops<migraphx::op::argmax, 3, 4>;
 template struct test_arg_ops<migraphx::op::argmax, -1, 4>;
 template struct test_arg_ops<migraphx::op::argmax, -2, 4>;
-
+// default case, standard shape argmin tests
 template struct test_arg_ops<migraphx::op::argmin, 0, 4>;
 template struct test_arg_ops<migraphx::op::argmin, 1, 4>;
 template struct test_arg_ops<migraphx::op::argmin, 2, 4>;

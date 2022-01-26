@@ -549,14 +549,14 @@ instruction_ref insert_mlir(module& m,
                        s.lens().end(),
                        std::back_inserter(refs),
                        [&](const auto& lval) { return get_literal(lval); });
-        refs.push_back(get_literal(1)); // G
+        // refs.push_back(get_literal(1)); // G
 
         // dim strides
         std::transform(s.strides().begin(),
                        s.strides().end(),
                        std::back_inserter(refs),
                        [&](const auto& lval) { return get_literal(lval); });
-        refs.push_back(get_literal(1)); // G
+        // refs.push_back(get_literal(1)); // G
     }
     co.expected_inputs = to_shapes(refs);
     co.output          = mmlir.get_output_shapes().front();

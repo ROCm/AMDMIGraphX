@@ -54,6 +54,7 @@ migraphx::parameter_map generate_params(const migraphx::program& p)
     std::size_t i = 0;
     for(auto&& x : p.get_parameter_shapes())
     {
+        // m[x.first] = migraphx::fill_argument(x.second, 1);
         m[x.first] = migraphx::generate_argument(x.second, i++);
     }
     return m;

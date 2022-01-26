@@ -10,8 +10,7 @@ namespace fpga {
 struct lowering
 {
     std::string name() const { return "fpga::lowering"; }
-    void apply(module& m) const {}
-    //void apply(module& m) const;
+    void apply(module& m) const;
 };
 
 } // namespace fpga

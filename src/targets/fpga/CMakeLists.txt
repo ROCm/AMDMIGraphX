@@ -1,5 +1,6 @@
 
 add_library(migraphx_fpga
+    lowering.cpp
     target.cpp
 )
 set_target_properties(migraphx_fpga PROPERTIES EXPORT_NAME fpga)

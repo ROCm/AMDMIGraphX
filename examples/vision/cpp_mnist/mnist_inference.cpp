@@ -19,8 +19,8 @@ int main(int argc, char** argv)
                   << "\t -c, --cpu      Compile for CPU" << std::endl
                   << "\t -g, --gpu      Compile for GPU" << std::endl
                   << "\t -f, --fpga     Compile for FPGA" << std::endl
-                  << "\t -f, --fp16     FP16 Quantization" << std::endl
-                  << "\t -i, --int8     Int8 Quantization" << std::endl
+                  << "\t -s, --fp16     FP16 Quantization" << std::endl
+                  << "\t -e, --int8     Int8 Quantization" << std::endl
                   << "\t       --cal    Int8 Calibration ON" << std::endl
                   << "\t -p, --print    Print Graph at Each Stage" << std::endl
                   << std::endl

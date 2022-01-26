@@ -21,7 +21,7 @@ struct parse_hardsigmoid : op_parser<parse_hardsigmoid>
         float beta  = 0.5;
         if(opd.onnx_name == "HardSwish")
         {
-            alpha = 1 / 6;
+            alpha = 1.0/6.0;
         }
         else
         {

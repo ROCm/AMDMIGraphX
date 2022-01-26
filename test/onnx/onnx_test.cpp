@@ -1689,7 +1689,7 @@ TEST_CASE(hardswish_test)
     migraphx::shape s{input_type, input_lens};
     auto x = mm->add_parameter("x", s);
 
-    float alpha = 1 / 6;
+    float alpha = 1.0/6.0;
     float beta  = 0.5;
 
     auto mb_alpha = mm->add_instruction(

@@ -11,11 +11,6 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::program& p)
-{
-    migraphx::run_passes(p, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});
-}
-
 void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::simplify_reshapes{}, migraphx::dead_code_elimination{}});

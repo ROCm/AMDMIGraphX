@@ -3599,7 +3599,7 @@ TEST_CASE(resize_nonstd_input_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(resize_upsample_linear_ac_test)
+static auto create_upsample_linear_prog()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -3690,6 +3690,12 @@ TEST_CASE(resize_upsample_linear_ac_test)
     auto add1  = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
     mm->add_return({add1});
 
+    return p;
+}
+
+TEST_CASE(resize_upsample_linear_ac_test)
+{
+    auto p = create_upsample_linear_prog();
     auto prog = migraphx::parse_onnx("resize_upsample_linear_ac_test.onnx");
     EXPECT(p == prog);
 }
@@ -4707,6 +4713,13 @@ TEST_CASE(unknown_aten_test)
 TEST_CASE(unknown_test_throw)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+}
+
+TEST_CASE(upsample_linear_test)
+{
+    auto p = create_upsample_linear_prog();
+    auto prog = migraphx::parse_onnx("upsample_linear_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(upsample_test)

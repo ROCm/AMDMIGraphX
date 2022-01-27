@@ -3695,7 +3695,7 @@ static auto create_upsample_linear_prog()
 
 TEST_CASE(resize_upsample_linear_ac_test)
 {
-    auto p = create_upsample_linear_prog();
+    auto p    = create_upsample_linear_prog();
     auto prog = migraphx::parse_onnx("resize_upsample_linear_ac_test.onnx");
     EXPECT(p == prog);
 }
@@ -4717,7 +4717,7 @@ TEST_CASE(unknown_test_throw)
 
 TEST_CASE(upsample_linear_test)
 {
-    auto p = create_upsample_linear_prog();
+    auto p    = create_upsample_linear_prog();
     auto prog = migraphx::parse_onnx("upsample_linear_test.onnx");
     EXPECT(p == prog);
 }

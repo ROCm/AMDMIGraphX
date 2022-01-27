@@ -10,20 +10,27 @@ namespace onnx {
 
 struct parse_hardsigmoid : op_parser<parse_hardsigmoid>
 {
-    std::vector<op_desc> operators() const { return {{"HardSigmoid"}}; }
+    std::vector<op_desc> operators() const { return {{"HardSigmoid"}, {"HardSwish"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         float alpha = 0.2;
         float beta  = 0.5;
-        if(contains(info.attributes, "alpha"))
-            alpha = info.attributes.at("alpha").f();
+        if(opd.onnx_name == "HardSwish")
+        {
+            alpha = 1.0 / 6.0;
+        }
+        else
+        {
+            if(contains(info.attributes, "alpha"))
+                alpha = info.attributes.at("alpha").f();
 
-        if(contains(info.attributes, "beta"))
-            beta = info.attributes.at("beta").f();
+            if(contains(info.attributes, "beta"))
+                beta = info.attributes.at("beta").f();
+        }
 
         auto input_lens = args[0]->get_shape().lens();
         auto input_type = args[0]->get_shape().type();
@@ -40,9 +47,13 @@ struct parse_hardsigmoid : op_parser<parse_hardsigmoid>
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
 
-        auto mul = info.add_instruction(migraphx::make_op("mul"), mb_alpha, args[0]);
-        auto add = info.add_instruction(migraphx::make_op("add"), mb_beta, mul);
-        return info.add_instruction(migraphx::make_op("clip"), add, mb_zero, mb_one);
+        auto mul         = info.add_instruction(migraphx::make_op("mul"), mb_alpha, args[0]);
+        auto add         = info.add_instruction(migraphx::make_op("add"), mb_beta, mul);
+        auto hardsigmoid = info.add_instruction(migraphx::make_op("clip"), add, mb_zero, mb_one);
+        if(opd.onnx_name == "HardSwish")
+            return info.add_instruction(migraphx::make_op("mul"), args[0], hardsigmoid);
+
+        return hardsigmoid;
     }
 };
 

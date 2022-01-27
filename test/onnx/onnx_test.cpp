@@ -2462,11 +2462,6 @@ TEST_CASE(mean_invalid_broadcast_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("mean_invalid_broadcast_test.onnx"); }));
 }
 
-TEST_CASE(mean_mixed_type_test)
-{
-    EXPECT(test::throws([&] { migraphx::parse_onnx("mean_mixed_type_test.onnx"); }));
-}
-
 TEST_CASE(mean_single_input_test)
 {
     migraphx::program p;
@@ -2488,12 +2483,16 @@ TEST_CASE(mean_test)
     auto data0   = mm->add_parameter("0", s);
     auto data1   = mm->add_parameter("1", s);
     auto data2   = mm->add_parameter("2", s);
-    auto divisor = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {num_data}});
-    divisor =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), divisor);
+    auto div_lit = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {num_data}});
+    auto divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
     auto mean = mm->add_instruction(migraphx::make_op("div"), data0, divisor);
+    divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
     data1     = mm->add_instruction(migraphx::make_op("div"), data1, divisor);
     mean      = mm->add_instruction(migraphx::make_op("add"), mean, data1);
+    divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
     data2     = mm->add_instruction(migraphx::make_op("div"), data2, divisor);
     mean      = mm->add_instruction(migraphx::make_op("add"), mean, data2);
 

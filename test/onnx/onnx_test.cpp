@@ -2489,12 +2489,12 @@ TEST_CASE(mean_test)
     auto mean = mm->add_instruction(migraphx::make_op("div"), data0, divisor);
     divisor =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
-    data1     = mm->add_instruction(migraphx::make_op("div"), data1, divisor);
-    mean      = mm->add_instruction(migraphx::make_op("add"), mean, data1);
+    data1 = mm->add_instruction(migraphx::make_op("div"), data1, divisor);
+    mean  = mm->add_instruction(migraphx::make_op("add"), mean, data1);
     divisor =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
-    data2     = mm->add_instruction(migraphx::make_op("div"), data2, divisor);
-    mean      = mm->add_instruction(migraphx::make_op("add"), mean, data2);
+    data2 = mm->add_instruction(migraphx::make_op("div"), data2, divisor);
+    mean  = mm->add_instruction(migraphx::make_op("add"), mean, data2);
 
     auto prog = optimize_onnx("mean_fp16_test.onnx");
 

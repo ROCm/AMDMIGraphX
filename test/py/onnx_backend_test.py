@@ -119,6 +119,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_globalmaxpool.*')
         backend_test.include(r'.*test_greater.*')
         backend_test.include(r'.*test_hardsigmoid.*')
+        backend_test.include(r'.*test_hardswish.*')
         backend_test.include(r'.*test_identity.*')
         backend_test.include(r'.*test_if.*')
         backend_test.include(r'.*test_LeakyReLU*')

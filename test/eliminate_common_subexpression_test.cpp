@@ -175,7 +175,9 @@ TEST_CASE(cse_test_submodule)
         auto val1  = body1->add_instruction(migraphx::make_op("add"), in_v1, ad1);
         auto cond1 = body1->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b0);
-        body1->add_return({cond1, val1, val1});
+        auto cond2 = body1->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b1);
+        body1->add_return({cond1, cond2, val1, val1});
 
         auto* body2 = p.create_module("loop_module2");
         body2->add_parameter("#loop_module_in_1", sc);
@@ -183,9 +185,9 @@ TEST_CASE(cse_test_submodule)
         auto l2    = body2->add_literal(migraphx::literal(si, vd));
         auto ad2   = body2->add_instruction(migraphx::make_op("add"), l2, l2);
         auto val2  = body2->add_instruction(migraphx::make_op("add"), in_v2, ad2);
-        auto cond2 = body2->add_instruction(
+        auto cond3 = body2->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b1);
-        body2->add_return({cond2, val2, val2});
+        body2->add_return({cond3, val2, val2});
 
         auto rl1 = mm->add_instruction(
             migraphx::make_op("loop", {{"max_iterations", 1}}), {in_cond, in_val}, {body1});

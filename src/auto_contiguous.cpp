@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>

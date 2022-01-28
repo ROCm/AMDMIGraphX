@@ -33,7 +33,8 @@ void auto_contiguous::apply(module& p) const
     auto last = std::prev(p.end());
     for(auto ins : iterator_for(p))
     {
-        if (ins->outputs().empty() and ins != last) continue;
+        if(ins->outputs().empty() and ins != last)
+            continue;
         shape s = ins->get_shape();
         if(not s.standard() and s.elements() != 0)
         {

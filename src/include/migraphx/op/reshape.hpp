@@ -9,6 +9,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/lifetime.hpp>
+#include <migraphx/value.hpp>
 #include <cmath>
 #include <utility>
 
@@ -24,6 +25,11 @@ struct reshape
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.dims, "dims"));
+    }
+
+    value attributes() const
+    {
+        return {{"standard_input_shape", true}};
     }
 
     std::string name() const { return "reshape"; }

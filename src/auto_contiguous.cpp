@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -10,13 +11,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void auto_contiguous::apply(module& p) const
 {
-    for(auto ins : iterator_for(p))
+    std::string key = "standard_input_shape";
+    for(auto ins : reverse_iterator_for(p))
     {
-        shape s = ins->get_shape();
-        if(not s.standard() and s.elements() != 0)
+        auto&& attr = ins->get_operator().attributes();
+        if((attr.contains(key) and attr.at(key).to<bool>()))
         {
-            auto c = p.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-            p.replace_instruction(ins, c);
+            auto args = ins->inputs();
+            auto new_args = args;
+            std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
+                return p.replace_instruction(ins, make_op("contiguous"), in);
+            });
+
+            if(new_args != args)
+            {
+                p.replace_instruction(ins, ins->get_operator(), new_args);
+            }
         }
     }
 }

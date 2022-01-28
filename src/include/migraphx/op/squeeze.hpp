@@ -50,21 +50,18 @@ struct squeeze
         std::vector<std::size_t> new_strides;
         if(axes.empty())
         {
-            std::copy_if(old_lens.begin(),
-                         old_lens.end(),
-                         std::back_inserter(new_lens),
-                         [](auto len) { return len != 1; });
-            for(std::size_t i = 0; i < old_lens.size(); i++)
+            for(auto i : range(old_lens.size()))
             {
                 if(old_lens[i] != 1)
                 {
+                    new_lens.push_back(old_lens[i]);
                     new_strides.push_back(old_strides[i]);
                 }
             }
         }
         else
         {
-            for(std::size_t i = 0; i < old_lens.size(); i++)
+            for(auto i : range(old_lens.size()))
             {
                 if(std::find(axes.begin(), axes.end(), i) == axes.end())
                 {

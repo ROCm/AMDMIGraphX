@@ -17,7 +17,7 @@ void auto_contiguous::apply(module& p) const
         auto&& attr = ins->get_operator().attributes();
         if((attr.contains(key) and attr.at(key).to<bool>()))
         {
-            auto args = ins->inputs();
+            auto args     = ins->inputs();
             auto new_args = args;
             std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
                 return p.replace_instruction(ins, make_op("contiguous"), in);

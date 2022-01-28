@@ -27,10 +27,7 @@ struct reshape
         return pack(f(self.dims, "dims"));
     }
 
-    value attributes() const
-    {
-        return {{"standard_input_shape", true}};
-    }
+    value attributes() const { return {{"standard_input_shape", true}}; }
 
     std::string name() const { return "reshape"; }
     shape compute_shape(std::vector<shape> inputs) const

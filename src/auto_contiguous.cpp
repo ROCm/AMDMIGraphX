@@ -20,13 +20,25 @@ void auto_contiguous::apply(module& p) const
             auto args     = ins->inputs();
             auto new_args = args;
             std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
-                return p.replace_instruction(ins, make_op("contiguous"), in);
+                return p.insert_instruction(ins, make_op("contiguous"), in);
             });
 
             if(new_args != args)
             {
                 p.replace_instruction(ins, ins->get_operator(), new_args);
             }
+        }
+    }
+
+    auto last = std::prev(p.end());
+    for(auto ins : iterator_for(p))
+    {
+        if (ins->outputs().empty() and ins != last) continue;
+        shape s = ins->get_shape();
+        if(not s.standard() and s.elements() != 0)
+        {
+            auto c = p.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+            p.replace_instruction(ins, c);
         }
     }
 }

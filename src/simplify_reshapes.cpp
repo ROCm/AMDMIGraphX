@@ -26,6 +26,7 @@ const auto& reshaper_names()
     static const std::unordered_set<std::string> names = {
         "flatten",
         "reshape",
+        "contiguous",
         "squeeze",
         "unsqueeze"
     };

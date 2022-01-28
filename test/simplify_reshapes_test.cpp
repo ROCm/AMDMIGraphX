@@ -16,7 +16,7 @@ void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::simplify_reshapes{},
-                          migraphx::eliminate_contiguous{"contiguous"},
+                        //   migraphx::eliminate_contiguous{"contiguous"},
                           migraphx::dead_code_elimination{}});
 }
 

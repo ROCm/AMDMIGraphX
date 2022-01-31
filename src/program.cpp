@@ -180,6 +180,28 @@ void program::finalize()
     mm->finalize(this->impl->ctx);
 }
 
+template<class T>
+std::string classify(T x) {
+    switch(std::fpclassify(x)) {
+        case FP_INFINITE:  return "inf";
+        case FP_NAN:       return "nan";
+        case FP_NORMAL:    return "normal";
+        case FP_SUBNORMAL: return "subnormal";
+        case FP_ZERO:      return "zero";
+        default:           return "unknown";
+    }
+}
+
+std::unordered_set<std::string> classify_argument(const argument& a)
+{
+    std::unordered_set<std::string> result;
+    a.visit([&](auto t) {
+        for(auto x:t)
+            result.insert(classify(x));
+    });
+    return result;
+}
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
@@ -313,7 +335,11 @@ std::vector<argument> program::eval(parameter_map params) const
                                    ins->name() != "load" and not result.empty())
                                 {
                                     target tgt = make_target(this->impl->target_name);
-                                    std::cout << "Output: " << tgt.copy_from(result) << std::endl;
+                                    auto buffer = tgt.copy_from(result);
+                                    if (trace_level == 2)
+                                        std::cout << "Output has " << to_string_range(classify_argument(buffer)) << std::endl;
+                                    else if (trace_level > 2)
+                                        std::cout << "Output: " << buffer << std::endl;
                                 }
                                 return result;
                             }));

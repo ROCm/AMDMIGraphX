@@ -180,15 +180,17 @@ void program::finalize()
     mm->finalize(this->impl->ctx);
 }
 
-template<class T>
-std::string classify(T x) {
-    switch(std::fpclassify(x)) {
-        case FP_INFINITE:  return "inf";
-        case FP_NAN:       return "nan";
-        case FP_NORMAL:    return "normal";
-        case FP_SUBNORMAL: return "subnormal";
-        case FP_ZERO:      return "zero";
-        default:           return "unknown";
+template <class T>
+std::string classify(T x)
+{
+    switch(std::fpclassify(x))
+    {
+    case FP_INFINITE: return "inf";
+    case FP_NAN: return "nan";
+    case FP_NORMAL: return "normal";
+    case FP_SUBNORMAL: return "subnormal";
+    case FP_ZERO: return "zero";
+    default: return "unknown";
     }
 }
 
@@ -196,7 +198,7 @@ std::unordered_set<std::string> classify_argument(const argument& a)
 {
     std::unordered_set<std::string> result;
     a.visit([&](auto t) {
-        for(auto x:t)
+        for(auto x : t)
             result.insert(classify(x));
     });
     return result;
@@ -334,11 +336,13 @@ std::vector<argument> program::eval(parameter_map params) const
                                 if(trace_level > 1 and ins->name().front() != '@' and
                                    ins->name() != "load" and not result.empty())
                                 {
-                                    target tgt = make_target(this->impl->target_name);
+                                    target tgt  = make_target(this->impl->target_name);
                                     auto buffer = tgt.copy_from(result);
-                                    if (trace_level == 2)
-                                        std::cout << "Output has " << to_string_range(classify_argument(buffer)) << std::endl;
-                                    else if (trace_level > 2)
+                                    if(trace_level == 2)
+                                        std::cout << "Output has "
+                                                  << to_string_range(classify_argument(buffer))
+                                                  << std::endl;
+                                    else if(trace_level > 2)
                                         std::cout << "Output: " << buffer << std::endl;
                                 }
                                 return result;

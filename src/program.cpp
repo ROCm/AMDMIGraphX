@@ -643,12 +643,12 @@ void program::perf_report(std::ostream& os,
             return;
     });
 
-    int print_ins_len = max_ins_len + 4;
+    int print_ins_len = max_ins_len + 2;
     std::string str   = "Instructions";
     os << str;
     print_space(os, print_ins_len - str.length());
-    std::string time_str    = "Time(ms)        ";
-    std::string percent_str = "Percentage    ";
+    std::string time_str    = "Time(ms)    ";
+    std::string percent_str = "Percentage  ";
     std::string flops_str   = "Flops(GFlops/s)";
     os << time_str << percent_str << flops_str << std::endl;
 
@@ -695,6 +695,10 @@ void program::perf_report(std::ostream& os,
             {
                 flps.erase(flps.begin() + floc + 4, flps.end());
             }
+            flps.append(1, ' ');
+            flps.append("(k = ");
+            flps.append(std::to_string(inss.front().lens().back()));
+            flps.append(")");
         }
         os << tms << pers << flps << std::endl;
     });

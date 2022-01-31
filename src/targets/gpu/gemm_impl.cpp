@@ -83,12 +83,12 @@ void gemm_impl(context& ctx,
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
-        auto alpha_r   = as(alpha);
-        auto beta_r    = as(beta);
+        auto alpha_r = as(alpha);
+        auto beta_r  = as(beta);
         if(compute_fp32)
         {
-            alpha_r     = alpha;
-            beta_r      = beta;
+            alpha_r = alpha;
+            beta_r  = beta;
         }
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];

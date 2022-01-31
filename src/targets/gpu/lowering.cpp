@@ -60,6 +60,7 @@ struct miopen_apply
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy   = false;
     bool int8_x4_format = true;
+    bool compute_fp32   = false;
 
     context& get_context() const
     {
@@ -103,6 +104,8 @@ struct miopen_apply
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
         auto& ctx = get_context();
+        if(ctx.get_stream().get_device_name() == "gfx908")
+            compute_fp32 = true;
         rocblas_gemm_flags flag;
         rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
         int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
@@ -337,7 +340,7 @@ struct miopen_apply
                 }
             }
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
     }
 

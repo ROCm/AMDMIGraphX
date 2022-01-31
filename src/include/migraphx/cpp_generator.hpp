@@ -34,6 +34,7 @@ struct cpp_generator
         std::string return_type             = "void";
         std::string name                    = "";
         std::vector<std::string> attributes = {};
+        std::vector<std::string> tparams    = {};
         function& set_body(const module& m, const generate_module_callback& g);
         function& set_body(const std::string& s)
         {
@@ -52,6 +53,7 @@ struct cpp_generator
         }
         function& set_types(const module& m);
         function& set_types(const module& m, const std::function<std::string(shape)>& parse);
+        function& set_generic_types(const module& m);
     };
 
     cpp_generator();
@@ -65,6 +67,8 @@ struct cpp_generator
     ~cpp_generator() noexcept;
 
     void fmap(const std::function<std::string(std::string)>& f);
+
+    void add_point_op(const std::string& op_name, const std::string& code);
 
     std::string generate_point_op(const operation& op, const std::vector<std::string>& args);
 

@@ -16,6 +16,19 @@ struct swallow
 template <index_int>
 using ignore = swallow;
 
+template <class... Fs>
+struct overloaded : Fs...
+{
+    using Fs::operator()...;
+    overloaded(Fs... fs) : Fs(fs)... {}
+};
+
+template <class... Fs>
+overloaded<Fs...> overload(Fs... fs)
+{
+    return {fs...};
+}
+
 namespace detail {
 
 template <class R>
@@ -124,10 +137,46 @@ constexpr void each_args(F)
 {
 }
 
+template <class F, class T>
+constexpr auto fold_impl(F&&, T&& x)
+{
+    return static_cast<T&&>(x);
+}
+
+template <class F, class T, class U, class... Ts>
+constexpr auto fold_impl(F&& f, T&& x, U&& y, Ts&&... xs)
+{
+    return fold_impl(f, f(static_cast<T&&>(x), static_cast<U&&>(y)), static_cast<Ts&&>(xs)...);
+}
+
+template <class F>
+constexpr auto fold(F f)
+{
+    return [=](auto&&... xs) { return fold_impl(f, static_cast<decltype(xs)&&>(xs)...); };
+}
+
 template <class... Ts>
-auto pack(Ts... xs)
+constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
+}
+
+template <class Compare, class P1, class P2>
+constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
+{
+    return p1([&](auto... xs) {
+        return p2([&](auto... ys) {
+            auto c = [&](auto x, auto y) -> int {
+                if(compare(x, y))
+                    return 1;
+                else if(compare(y, x))
+                    return -1;
+                else
+                    return 0;
+            };
+            return fold([](auto x, auto y) { return x ? x : y; })(c(xs, ys)..., 0);
+        });
+    });
 }
 
 template <index_int N>
@@ -168,8 +217,13 @@ constexpr auto transform_args(F f, Fs... fs)
     return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
 }
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
+// NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...) \
-    ([](auto&&... xs) { return (__VA_ARGS__)(static_cast<decltype(xs)>(xs)...); })
+    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

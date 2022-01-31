@@ -14,16 +14,28 @@ namespace gpu {
 static const char* const roialign_kernel = R"__migraphx__(
 #include <migraphx/kernels/roialign.hpp>
 #include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
 
-using namespace migraphx;
+namespace migraphx {
 
 extern "C" {
+
 __global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
 {
-    make_tensors()(in_x, in_rois, in_ind, y)([](auto&&... xs) { roialign(xs...); });
+    make_tensors()(in_x, in_rois, in_ind, y)([](auto&&... xs) {
+        auto settings = make_roalign_settings(MIGRAPHX_MAKE_CONSTANT(float{ROIS_OFFSET}),
+                                              _c<bool{IS_AVG_POOLING}>,
+                                              _c<int64_t{SAMPLING_RATIO}>, 
+                                              MIGRAPHX_MAKE_CONSTANT(float{SPATIAL_SCALE}));
+        roialign(xs..., settings); 
+    });
 }
+
 }
+
+} // namespace migraphx
 
 int main() {}
 
@@ -38,7 +50,7 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     options.inputs         = io_shapes;
     options.output         = out_s;
     options.kernel_name    = "roialign_kernel";
-    options.reduced_inputs = io_shapes;
+    options.virtual_inputs = io_shapes;
 
     // sampling_ratio
     assert(val.contains("sampling_ratio"));

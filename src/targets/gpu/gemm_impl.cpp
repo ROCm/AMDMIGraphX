@@ -42,7 +42,8 @@ void gemm_impl(context& ctx,
                const std::vector<argument>& args,
                T alpha,
                T beta,
-               bool int8_x4_format)
+               bool int8_x4_format,
+               bool compute_fp32)
 {
     bool transa     = args[0].get_shape().transposed();
     bool transb     = args[1].get_shape().transposed();
@@ -65,13 +66,11 @@ void gemm_impl(context& ctx,
         output_type = rocblas_datatype_i32_r;
     }
     auto compute_type = output_type;
-    if(args[0].get_shape().type() == shape::half_type)
-        compute_type = rocblas_datatype_f32_r;
-        // if(ctx.get_stream().get_device_name() == "gfx908")
-        // {
-        //     if(args[0].get_shape().type() == shape::half_type)
-        //         compute_type = rocblas_datatype_f32_r;
-        // }
+    if(compute_fp32)
+    {
+        if(arg_type == rocblas_datatype_f16_r)
+            compute_type = rocblas_datatype_f32_r;
+    }
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
     rocblas_gemm_flags flag =
@@ -84,6 +83,13 @@ void gemm_impl(context& ctx,
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
+        auto alpha_r   = as(alpha);
+        auto beta_r    = as(beta);
+        if(compute_fp32)
+        {
+            alpha_r     = alpha;
+            beta_r      = beta;
+        }
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];
         rocblas_int n   = out_lens[dim_1];
@@ -109,14 +115,14 @@ void gemm_impl(context& ctx,
                            n,
                            m,
                            k,
-                           &alpha,
+                           &alpha_r,
                            to_pointer(args.at(1)),
                            arg_type,
                            ldb,
                            to_pointer(args.at(0)),
                            arg_type,
                            lda,
-                           &beta,
+                           &beta_r,
                            to_pointer(args[2]),
                            output_type,
                            ldc,
@@ -137,7 +143,7 @@ void gemm_impl(context& ctx,
                            n,
                            m,
                            k,
-                           &alpha,
+                           &alpha_r,
                            to_pointer(args.at(1)),
                            arg_type,
                            ldb,
@@ -146,7 +152,7 @@ void gemm_impl(context& ctx,
                            arg_type,
                            lda,
                            m * k,
-                           &beta,
+                           &beta_r,
                            to_pointer(args[2]),
                            output_type,
                            ldc,
@@ -169,9 +175,10 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           float alpha,
           float beta,
-          bool int8_x4_format)
+          bool int8_x4_format,
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 void gemm(context& ctx,
@@ -179,9 +186,10 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
-          bool int8_x4_format)
+          bool int8_x4_format,
+          bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format);
+    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
 }
 
 } // namespace gpu

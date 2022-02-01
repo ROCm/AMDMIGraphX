@@ -21,9 +21,9 @@ argument scatternd(hipStream_t stream, argument result, argument arg0, argument 
         auto* output_ptr     = device_cast(output.data());
         const auto* data_ptr = device_cast(data.data());
         gs_launch(stream, ds.elements())([=](auto i) __device__ { output_ptr[i] = data_ptr[i]; });
-        //hip_visit_all(arg1)([&](auto indices) {
-        arg1.visit([&](auto indices_view){
-            hip_visit_views(indices_view)([&](auto indices){
+        // hip_visit_all(arg1)([&](auto indices) {
+        arg1.visit([&](auto indices_view) {
+            hip_visit_views(indices_view)([&](auto indices) {
                 const auto* updates_ptr = device_cast(updates.data());
                 const auto* indices_ptr = device_cast(indices.data());
                 gs_launch(stream, updates_shape.elements())([=](auto i) __device__ {

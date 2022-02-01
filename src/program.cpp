@@ -228,7 +228,7 @@ void preview_argument(std::ostream& os, const argument& a)
             }
         },
         [&](const auto& xs) {
-            for(auto x : xs)
+            for(const auto& x : xs)
             {
                 os << '{';
                 preview_argument(os, x);
@@ -380,7 +380,7 @@ std::vector<argument> program::eval(parameter_map params) const
                                         preview_argument(std::cout, buffer);
                                         std::cout << std::endl;
                                     }
-                                    else if(trace_level > 2)
+                                    else
                                     {
                                         std::cout << "Output: " << buffer << std::endl;
                                     }

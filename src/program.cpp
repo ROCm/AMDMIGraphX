@@ -200,6 +200,12 @@ std::unordered_set<std::string> classify_argument(const argument& a)
     a.visit([&](auto t) {
         for(auto x : t)
             result.insert(classify(x));
+    }, [&](const auto& xs) {
+        for(auto x:xs)
+        {
+            auto r = classify_argument(x);
+            result.insert(r.begin(), r.end());
+        }
     });
     return result;
 }
@@ -339,11 +345,15 @@ std::vector<argument> program::eval(parameter_map params) const
                                     target tgt  = make_target(this->impl->target_name);
                                     auto buffer = tgt.copy_from(result);
                                     if(trace_level == 2)
+                                    {
                                         std::cout << "Output has "
                                                   << to_string_range(classify_argument(buffer))
                                                   << std::endl;
+                                    }
                                     else if(trace_level > 2)
+                                    {
                                         std::cout << "Output: " << buffer << std::endl;
+                                    }
                                 }
                                 return result;
                             }));

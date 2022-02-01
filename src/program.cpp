@@ -216,7 +216,7 @@ void preview_argument(std::ostream& os, const argument& a)
 {
     a.visit(
         [&](auto t) {
-            if (t.size() <= 10)
+            if(t.size() <= 10)
             {
                 os << t;
             }
@@ -225,7 +225,6 @@ void preview_argument(std::ostream& os, const argument& a)
                 os << to_string_range(t.begin(), t.begin() + 5);
                 os << ", ..., ";
                 os << to_string_range(t.end() - 5, t.end());
-
             }
         },
         [&](const auto& xs) {

@@ -11,7 +11,7 @@ namespace gpu {
 namespace device {
 
 argument
-scatternd(hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2);
+scatternd(hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, const std::string reduction);
 
 } // namespace device
 } // namespace gpu

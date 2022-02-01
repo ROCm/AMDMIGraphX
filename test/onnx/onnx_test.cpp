@@ -2492,6 +2492,50 @@ TEST_CASE(maxpool_same_upper_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(mean_invalid_broadcast_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mean_invalid_broadcast_test.onnx"); }));
+}
+
+TEST_CASE(mean_single_input_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto data0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 3}});
+    mm->add_return({data0});
+
+    auto prog = migraphx::parse_onnx("mean_single_input_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mean_test)
+{
+    const std::size_t num_data = 3;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {1, 2, 3}};
+    auto data0   = mm->add_parameter("0", s);
+    auto data1   = mm->add_parameter("1", s);
+    auto data2   = mm->add_parameter("2", s);
+    auto div_lit = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {num_data}});
+    auto divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
+    auto mean = mm->add_instruction(migraphx::make_op("div"), data0, divisor);
+    divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
+    data1 = mm->add_instruction(migraphx::make_op("div"), data1, divisor);
+    mean  = mm->add_instruction(migraphx::make_op("add"), mean, data1);
+    divisor =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), div_lit);
+    data2 = mm->add_instruction(migraphx::make_op("div"), data2, divisor);
+    mean  = mm->add_instruction(migraphx::make_op("add"), mean, data2);
+
+    auto prog = optimize_onnx("mean_fp16_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(min_test)
 {
     migraphx::program p;
@@ -3599,7 +3643,7 @@ TEST_CASE(resize_nonstd_input_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(resize_upsample_linear_ac_test)
+static auto create_upsample_linear_prog()
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -3690,6 +3734,12 @@ TEST_CASE(resize_upsample_linear_ac_test)
     auto add1  = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
     mm->add_return({add1});
 
+    return p;
+}
+
+TEST_CASE(resize_upsample_linear_ac_test)
+{
+    auto p    = create_upsample_linear_prog();
     auto prog = migraphx::parse_onnx("resize_upsample_linear_ac_test.onnx");
     EXPECT(p == prog);
 }
@@ -4707,6 +4757,13 @@ TEST_CASE(unknown_aten_test)
 TEST_CASE(unknown_test_throw)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+}
+
+TEST_CASE(upsample_linear_test)
+{
+    auto p    = create_upsample_linear_prog();
+    auto prog = migraphx::parse_onnx("upsample_linear_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(upsample_test)

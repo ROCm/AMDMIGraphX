@@ -13,6 +13,7 @@ struct integral_constant
     using type               = integral_constant;
     constexpr operator value_type() const noexcept { return value; }
     constexpr value_type operator()() const noexcept { return value; }
+    static constexpr type to() { return {}; }
 };
 
 // NOLINTNEXTLINE

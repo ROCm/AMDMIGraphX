@@ -197,16 +197,18 @@ std::string classify(T x)
 std::unordered_set<std::string> classify_argument(const argument& a)
 {
     std::unordered_set<std::string> result;
-    a.visit([&](auto t) {
-        for(auto x : t)
-            result.insert(classify(x));
-    }, [&](const auto& xs) {
-        for(auto x:xs)
-        {
-            auto r = classify_argument(x);
-            result.insert(r.begin(), r.end());
-        }
-    });
+    a.visit(
+        [&](auto t) {
+            for(auto x : t)
+                result.insert(classify(x));
+        },
+        [&](const auto& xs) {
+            for(auto x : xs)
+            {
+                auto r = classify_argument(x);
+                result.insert(r.begin(), r.end());
+            }
+        });
     return result;
 }
 

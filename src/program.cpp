@@ -199,11 +199,11 @@ std::unordered_set<std::string> classify_argument(const argument& a)
     std::unordered_set<std::string> result;
     a.visit(
         [&](auto t) {
-            for(auto x : t)
+            for(const auto& x : t)
                 result.insert(classify(x));
         },
         [&](const auto& xs) {
-            for(auto x : xs)
+            for(const auto& x : xs)
             {
                 auto r = classify_argument(x);
                 result.insert(r.begin(), r.end());

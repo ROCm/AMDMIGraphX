@@ -212,6 +212,32 @@ std::unordered_set<std::string> classify_argument(const argument& a)
     return result;
 }
 
+void preview_argument(std::ostream& os, const argument& a)
+{
+    a.visit(
+        [&](auto t) {
+            if (t.size() <= 10)
+            {
+                os << t;
+            }
+            else
+            {
+                os << to_string_range(t.begin(), t.begin() + 5);
+                os << ", ..., ";
+                os << to_string_range(t.end() - 5, t.end());
+
+            }
+        },
+        [&](const auto& xs) {
+            for(auto x : xs)
+            {
+                os << '{';
+                preview_argument(os, x);
+                os << '}';
+            }
+        });
+}
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
@@ -351,6 +377,9 @@ std::vector<argument> program::eval(parameter_map params) const
                                         std::cout << "Output has "
                                                   << to_string_range(classify_argument(buffer))
                                                   << std::endl;
+                                        std::cout << "Output: ";
+                                        preview_argument(std::cout, buffer);
+                                        std::cout << std::endl;
                                     }
                                     else if(trace_level > 2)
                                     {

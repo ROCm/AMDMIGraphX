@@ -4220,7 +4220,7 @@ TEST_CASE(scatternd_test)
     {
         // r=1, q=2, k=1
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {8}};
@@ -4231,10 +4231,11 @@ TEST_CASE(scatternd_test)
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4248,7 +4249,7 @@ TEST_CASE(scatternd_test)
     {
         // r=2, q=2, k=2
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {2, 2}};
@@ -4259,10 +4260,11 @@ TEST_CASE(scatternd_test)
         std::vector<int64_t> ind_vec{0, 0, 0, 1};
         std::vector<float> upd_vec{5, 6};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4276,7 +4278,7 @@ TEST_CASE(scatternd_test)
     {
         // r=3, q=3, k=3
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {2, 2, 2}};
@@ -4287,10 +4289,11 @@ TEST_CASE(scatternd_test)
         std::vector<int64_t> ind_vec{0, 0, 0, 1, 1, 1};
         std::vector<float> upd_vec{9, 10};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4304,34 +4307,34 @@ TEST_CASE(scatternd_test)
     {
         // r=3, q=2, k=1
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {4, 4, 4}};
         migraphx::shape is{itype, {2, 1}};
         migraphx::shape us{dtype, {2, 4, 4}};
 
-        std::vector<float> data_vec{1, 2 ,3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                    1, 2 ,3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2 ,3, 4, 5, 6, 7, 8,
-                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2 ,3, 4, 5, 6, 7, 8};
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
+                                    1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
+                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
+                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
         std::vector<int64_t> ind_vec{0, 2};
         std::vector<float> upd_vec{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
-                                    1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+                                   1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
-                                1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
-                                1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4,
-                                8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<float> gold{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 1, 2, 3, 4, 5, 6,
+                                7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+                                4, 4, 4, 4, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
 
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
@@ -4339,7 +4342,7 @@ TEST_CASE(scatternd_test)
     {
         // r=5, q=1, k=1
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {2, 2, 2, 2, 2}};
@@ -4350,10 +4353,11 @@ TEST_CASE(scatternd_test)
         std::vector<int64_t> ind_vec{1};
         std::vector<float> upd_vec(16, 0);
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4371,7 +4375,7 @@ TEST_CASE(scatternd_reduction_test)
     {
         // reduction = add
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {8}};
@@ -4382,10 +4386,11 @@ TEST_CASE(scatternd_reduction_test)
         std::vector<int64_t> ind_vec{4, 3, 1, 7, 4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12, -8, -9, -10, -11};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
-        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd", {{"reduction", "add"}}), data, indices, updates);
+        auto data      = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd = mm->add_instruction(
+            migraphx::make_op("scatternd", {{"reduction", "add"}}), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4399,21 +4404,22 @@ TEST_CASE(scatternd_reduction_test)
     {
         // reduction = mul
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {8}};
         migraphx::shape is{itype, {4, 1}};
         migraphx::shape us{dtype, {4}};
 
-        std::vector<float> data_vec{1, 2 ,3, 4, 5, 6, 7, 8};
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
-        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(migraphx::make_op("scatternd", {{"reduction", "mul"}}), data, indices, updates);
+        auto data      = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd = mm->add_instruction(
+            migraphx::make_op("scatternd", {{"reduction", "mul"}}), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

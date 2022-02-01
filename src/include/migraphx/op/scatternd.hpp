@@ -48,14 +48,14 @@ struct scatternd
                 auto k = indices.get_shape().lens().back();
                 par_for(updates_shape.elements(), [&](const auto i) {
                     // updates and indices share the first dimension
-                    auto offset = updates_shape.multi(i).front();
+                    auto offset       = updates_shape.multi(i).front();
                     auto* index_start = indices.data() + (offset * k);
-                    auto* index_end = index_start + k;
-                    auto out_idx = output_shape.multi(i);
+                    auto* index_end   = index_start + k;
+                    auto out_idx      = output_shape.multi(i);
                     std::copy(index_start, index_end, out_idx.begin());
                     if(reduction == "add")
                         output[output_shape.index(out_idx)] += updates[i];
-                    else if (reduction == "mul")
+                    else if(reduction == "mul")
                         output[output_shape.index(out_idx)] *= updates[i];
                     else
                         output[output_shape.index(out_idx)] = updates[i];

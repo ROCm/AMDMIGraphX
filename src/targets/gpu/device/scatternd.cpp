@@ -10,31 +10,30 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument scatternd(
-    hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2)
+argument scatternd(hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2)
 {
     hip_visit_all(result, arg0, arg2)([&](auto output, auto data, auto updates) {
         auto* output_ptr     = device_cast(output.data());
         const auto* data_ptr = device_cast(data.data());
         gs_launch(stream, ds.elements())([=](auto i) __device__ { output_ptr[i] = data_ptr[i]; });
         auto updates_shape = updates.get_shape();
-        auto output_shape = output.get_shape();
+        auto output_shape  = output.get_shape();
         hip_visit_all(arg1)([&](auto indices) {
-            const auto* updates_ptr     = device_cast(updates.data());
+            const auto* updates_ptr = device_cast(updates.data());
             const auto* indices_ptr = device_cast(indices.data());
             // k = index length, r = rank(data)
             // k<r => update slices, k=r => update elements
             auto k = indices.get_shape().lens().back();
             gs_launch(stream, updates_shape.elements())([=](auto i) __device__ {
                 printf("i: %i", i);
-                auto offset = updates_shape.multi(i).front();
+                auto offset       = updates_shape.multi(i).front();
                 auto* index_start = indices_ptr + (offset * k);
-                auto* index_end = index_start + k;
-                auto out_idx = output_shape.multi(i);
+                auto* index_end   = index_start + k;
+                auto out_idx      = output_shape.multi(i);
                 std::copy(index_start, index_end, out_idx.begin());
                 if(op.reduction == "add")
                     output[output_shape.index(out_idx)] += updates[i];
-                else if (op.reduction == "mul")
+                else if(op.reduction == "mul")
                     output[output_shape.index(out_idx)] *= updates[i];
                 else
                     output[output_shape.index(out_idx)] = updates[i];

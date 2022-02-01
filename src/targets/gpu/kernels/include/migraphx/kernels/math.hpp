@@ -4,6 +4,7 @@
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 #include <hip/hip_fp16.h>
 #include <hip/math_functions.h>
 
@@ -19,19 +20,30 @@ constexpr T as_float(T x)
 } // namespace math
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH(name, fname) \
-    template <class... Ts>                \
+#define MIGRAPHX_DEVICE_MATH(name, fname)                              \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(Ts... xs) MIGRAPHX_RETURNS(fname(xs...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname) \
-    template <class... Ts>                          \
-    auto __device__ name(type x, Ts... xs) MIGRAPHX_RETURNS(fname(x, xs...))
+#define MIGRAPHX_DEVICE_MATH_VEC(name)                                       \
+    template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>           \
+    auto __device__ name(Ts... xs)                                           \
+    {                                                                        \
+        return vec_transform(xs...)([](auto... ys) { return name(ys...); }); \
+    }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)       \
-    template <class... Ts>                           \
-    auto __device__ name(migraphx::half x, Ts... xs) \
+#define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
+    auto __device__ name(type x, Ts... xs)->type                       \
+    {                                                                  \
+        return fname(x, xs...);                                        \
+    }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
+    auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
@@ -99,21 +111,51 @@ MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 
 template <class T, class U>
-constexpr auto& max(const T& a, const U& b)
+constexpr auto where(bool cond, const T& a, const U& b)
 {
-    return (a < b) ? b : a;
+    return cond ? a : b;
+}
+
+MIGRAPHX_DEVICE_MATH_VEC(abs)
+MIGRAPHX_DEVICE_MATH_VEC(acos)
+MIGRAPHX_DEVICE_MATH_VEC(acosh)
+MIGRAPHX_DEVICE_MATH_VEC(asin)
+MIGRAPHX_DEVICE_MATH_VEC(asinh)
+MIGRAPHX_DEVICE_MATH_VEC(atan)
+MIGRAPHX_DEVICE_MATH_VEC(atanh)
+MIGRAPHX_DEVICE_MATH_VEC(ceil)
+MIGRAPHX_DEVICE_MATH_VEC(cos)
+MIGRAPHX_DEVICE_MATH_VEC(cosh)
+MIGRAPHX_DEVICE_MATH_VEC(erf)
+MIGRAPHX_DEVICE_MATH_VEC(exp)
+MIGRAPHX_DEVICE_MATH_VEC(floor)
+MIGRAPHX_DEVICE_MATH_VEC(log)
+MIGRAPHX_DEVICE_MATH_VEC(pow)
+MIGRAPHX_DEVICE_MATH_VEC(round)
+MIGRAPHX_DEVICE_MATH_VEC(rsqrt)
+MIGRAPHX_DEVICE_MATH_VEC(sin)
+MIGRAPHX_DEVICE_MATH_VEC(sinh)
+MIGRAPHX_DEVICE_MATH_VEC(sqrt)
+MIGRAPHX_DEVICE_MATH_VEC(tan)
+MIGRAPHX_DEVICE_MATH_VEC(tanh)
+MIGRAPHX_DEVICE_MATH_VEC(where)
+
+template <class T, class U>
+constexpr auto max(const T& a, const U& b)
+{
+    return where(a < b, b, a);
 }
 
 template <class T, class U>
-constexpr auto& min(const T& a, const U& b)
+constexpr auto min(const T& a, const U& b)
 {
-    return (a > b) ? b : a;
+    return where(a > b, b, a);
 }
 
 template <class T, class U>
-constexpr T convert(U x)
+constexpr auto convert(U v)
 {
-    return x;
+    return vec_transform(v)([](auto x) -> T { return x; });
 }
 
 } // namespace migraphx

@@ -163,9 +163,9 @@ static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
 
 struct parse_resize : op_parser<parse_resize>
 {
-    std::vector<op_desc> operators() const { return {{"Resize"}}; }
+    std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
@@ -183,7 +183,7 @@ struct parse_resize : op_parser<parse_resize>
         if(contains(info.attributes, "exclude_outside") and
            info.attributes.at("exclude_outside").i() == 1)
         {
-            MIGRAPHX_THROW("PARSE_RESIZE: exclude_outside 1 is not supported!");
+            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": exclude_outside 1 is not supported!");
         }
 
         // input data shape info
@@ -215,12 +215,14 @@ struct parse_resize : op_parser<parse_resize>
             if(type == shape::int64_type)
             {
                 auto arg_out_s = arg->eval();
-                check_arg_empty(arg_out_s, "PARSE_RESIZE: dynamic output size is not supported!");
+                check_arg_empty(arg_out_s,
+                                "PARSE_" + opd.op_name + ": dynamic output size is not supported!");
                 arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
 
                 if(out_lens.size() != in_lens.size())
                 {
-                    MIGRAPHX_THROW("PARSE_RESIZE: specified output size does not match input size");
+                    MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                                   ": specified output size does not match input size");
                 }
 
                 // compute the scale
@@ -239,12 +241,14 @@ struct parse_resize : op_parser<parse_resize>
                 {
                     auto arg_scale = arg->eval();
                     check_arg_empty(arg_scale,
-                                    "PARSE_RESIZE: dynamic input scale is not supported!");
+                                    "PARSE_" + opd.op_name +
+                                        ": dynamic input scale is not supported!");
 
                     arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
                     if(in_lens.size() != vec_scale.size())
                     {
-                        MIGRAPHX_THROW("PARSE_RESIZE: ranks of input and scale are different!");
+                        MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                                       ": ranks of input and scale are different!");
                     }
 
                     std::transform(in_lens.begin(),

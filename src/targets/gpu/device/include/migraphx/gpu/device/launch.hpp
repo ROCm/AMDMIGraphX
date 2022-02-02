@@ -17,8 +17,7 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
-    //brian, for test
-    #define LOCAL_THREADS 2
+    #define LOCAL_THREADS 256
 
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 

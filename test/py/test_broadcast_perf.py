@@ -6,27 +6,30 @@ import math
 from datetime import datetime
 
 #                 test_broadcast_perf.py
+#                 Author:  Brian Pickrell, AMD copyright 2022
 
-# this script is simlar to test_pointwise_perf.py, except that its
-# Json arguments cause a tensor to have one axis broadcast in gpu-driver.
-# It runs the gpu-driver while iterating over various combinations of 
+#
+# this script runs the test program gpu-driver while iterating over 
 # tensor lens; global work items; and local work items.  It plots the results.
 # It saves output to a JSON File as well, so that it can be re-plotted by 
 # other tools.
 
+# this script is simlar to test_pointwise_perf.py, except that its
+# Json arguments include "strides".  Setting one element in a stride to 0
+# cause a tensor to have one axis broadcast in gpu-driver.
+#
 # This script version is for comparing speeds of operators when broadcasting 
 # tensor data.
-
-
-
-
-# with open("compile-pointwise-args.json", "r") as read_file:
-#     data = json.load(read_file)
+#
+# Engineers using this script should expect to modify it frequently in the course of testing.
+# The script is backed up each time a plot is made, to allow recreating the exact parameters/conditoins
+# used in that test run.
 
 datatype='float'
 iterations=10
 
-remark=' Pointwise op test, broadcasting'
+# This remark appears in plot header.  Update it each time you make a change.
+remark=' Pointwise op test, no stride with MI100 GPU'
 
 # A dictionary which we will use to serialize results to a file
 json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
@@ -36,25 +39,33 @@ json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
 
 json_data["tensors"] = [] 
 
-# for the default case with no broadcasting, stride would be [1,1]
-stride=[1, 1024]
+# for the default case with no broadcasting, stride would be [cols, 1] where myshape=[rows, cols]
+# See src/include/migraphx/op/broadcast.hpp line 17 for description of indexing.
+# For normal indexing in a tensor, strides contains a running product of the dimension sizes of 
+# the tensor, which are given in the variable lens--but offset by 1 place.  Example: for a 4-dimensional tensor where
+# lens is [3, 2, 240, 1021] (not a real-world case), strides would be
+# [1, 3, 6, 1440]  <== 1440 = 3*2*240
+#
+# For broadcasting, set one value in strides to 0 and then that axis will be ignored (broadcast) by the operator.
+# setting strides to empty { } causes it to be defaulted to the non-broadcast case.
+# stride=[1, 0]
+stride={}
 
 # this will hold the results in tabular format
 result=[]
 
+# myshape populates the lens parameter.  Its list size must match stride (if not defaulted), 2 items for 2d tensors.
 
-# for myshape in [ [64,64], [512, 512], [7680], [7681], [7680*100], [7680*100+1], [7680*800], [7680*801]]:
-for myshape in [  [1024, 240]
-    ]:
+# [rows, cols]
+for myshape in [  [1024, 240] ]:
     print('processing tensor ', myshape)
 
     if len(myshape) != len(stride):
-        print('Warning!  tensor ' , myshape, ' doesn\'t have the same number of dimensions as stride ' , stride, ', skipping.')
-        continue
+        print('Warning!  tensor ' , myshape, ' doesn\'t have the same number of dimensions as stride ' , stride, ', no broadcast.')
+        stride={}
 
-    tensorsize = 1
-    for x in myshape:
-        tensorsize = tensorsize * x
+    # multiply all the dimensions together
+    tensorsize = np.prod(myshape)
 
     dataset=[]
     # Create a plot
@@ -121,10 +132,19 @@ for myshape in [  [1024, 240]
 
             # inputs is a list of dict
             inputs = []
-            for ii in range(4):
-                # 4 identical items
-                item = {"type": datatype, "lens": myshape, "strides": stride}
-                inputs.append(item)
+
+            # 4 inputs, of which 2 are broadcasted if stride is set
+            item = {"type": datatype, "lens": myshape, "strides": {}}
+            inputs.append(item)
+
+            item = {"type": datatype, "lens": myshape, "strides": stride}
+            inputs.append(item)
+
+            item = {"type": datatype, "lens": myshape, "strides": stride}
+            inputs.append(item)
+
+            item = {"type": datatype, "lens": myshape, "strides": {}}
+            inputs.append(item)
 
             cp["inputs"] = inputs
 
@@ -143,6 +163,7 @@ for myshape in [  [1024, 240]
             ##################################################
 
             # print('run the gpu-driver...')
+            # todo: change abs. paths to paths relative to AMDMIGraphX
             stream = os.popen('~/AMDMIGraphX/build/bin/gpu-driver ~/AMDMIGraphX/temp_file.json')
             output = stream.read()
 
@@ -177,7 +198,7 @@ for myshape in [  [1024, 240]
         # if you change the containers holding the results!
         # if(len(plot_set) == 0 or len(dataset) == 0 or len(result) == 0):
         if(len(plot_set) == 0 ):
-            print('Warning: no output for tensor ' + myshape + " global items " + global_workitems)
+            print('Warning: no output for tensor ', myshape, " global items " + str(global_workitems))
             continue
 
         # dict contents:  sort by key
@@ -191,7 +212,7 @@ for myshape in [  [1024, 240]
           
         x, y = np.array(plot_set).T
 
-        plt.xscale('log')
+        # plt.xscale('log')
         plt.xlabel('local workitems per CU')
         plt.ylabel('time(ms)')
         # scale y to make the smaller numbers (the only important ones) visible
@@ -210,7 +231,7 @@ for myshape in [  [1024, 240]
 
     # printing to file
     #  first, prepare to save a backup copy of this script
-    save_python_dir='./test/py/pointwise/broadcast_narrow/'
+    save_python_dir='./test/py/pointwise/rome6_nostride/'  # should end with trailing /
     # get a unique digit string that will be used in the filenames of both the plot and backup script
     unique_no = datetime.now().microsecond
     save_python_filename = save_python_dir +os.path.splitext (os.path.basename(__file__))[0] +'_t' + str(unique_no) + '.py' 

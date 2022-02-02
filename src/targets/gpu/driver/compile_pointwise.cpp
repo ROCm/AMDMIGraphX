@@ -14,6 +14,13 @@ struct compile_pointwise : action<compile_pointwise>
     {
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
+        // inputs is a vector of shape
+for( auto sh : inputs)
+{
+    auto mystride = sh.strides();
+    printf("brian 1 says the stride is %lu\n", mystride[0]);
+}
+
         int global_workitems = p.get(v, "global", 64);
         int local_workitems_per_CU = p.get(v, "local", 64);
 

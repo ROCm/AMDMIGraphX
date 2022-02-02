@@ -16,7 +16,7 @@ operation compile_pointwise(context& ctx,
                             const std::string& lambda,
                             const std::string& preamble = "",
                             const int global_workitems = 1024,
-                            const int local_workitems_per_CU = 64);
+                            const int local_workitems_per_CU = 256);  // todo: not clear where to #define LOCAL_THREADS to make it available here
 
 operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m);
 

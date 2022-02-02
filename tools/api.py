@@ -749,7 +749,7 @@ def add_handle(name: str,
                      params({name: opaque_type}),
                      fname='destroy')
         add_function(ctype + '_' + 'assign',
-                     params(output=const_opaque_type, input=opaque_type),
+                     params(output=opaque_type, input=const_opaque_type),
                      invoke='*output = *input')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))

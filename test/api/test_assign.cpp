@@ -11,7 +11,7 @@ TEST_CASE(shape_assign)
     migraphx_shape_create(&s2, migraphx_shape_float_type, lens.data(), lens.size());
     auto s2_cpp = migraphx::shape(s2);
     CHECK(bool{s1 != s2_cpp});
-    migraphx_shape_assign(s1.get_handle_ptr(), s2);
+    migraphx_shape_assign(s2, s1.get_handle_ptr());
     CHECK(bool{s1 == s2_cpp});
 }
 

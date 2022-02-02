@@ -2,7 +2,6 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-
 TEST_CASE(shape_assign)
 {
     auto s1 = migraphx::shape{migraphx_shape_float_type, {1, 3}};

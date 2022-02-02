@@ -270,7 +270,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
-        backend_test.exclude(r'test_scatternd_*')
 
         # all reduce ops have dynamic axes inputs
         backend_test.exclude(r'test_size_cpu')

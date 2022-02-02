@@ -720,6 +720,7 @@ def add_handle(name: str,
                destroy: Optional[str] = None,
                ref: Optional[bool] = None) -> None:
     opaque_type = ctype + '_t'
+    const_opaque_type = 'const_' + opaque_type
 
     def handle_wrap(p):
         t = Type(opaque_type)
@@ -748,7 +749,7 @@ def add_handle(name: str,
                      params({name: opaque_type}),
                      fname='destroy')
         add_function(ctype + '_' + 'assign',
-                     params(input=opaque_type, output=opaque_type),
+                     params(output=const_opaque_type, input=opaque_type),
                      invoke='*output = *input')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))

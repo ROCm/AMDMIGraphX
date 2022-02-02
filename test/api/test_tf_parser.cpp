@@ -42,15 +42,4 @@ TEST_CASE(load_tf_multi_outputs)
     CHECK(shapes.size() == 2);
 }
 
-TEST_CASE(tf_assign)
-{
-    auto p = migraphx::parse_tf("add_test.pb");
-    // p.print();
-    migraphx::program p2 = migraphx::parse_tf("cast_test.pb");
-    CHECK(bool{p != p2});
-    p.assign_handle(p2);
-    p.print();
-    CHECK(bool{p == p2});
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -191,9 +191,9 @@ struct handle_base
     }
 
     template <class U>
-    void assign_handle(U& x)
+    void assign_to_handle(U* x)
     {
-        Assigner(x.get_handle_ptr(), this->get_handle_ptr());
+        Assigner(x, this->get_handle_ptr());
     }
 
     protected:

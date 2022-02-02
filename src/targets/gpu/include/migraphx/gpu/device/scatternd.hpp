@@ -15,7 +15,7 @@ argument scatternd(hipStream_t stream,
                    argument arg0,
                    argument arg1,
                    argument arg2,
-                   const std::string reduction);
+                   const std::string& reduction);
 
 } // namespace device
 } // namespace gpu

@@ -15,7 +15,7 @@ argument scatternd(hipStream_t stream,
                    argument arg0,
                    argument arg1,
                    argument arg2,
-                   const std::string reduction)
+                   const std::string& reduction)
 {
     auto k   = arg1.get_shape().lens().back();
     bool add = reduction == "add";

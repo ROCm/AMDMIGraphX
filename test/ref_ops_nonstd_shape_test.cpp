@@ -59,7 +59,10 @@ TEST_CASE(squeeze_transpose_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<float> data(4 * 3 * 3);
+    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758, -1.6849, 
+                               0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706, 0.4867,  -0.1493, 
+                               0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497, 1.2255,  1.6834,  -2.0305, 
+                               -0.3221, 1.2255,  1.6834,  -2.0305, -0.3221, 1.2255,  1.6834,  -2.0305, -0.3221};
     migraphx::shape s1{migraphx::shape::float_type, {4, 1, 3, 1, 3}};
     auto l0 = mm->add_literal(migraphx::literal{s1, data});
     auto l0_trans =
@@ -69,7 +72,7 @@ TEST_CASE(squeeze_transpose_test)
     p.compile(migraphx::ref::target{});
     auto result         = p.eval({}).back();
     auto* mm_uncompiled = p_uncompiled.get_main_module();
-    // ref implementation always does the auto_contiguous pass
+    //ref implementation always does the auto_contiguous pass
     migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}});
     auto expected_result = p_uncompiled.eval({}).back();
     EXPECT(result == expected_result);
@@ -79,7 +82,7 @@ TEST_CASE(squeeze_multibroadcast_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<float> data(3 * 3);
+    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758, -1.6849}; 
     migraphx::shape s1{migraphx::shape::float_type, {1, 3, 1, 3}};
     auto l0       = mm->add_literal(migraphx::literal{s1, data});
     auto l0_brcst = mm->add_instruction(
@@ -98,8 +101,11 @@ TEST_CASE(squeeze_slice_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<float> data(2 * 3 * 4 * 4);
-    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4, 4}};
+    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758, -1.6849, 
+                               0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706, 0.4867,  -0.1493, 
+                               0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497, 1.2255,  1.6834,  -2.0305, 
+                               -0.3221, 1.2255,  1.6834,  -2.0305, -0.3221, 1.2255,  1.6834,  -2.0305, -0.3221};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 3, 4, 3}};
     auto l0       = mm->add_literal(migraphx::literal{s1, data});
     auto l0_slice = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), l0);

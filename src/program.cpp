@@ -759,10 +759,11 @@ void program::perf_report(std::ostream& os,
         if(contains(flops_funcs, op_name))
         {
             // print size
-            auto inss         = to_shapes(ins->inputs());
+            auto inss  = to_shapes(ins->inputs());
             auto alens = inss.front().lens();
             auto blens = inss.at(1).lens();
-            auto mb = std::accumulate(alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
+            auto mb    = std::accumulate(
+                alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
             int mm = alens[alens.size() - 2];
             int mk = alens.back();
             int mn = blens.back();

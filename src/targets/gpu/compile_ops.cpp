@@ -87,7 +87,9 @@ void compile_ops::apply(module& m) const
         compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
     }
     std::vector<compiled_result> results(compiles.size());
-    par_for(compiles.size(), compiles.size() / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, compiles.size()), [&](auto i) { results[i] = compiles[i](); });
+    par_for(compiles.size(),
+            compiles.size() / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, compiles.size()),
+            [&](auto i) { results[i] = compiles[i](); });
     for(const auto& cr : results)
     {
         m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());

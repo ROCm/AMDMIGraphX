@@ -88,7 +88,7 @@ struct cpp_generator_impl
     std::stringstream fs{};
     std::size_t function_count                                = 0;
     std::function<std::string(std::string)> fmap              = nullptr;
-    std::function<std::string(shape)> fresult           = nullptr;
+    std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
@@ -179,7 +179,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
                            [&](auto i) { return names.at(i); });
 
             auto s = this->generate_point_op(ins->get_operator(), args);
-            if (impl->fresult)
+            if(impl->fresult)
                 return impl->fresult(ins->get_shape()) + '(' + s + ')';
             else
                 return s;

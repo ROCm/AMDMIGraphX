@@ -71,9 +71,8 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
     // Add explict conversions
-    g.fresult([](const shape& s) {
-        return "migraphx::convert<" + shape::cpp_type(s.type()) + ">";
-    });
+    g.fresult(
+        [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     auto name =
         g.create_function(g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m));
     return compile_pointwise((ctx), inputs, "MIGRAPHX_LIFT(" + name + ")", g.str());

@@ -72,7 +72,7 @@ TEST_CASE(squeeze_transpose_test)
     // ref implementation always does the auto_contiguous pass
     migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}});
     auto expected_result = p_uncompiled.eval({}).back();
-    EXPECT(result.get_shape() == expected_result.get_shape());
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(squeeze_multibroadcast_test)

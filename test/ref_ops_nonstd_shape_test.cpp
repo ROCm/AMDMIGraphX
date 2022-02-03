@@ -91,7 +91,7 @@ TEST_CASE(squeeze_multibroadcast_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}});
     auto expected_result = p_uncompiled.eval({}).back();
-    EXPECT(result.get_shape() == expected_result.get_shape());
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(squeeze_slice_test)
@@ -110,7 +110,7 @@ TEST_CASE(squeeze_slice_test)
     auto* mm_uncompiled = p_uncompiled.get_main_module();
     migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}});
     auto expected_result = p_uncompiled.eval({}).back();
-    EXPECT(result.get_shape() == expected_result.get_shape());
+    EXPECT(result == expected_result);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

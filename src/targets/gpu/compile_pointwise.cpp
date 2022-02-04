@@ -42,8 +42,8 @@ operation compile_pointwise(context&,
                             const std::vector<shape>& inputs,
                             const std::string& lambda,
                             const std::string& preamble,
-                            const int global_workitems,
-                            const int local_workitems
+                            int global_workitems,
+                            int local_workitems
 )
 {
     hip_compile_options options;

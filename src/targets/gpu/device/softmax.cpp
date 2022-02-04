@@ -28,7 +28,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
         if(axis == batch_lens.size() - 1)
         {
-            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)(
+            gs_launch(stream, batch_shape.elements() * block_size, block_size)(
                 [=](auto i, auto idx) __device__ {
                     auto start_loc = i / block_size * batch_item_num;
                     auto batch_max = block_reduce<max_block_size>(
@@ -50,7 +50,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
         }
         else
         {
-            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)(
+            gs_launch(stream, batch_shape.elements() * block_size, block_size)(
                 [=](auto i, auto idx) __device__ {
                     auto data_idx  = batch.multi(i / block_size);
                     auto batch_max = block_reduce<max_block_size>(

@@ -17,12 +17,6 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
-    // default value of the variable "local", equals number of threads per compute unit
-    // when launching kernels.
-    // preliminary testing of pointwise operators indicates multiples of 64 or 256 work best.
-    // Max allowable value is 1024
-    #define LOCAL_THREADS 256
-
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
     __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
@@ -85,7 +79,7 @@ MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(
 // n:  number of elements (tensor size)
 // global:  number of global work items (threads)
 // local: number of local work items (threads) per compute unit (CU) 
-inline auto gs_launch(hipStream_t stream, index_int n, index_int local = LOCAL_THREADS)
+inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 {
     index_int groups = (n + local - 1) / local;
     // max possible number of blocks is set to 1B (1,073,741,824)

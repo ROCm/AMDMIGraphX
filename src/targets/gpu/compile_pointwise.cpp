@@ -43,12 +43,12 @@ operation compile_pointwise(context&,
                             const std::string& lambda,
                             const std::string& preamble,
                             const int global_workitems,
-                            const int local_workitems_per_CU
+                            const int local_workitems
 )
 {
     hip_compile_options options;
     options.global         = global_workitems;
-    options.local          = local_workitems_per_CU;
+    options.local          = local_workitems;
     options.inputs         = inputs;
     options.output         = inputs.back();
     options.virtual_inputs = reduce_dims(inputs);

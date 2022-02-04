@@ -9,8 +9,9 @@ from datetime import datetime
 #                 Author:  Brian Pickrell, AMD copyright 2022
 
 #
-# this script runs the test program gpu-driver while iterating over 
-# tensor lens; global work items; and local work items.  It plots the results.
+# this script runs the test program gpu-driver while iterating over
+# ranges of  
+# tensor lens; global work items; and local work items, and plots the results.
 # It saves output to a JSON File as well, so that it can be re-plotted by 
 # other tools.
 
@@ -29,11 +30,19 @@ datatype='float'
 iterations=10
 
 # This remark appears in plot header.  Update it each time you make a change.
-remark=' Pointwise op test, no stride with MI100 GPU'
+remark=' Pointwise op test, repo. default remark here'
 
 # A dictionary which we will use to serialize results to a file
 json_data={"comment": remark, "iterations": iterations, "datatype": datatype}
 
+# base directory, absolute location of AMDMIGraphX 
+#  Note: this location assumes this python file is located in the original
+#  directory location.  If you copy or rename this script, put it in the same 
+#  directory or else update this line.
+base_dir = os.path.abspath(os.path.dirname(__file__) + '/../..')
+
+# output directory.  Change this to keep your output files organized.
+save_python_dir=os.path.join(base_dir, 'test/py/pointwise/')
 
 #iterate over tensor sizes (one plot file per size)
 
@@ -48,8 +57,8 @@ json_data["tensors"] = []
 #
 # For broadcasting, set one value in strides to 0 and then that axis will be ignored (broadcast) by the operator.
 # setting strides to empty { } causes it to be defaulted to the non-broadcast case.
-# stride=[1, 0]
-stride={}
+stride=[1, 1024]
+# stride={}
 
 # this will hold the results in tabular format
 result=[]
@@ -57,7 +66,7 @@ result=[]
 # myshape populates the lens parameter.  Its list size must match stride (if not defaulted), 2 items for 2d tensors.
 
 # [rows, cols]
-for myshape in [  [1024, 240] ]:
+for myshape in [  [1024, 240],   [1024, 64] ]:
     print('processing tensor ', myshape)
 
     if len(myshape) != len(stride):
@@ -65,7 +74,7 @@ for myshape in [  [1024, 240] ]:
         stride={}
 
     # multiply all the dimensions together
-    tensorsize = np.prod(myshape)
+    tensorsize = math.prod(myshape)
 
     dataset=[]
     # Create a plot
@@ -96,9 +105,9 @@ for myshape in [  [1024, 240] ]:
 
     # I don't know the exact limitation on global_workitems, but if it's bigger than roughly 1G it
     # will cause a program crash. 
-    # while (global_workitems <= tensorsize and global_workitems < 512*1024*1024):
     for global_workitems in gl_range:
-        # global_workitems = int(global_workitems*2)
+        if global_workitems > 1024*1024*1022:
+            continue
 
         # result items to save in JSON form
         dataset=[]
@@ -106,15 +115,8 @@ for myshape in [  [1024, 240] ]:
         # result items to plot immediately (not save)
         plot_set=[]
 
-        this_global = []
-
-        # json_data["tensors"][myshape].append(this_global)
-
-
         # Any value larger than 1024 is rejected by hip library
-        # for local_workitems_per_CU in { 32, 48, 64, 1024}:
-        for local_workitems_per_CU in range(64, 1025,64):
-        # for local_workitems_per_CU in [64, 128]:
+        for local_workitems_per_CU in range(64, 1025, 64):
             print('local work items=', local_workitems_per_CU)
             if (local_workitems_per_CU > global_workitems):
                 continue
@@ -123,11 +125,9 @@ for myshape in [  [1024, 240] ]:
             #  Generate a temporary JSON file for the gpu-driver
             #############################################
 
-            f = open('./temp_file.json', 'w')
+            cp  = {  }  # compile_pointwise key
 
-            cp  = {  }  # compile_pointwise
-
-            # this lambda with more looping makes it easier to distinguish differences
+            # lambda to be executed by the operator.  This lambda contains enough looping to make operator time detectable
             cp["lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
 
             # inputs is a list of dict
@@ -152,19 +152,21 @@ for myshape in [  [1024, 240] ]:
             cp["local"] = local_workitems_per_CU
             cp["iterations"] = iterations
 
-            outer_item={"compile_pointwise": cp}
+            # top level JSON node
+            top_node={"compile_pointwise": cp}
 
             # Format as JSON and write to file
-            f.write(json.dumps( outer_item, indent=4))
-            f.close()
+            with open(os.path.join(save_python_dir,'temp_file.json'), 'w') as f:
+                f.write(json.dumps( top_node, indent=4))
+            # f.close() not necessary
 
             ##################################################
             #   run gpu-driver
             ##################################################
 
             # print('run the gpu-driver...')
-            # todo: change abs. paths to paths relative to AMDMIGraphX
-            stream = os.popen('~/AMDMIGraphX/build/bin/gpu-driver ~/AMDMIGraphX/temp_file.json')
+            stream = os.popen(os.path.join(base_dir,'build/bin/gpu-driver  ') +\
+              os.path.join(save_python_dir, 'temp_file.json'))
             output = stream.read()
 
             # parse out the time (ms)
@@ -174,24 +176,22 @@ for myshape in [  [1024, 240] ]:
             # an error here probably means we gave the gpu-driver an arg or args out of range.  Skip the bad data point
             if(startp == -1 or endp == -1):
                 continue
-            # print(output)
             mytime = float(output[startp+3:endp])
-
-            # print(local_workitems_per_CU, mytime)
 
             # as an unlabeled local,time pair
             plot_set.append((local_workitems_per_CU, mytime))
 
-           # data point to be exported to JSON file
-            # As a 4-tuple of values, very compact
+            # data point to be exported to JSON file.  Note: two redundant layouts
+            #   for output data are provided, choice is by user preference.
+
+            # As a 4-tuple of values, very compact for reading with pandas
             data_point=((tensorsize, global_workitems, local_workitems_per_CU, mytime))
             result.append(data_point)
 
-            # As a dict including the full shape of the tensor
+            # As a dict also including the full shape of the tensor
             data_point={'tensor': myshape, 'tensorsize': tensorsize, 'global': global_workitems, 'local': local_workitems_per_CU, 'result, ms': mytime}
             dataset.append(data_point)
 
-            # data_point=(local_workitems_per_CU, mytime)
             stream.close()
 
         # check for empty data (some inputs out of range, usually).  You must update this check
@@ -210,9 +210,11 @@ for myshape in [  [1024, 240] ]:
         
         global_output_item_list.append(global_output_item_dict)
           
+        ##########
+        #######  Plotting
+        ##########
         x, y = np.array(plot_set).T
 
-        # plt.xscale('log')
         plt.xlabel('local workitems per CU')
         plt.ylabel('time(ms)')
         # scale y to make the smaller numbers (the only important ones) visible
@@ -223,26 +225,22 @@ for myshape in [  [1024, 240] ]:
         ymax = ymax / 8
 
         plt.ylim(bottom=0, top=ymax)
-        # plt.ylim(bottom=0)
         plt.plot(x, y, marker='d', label='global workitems ' + str(global_workitems) \
             + '  t/g=' + "{:.1f}".format(float(tensorsize)/global_workitems))
-        #  str(float(tensorsize)/global_workitems))
         plt.legend()
 
     # printing to file
-    #  first, prepare to save a backup copy of this script
-    save_python_dir='./test/py/pointwise/rome6_nostride/'  # should end with trailing /
+    #  first, save a backup copy of this script
     # get a unique digit string that will be used in the filenames of both the plot and backup script
     unique_no = datetime.now().microsecond
     save_python_filename = save_python_dir +os.path.splitext (os.path.basename(__file__))[0] +'_t' + str(unique_no) + '.py' 
-
 
     plt.suptitle('time vs local,  ' + remark + '   data shape= ' + json.dumps(myshape) 
         + '   tensor size= '+ str(tensorsize) + '   stride= ' + json.dumps(stride)
         + '   data=' + str(datatype)
         + '\nsource: ' + save_python_filename,  x=0.5, y=.98, fontsize='small')
 
-    output_plot_file=save_python_dir + 'plot_' + str(tensorsize) + '_' + str(unique_no) + '.png'
+    output_plot_file=os.path.join(save_python_dir,  'plot_' + str(tensorsize) + '_' + str(unique_no) + '.png')
 
     # copy this Python script to a distinctively named backup.
     # This lets us review the exact Python code used for each script run.
@@ -256,12 +254,11 @@ for myshape in [  [1024, 240] ]:
 json_data["result"] = result
 
 #   Write all the data from all the runs to a single JSON file.  Its name contains the last unique number in our set
-
-output_data_file = save_python_dir + 'pointwise_perf_results_' + str(unique_no) + '.json'
+output_data_file = os.path.join(save_python_dir, 'pointwise_perf_results_' + str(unique_no) + '.json')
 f = open(output_data_file, 'w')
 # Format as JSON and write to file
 f.write(json.dumps( json_data, indent=4))
 f.close()
 
-print("\nDone.  dataset is saved as " + output_data_file)
+print("\nDone.  Dataset is saved as " + output_data_file)
      

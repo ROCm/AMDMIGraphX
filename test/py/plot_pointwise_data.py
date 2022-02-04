@@ -1,7 +1,13 @@
 
-# plot_pointwise_data.py :  ingest the JSON files created by test runs 
-# from either test_pointwise_perf or test_broadcast_perf.py.
-# Add your own code to make pyplot charts. 
+#                 plot_pointwise_data.py
+#                 Author:  Brian Pickrell, AMD copyright 2022
+
+#   ingest the JSON files created by  test_broadcast_perf.py
+#   and print optimum local/global inputs for the test set.
+#   Use this code as an example to make pyplot charts or
+#   otherwise do follow-up analysis of the data. 
+#
+#   syntax:  python3 plot_pointwise_data.py <input JSON file>
 
 
 from matplotlib import pyplot as plt 
@@ -12,23 +18,22 @@ import numpy as np
 import pandas
 
 if len(sys.argv) < 2:
-    print('syntax: ' + __file__ + " ./test/py/pointwise/pointwise_perf_results_807270.json")
+    print('syntax: python3 ' + __file__ + " ./test/py/pointwise/pointwise_perf_results_807270.json")
     exit(-1)
 
 with open(sys.argv[1], "r") as read_file:
     data = json.load(read_file)
 
-print('keys are^^^^^ ',data.keys())
-# shapes = data['shapes']
-# print('length of shapes=', len(shapes))
+# Find the directory of the input file; output will go there
+output_dir = os.path.abspath(os.path.dirname(sys.argv[1])) 
 
-# myshape = shapes[0]
+# Example:  to view the keys of the top level JSON nodes,
+# print('keys are ', data.keys())
 
-# glo = myshape['global_outputs']
-# print('num of globals=', len(glo))
+# Example:  to get a JSON subnode,
+# tensors = data['tensors']
+# print('length of tensors=', len(tensors))
 
-# my_local = glo[0]['data'][0]  # a local/time pair
-# print('local val=', my_local)
 
 ################################################################################################################
 #
@@ -40,7 +45,7 @@ print('keys are^^^^^ ',data.keys())
 result = data["result"]
 df = pandas.DataFrame(result, columns=['tensorsize', 'global_workitems', 'local_workitems_per_CU', 'time' ])
 
-print(df)
+# print(df)
 
 
 
@@ -64,29 +69,30 @@ def plot_vs_parameter(the_df, param_a, param_b, param_c):
     for uniq in ss:
         subs = the_df[the_df[param_b] == uniq]
         x = subs[param_c]
-        y = subs['time']
+        y = subs[param_a]
         plt.plot(x,y, marker='o', label='label')
     plt.legend([param_b + ' = ' + str(sss) for sss in ss])
     plt.xlabel(param_c)
-    plt.ylabel('time, ms')
+    plt.ylabel(param_a)
 
+# Example:
 # plot local vs. time, stacked lines for each value of global
 # for all tensor sizes
 fig = plt.figure(figsize=(10,8))
-plot_vs_parameter(df, 'tensorsize', 'global_workitems', 'local_workitems_per_CU')
-plt.savefig('./test/py/pointwise/a447.png')
+plot_vs_parameter(df, 'time', 'global_workitems', 'local_workitems_per_CU')
+plt.savefig(os.path.join(output_dir, 'local_vs_time.png'))
 
 
-# plot local vs. time, stacked lines for each tensor size
-# filtering out only points where global=964336 (there's only one tensor size for this)
+# Example:  plot local_workitems_per_CU vs. global_workitems, stacked lines for each tensor size
+# filtering out only points where global=61440 or global=36864 (spans two tensor sizes)
+# This is provided only as an example of filtering and changing axes; the result is not very useful. 
 
 fig = plt.figure(figsize=(10,8))
-plot_vs_parameter(df[df['global_workitems']==964336], 'global_workitems',  'tensorsize', 'local_workitems_per_CU')
+plot_vs_parameter(df[(df['global_workitems']==61440) | (df['global_workitems']==36864)], 'global_workitems',  'tensorsize', 'local_workitems_per_CU')
+plt.savefig(os.path.join(output_dir, 'local_vs_global.png'))
 
-plt.savefig('./test/py/pointwise/a446.png')
 
-
-# new test:  printing a table of optimum global/local
+# Example:  printing a table of optimum global/local values
 #
 #     for each unique tensor size
 #         find arg min(time)
@@ -106,7 +112,7 @@ plt.savefig('./test/py/pointwise/a446.png')
 # print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False]],'-------\n')
 
 
-# test: same optimum table, adding a column for  ratio tensorsize/global items
+# same optimum table, adding a column for  ratio tensorsize/global items
 df_new = df
 df_new['tens/glo'] = df_new['tensorsize']/df_new['global_workitems']
 tensorsizes = np.unique(df_new['tensorsize'])
@@ -123,4 +129,4 @@ for ts in tensorsizes:
 print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False, True]],'-------\n')
 
 
-#      End   Demonstration of loading and filtering the data in tabular form.  Column headers are hardcoded here.
+#      End   Demonstration of loading and filtering the data in tabular form.

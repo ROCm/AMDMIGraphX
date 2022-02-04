@@ -22,14 +22,13 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
         const index_int max_block_size = 128;
         const index_int block_size     = compute_block_size(batch_item_num, max_block_size);
-    printf("softmax++++ batch_shape=%lu, block size=%d\n",batch_shape.elements(), compute_block_size(batch_item_num, max_block_size) );//brian
 
         using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
         type init  = lowest();
 
         if(axis == batch_lens.size() - 1)
         {
-            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)(  // brian
+            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)(
                 [=](auto i, auto idx) __device__ {
                     auto start_loc = i / block_size * batch_item_num;
                     auto batch_max = block_reduce<max_block_size>(
@@ -51,7 +50,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
         }
         else
         {
-            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)( //brian
+            gs_launch(stream, batch_shape.elements() * block_size, LOCAL_THREADS)(
                 [=](auto i, auto idx) __device__ {
                     auto data_idx  = batch.multi(i / block_size);
                     auto batch_max = block_reduce<max_block_size>(

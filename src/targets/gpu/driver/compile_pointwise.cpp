@@ -14,17 +14,11 @@ struct compile_pointwise : action<compile_pointwise>
     {
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
-        // inputs is a vector of shape
-for( auto sh : inputs)
-{
-    auto mystride = sh.strides();
-    printf("brian 1 says the stride is %lu\n", mystride[0]);
-}
 
-        int global_workitems = p.get(v, "global", 64);
-        int local_workitems_per_CU = p.get(v, "local", 64);
+        int global = p.get(v, "global", 64);
+        int local = p.get(v, "local", 64);
 
-        auto op     = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>(), "", global_workitems, local_workitems_per_CU );
+        auto op     = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>(), "", global, local );
 
         double t    = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;

@@ -72,10 +72,10 @@ struct compiled_result
     instruction_ref ins;
 };
 
-template<class F>
+template <class F>
 void par_compile(std::size_t n, F f)
 {
-    if (n == 0)
+    if(n == 0)
         return;
     par_for(n, n / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, n), f);
 }
@@ -95,8 +95,7 @@ void compile_ops::apply(module& m) const
         compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
     }
     std::vector<compiled_result> results(compiles.size());
-    par_compile(compiles.size(),
-            [&](auto i) { results[i] = compiles[i](); });
+    par_compile(compiles.size(), [&](auto i) { results[i] = compiles[i](); });
     for(const auto& cr : results)
     {
         m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());

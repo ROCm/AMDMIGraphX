@@ -18,10 +18,6 @@ shape parser::parse_shape(const value& v) const
     auto lens    = get(v, "lens", std::vector<std::size_t>{});
     auto strides = get(v, "strides", std::vector<std::size_t>{});
     auto type    = shape::parse_type(get<std::string>(v, "type", "float"));
-if(strides.empty())
-printf("sfdkjhfsdakjyfdsagkjhdsfgdsjgf enmpty\n");
-else
-printf("i uhsfdiuh sfrdeiuhfersiufr not enmpty\n");
 
     if(strides.empty())
         return shape{type, lens};

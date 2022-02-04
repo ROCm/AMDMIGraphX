@@ -189,16 +189,12 @@ TEST_CASE(cse_test_submodule)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), b1);
         body2->add_return({cond3, val2, val2});
 
-        auto rl1 = mm->add_instruction(
+        auto loop1 = mm->add_instruction(
             migraphx::make_op("loop", {{"max_iterations", 1}}), {in_cond, in_val}, {body1});
-        auto rl2 = mm->add_instruction(
+        auto loop2 = mm->add_instruction(
             migraphx::make_op("loop", {{"max_iterations", 1}}), {in_cond, in_val}, {body2});
-        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl1);
-        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl1);
-        auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rl2);
-        auto r3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rl2);
 
-        mm->add_return({r0, r1, r2, r3});
+        mm->add_return({loop1, loop2});
 
         return p;
     };

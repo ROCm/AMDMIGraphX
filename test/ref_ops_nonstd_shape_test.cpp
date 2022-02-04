@@ -72,11 +72,10 @@ TEST_CASE(squeeze_transpose_test)
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
     auto result         = p.eval({}).back();
-    auto* mm_uncompiled = p_uncompiled.get_main_module();
-    // ref implementation always does the auto_contiguous pass
-    migraphx::run_passes(*mm_uncompiled, {migraphx::auto_contiguous{}});
     auto expected_result = p_uncompiled.eval({}).back();
-    EXPECT(result == expected_result);
+    auto tr_op = migraphx::make_op("contiguous");
+    auto std_result = tr_op.compute(result.get_shape(), {expected_result});
+    EXPECT(result == std_result);
 }
 
 TEST_CASE(squeeze_multibroadcast_test)

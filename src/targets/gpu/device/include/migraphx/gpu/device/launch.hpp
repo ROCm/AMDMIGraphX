@@ -78,7 +78,7 @@ MIGRAPHX_DEVICE_CONSTEXPR auto gs_invoke(F&& f, index_int i, index) -> decltype(
 
 // n:  number of elements (tensor size)
 // global:  number of global work items (threads)
-// local: number of local work items (threads) per compute unit (CU) 
+// local: number of local work items (threads) per compute unit (CU)
 inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 {
     index_int groups = (n + local - 1) / local;

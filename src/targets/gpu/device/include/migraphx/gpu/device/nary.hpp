@@ -87,7 +87,7 @@ void nary_broadcast_vec_impl(
 
     const index_int vec_size     = 4;
     const index_int nlocal       = 1024;
-    const index_int nglobal      = 256 * nlocal;  // 256 ~~ nblocks
+    const index_int nglobal      = 256 * nlocal; // 256 ~~ nblocks
     const index_int bdim_vec_len = bdim_len / vec_size;
 
     hip_vec_visit_all<vec_size>(result, barg, args...)(

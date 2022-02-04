@@ -43,8 +43,7 @@ operation compile_pointwise(context&,
                             const std::string& lambda,
                             const std::string& preamble,
                             int global_workitems,
-                            int local_workitems
-)
+                            int local_workitems)
 {
     hip_compile_options options;
     options.global         = global_workitems;

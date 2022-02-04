@@ -73,9 +73,9 @@ TEST_CASE(squeeze_transpose_test)
     p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
-    // contiguous is required to read the values in standard shaped order 
-    auto tr_op           = migraphx::make_op("contiguous");
-    auto std_expected_result      = tr_op.compute(result.get_shape(), {expected_result});
+    // contiguous is required to read the values in standard shaped order
+    auto tr_op               = migraphx::make_op("contiguous");
+    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result == std_expected_result);
 }
 
@@ -92,10 +92,10 @@ TEST_CASE(squeeze_multibroadcast_test)
     mm->add_instruction(migraphx::make_op("squeeze"), l0_brcst);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result         = p.eval({}).back();
-    auto expected_result = p_uncompiled.eval({}).back();
-    auto tr_op           = migraphx::make_op("contiguous");
-    auto std_expected_result      = tr_op.compute(result.get_shape(), {expected_result});
+    auto result              = p.eval({}).back();
+    auto expected_result     = p_uncompiled.eval({}).back();
+    auto tr_op               = migraphx::make_op("contiguous");
+    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result == std_expected_result);
 }
 
@@ -115,10 +115,10 @@ TEST_CASE(squeeze_slice_test)
     mm->add_instruction(migraphx::make_op("squeeze"), l0_slice);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result         = p.eval({}).back();
-    auto expected_result = p_uncompiled.eval({}).back();
-    auto tr_op           = migraphx::make_op("contiguous");
-    auto std_expected_result      = tr_op.compute(result.get_shape(), {expected_result});
+    auto result              = p.eval({}).back();
+    auto expected_result     = p_uncompiled.eval({}).back();
+    auto tr_op               = migraphx::make_op("contiguous");
+    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result == std_expected_result);
 }
 

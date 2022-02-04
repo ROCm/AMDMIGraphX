@@ -71,10 +71,10 @@ TEST_CASE(squeeze_transpose_test)
     mm->add_instruction(migraphx::make_op("squeeze"), l0_trans);
     auto p_uncompiled = p;
     p.compile(migraphx::ref::target{});
-    auto result         = p.eval({}).back();
+    auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
-    auto tr_op = migraphx::make_op("contiguous");
-    auto std_result = tr_op.compute(result.get_shape(), {expected_result});
+    auto tr_op           = migraphx::make_op("contiguous");
+    auto std_result      = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result == std_result);
 }
 

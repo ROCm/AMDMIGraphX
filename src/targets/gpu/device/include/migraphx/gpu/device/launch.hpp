@@ -64,7 +64,6 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         assert(global > 0);
         using f_type = decltype(f);
         dim3 nblocks(global / local);
-        // printf("global:   %d nblocks:  %d ++++++++++++\n",global, global / local);
         dim3 nthreads(local);
         // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);

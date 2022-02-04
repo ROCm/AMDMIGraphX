@@ -97,6 +97,12 @@ struct miopen_apply
         }
     }
 
+    const std::unordered_set<std::string>& get_rocblas_fp32_archs()
+    {
+        static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+        return supported_archs;
+    }
+
     void init()
     {
         assert(mod != nullptr);
@@ -104,7 +110,8 @@ struct miopen_apply
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
         auto& ctx = get_context();
-        if(ctx.get_stream().get_device_name() == "gfx908")
+        const auto device_name = trim(split_string(ctx.get_stream().get_device_name(), ':').front());
+        if(contains(get_rocblas_fp32_archs(), device_name))
             compute_fp32 = true;
         rocblas_gemm_flags flag;
         rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);

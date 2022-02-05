@@ -13,7 +13,7 @@ namespace gpu {
 
 struct fuse_mlir
 {
-    context* ctx   = nullptr;
+    context* ctx = nullptr;
     std::string name() const { return "gpu::fuse_mlir"; }
     void apply(module& m) const;
 };

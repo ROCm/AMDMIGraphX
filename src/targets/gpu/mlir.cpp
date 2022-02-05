@@ -509,8 +509,11 @@ std::string dump_mlir(const module& m)
 
 code_object_op compile_mlir(const module& m)
 {
+    std::cout << m << std::endl;
     mlir_program mp;
     mp.parse(m);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     return mp.compile();
 }
 

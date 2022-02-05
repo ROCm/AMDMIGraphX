@@ -140,6 +140,7 @@ add_library(migraphx_gpu
     device_name.cpp
     eliminate_workspace.cpp
     elu.cpp
+    fuse_mlir.cpp
     fuse_ops.cpp
     gather.cpp
     gemm_impl.cpp

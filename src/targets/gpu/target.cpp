@@ -30,6 +30,7 @@
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/eliminate_workspace.hpp>
+#include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/mlir_conv.hpp>
@@ -102,7 +103,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_pointwise{},
         dead_code_elimination{},
-        mlir_conv{&ctx},
+        fuse_mlir{&ctx},
+        dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
@@ -112,8 +114,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},
-        fuse_ops{&ctx, options.fast_math},
-        dead_code_elimination{},
+        // fuse_ops{&ctx, options.fast_math},
+        // dead_code_elimination{},
         compile_ops{&ctx},
         dead_code_elimination{},
         write_literals{&ctx},

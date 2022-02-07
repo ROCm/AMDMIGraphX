@@ -80,4 +80,3 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
- 

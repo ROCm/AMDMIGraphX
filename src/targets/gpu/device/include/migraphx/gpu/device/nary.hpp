@@ -449,4 +449,3 @@ auto nary(hipStream_t stream, argument result, Arguments... args)
 } // namespace migraphx
 
 #endif
- 

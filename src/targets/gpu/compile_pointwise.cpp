@@ -72,4 +72,3 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
- 

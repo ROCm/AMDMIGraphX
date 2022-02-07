@@ -16,11 +16,12 @@ struct compile_pointwise : action<compile_pointwise>
         auto inputs = p.parse_shapes(v.at("inputs"));
 
         int global = p.get(v, "global", 64);
-        int local = p.get(v, "local", 64);
+        int local  = p.get(v, "local", 64);
 
-        auto op     = gpu::compile_pointwise(ctx, inputs, v.at("lambda").to<std::string>(), "", global, local );
+        auto op = gpu::compile_pointwise(
+            ctx, inputs, v.at("lambda").to<std::string>(), "", global, local);
 
-        double t    = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        double t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;
     }
 };
@@ -29,4 +30,3 @@ struct compile_pointwise : action<compile_pointwise>
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
- 

@@ -25,4 +25,3 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
- 

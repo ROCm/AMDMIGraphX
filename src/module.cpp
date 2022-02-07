@@ -675,14 +675,73 @@ void module::print_graph(std::ostream& os, bool brief) const
     os << "}" << std::endl;
 }
 
+static std::string to_c_id(const std::string& name, char rep = '_')
+{
+    std::string id = transform_string(name, [&](auto c) {
+        if (with_char(::isalnum)(c) or c == '_')
+            return c;
+        return rep;
+    });
+    while(contains(id, "__"))
+        replace_string_inplace(id, "__", "_");
+    return id;
+}
+
 static std::string cpp_var_name(const std::string& name)
 {
-    return "m" + replace_string(name, "@", "x");
+    // Remove the module name
+    std::string s = split_string(name, ':').back();
+    return to_c_id("m" + replace_string(s, "@", "x"));
 }
 
 static std::string cpp_op_var(const std::string& name, instruction_ref ins)
 {
     return replace_string(name, "@", ins->name());
+}
+
+static void print_value(std::ostream& os, const value& v)
+{
+    if (not v.get_key().empty())
+    {
+        os << "{";
+        os << enclose_name(v.get_key()) << ", ";
+        print_value(os, v.without_key());
+        os << "}";
+    }
+    else if (v.is_array() or v.is_object())
+    {
+        char delim = '{';
+        for(const auto& x: v)
+        {
+            os << delim;
+            delim = ',';
+            print_value(os, x);
+        }
+        os << "}";
+    }
+    else if (v.is_null())
+    {
+        os << "nullptr";
+    }
+    else if (v.is_string())
+    {
+        os << enclose_name(v.get_string());
+    }
+    else
+    {
+        os << v.to<std::string>();
+    }
+}
+
+static void print_make_op(std::ostream& os, const operation& op)
+{
+    os << "migraphx::make_op(" << enclose_name(op.name());
+    auto v = op.to_value();
+    if (not v.empty())
+    {
+        print_value(os, v);
+    }
+    os << ")";
 }
 
 static void print_op_attributes(std::ostream& os, const std::string& name, const operation& op)

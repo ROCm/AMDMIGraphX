@@ -129,4 +129,4 @@ for ts in tensorsizes:
 print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False, True]],'-------\n')
 
 
-#      End   Demonstration of loading and filtering the data in tabular form.
+#      End   Demonstration of loading and filtering the data in tabular form. 

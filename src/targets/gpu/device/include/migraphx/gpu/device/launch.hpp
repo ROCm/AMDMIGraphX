@@ -110,3 +110,4 @@ inline auto gs_launch(hipStream_t stream, index_int n, index_int local = 1024)
 } // namespace migraphx
 
 #endif
+ 

@@ -29,3 +29,4 @@ struct compile_pointwise : action<compile_pointwise>
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+ 

@@ -162,6 +162,7 @@ struct miopen_apply
         add_extend_op("convert");
         add_extend_op("elu");
         add_extend_op("gather");
+        add_extend_op("gathernd");
         add_extend_op("leaky_relu");
         add_extend_op("logsoftmax");
         add_extend_op("lrn");

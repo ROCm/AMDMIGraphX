@@ -44,6 +44,7 @@ add_library(migraphx_device
     device/fill.cpp
     device/floor.cpp
     device/gather.cpp
+    device/gathernd.cpp
     device/gelu.cpp
     device/greater.cpp
     device/int8_gemm_pack.cpp
@@ -142,6 +143,7 @@ add_library(migraphx_gpu
     elu.cpp
     fuse_ops.cpp
     gather.cpp
+    gathernd.cpp
     gemm_impl.cpp
     hip.cpp
     int8_conv_pack.cpp
@@ -200,6 +202,7 @@ register_migraphx_gpu_ops(hip_
     exp
     floor
     gather
+    gathernd
     greater
     less
     log

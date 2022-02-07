@@ -108,6 +108,7 @@ register_migraphx_ops(
     flatten
     floor
     gather
+    gathernd
     get_tuple_elem
     greater
     gru

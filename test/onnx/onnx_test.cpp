@@ -1481,7 +1481,7 @@ TEST_CASE(globalavgpool_test)
     auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto op    = migraphx::op::pooling{"average"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling::kAvg};
     auto lens  = input->get_shape().lens();
     op.lengths = {lens[2], lens[3]};
     op.padding = {0, 0, 0, 0};
@@ -1498,7 +1498,7 @@ TEST_CASE(globalmaxpool_test)
     auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto op    = migraphx::op::pooling{"max"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling::kMax};
     auto lens  = input->get_shape().lens();
     op.lengths = {lens[2], lens[3]};
     op.padding = {0, 0, 0, 0};

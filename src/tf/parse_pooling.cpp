@@ -19,7 +19,7 @@ struct parse_pooling : op_parser<parse_pooling>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        op::pooling op{starts_with(opd.tf_name, "Max") ? "max" : "average"};
+        op::pooling op{starts_with(opd.tf_name, "Max") ? op::pooling::kMax : op::pooling::kAvg};
 
         if(contains(info.attributes, "strides"))
         {

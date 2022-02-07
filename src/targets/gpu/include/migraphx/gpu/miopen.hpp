@@ -132,12 +132,12 @@ inline convolution_descriptor make_deconv(const T& op)
 inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
 {
     miopenPoolingMode_t mode;
-    if(op.mode == "max")
+    if(op.mode == op.kMax)
         mode = miopenPoolingMax;
-    else if(op.mode == "average")
+    else if(op.mode == op.kAvg)
         mode = miopenPoolingAverage;
     else
-        MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);
+        MIGRAPHX_THROW("Unknown mode for pooling: " + std::to_string(op.mode));
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
 
     int kdims = op.kdims();

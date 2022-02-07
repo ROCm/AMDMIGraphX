@@ -21,7 +21,10 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    std::string mode             = "avg";
+    enum{kAvg,
+    kMode,
+    } mode;
+    // std::string mode             = "avg";
     int64_t output_height        = 1;
     int64_t output_width         = 1;
     int64_t sampling_ratio       = 0;
@@ -241,7 +244,7 @@ struct roialign
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
-                        (mode == "avg") ? this->calc_pooling(offset_bottom_data,
+                        (mode == kAvg) ? this->calc_pooling(offset_bottom_data,
                                                              bin_grid_size,
                                                              pre_calc,
                                                              vec_index[c],

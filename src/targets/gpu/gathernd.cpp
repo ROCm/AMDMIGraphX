@@ -14,8 +14,7 @@ shape hip_gathernd::compute_shape(std::vector<shape> inputs) const
 
 argument hip_gathernd::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    return device::gathernd(
-        ctx.get_stream().get(), args.back(), args[0], args[1], op.batch_dims);
+    return device::gathernd(ctx.get_stream().get(), args.back(), args[0], args[1], op.batch_dims);
 }
 
 } // namespace gpu

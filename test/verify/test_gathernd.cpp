@@ -13,8 +13,8 @@ struct test_gathernd : verify_program<test_gathernd>
         migraphx::shape ds{migraphx::shape::float_type, {2, 3, 2, 3}};
         migraphx::shape is{migraphx::shape::int64_type, {2, 3, 2}};
         std::vector<int> indices{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
-        auto a0  = mm->add_parameter("data", ds);
-        auto a1  = mm->add_literal(migraphx::literal{is, indices});
+        auto a0        = mm->add_parameter("data", ds);
+        auto a1        = mm->add_literal(migraphx::literal{is, indices});
         int batch_dims = 1;
         mm->add_instruction(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), a0, a1);
         return p;

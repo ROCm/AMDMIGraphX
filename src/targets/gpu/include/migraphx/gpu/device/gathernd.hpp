@@ -10,11 +10,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-argument gathernd(hipStream_t stream,
-                   argument result,
-                   argument arg0,
-                   argument arg1,
-                   const int& batch_dims);
+argument
+gathernd(hipStream_t stream, argument result, argument arg0, argument arg1, const int& batch_dims);
 
 } // namespace device
 } // namespace gpu

@@ -678,7 +678,7 @@ void module::print_graph(std::ostream& os, bool brief) const
 static std::string to_c_id(const std::string& name, char rep = '_')
 {
     std::string id = transform_string(name, [&](auto c) {
-        if (with_char(::isalnum)(c) or c == '_')
+        if(with_char(::isalnum)(c) or c == '_')
             return c;
         return rep;
     });
@@ -701,17 +701,17 @@ static std::string cpp_op_var(const std::string& name, instruction_ref ins)
 
 static void print_value(std::ostream& os, const value& v)
 {
-    if (not v.get_key().empty())
+    if(not v.get_key().empty())
     {
         os << "{";
         os << enclose_name(v.get_key()) << ", ";
         print_value(os, v.without_key());
         os << "}";
     }
-    else if (v.is_array() or v.is_object())
+    else if(v.is_array() or v.is_object())
     {
         char delim = '{';
-        for(const auto& x: v)
+        for(const auto& x : v)
         {
             os << delim;
             delim = ',';
@@ -719,11 +719,11 @@ static void print_value(std::ostream& os, const value& v)
         }
         os << "}";
     }
-    else if (v.is_null())
+    else if(v.is_null())
     {
         os << "nullptr";
     }
-    else if (v.is_string())
+    else if(v.is_string())
     {
         os << enclose_name(v.get_string());
     }
@@ -737,7 +737,7 @@ static void print_make_op(std::ostream& os, const operation& op)
 {
     os << "migraphx::make_op(" << enclose_name(op.name());
     auto v = op.to_value();
-    if (not v.empty())
+    if(not v.empty())
     {
         print_value(os, v);
     }

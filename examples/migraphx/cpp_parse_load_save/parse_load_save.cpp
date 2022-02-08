@@ -24,7 +24,6 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    char* parse_arg        = getCmdOption(argv + 2, argv + argc, "--parse");
     char* load_arg         = getCmdOption(argv + 2, argv + argc, "--load");
     char* save_arg         = getCmdOption(argv + 2, argv + argc, "--save");
     const char* input_file = argv[1];

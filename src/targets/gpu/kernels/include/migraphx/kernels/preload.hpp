@@ -29,12 +29,18 @@ constexpr auto traverse_preload(Shapes... ss)
 }
 
 template <class T, class... Shapes>
-constexpr index_int compute_preload_size(Shapes...)
+constexpr index_int compute_preload_size_c(Shapes...)
 {
     index_int size = 0;
     traverse_preload<T>(Shapes{}...)(
         [&](auto s, auto offset, auto) { size = offset + s.element_space(); });
     return size;
+}
+
+template <class T, class... Shapes>
+constexpr auto compute_preload_size(Shapes...)
+{
+    return _c<compute_preload_size_c<T>(Shapes{}...)>;
 }
 
 template <class F, class T, class... Ts>
@@ -48,11 +54,21 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         [&](auto x, auto offset, auto copy) {
             if constexpr(copy)
             {
-                auto v = vectorize(x);
-                auto b = as_vec(tensor_vec_size(v), buffer + offset);
-                idx.local_stride(v.get_shape().element_space(),
-                                 [&](auto i) { b[i] = v.data()[i]; });
-                return x.with(buffer + offset);
+                if constexpr(decltype(tensor_vec_size(x)){} == 0)
+                {
+                    auto v = vectorize(x);
+                    auto b = as_vec(tensor_vec_size(v), buffer + offset);
+                    idx.local_stride(v.get_shape().element_space(),
+                                     [&](auto i) { b[i] = v.data()[i]; });
+                    return x.with(buffer + offset);
+                }
+                else
+                {
+                    auto b = as_vec(tensor_vec_size(x), buffer + offset);
+                    idx.local_stride(x.get_shape().element_space(),
+                                     [&](auto i) { b[i] = x.data()[i]; });
+                    return x.with(b);
+                }
             }
             else
             {
@@ -78,7 +94,7 @@ template <class T, class... Ts>
 __device__ auto preload(index idx, Ts... xs)
 {
     using type               = typename remove_vec<T>::type;
-    constexpr auto size      = compute_preload_size<type>(xs.get_shape()...);
+    constexpr auto size      = decltype(compute_preload_size<type>(xs.get_shape()...)){};
     const index_int max_size = 512 * sizeof(type);
     return [=](auto f) {
         if constexpr(size > 0 and size < max_size)

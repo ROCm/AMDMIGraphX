@@ -200,6 +200,7 @@ rocm_enable_cppcheck(
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
     SOURCES
+        examples/
         src/
         test/
     INCLUDE

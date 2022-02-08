@@ -188,7 +188,7 @@ struct loader
             mm->remove_instructions(last, mm->end());
         }
         // Remove unused variable when exporting to cpp
-        if (output_type == "cpp")
+        if(output_type == "cpp")
             migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
         if(optimize)
         {

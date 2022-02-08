@@ -692,11 +692,6 @@ static std::string cpp_var_name(const std::string& name)
     return to_c_id("x_" + replace_string(name, ":", "_module_"));
 }
 
-static std::string cpp_op_var(const std::string& name, instruction_ref ins)
-{
-    return replace_string(name, "@", ins->name());
-}
-
 static void print_value(std::ostream& os, const value& v)
 {
     if(not v.get_key().empty())
@@ -743,36 +738,6 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
-static void print_op_attributes(std::ostream& os, const std::string& name, const operation& op)
-{
-    std::string x = to_string(op);
-    if(contains(x, "["))
-    {
-        auto start                 = x.find('[');
-        auto end                   = x.find(']');
-        std::string attribute_text = x.substr(start + 1, end - start - 1);
-        std::vector<std::string> attributes;
-        for(auto&& attribute : split_string(attribute_text, ','))
-        {
-            if(contains(attribute, '='))
-                attributes.push_back(attribute);
-            else
-                attributes.back() += "," + attribute;
-        }
-        for(auto&& attribute : attributes)
-        {
-            auto p     = split_string(attribute, '=');
-            auto key   = p.front();
-            auto value = p.back();
-            if(contains({"bn_mode", "padding_mode"}, key))
-                continue;
-            if(key == "mode")
-                value = enclose_name(trim(value));
-            os << name << "." << key << " = " << value << ";" << std::endl;
-        }
-    }
-}
-
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
@@ -790,15 +755,16 @@ module::print_cpp(std::ostream& os,
 
     // cppcheck-suppress variableScope
     unsigned long seed = names.size();
+    auto last = std::prev(this->end());
     names              = this->print(
         [&](auto ins, auto ins_names) {
-            auto op = cpp_op_var(ins_names.at(ins), ins);
             std::vector<std::string> input_vars;
             std::transform(ins->inputs().begin(),
                            ins->inputs().end(),
                            std::back_inserter(input_vars),
                            [&](auto input) { return cpp_var_name(ins_names.at(input)); });
-            os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
+            if (ins != last)
+                os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
                 os << mname << "->add_literal(";

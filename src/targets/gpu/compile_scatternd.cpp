@@ -51,8 +51,8 @@ operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const
     // reduction
     assert(val.contains("reduction"));
     auto reduction = val.at("reduction").to<std::string>();
-    bool is_add = reduction == "add";
-    bool is_mul = reduction == "mul";
+    bool is_add    = reduction == "add";
+    bool is_mul    = reduction == "mul";
     options.params += " -DIS_ADD=" + std::to_string(static_cast<int>(is_add));
     options.params += " -DIS_MUL=" + std::to_string(static_cast<int>(is_mul));
 

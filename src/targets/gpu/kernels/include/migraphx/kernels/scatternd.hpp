@@ -22,13 +22,17 @@ constexpr scatternd_settings<Ts...> make_scatternd_settings(Ts... xs)
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void scatternd(const T& /* data_t */, const U& /* indices_t */, const V& /* updates_t */, const W& out_t, Settings /* s */)
+__device__ void scatternd(const T& /* data_t */,
+                          const U& /* indices_t */,
+                          const V& /* updates_t */,
+                          const W& out_t,
+                          Settings /* s */)
 {
-    auto index       = make_index();
-    auto i = index.global;
+    auto index        = make_index();
+    auto i            = index.global;
     auto output_shape = out_t.get_shape();
 
-    if (i < output_shape.elements())
+    if(i < output_shape.elements())
     {
         /* const bool is_add = s.is_add;
         const bool is_mul = s.is_mul;
@@ -42,8 +46,6 @@ __device__ void scatternd(const T& /* data_t */, const U& /* indices_t */, const
         auto k = indices_shape.lens.back();
         auto r = output_shape.lens.size();
         auto q = indices_shape.lens.size(); */
-
-
     }
 }
 

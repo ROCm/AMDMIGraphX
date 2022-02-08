@@ -4347,7 +4347,7 @@ TEST_CASE(scatternd_test)
         auto itype = migraphx::shape::int64_type;
         migraphx::shape ds{dtype, {2, 2, 2, 2, 2}};
         migraphx::shape is{itype, {1}};
-        migraphx::shape us{dtype, {1, 2, 2, 2, 2}};
+        migraphx::shape us{dtype, {2, 2, 2, 2}};
 
         std::vector<float> data_vec(32, 1);
         std::vector<int64_t> ind_vec{1};

@@ -42,11 +42,6 @@ struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
         if(contains(info.attributes, "low"))
             low = info.attributes.at("low").f();
 
-        float seed = static_cast<float>(
-            std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        if(contains(info.attributes, "seed"))
-            seed = info.attributes.at("seed").f();
-
         shape out_shape;
         if(contains(info.attributes, "shape"))
         {
@@ -75,7 +70,10 @@ struct parse_randomuniform_ops : op_parser<parse_randomuniform_ops>
                            ": cannot deduce shape without shape attribute or argument.");
         }
 
-        std::mt19937 gen(seed);
+        std::mt19937 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        if(contains(info.attributes, "seed"))
+            gen.seed(info.attributes.at("seed").f());
+
         std::uniform_real_distribution<> d(high, low);
         std::vector<double> rand_vals(out_shape.elements());
         std::generate(rand_vals.begin(), rand_vals.end(), [&]() { return d(gen); });

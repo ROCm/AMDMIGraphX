@@ -217,7 +217,6 @@ def main():
     # get model full path
     model_name = get_model_name(test_loc)
     model_path_name = test_loc + '/' + model_name
-
     # get param names
     param_names = model_parameter_names(model_path_name)
 
@@ -234,8 +233,6 @@ def main():
 
     # read and compile model
     model = migraphx.parse_onnx(model_path_name, map_input_dims=param_shapes)
-    output_shapes = model.get_output_shapes()
-
     model.compile(migraphx.get_target(target))
 
     # get test cases

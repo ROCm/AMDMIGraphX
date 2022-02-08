@@ -179,6 +179,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
 {
+    assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
     shape r     = compute_shape(op, args);
     auto result = impl->insert(ins, {op, r, std::move(args)});
@@ -200,6 +201,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<instruction_ref> args,
                                            std::vector<module_ref> module_args)
 {
+    assert(has_instruction(ins) or is_end(ins, this->end()));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
@@ -212,6 +214,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
+    assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
 
     shape r = compute_shape(op, args);
@@ -225,6 +228,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
 {
+    assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
@@ -291,6 +295,8 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
+    assert(has_instruction(src));
+    assert(has_instruction(dst) or is_end(dst, this->end()));
     impl->instructions.splice(dst, impl->instructions, src);
     return src;
 }

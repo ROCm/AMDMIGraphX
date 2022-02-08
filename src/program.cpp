@@ -180,6 +180,63 @@ void program::finalize()
     mm->finalize(this->impl->ctx);
 }
 
+template <class T>
+std::string classify(T x)
+{
+    switch(std::fpclassify(x))
+    {
+    case FP_INFINITE: return "inf";
+    case FP_NAN: return "nan";
+    case FP_NORMAL: return "normal";
+    case FP_SUBNORMAL: return "subnormal";
+    case FP_ZERO: return "zero";
+    default: return "unknown";
+    }
+}
+
+std::unordered_set<std::string> classify_argument(const argument& a)
+{
+    std::unordered_set<std::string> result;
+    a.visit(
+        [&](auto t) {
+            for(const auto& x : t)
+                result.insert(classify(x));
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                auto r = classify_argument(x);
+                result.insert(r.begin(), r.end());
+            }
+        });
+    return result;
+}
+
+void preview_argument(std::ostream& os, const argument& a)
+{
+    a.visit(
+        [&](auto t) {
+            if(t.size() <= 10)
+            {
+                os << t;
+            }
+            else
+            {
+                os << to_string_range(t.begin(), t.begin() + 5);
+                os << ", ..., ";
+                os << to_string_range(t.end() - 5, t.end());
+            }
+        },
+        [&](const auto& xs) {
+            for(const auto& x : xs)
+            {
+                os << '{';
+                preview_argument(os, x);
+                os << '}';
+            }
+        });
+}
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    context& ctx,
@@ -312,8 +369,21 @@ std::vector<argument> program::eval(parameter_map params) const
                                 if(trace_level > 1 and ins->name().front() != '@' and
                                    ins->name() != "load" and not result.empty())
                                 {
-                                    target tgt = make_target(this->impl->target_name);
-                                    std::cout << "Output: " << tgt.copy_from(result) << std::endl;
+                                    target tgt  = make_target(this->impl->target_name);
+                                    auto buffer = tgt.copy_from(result);
+                                    if(trace_level == 2)
+                                    {
+                                        std::cout << "Output has "
+                                                  << to_string_range(classify_argument(buffer))
+                                                  << std::endl;
+                                        std::cout << "Output: ";
+                                        preview_argument(std::cout, buffer);
+                                        std::cout << std::endl;
+                                    }
+                                    else
+                                    {
+                                        std::cout << "Output: " << buffer << std::endl;
+                                    }
                                 }
                                 return result;
                             }));

@@ -79,7 +79,7 @@ template <class F>
 void par_for(std::size_t n, std::size_t min_grain, F f)
 {
     const auto threadsize =
-        std::min<std::size_t>(std::thread::hardware_concurrency(), n / min_grain);
+        std::min<std::size_t>(std::thread::hardware_concurrency(), n / std::max<std::size_t>(1, min_grain));
     par_for_impl(n, threadsize, f);
 }
 

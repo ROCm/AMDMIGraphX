@@ -782,7 +782,9 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 }
 
 std::unordered_map<instruction_ref, std::string>
-module::print_cpp(std::ostream& os, const std::string& mname, std::unordered_map<instruction_ref, std::string> names) const
+module::print_cpp(std::ostream& os,
+                  const std::string& mname,
+                  std::unordered_map<instruction_ref, std::string> names) const
 {
 
     // cppcheck-suppress variableScope
@@ -791,9 +793,10 @@ module::print_cpp(std::ostream& os, const std::string& mname, std::unordered_map
         [&](auto ins, auto ins_names) {
             auto op = cpp_op_var(ins_names.at(ins), ins);
             std::vector<std::string> input_vars;
-            std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(input_vars), [&](auto input) {
-                return cpp_var_name(ins_names.at(input));
-            });
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(input_vars),
+                           [&](auto input) { return cpp_var_name(ins_names.at(input)); });
             os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {

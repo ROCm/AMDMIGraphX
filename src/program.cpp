@@ -757,7 +757,7 @@ void program::print_cpp(std::ostream& os) const
     {
         std::string var_name = "m" + mod->name();
         os << "migraphx::module_ref " << var_name << " = ";
-        if (mod->name() == "main")
+        if(mod->name() == "main")
             os << "p.get_main_module();";
         else
             os << "p.create_module(\"" << mod->name() << "\");";

@@ -12,7 +12,7 @@
 TEST_CASE(argmax_test_nonstd_shape)
 {
     migraphx::program p;
-    auto* mm                = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto dl = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 3, 4}}));
     auto dl_trans =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
@@ -31,7 +31,7 @@ TEST_CASE(argmax_test_nonstd_shape)
 TEST_CASE(argmin_test_nonstd_shape)
 {
     migraphx::program p;
-    auto* mm                = p.get_main_module();
+    auto* mm = p.get_main_module();
     auto dl = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 3, 4}}));
     auto dl_trans =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), dl);
@@ -50,8 +50,9 @@ TEST_CASE(argmin_test_nonstd_shape)
 TEST_CASE(squeeze_transpose_test)
 {
     migraphx::program p;
-    auto* mm                = p.get_main_module();
-    auto l0 = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 1, 3, 1, 3}}));
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 1, 3, 1, 3}}));
     auto l0_trans =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0, 4}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_trans);
@@ -69,8 +70,9 @@ TEST_CASE(squeeze_transpose_test)
 TEST_CASE(squeeze_multibroadcast_test)
 {
     migraphx::program p;
-    auto* mm                = p.get_main_module();
-    auto l0       = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 3, 1, 3}}));
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 3, 1, 3}}));
     auto l0_brcst = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 3, 4, 3}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_brcst);
@@ -87,8 +89,9 @@ TEST_CASE(squeeze_multibroadcast_test)
 TEST_CASE(squeeze_slice_test)
 {
     migraphx::program p;
-    auto* mm                = p.get_main_module();
-    auto l0       = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 3, 4, 3}}));
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 3, 4, 3}}));
     auto l0_slice = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_slice);

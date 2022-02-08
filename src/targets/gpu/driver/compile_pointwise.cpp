@@ -15,8 +15,8 @@ struct compile_pointwise : action<compile_pointwise>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
 
-        int global = p.get(v, "global", 64);
-        int local  = p.get(v, "local", 64);
+        size_t global = p.get(v, "global", 64);
+        size_t local  = p.get(v, "local", 64);
 
         auto op = gpu::compile_pointwise(
             ctx, inputs, v.at("lambda").to<std::string>(), "", global, local);

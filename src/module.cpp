@@ -12,6 +12,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/json.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -692,48 +693,13 @@ static std::string cpp_var_name(const std::string& name)
     return to_c_id("x_" + replace_string(name, ":", "_module_"));
 }
 
-static void print_value(std::ostream& os, const value& v)
-{
-    if(not v.get_key().empty())
-    {
-        os << "{";
-        os << enclose_name(v.get_key()) << ", ";
-        print_value(os, v.without_key());
-        os << "}";
-    }
-    else if(v.is_array() or v.is_object())
-    {
-        char delim = '{';
-        for(const auto& x : v)
-        {
-            os << delim;
-            delim = ',';
-            print_value(os, x);
-        }
-        os << "}";
-    }
-    else if(v.is_null())
-    {
-        os << "nullptr";
-    }
-    else if(v.is_string())
-    {
-        os << enclose_name(v.get_string());
-    }
-    else
-    {
-        os << v.to<std::string>();
-    }
-}
-
 static void print_make_op(std::ostream& os, const operation& op)
 {
     os << "migraphx::make_op(" << enclose_name(op.name());
     auto v = op.to_value();
     if(not v.empty())
     {
-        os << ", ";
-        print_value(os, v);
+        os << ", " << "migraphx::from_json_string(" << enclose_name(to_json_string(v)) << ")";
     }
     os << ")";
 }

@@ -161,6 +161,19 @@ TEST_CASE(standard_flatten_op)
     EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
 }
 
+TEST_CASE(standard_return_input)
+{
+    migraphx::module m;
+
+    auto l  = m.add_literal(get_2x2());
+    auto tl = m.add_instruction(migraphx::make_op("add"), l, l);
+    auto c  = m.add_instruction(migraphx::make_op("contiguous"), tl);
+    m.add_return({c});
+    auto count = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == count - 1);
+}
+
 TEST_CASE(contiguous_pointwise)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 8, 8}};

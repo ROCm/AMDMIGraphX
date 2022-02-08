@@ -19,6 +19,10 @@ void auto_contiguous::apply(module& p) const
             auto args     = ins->inputs();
             auto new_args = args;
             std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
+                if (in->name() == "contiguous") 
+                {
+                    return in;
+                }
                 return p.insert_instruction(ins, make_op("contiguous"), in);
             });
 
@@ -32,6 +36,7 @@ void auto_contiguous::apply(module& p) const
     auto last = std::prev(p.end());
     for(auto ins : iterator_for(p))
     {
+        // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;
         shape s = ins->get_shape();

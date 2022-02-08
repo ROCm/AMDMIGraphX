@@ -19,7 +19,7 @@ void auto_contiguous::apply(module& p) const
             auto args     = ins->inputs();
             auto new_args = args;
             std::transform(args.begin(), args.end(), new_args.begin(), [&](auto in) {
-                if (in->name() == "contiguous") 
+                if(in->name() == "contiguous")
                 {
                     return in;
                 }

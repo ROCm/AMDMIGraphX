@@ -163,6 +163,7 @@ void module::assign(const module& m)
             }
             else
             {
+                printf("module line 166, %s\n", ins->name().c_str());
                 copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }

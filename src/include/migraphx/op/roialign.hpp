@@ -21,14 +21,16 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    enum{kAvg,
-    kMode,
+    enum
+    {
+        kAvg,
+        kMode,
     } mode;
     // std::string mode             = "avg";
-    int64_t output_height        = 1;
-    int64_t output_width         = 1;
-    int64_t sampling_ratio       = 0;
-    float spatial_scale          = 1.0f;
+    int64_t output_height  = 1;
+    int64_t output_width   = 1;
+    int64_t sampling_ratio = 0;
+    float spatial_scale    = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -245,18 +247,17 @@ struct roialign
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
                         (mode == kAvg) ? this->calc_pooling(offset_bottom_data,
-                                                             bin_grid_size,
-                                                             pre_calc,
-                                                             vec_index[c],
-                                                             avg_pool{})
-                                        : this->calc_pooling(offset_bottom_data,
-                                                             bin_grid_size,
-                                                             pre_calc,
-                                                             vec_index[c],
-                                                             max_pool{});
+                                                            bin_grid_size,
+                                                            pre_calc,
+                                                            vec_index[c],
+                                                            avg_pool{})
+                                       : this->calc_pooling(offset_bottom_data,
+                                                            bin_grid_size,
+                                                            pre_calc,
+                                                            vec_index[c],
+                                                            max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
-
             });
         });
 

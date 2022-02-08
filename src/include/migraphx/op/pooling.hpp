@@ -21,9 +21,11 @@ namespace op {
 
 struct pooling
 {
-    enum{kAvg,
-    kMax
-    } mode;    
+    enum
+    {
+        kAvg,
+        kMax
+    } mode;
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};

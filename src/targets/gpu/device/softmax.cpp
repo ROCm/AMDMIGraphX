@@ -21,7 +21,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
 
     hip_visit_all(result, arg, batch_shape)([&](auto output, auto input, auto batch) {
         const index_int max_block_size = 128;
-        const index_int block_size = compute_block_size(batch_item_num, max_block_size);
+        const index_int block_size     = compute_block_size(batch_item_num, max_block_size);
         using type = device_type<std::remove_cv_t<typename decltype(input)::value_type>>;
         type init  = lowest();
 

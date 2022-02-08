@@ -110,9 +110,8 @@ struct miopen_apply
         assert(pass != nullptr);
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        auto& ctx = get_context();
-        const auto device_name =
-            trim(split_string(get_device_name(), ':').front());
+        auto& ctx              = get_context();
+        const auto device_name = trim(split_string(get_device_name(), ':').front());
         if(contains(get_rocblas_fp32_archs(), device_name))
             compute_fp32 = true;
         rocblas_gemm_flags flag;

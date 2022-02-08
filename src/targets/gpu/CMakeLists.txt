@@ -77,7 +77,6 @@ add_library(migraphx_device
     device/round.cpp
     device/rsqrt.cpp
     device/scatter.cpp
-    device/scatternd.cpp
     device/sigmoid.cpp
     device/sign.cpp
     device/sin.cpp
@@ -134,6 +133,7 @@ add_library(migraphx_gpu
     compile_hip_code_object.cpp
     compile_pointwise.cpp
     compile_roialign.cpp
+    compile_scatternd.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -165,7 +165,6 @@ add_library(migraphx_gpu
     rnn_variable_seq_lens.cpp
     rocblas.cpp
     scatter.cpp
-    scatternd.cpp
     schedule_model.cpp
     softmax.cpp
     sync_device.cpp
@@ -230,7 +229,6 @@ register_migraphx_gpu_ops(hip_
     round
     rsqrt
     scatter
-    scatternd
     sigmoid
     sign
     sinh

@@ -755,7 +755,7 @@ module::print_cpp(std::ostream& os,
 
     // cppcheck-suppress variableScope
     unsigned long seed = names.size();
-    auto last = std::prev(this->end());
+    auto last          = std::prev(this->end());
     names              = this->print(
         [&](auto ins, auto ins_names) {
             std::vector<std::string> input_vars;
@@ -763,7 +763,7 @@ module::print_cpp(std::ostream& os,
                            ins->inputs().end(),
                            std::back_inserter(input_vars),
                            [&](auto input) { return cpp_var_name(ins_names.at(input)); });
-            if (ins != last)
+            if(ins != last)
                 os << "auto " << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {

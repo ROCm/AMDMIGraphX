@@ -15,7 +15,7 @@ p = parse_onnx(input_file, options);
 ```
 
 ## Saving
-An instantiated migraphx::program object can then be serialized to MessagePack (.msgpack) format and saved so that it can be loaded for future uses. 
+An instantiated migraphx::program object can then be serialized to MessagePack (.mxr) format and saved so that it can be loaded for future uses. 
 
 A program can be saved with either of the following:
 ```

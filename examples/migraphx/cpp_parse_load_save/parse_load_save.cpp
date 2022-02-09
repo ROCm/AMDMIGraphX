@@ -77,7 +77,7 @@ int main(int argc, char** argv)
         std::cout << "Saving program..." << std::endl;
         std::string output_file;
         output_file = save_arg == nullptr ? "out" : save_arg;
-        output_file.append(".msgpack");
+        output_file.append(".mxr");
 
         migraphx::file_options options;
         options.set_file_format("msgpack");

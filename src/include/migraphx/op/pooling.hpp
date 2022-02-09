@@ -16,16 +16,13 @@
 #include <utility>
 
 namespace migraphx {
+
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct pooling
 {
-    enum
-    {
-        kAvg,
-        kMax
-    } mode;
+    migraphx::pooling_mode mode;
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};

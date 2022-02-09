@@ -369,7 +369,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::kAvg};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -391,7 +391,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::kAvg};
         op.lengths = {2};
         op.padding = {1};
         op.stride  = {2};
@@ -438,7 +438,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::kAvg};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {1, 1, 1};
@@ -1657,7 +1657,7 @@ TEST_CASE(globalavgpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling::kAvg};
+    auto op    = migraphx::op::pooling{migraphx::kAvg};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -1678,7 +1678,7 @@ TEST_CASE(globalmaxpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling::kMax};
+    auto op    = migraphx::op::pooling{migraphx::kMax};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -2545,7 +2545,7 @@ TEST_CASE(maxpool_test)
     mm->add_instruction(
         migraphx::make_op(
             "pooling",
-            {{"mode", "max"}, {"padding", {0, 0}}, {"stride", {2, 2}}, {"lengths", {3, 2}}}),
+            {{"mode", migraphx::kMax}, {"padding", {0, 0}}, {"stride", {2, 2}}, {"lengths", {3, 2}}}),
         al);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
@@ -2561,7 +2561,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kMax};
+        auto op    = migraphx::op::pooling{migraphx::kMax};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -2583,7 +2583,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kMax};
+        auto op    = migraphx::op::pooling{migraphx::kMax};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {2};
@@ -2607,7 +2607,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm     = p.get_main_module();
         auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op      = migraphx::op::pooling{migraphx::op::pooling::kMax};
+        auto op      = migraphx::op::pooling{migraphx::kMax};
         op.lengths   = {2};
         op.padding   = {0};
         op.stride    = {2};
@@ -2643,7 +2643,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling::kMax};
+        auto op    = migraphx::op::pooling{migraphx::kMax};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {2, 2, 2};

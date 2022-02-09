@@ -4,6 +4,7 @@
 #include <migraphx/instruction.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
@@ -464,7 +465,7 @@ TEST_CASE(conv_pooling_dot)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1  = m1.add_instruction(migraphx::make_op("add"), c1, bc1);
         auto ap  = m1.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
+                                                       {{"mode", migraphx::kAvg},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},
@@ -510,7 +511,7 @@ TEST_CASE(conv_pooling_dot)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1  = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
         auto ap  = m2.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
+                                                       {{"mode", migraphx::kAvg},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},
@@ -568,7 +569,7 @@ TEST_CASE(mobilenet_snippet)
         auto q2  = add_quantize_op(mm, "quantizelinear", a1, scale, zero);
         auto d6  = add_quantize_op(mm, "dequantizelinear", q2, scale, zero);
         auto ap  = mm.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", "average"},
+                                                       {{"mode", migraphx::kAvg},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},

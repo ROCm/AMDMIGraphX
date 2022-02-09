@@ -2,7 +2,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_LAUNCH_HPP
 
 #include <hip/hip_runtime.h>
-#include <hip/hcc_detail/hip_prof_str.h>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device/types.hpp>
 

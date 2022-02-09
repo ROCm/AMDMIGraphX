@@ -629,6 +629,23 @@ auto get_flops_funcs()
         return 2.0 * m * n * k * batch;
     });
 
+    op_funcs.emplace("convolution", [&](const std::vector<shape>& vec_ss) {
+        assert(vec_ss.size() >= 2);
+        auto alens     = vec_ss.front().lens();
+        auto blens     = vec_ss.at(1).lens();
+        auto olens   = vec_ss.back().lens();
+
+        auto n = alens.front();
+        auto k = blens.front();
+        auto c = alens.at(1);
+        auto y = blens.at(2);
+        auto x = blens.back();
+        auto ho = olens.at(2);
+        auto wo = olens.back();
+
+        return 2.0 * n * k * ho * wo * c * y * x;
+    });
+
     return op_funcs;
 }
 

@@ -4,7 +4,7 @@
 
 TEST_CASE(load_save_default)
 {
-    std::string filename = "migraphx_api_load_save.dat";
+    std::string filename = "migraphx_api_load_save.mxr";
     auto p1              = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     auto s1              = p1.get_output_shapes();
 

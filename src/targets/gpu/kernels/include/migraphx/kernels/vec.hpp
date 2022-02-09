@@ -66,15 +66,18 @@ __device__ __host__ auto as_vec(T* x)
         return reinterpret_cast<vec<T, N>*>(x);
 }
 
+template <class T, index_int N>
+using safe_vec = vec<std::conditional_t<std::is_same<T, bool>{}, uint8_t, T>, N>;
+
 template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
     return [=](auto f) {
         if constexpr(is_any_vec<Ts...>())
         {
-            using type             = decltype(f(vec_at(xs, 0)...));
-            constexpr auto size    = common_vec_size<Ts...>();
-            vec<type, size> result = {0};
+            using type                  = decltype(f(vec_at(xs, 0)...));
+            constexpr auto size         = common_vec_size<Ts...>();
+            safe_vec<type, size> result = {0};
             for(int i = 0; i < size; i++)
                 result[i] = f(vec_at(xs, i)...);
             return result;

@@ -68,6 +68,8 @@ struct cpp_generator
 
     void fmap(const std::function<std::string(std::string)>& f);
 
+    void fresult(const std::function<std::string(shape)>& f);
+
     void add_point_op(const std::string& op_name, const std::string& code);
 
     std::string generate_point_op(const operation& op, const std::vector<std::string>& args);

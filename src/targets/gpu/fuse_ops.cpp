@@ -587,6 +587,11 @@ struct miopen_fusion
         return pack(f(self.ops, "ops"));
     }
 
+    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    {
+        return shapes.size() - 1;
+    }
+
     value compile(context& ctx, const shape&, std::vector<shape> inputs)
     {
         // Compensate for allocation

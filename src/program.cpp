@@ -631,15 +631,15 @@ auto get_flops_funcs()
 
     op_funcs.emplace("convolution", [&](const std::vector<shape>& vec_ss) {
         assert(vec_ss.size() >= 2);
-        auto alens     = vec_ss.front().lens();
-        auto blens     = vec_ss.at(1).lens();
-        auto olens   = vec_ss.back().lens();
+        auto alens = vec_ss.front().lens();
+        auto blens = vec_ss.at(1).lens();
+        auto olens = vec_ss.back().lens();
 
-        auto n = alens.front();
-        auto k = blens.front();
-        auto c = alens.at(1);
-        auto y = blens.at(2);
-        auto x = blens.back();
+        auto n  = alens.front();
+        auto k  = blens.front();
+        auto c  = alens.at(1);
+        auto y  = blens.at(2);
+        auto x  = blens.back();
         auto ho = olens.at(2);
         auto wo = olens.back();
 

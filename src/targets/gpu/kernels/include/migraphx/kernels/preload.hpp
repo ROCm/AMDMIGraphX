@@ -27,10 +27,11 @@ constexpr auto traverse_preload(Shapes... ss)
     return [=](auto f, auto... g) {
         index_int offset = 0;
         auto each        = [&](auto x) {
-            using type = remove_vec<typename decltype(x)::type>;
+            using type          = remove_vec<typename decltype(x)::type>;
             constexpr auto s    = decltype(x.get_shape()){};
             constexpr auto size = _c<s.element_space()>;
-            if constexpr(not s.broadcasted() or (s.elements() - size) < 64 or not is_same<T, type>{})
+            if constexpr(not s.broadcasted() or (s.elements() - size) < 64 or
+                         not is_same<T, type>{})
                 return f(x, offset, false_type{});
             else
             {
@@ -94,13 +95,13 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
         invoke);
 }
 
-template<class T, class Shape>
+template <class T, class Shape>
 struct shape_type : Shape
 {
     using type = T;
 };
 
-template<class T>
+template <class T>
 constexpr auto make_shape_type(T)
 {
     return shape_type<typename T::type, typename T::shape_type>{};

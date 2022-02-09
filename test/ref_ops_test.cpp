@@ -4665,7 +4665,7 @@ TEST_CASE(unsqueeze_test)
         auto* mm = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 1, 3, 3}, {9, 9, 3, 1}};
         auto l0 = mm->add_literal(migraphx::literal{s1, data});
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l0);
         p.compile(migraphx::ref::target{});
@@ -4677,7 +4677,7 @@ TEST_CASE(unsqueeze_test)
         auto* mm = p.get_main_module();
         std::vector<float> data(4 * 3 * 3);
         migraphx::shape s1{migraphx::shape::float_type, {4, 3, 3}};
-        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}};
+        migraphx::shape s2{migraphx::shape::float_type, {4, 3, 1, 3}, {9, 3, 3, 1}};
         auto l0 = mm->add_literal(migraphx::literal{s1, data});
         mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0);
         p.compile(migraphx::ref::target{});

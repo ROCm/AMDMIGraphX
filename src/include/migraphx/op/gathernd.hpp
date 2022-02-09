@@ -55,11 +55,11 @@ struct gathernd
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
-                auto indices_shape      = indices.get_shape();
-                auto indices_shape_lens = indices_shape.lens();
-                auto data_shape         = data.get_shape();
-                auto data_shape_lens    = data_shape.lens();
-                auto k                  = indices_shape.lens().back();
+                auto indices_shape        = indices.get_shape();
+                auto indices_shape_lens   = indices_shape.lens();
+                auto data_shape           = data.get_shape();
+                auto data_shape_lens      = data_shape.lens();
+                auto k                    = indices_shape.lens().back();
                 const auto num_slice_dims = k;
                 std::size_t num_slices    = std::accumulate(indices_shape_lens.begin(),
                                                          indices_shape_lens.end() - 1,

@@ -16,15 +16,19 @@ struct parse_eyelike : op_parser<parse_eyelike>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
+		if(args.size() != 1)
+		{
+			MIGRAPHX_THROW("EYELIKE: expecting one tensor input");
+		}
         auto input_shape = args[0]->get_shape();
         auto input_lens  = input_shape.lens();
-        if(input_lens.size() != 2)
-        {
-            // only rank 2 tensors, error handling?
-        }
+		if(input_lens.size != 2)
+		{
+			MIGRAPHX_THROW("EYELIKE: tensor input not of rank 2");
+		}
+        auto num_rows = input_lens.front();
+        auto num_cols = input_lens.back();
 
-        // ONNX doc says to use types in order of attribute > input tensor type > default float
-        // I think shape defaults to float
         shape::type_t output_type = args[0]->get_shape().type();
         if(contains(info.attributes, "dtype"))
         {
@@ -36,29 +40,26 @@ struct parse_eyelike : op_parser<parse_eyelike>
         {
             k = info.attributes.at("k").i();
         }
+		if(k <= -num_cols or k >= num_cols)
+		{
+			MIGRAPHX_THROW("EYELIKE: k out of bounds");
+		}
 
-        auto num_rows = input_lens.front();
-        auto num_cols = input_lens.back();
-        std::vector<float> eyelike_mat(num_rows * num_cols); // setting type?
+		// set to double, when convereted to literal should be converted properly
+        std::vector<double> eyelike_mat(num_rows * num_cols, 0);
         for(int i = 0; i < num_rows; ++i)
         {
             for(int j = 0; j < num_cols; ++j)
             {
-                if(i == (j + k))
+                if(j == (i + k))
                 {
                     eyelike_mat[2 * i + j] = 1.;
                 }
-                else
-                {
-                    eyelike_mat[2 * i + j] = 0.;
-                }
             }
         }
-
         auto eyelike =
-            info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-                                 info.add_literal(migraphx::literal{
+            info.add_instruction(info.add_literal(migraphx::literal{
                                      migraphx::shape{output_type, input_lens}, eyelike_mat}));
         return eyelike;
     }
-}
+};

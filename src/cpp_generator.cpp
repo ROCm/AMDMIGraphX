@@ -88,6 +88,7 @@ struct cpp_generator_impl
     std::stringstream fs{};
     std::size_t function_count                                = 0;
     std::function<std::string(std::string)> fmap              = nullptr;
+    std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
@@ -103,6 +104,8 @@ cpp_generator& cpp_generator::operator=(cpp_generator rhs)
 cpp_generator::~cpp_generator() noexcept = default;
 
 void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { impl->fmap = f; }
+
+void cpp_generator::fresult(const std::function<std::string(shape)>& f) { impl->fresult = f; }
 
 void cpp_generator::add_point_op(const std::string& op_name, const std::string& code)
 {
@@ -174,7 +177,12 @@ cpp_generator::function cpp_generator::generate_module(const module& m)
                            ins->inputs().end(),
                            std::back_inserter(args),
                            [&](auto i) { return names.at(i); });
-            return this->generate_point_op(ins->get_operator(), args);
+
+            auto s = this->generate_point_op(ins->get_operator(), args);
+            if(impl->fresult)
+                return impl->fresult(ins->get_shape()) + '(' + s + ')';
+            else
+                return s;
         });
     return f;
 }

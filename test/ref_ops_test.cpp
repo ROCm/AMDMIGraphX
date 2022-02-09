@@ -1654,37 +1654,74 @@ TEST_CASE(gather_test)
 
 TEST_CASE(gathernd_test)
 {
-    auto print_vec = [&](const auto& n, const auto& v) {
-        std::cout << n << ": ";
-        for(auto&& i : v)
-            std::cout << i << ", ";
-        std::cout << std::endl;
-    };
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 2}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 2}};
+
+        std::vector<float> data_vec(2 * 2);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{0, 0, 1, 1};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        mm->add_instruction(migraphx::make_op("gathernd"), data, indices);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> res_data{};
+        std::vector<float> gold{0, 3};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+        EXPECT(migraphx::verify_range(res_data, gold));
+    }
 
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1, 3}};
-        migraphx::shape is{migraphx::shape::int64_type, {2, 3, 2}};
+        migraphx::shape ds{migraphx::shape::float_type, {2, 2}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 1}};
 
-        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19};
-        std::vector<int64_t> indices_vec{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
-        const int batch_dims = 2;
+        std::vector<float> data_vec(2 * 2);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{1, 0};
 
         auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
 
-        auto gathernd = mm->add_instruction(
-            migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
-
+        mm->add_instruction(migraphx::make_op("gathernd"), data, indices);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> res_data{};
-        std::vector<float> gold{2, 5, 8, 12, 15, 18};
+        std::vector<float> gold{2, 3, 0, 1};
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        print_vec("output", res_data);
-        print_vec("golden", gold);
+
+        EXPECT(migraphx::verify_range(res_data, gold));
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 2, 1}};
+
+        std::vector<float> data_vec(2 * 3 * 1);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{1, 0, 0, 1};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        mm->add_instruction(migraphx::make_op("gathernd"), data, indices);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> res_data{};
+        std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
         EXPECT(migraphx::verify_range(res_data, gold));
     }
@@ -1694,27 +1731,48 @@ TEST_CASE(gathernd_test)
         auto* mm = p.get_main_module();
 
         migraphx::shape ds{migraphx::shape::float_type, {2, 3, 2, 3}};
-        migraphx::shape is{migraphx::shape::int64_type, {2, 3, 2}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 2, 2}};
 
         std::vector<float> data_vec(2 * 3 * 2 * 3);
         std::iota(data_vec.begin(), data_vec.end(), 0);
-        print_vec("data", data_vec);
-        std::vector<int64_t> indices_vec{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+        std::vector<int64_t> indices_vec{0, 0, 0, 1, 0, 0, 0, 1};
         const int batch_dims = 1;
 
         auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
 
-        auto gathernd = mm->add_instruction(
-            migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
-        std::cout << "not here" << std::endl;
+        mm->add_instruction(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> res_data{};
-        std::vector<float> gold{6, 7, 8, 6, 7, 8, 6, 7, 8, 24, 25, 26, 24, 25, 26, 24, 25, 26};
+        std::vector<float> gold{0, 1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23};
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        print_vec("output", res_data);
-        print_vec("golden", gold);
+
+        EXPECT(migraphx::verify_range(res_data, gold));
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1, 3}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 3, 2}};
+
+        std::vector<float> data_vec(2 * 3 * 1 * 3);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{0, 0, 0, 1, 0, 2, 0, 2, 0, 1, 0, 0};
+        const int batch_dims = 2;
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        mm->add_instruction(migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
+
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> res_data{};
+        std::vector<float> gold{0, 4, 8, 11, 13, 15};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
         EXPECT(migraphx::verify_range(res_data, gold));
     }

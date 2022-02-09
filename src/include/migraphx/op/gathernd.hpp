@@ -60,8 +60,6 @@ struct gathernd
                 auto data_shape         = data.get_shape();
                 auto data_shape_lens    = data_shape.lens();
                 auto k                  = indices_shape.lens().back();
-
-                // Prepare Compute Params
                 const auto num_slice_dims = k;
                 std::size_t num_slices    = std::accumulate(indices_shape_lens.begin(),
                                                          indices_shape_lens.end() - 1,
@@ -94,8 +92,6 @@ struct gathernd
                 }
 
                 std::vector<std::size_t> input_slice_offsets(num_slices);
-
-                // Compute Slice Offset
                 par_for(num_slices, [&](const auto i) {
                     const std::size_t batch_idx   = i / num_slices_per_batch;
                     const std::size_t base_offset = batch_idx * data_batch_stride;
@@ -106,8 +102,6 @@ struct gathernd
                     {
                         int64_t index = static_cast<int64_t>(slice_indices[dim_idx]);
                         const std::size_t input_dim_idx = batch_dims + dim_idx;
-                        // CUDA_KERNEL_ASSERT(index >= -input_dims[input_dim_idx] && index <
-                        // input_dims[input_dim_idx]);
                         if(index < 0)
                             index += data_shape_lens[input_dim_idx];
 
@@ -117,7 +111,6 @@ struct gathernd
                     input_slice_offsets[i] = base_offset + relative_slice_offset;
                 });
 
-                // Compute
                 par_for(num_slices * slice_size, [&](const auto i) {
                     auto slice_offset = input_slice_offsets[i / slice_size];
                     output[i]         = data[slice_offset + i % slice_size];

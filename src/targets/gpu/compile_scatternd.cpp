@@ -22,9 +22,9 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void scatternd_kernel(void* in_data, void* in_indices, void* in_updates, void* out) 
+__global__ void scatternd_kernel(void* in_data, void* in_indices, void* in_updates, void* output) 
 {
-    make_tensors()(in_data, in_indices, in_updates, out)([](auto&&... xs) { 
+    make_tensors()(in_data, in_indices, in_updates, output)([](auto&&... xs) { 
         auto settings = make_scatternd_settings(_c<bool{IS_ADD}>, _c<bool{IS_MUL}>);
         scatternd(xs..., settings); 
     });
@@ -41,7 +41,7 @@ operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const
 {
     hip_compile_options options;
     auto out_s             = io_shapes.back();
-    options.local          = 128;
+    options.local          = 1024;
     options.global         = compute_global(out_s.elements(), options.local);
     options.inputs         = io_shapes;
     options.output         = out_s;

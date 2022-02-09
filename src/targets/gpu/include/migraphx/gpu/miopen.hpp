@@ -141,7 +141,7 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
     else
     {
         std::stringstream ss("Unknown mode for pooling: ");
-        ss  << op.mode;
+        ss << op.mode;
         MIGRAPHX_THROW(ss.str());
     }
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);

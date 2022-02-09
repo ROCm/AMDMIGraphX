@@ -44,8 +44,6 @@ struct avg_pool
     static double final(double x, std::size_t y) { return (y == 0) ? 0.0 : (x / y); }
 };
 
-
-
 template <class Op>
 struct cpu_pooling : auto_register_op<cpu_pooling<Op>>
 {

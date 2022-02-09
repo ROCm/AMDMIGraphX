@@ -54,8 +54,10 @@ TEST_CASE(rewrite_pooling_test)
         EXPECT(m1 == m2);
     };
 
-    test_rewrite(migraphx::op::pooling_mode::kAvg, migraphx::make_op("reduce_mean", {{"axes", {1}}}));
-    test_rewrite(migraphx::op::pooling_mode::kMax, migraphx::make_op("reduce_max", {{"axes", {1}}}));
+    test_rewrite(migraphx::op::pooling_mode::kAvg,
+                 migraphx::make_op("reduce_mean", {{"axes", {1}}}));
+    test_rewrite(migraphx::op::pooling_mode::kMax,
+                 migraphx::make_op("reduce_max", {{"axes", {1}}}));
 }
 
 TEST_CASE(rewrite_avepooling_na1_test)
@@ -176,8 +178,10 @@ TEST_CASE(literal_rewrite_pooling_test)
                   result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
     };
 
-    test_rewrite_pooling(migraphx::op::pooling_mode::kMax, migraphx::make_op("reduce_max", {{"axes", {1}}}));
-    test_rewrite_pooling(migraphx::op::pooling_mode::kAvg, migraphx::make_op("reduce_mean", {{"axes", {1}}}));
+    test_rewrite_pooling(migraphx::op::pooling_mode::kMax,
+                         migraphx::make_op("reduce_max", {{"axes", {1}}}));
+    test_rewrite_pooling(migraphx::op::pooling_mode::kAvg,
+                         migraphx::make_op("reduce_mean", {{"axes", {1}}}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

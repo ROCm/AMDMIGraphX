@@ -55,7 +55,9 @@ TEST_CASE(rewrite_pad)
     auto l0 = create_im2col(l_img, channels, m);
     auto l1 = create_conv(l_img, channels, m);
     auto l2 = m.add_instruction(
-        migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::kMax}, {"padding", {0, 0, 1, 1}}}), l_img);
+        migraphx::make_op("pooling",
+                          {{"mode", migraphx::op::pooling_mode::kMax}, {"padding", {0, 0, 1, 1}}}),
+        l_img);
     m.add_instruction(migraphx::make_op("identity"), l0, l1, l2);
 
     run_pass(m);
@@ -77,7 +79,9 @@ TEST_CASE(rewrite_pad_symmetric)
     auto l_img = m.add_literal(migraphx::literal{s_img, input});
 
     m.add_instruction(
-        migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::kMax}, {"padding", {1, 1, 1, 1}}}), l_img);
+        migraphx::make_op("pooling",
+                          {{"mode", migraphx::op::pooling_mode::kMax}, {"padding", {1, 1, 1, 1}}}),
+        l_img);
 
     run_pass(m);
     EXPECT(std::none_of(

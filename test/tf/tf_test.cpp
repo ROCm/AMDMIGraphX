@@ -649,8 +649,8 @@ TEST_CASE(pooling_test)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    migraphx::op::pooling avg_pool_op{migraphx::kAvg};
-    migraphx::op::pooling max_pool_op{migraphx::kMax};
+    migraphx::op::pooling avg_pool_op{migraphx::op::pooling_mode::kAvg};
+    migraphx::op::pooling max_pool_op{migraphx::op::pooling_mode::kMax};
     avg_pool_op.stride  = {2, 2};
     max_pool_op.stride  = {2, 2};
     avg_pool_op.lengths = {2, 2};

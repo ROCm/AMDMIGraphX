@@ -22,7 +22,7 @@ namespace op {
 
 struct pooling
 {
-    migraphx::pooling_mode mode;
+    pooling_mode mode;
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};

@@ -15,6 +15,13 @@ enum padding_mode_t
     valid
 };
 
+// The pooling modes must correspond 1-1 to the operators defined for struct parse_pooling.
+enum class pooling_mode
+{
+    kAvg,
+    kMax
+};
+
 // indicate rnn computation direction
 enum class rnn_direction
 {
@@ -23,6 +30,7 @@ enum class rnn_direction
     bidirectional,
 };
 
+std::ostream& operator<<(std::ostream& os, pooling_mode v);
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
 
 } // namespace op

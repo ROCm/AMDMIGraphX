@@ -27,11 +27,12 @@ struct parse_pooling : op_parser<parse_pooling>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        std::string mode = opd.op_name;   
-        operation op     = make_op("pooling", {{"mode", mode=="average" ? migraphx::kAvg :  migraphx::kMax }});
-        value values     = op.to_value();
-        auto l0          = args[0];
-        auto in_lens     = l0->get_shape().lens();
+        std::string mode = opd.op_name;
+        operation op =
+            make_op("pooling", {{"mode", mode == "average" ? op::pooling_mode::kAvg : op::pooling_mode::kMax}});
+        value values = op.to_value();
+        auto l0      = args[0];
+        auto in_lens = l0->get_shape().lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 

@@ -369,7 +369,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{migraphx::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kAvg};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -391,7 +391,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{migraphx::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kAvg};
         op.lengths = {2};
         op.padding = {1};
         op.stride  = {2};
@@ -438,7 +438,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{migraphx::kAvg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kAvg};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {1, 1, 1};
@@ -1657,7 +1657,7 @@ TEST_CASE(globalavgpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{migraphx::kAvg};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kAvg};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -1678,7 +1678,7 @@ TEST_CASE(globalmaxpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{migraphx::kMax};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kMax};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -2542,11 +2542,12 @@ TEST_CASE(maxpool_test)
                             0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
     migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 6, 6}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", migraphx::kMax}, {"padding", {0, 0}}, {"stride", {2, 2}}, {"lengths", {3, 2}}}),
-        al);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::kMax},
+                                           {"padding", {0, 0}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {3, 2}}}),
+                        al);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(36);
@@ -2561,7 +2562,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{migraphx::kMax};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kMax};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -2583,7 +2584,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op    = migraphx::op::pooling{migraphx::kMax};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kMax};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {2};
@@ -2607,7 +2608,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm     = p.get_main_module();
         auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op      = migraphx::op::pooling{migraphx::kMax};
+        auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::kMax};
         op.lengths   = {2};
         op.padding   = {0};
         op.stride    = {2};
@@ -2643,7 +2644,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{migraphx::kMax};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::kMax};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {2, 2, 2};

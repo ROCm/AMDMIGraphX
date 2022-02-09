@@ -28,7 +28,8 @@ struct parse_roialign : op_parser<parse_roialign>
                            "\": invalid value!");
         }
 
-        std::string mode = "avg"; this isn't passing test
+        std::string mode = "avg";
+        // this isn't passing test 
         if(contains(info.attributes, "mode"))
         {
             mode = info.attributes.at("mode").s();

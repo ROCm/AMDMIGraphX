@@ -60,16 +60,15 @@ operation compile_pointwise(context&,
     return compile_hip_code_object(src, options);
 }
 // Overload of compile_pointwise without global, local calculates global value at runtime
-operation compile_pointwise(
-    context& ctx,
-    const std::vector<shape>& inputs,
-    const std::string& lambda,
-    const std::string& preamble)
+operation compile_pointwise(context& ctx,
+                            const std::vector<shape>& inputs,
+                            const std::string& lambda,
+                            const std::string& preamble)
 {
     size_t local(1024);
-    size_t n = inputs.size() > 0 ?  inputs[0].elements() : 1024;
+    size_t n      = inputs.size() > 0 ? inputs[0].elements() : 1024;
     size_t global = compute_global(n, local);
-    return compile_pointwise( ctx, inputs, lambda, global, local, preamble);
+    return compile_pointwise(ctx, inputs, lambda, global, local, preamble);
 }
 operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m)
 {

@@ -34,9 +34,6 @@ __device__ void scatternd(
     {
         const bool is_add       = s.is_add;
         const bool is_mul       = s.is_mul;
-        const auto* indices_ptr = indices_t.data();
-        const auto* updates_ptr = updates_t.data();
-        auto* output_ptr        = output_t.data();
         auto output_shape       = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
@@ -48,20 +45,20 @@ __device__ void scatternd(
         for(std::size_t j = 0; j < q - 1; ++j)
             indices_idx[j] = updates_idx[j];
 
-        auto* index_start = indices_ptr + indices_shape.index(indices_idx);
+        auto index_start = indices_shape.index(indices_idx);
         auto out_idx      = output_shape.multi(0);
         for(std::size_t j = 0; j < k; ++j)
-            out_idx[j] = index_start[j];
+            out_idx[j] = indices_t[index_start + j];
 
         for(std::size_t j = q - 1; j < updates_idx.size(); ++j)
             out_idx[j + k - (q - 1)] = updates_idx[j];
 
         if(is_add)
-            output_ptr[output_shape.index(out_idx)] += updates_ptr[i];
+            output_t[output_shape.index(out_idx)] += updates_t[i];
         else if(is_mul)
-            output_ptr[output_shape.index(out_idx)] *= updates_ptr[i];
+            output_t[output_shape.index(out_idx)] *= updates_t[i];
         else
-            output_ptr[output_shape.index(out_idx)] = updates_ptr[i];
+            output_t[output_shape.index(out_idx)] = updates_t[i];
     }
 }
 

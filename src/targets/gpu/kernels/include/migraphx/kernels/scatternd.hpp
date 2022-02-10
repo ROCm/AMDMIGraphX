@@ -9,10 +9,9 @@
 
 namespace migraphx {
 
-
 struct assign_none
 {
-    template<class T, class U>
+    template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
         x = y;
@@ -21,7 +20,7 @@ struct assign_none
 
 struct assign_add
 {
-    template<class T, class U>
+    template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
         x += y;
@@ -30,7 +29,7 @@ struct assign_add
 
 struct assign_mul
 {
-    template<class T, class U>
+    template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
         x *= y;
@@ -38,8 +37,8 @@ struct assign_mul
 };
 
 template <class T, class U, class V, class W, class F>
-__device__ void scatternd(
-    const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, F f)
+__device__ void
+scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, F f)
 {
     auto index         = make_index();
     auto i             = index.global;

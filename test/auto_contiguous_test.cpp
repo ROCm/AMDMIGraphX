@@ -140,7 +140,7 @@ TEST_CASE(standard_reshape)
     migraphx::module m1;
     {
         auto data = m1.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
-        auto add = m1.add_instruction(migraphx::make_op("add"), data, data);
+        auto add  = m1.add_instruction(migraphx::make_op("add"), data, data);
         auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), add);
         m1.add_return({r});
     }
@@ -149,9 +149,9 @@ TEST_CASE(standard_reshape)
     migraphx::module m2;
     {
         auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
-        auto add = m2.add_instruction(migraphx::make_op("add"), data, data);
-        auto ca = m2.add_instruction(migraphx::make_op("contiguous"), add);
-        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), ca);
+        auto add  = m2.add_instruction(migraphx::make_op("add"), data, data);
+        auto ca   = m2.add_instruction(migraphx::make_op("contiguous"), add);
+        auto r    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), ca);
         m2.add_return({r});
     }
 
@@ -164,7 +164,8 @@ TEST_CASE(dead_instruction)
     {
         auto data = m1.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
         m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), data);
-        auto r = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), data);
+        auto r = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}),
+                                    data);
         m1.add_return({r});
     }
     run_pass(m1);
@@ -173,7 +174,8 @@ TEST_CASE(dead_instruction)
     {
         auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
         m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), data);
-        auto r = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}), data);
+        auto r = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1, 3}}}),
+                                    data);
         auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
         m2.add_return({cr});
     }

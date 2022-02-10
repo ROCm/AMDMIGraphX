@@ -9,22 +9,37 @@
 
 namespace migraphx {
 
-template <class T1, class T2>
-struct scatternd_settings
+
+struct assign_none
 {
-    T1 is_add{};
-    T2 is_mul{};
+    template<class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        x = y;
+    }
 };
 
-template <class... Ts>
-constexpr scatternd_settings<Ts...> make_scatternd_settings(Ts... xs)
+struct assign_add
 {
-    return {xs...};
-}
+    template<class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        x += y;
+    }
+};
 
-template <class T, class U, class V, class W, class Settings>
+struct assign_mul
+{
+    template<class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        x *= y;
+    }
+};
+
+template <class T, class U, class V, class W, class F>
 __device__ void scatternd(
-    const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, Settings s)
+    const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, F f)
 {
     auto index         = make_index();
     auto i             = index.global;
@@ -32,8 +47,6 @@ __device__ void scatternd(
 
     if(i < updates_shape.elements())
     {
-        const bool is_add = s.is_add;
-        const bool is_mul = s.is_mul;
         auto output_shape = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
@@ -53,12 +66,7 @@ __device__ void scatternd(
         for(std::size_t j = q - 1; j < updates_idx.size(); ++j)
             out_idx[j + k - (q - 1)] = updates_idx[j];
 
-        if(is_add)
-            output_t[output_shape.index(out_idx)] += updates_t[i];
-        else if(is_mul)
-            output_t[output_shape.index(out_idx)] *= updates_t[i];
-        else
-            output_t[output_shape.index(out_idx)] = updates_t[i];
+        f(output_t[out_idx], updates_t[i]);
     }
 }
 

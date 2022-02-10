@@ -25,8 +25,7 @@ extern "C" {
 __global__ void scatternd_kernel(void* in_data, void* in_indices, void* in_updates, void* output) 
 {
     make_tensors()(in_data, in_indices, in_updates, output)([](auto&&... xs) { 
-        auto settings = make_scatternd_settings(_c<bool{IS_ADD}>, _c<bool{IS_MUL}>);
-        scatternd(xs..., settings); 
+        scatternd(xs..., REDUCTION); 
     });
 }
 
@@ -76,13 +75,9 @@ operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const
     options.kernel_name    = "scatternd_kernel";
     options.virtual_inputs = io_shapes;
 
-    // reduction
     assert(val.contains("reduction"));
     auto reduction = val.at("reduction").to<std::string>();
-    bool is_add    = reduction == "add";
-    bool is_mul    = reduction == "mul";
-    options.params += " -DIS_ADD=" + std::to_string(static_cast<int>(is_add));
-    options.params += " -DIS_MUL=" + std::to_string(static_cast<int>(is_mul));
+    options.params += " -DREDUCTION=assign_" + reduction + "{}";
 
     return compile_hip_code_object(scatternd_kernel, options);
 }

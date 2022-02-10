@@ -48,8 +48,8 @@ __global__ void launcher(F f)
     f(idx);
 }
 
-// global:  number of global threads (?)
-// local: number of local threads  (?)
+// global:  number of global threads
+// local:  number of local threads per compute unit
 inline auto launch(hipStream_t stream, index_int global, index_int local)
 {
     return [=](auto f) {

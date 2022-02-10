@@ -17,7 +17,7 @@ import pandas
 
 if len(sys.argv) < 2:
     print('syntax: python3 ' + __file__ +
-          " ./test/py/pointwise/pointwise_perf_results_807270.json")
+          " .tools/perf_analysis/pointwise/pointwise_perf_results_807270.json")
     exit(-1)
 
 with open(sys.argv[1], "r") as read_file:

@@ -32,9 +32,9 @@ __device__ void scatternd(
 
     if(i < updates_shape.elements())
     {
-        const bool is_add       = s.is_add;
-        const bool is_mul       = s.is_mul;
-        auto output_shape       = output_t.get_shape();
+        const bool is_add = s.is_add;
+        const bool is_mul = s.is_mul;
+        auto output_shape = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
         auto k             = indices_shape.lens.back();
@@ -46,7 +46,7 @@ __device__ void scatternd(
             indices_idx[j] = updates_idx[j];
 
         auto index_start = indices_shape.index(indices_idx);
-        auto out_idx      = output_shape.multi(0);
+        auto out_idx     = output_shape.multi(0);
         for(std::size_t j = 0; j < k; ++j)
             out_idx[j] = indices_t[index_start + j];
 

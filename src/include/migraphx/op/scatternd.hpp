@@ -53,7 +53,7 @@ struct scatternd
                     std::copy(
                         updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());
                     auto index_start = indices.begin() +
-                                        indices_shape.index(indices_idx.begin(), indices_idx.end());
+                                       indices_shape.index(indices_idx.begin(), indices_idx.end());
                     auto index_end = index_start + k;
 
                     std::vector<std::size_t> out_idx(r, 0);

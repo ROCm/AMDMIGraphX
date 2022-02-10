@@ -23,7 +23,7 @@ static void opt_pooling(migraphx::module& m)
 TEST_CASE(rewrite_pooling_test)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3, 4, 5}};
-    auto pooling_program = [&](const migraphx::pooling_mode mode) {
+    auto pooling_program = [&](const migraphx::op::pooling_mode mode) {
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
@@ -47,7 +47,7 @@ TEST_CASE(rewrite_pooling_test)
         return m;
     };
 
-    auto test_rewrite = [&](const migraphx::pooling_mode mode, const migraphx::operation& op) {
+    auto test_rewrite = [&](const migraphx::op::pooling_mode mode, const migraphx::operation& op) {
         migraphx::module m1 = pooling_program(mode);
         migraphx::module m2 = opt_program(op);
         opt_pooling(m1);
@@ -138,7 +138,7 @@ TEST_CASE(literal_rewrite_pooling_test)
     std::vector<float> data(s.elements());
     std::iota(data.begin(), data.end(), 1.0f);
 
-    auto pooling_program = [&](const migraphx::pooling_mode mode) {
+    auto pooling_program = [&](const migraphx::op::pooling_mode mode) {
         migraphx::program p;
 
         auto* mm   = p.get_main_module();
@@ -166,7 +166,7 @@ TEST_CASE(literal_rewrite_pooling_test)
         return p;
     };
 
-    auto test_rewrite_pooling = [&](const migraphx::pooling_mode mode,
+    auto test_rewrite_pooling = [&](const migraphx::op::pooling_mode mode,
                                     const migraphx::operation& op) {
         migraphx::program p1 = pooling_program(mode);
         migraphx::program p2 = opt_program(op);

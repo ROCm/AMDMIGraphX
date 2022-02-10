@@ -1,6 +1,8 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_COMMON_HPP
 #define MIGRAPHX_GUARD_OPERATORS_COMMON_HPP
 
+#include <ostream>
+#include <vector>
 #include <migraphx/config.hpp>
 #include <utility>
 
@@ -22,6 +24,12 @@ enum class pooling_mode
     kMax
 };
 
+enum class roialign_mode
+{
+    kAvg,
+    kMode
+};
+
 // indicate rnn computation direction
 enum class rnn_direction
 {
@@ -32,6 +40,7 @@ enum class rnn_direction
 
 std::ostream& operator<<(std::ostream& os, pooling_mode v);
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
+std::ostream& operator<<(std::ostream& os, roialign_mode v);
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

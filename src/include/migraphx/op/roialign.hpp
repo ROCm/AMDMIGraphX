@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
@@ -21,12 +22,7 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    enum
-    {
-        kAvg,
-        kMode,
-    } mode;
-    // std::string mode             = "avg";
+    roialign_mode mode;
     int64_t output_height  = 1;
     int64_t output_width   = 1;
     int64_t sampling_ratio = 0;
@@ -246,7 +242,7 @@ struct roialign
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
-                        (mode == kAvg) ? this->calc_pooling(offset_bottom_data,
+                        (mode == migraphx::op::roialign_mode::kAvg) ? this->calc_pooling(offset_bottom_data,
                                                             bin_grid_size,
                                                             pre_calc,
                                                             vec_index[c],

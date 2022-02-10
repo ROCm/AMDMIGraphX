@@ -147,13 +147,5 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
 
 } // namespace cpu
 
-namespace op {
-std::ostream& operator<<(std::ostream& os, pooling_mode v)
-{
-    std::vector<std::string> pooling_mode_str = {"average", "maximum"};
-    os << pooling_mode_str[static_cast<std::underlying_type<pooling_mode>::type>(v)];
-    return os;
-}
-} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

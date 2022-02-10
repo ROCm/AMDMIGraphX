@@ -11,6 +11,8 @@ namespace gpu {
 struct context;
 operation compile_scatternd(context& ctx, const std::vector<shape>& io_shapes, const value& val);
 
+operation compile_scatternd_copy(context& ctx, const std::vector<shape>& io_shapes);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

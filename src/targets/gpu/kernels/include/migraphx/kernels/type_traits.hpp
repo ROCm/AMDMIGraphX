@@ -25,6 +25,16 @@ struct is_convertible : bool_constant<__is_convertible(From, To)>
 {
 };
 
+template <class T, class U>
+struct is_same : false_type
+{
+};
+
+template <class T>
+struct is_same<T, T> : true_type
+{
+};
+
 #define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 
 } // namespace migraphx

@@ -519,8 +519,8 @@ struct miopen_apply
             auto io_shapes = to_shapes(args);
             auto co        = compile_scatternd(get_context(), io_shapes, op_val);
             auto co_copy   = compile_scatternd_copy(get_context(), io_shapes);
-            auto copy = mod->insert_instruction(ins, co_copy, args);
-            args.back() = copy;
+            auto copy      = mod->insert_instruction(ins, co_copy, args);
+            args.back()    = copy;
             return mod->replace_instruction(ins, co, args);
         });
     }

@@ -23,12 +23,12 @@ constexpr scatternd_settings<Ts...> make_scatternd_settings(Ts... xs)
 }
 
 template <class T, class U, class V, class W, class Settings>
-__device__ void
-scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, Settings s)
+__device__ void scatternd(
+    const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, Settings s)
 {
-    auto index           = make_index();
-    auto i               = index.global;
-    auto updates_shape   = updates_t.get_shape();
+    auto index         = make_index();
+    auto i             = index.global;
+    auto updates_shape = updates_t.get_shape();
 
     if(i < updates_shape.elements())
     {
@@ -36,8 +36,8 @@ scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W
         const bool is_mul       = s.is_mul;
         const auto* indices_ptr = indices_t.data();
         const auto* updates_ptr = updates_t.data();
-        auto* output_ptr = output_t.data();
-        auto output_shape    = output_t.get_shape();
+        auto* output_ptr        = output_t.data();
+        auto output_shape       = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
         auto k             = indices_shape.lens.back();
@@ -66,16 +66,17 @@ scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W
 }
 
 template <class T, class U, class V, class W>
-__device__ void
-scatternd_copy(const T& data_t, const U& /* indices_t */, const V& /* updates_t */, const W& output_t)
+__device__ void scatternd_copy(const T& data_t,
+                               const U& /* indices_t */,
+                               const V& /* updates_t */,
+                               const W& output_t)
 {
-    auto index           = make_index();
-    auto i               = index.global;
-    auto output_shape    = output_t.get_shape();
+    auto index        = make_index();
+    auto i            = index.global;
+    auto output_shape = output_t.get_shape();
 
     if(i < output_shape.elements())
         output_t[i] = data_t[i];
-        
 }
 
 } // namespace migraphx

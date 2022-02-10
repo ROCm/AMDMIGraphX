@@ -38,7 +38,6 @@ int main() {}
 
 )__migraphx__";
 
-
 // NOLINTNEXTLINE
 static const char* const scatternd_copy_kernel = R"__migraphx__(
 #include <migraphx/kernels/scatternd.hpp>
@@ -65,7 +64,6 @@ __global__ void scatternd_copy_kernel(void* in_data, void* in_indices, void* in_
 int main() {}
 
 )__migraphx__";
-
 
 operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const value& val)
 {

@@ -5,7 +5,6 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/dfor.hpp>
 #include <migraphx/kernels/basic_ops.hpp>
-#include <args.hpp>
 
 namespace migraphx {
 

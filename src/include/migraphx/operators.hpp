@@ -86,7 +86,9 @@
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/scatter.hpp>
-#include <migraphx/op/scatternd.hpp>
+#include <migraphx/op/scatternd_add.hpp>
+#include <migraphx/op/scatternd_none.hpp>
+#include <migraphx/op/scatternd_mul.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>

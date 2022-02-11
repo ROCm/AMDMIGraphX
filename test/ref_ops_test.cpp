@@ -4235,7 +4235,7 @@ TEST_CASE(scatternd_test)
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4264,7 +4264,7 @@ TEST_CASE(scatternd_test)
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4293,7 +4293,7 @@ TEST_CASE(scatternd_test)
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4326,7 +4326,7 @@ TEST_CASE(scatternd_test)
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4357,7 +4357,7 @@ TEST_CASE(scatternd_test)
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4390,7 +4390,7 @@ TEST_CASE(scatternd_reduction_test)
         auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd = mm->add_instruction(
-            migraphx::make_op("scatternd", {{"reduction", "add"}}), data, indices, updates);
+            migraphx::make_op("scatternd_add"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4419,7 +4419,7 @@ TEST_CASE(scatternd_reduction_test)
         auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd = mm->add_instruction(
-            migraphx::make_op("scatternd", {{"reduction", "mul"}}), data, indices, updates);
+            migraphx::make_op("scatternd_mul"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

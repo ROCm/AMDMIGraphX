@@ -4127,6 +4127,42 @@ def scatter_test():
 
 
 @onnx_test
+def scatternd_add_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [2, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [2, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'],
+                                 reduction="add")
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test
+def scatternd_mul_test():
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
+    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                            [2, 1, 2])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [2, 1, 2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 2, 2])
+
+    node = onnx.helper.make_node('ScatterND',
+                                 inputs=['data', 'indices', 'updates'],
+                                 outputs=['output'],
+                                 reduction="mul")
+
+    return ([node], [data, indices, updates], [output])
+
+
+@onnx_test
 def scatternd_test():
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64,

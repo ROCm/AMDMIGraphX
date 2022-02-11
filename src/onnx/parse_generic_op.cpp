@@ -51,7 +51,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
 
     bool needs_contiguous(const std::string& op_name) const
     {
-        return contains({"flatten", "gather", "nonmaxsuppression", "scatter", "scatternd"},
+        return contains({"flatten", "gather", "nonmaxsuppression", "scatter"},
                         op_name);
     }
 

@@ -509,7 +509,7 @@ struct miopen_apply
 
     void add_scatternd()
     {
-        apply_map.emplace("scatternd", [=](instruction_ref ins) {
+        apply_map.emplace("scatternd_none", [=](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto op_val = ins->get_operator().to_value();
             auto output = insert_allocation(ins, s);
@@ -517,7 +517,40 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes = to_shapes(args);
-            auto co        = compile_scatternd(get_context(), io_shapes, op_val);
+            const std::string reduction = "none";
+            auto co        = compile_scatternd(get_context(), io_shapes, reduction);
+            auto co_copy   = compile_scatternd_copy(get_context(), io_shapes);
+            auto copy      = mod->insert_instruction(ins, co_copy, args);
+            args.back()    = copy;
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_add", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            const std::string reduction = "add";
+            auto co        = compile_scatternd(get_context(), io_shapes, reduction);
+            auto co_copy   = compile_scatternd_copy(get_context(), io_shapes);
+            auto copy      = mod->insert_instruction(ins, co_copy, args);
+            args.back()    = copy;
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_mul", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            const std::string reduction = "mul";
+            auto co        = compile_scatternd(get_context(), io_shapes, reduction);
             auto co_copy   = compile_scatternd_copy(get_context(), io_shapes);
             auto copy      = mod->insert_instruction(ins, co_copy, args);
             args.back()    = copy;

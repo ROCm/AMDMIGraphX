@@ -1,7 +1,8 @@
-#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTERND_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SCATTERND_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTERND_OP_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTERND_OP_HPP
 
 #include <array>
+#include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -18,18 +19,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatternd
+template <class Derived>
+struct scatternd_op : op_name<Derived>
 {
-    std::string reduction = "none";
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.reduction, "reduction"));
-    }
-
-    std::string name() const { return "scatternd"; }
-
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
@@ -39,6 +31,7 @@ struct scatternd
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
+        auto& self = static_cast<const Derived&>(*this);
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto updates) {
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
@@ -60,18 +53,16 @@ struct scatternd
                     std::copy(index_start, index_end, out_idx.begin());
                     std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
-                    if(reduction == "add")
-                        output[output_shape.index(out_idx)] += updates[i];
-                    else if(reduction == "mul")
-                        output[output_shape.index(out_idx)] *= updates[i];
-                    else
-                        output[output_shape.index(out_idx)] = updates[i];
+                    self.reduction()(output[output_shape.index(out_idx)], updates[i]);
                 });
             });
         });
 
         return result;
     }
+
+    auto init() const {}
+    scatternd_op() {}
 };
 
 } // namespace op

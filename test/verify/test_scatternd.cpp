@@ -20,7 +20,7 @@ struct test_scatternd : verify_program<test_scatternd>
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_parameter("update", us);
         auto scatternd =
-            mm->add_instruction(migraphx::make_op("scatternd"), data, indices, updates);
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
         mm->add_return({scatternd});
 
         return p;

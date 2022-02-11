@@ -64,7 +64,7 @@ int main() {}
 
 )__migraphx__";
 
-operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const value& val)
+operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const std::string& reduction)
 {
     hip_compile_options options;
     auto out_s             = io_shapes.back();
@@ -75,8 +75,6 @@ operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const
     options.kernel_name    = "scatternd_kernel";
     options.virtual_inputs = io_shapes;
 
-    assert(val.contains("reduction"));
-    auto reduction = val.at("reduction").to<std::string>();
     options.params += " -DREDUCTION=assign_" + reduction + "{}";
 
     return compile_hip_code_object(scatternd_kernel, options);

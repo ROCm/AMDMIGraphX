@@ -43,8 +43,8 @@ struct parse_eyelike : op_parser<parse_eyelike>
         }
         if(std::abs(k) >= num_cols)
         {
-			std::ostringstream oss;
-			oss << "EYELIKE: k out of bounds, k = " << k << " num_cols = " << num_cols;
+            std::ostringstream oss;
+            oss << "EYELIKE: k out of bounds, k = " << k << " num_cols = " << num_cols;
             MIGRAPHX_THROW(oss.str());
         }
 
@@ -60,7 +60,8 @@ struct parse_eyelike : op_parser<parse_eyelike>
                 }
             }
         }
-        auto eyelike = info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
+        auto eyelike = info.add_literal(
+            migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
         return eyelike;
     }
 };

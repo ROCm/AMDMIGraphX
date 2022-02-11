@@ -1261,124 +1261,122 @@ TEST_CASE(external_data_diff_path_test)
 
 TEST_CASE(eyelike_default_test)
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	std::vector<std::size_t> input_lens{3, 4};
-	int k = 0;
-	auto num_rows = input_lens.front();
-	auto num_cols = input_lens.back();
-	auto input_type = migraphx::shape::float_type;
-	auto output_type = migraphx::shape::float_type;
-	migraphx::shape s{input_type, input_lens};
-	mm->add_parameter("T1", s);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{3, 4};
+    int k            = 0;
+    auto num_rows    = input_lens.front();
+    auto num_cols    = input_lens.back();
+    auto input_type  = migraphx::shape::float_type;
+    auto output_type = migraphx::shape::float_type;
+    migraphx::shape s{input_type, input_lens};
+    mm->add_parameter("T1", s);
 
-	std::vector<double> eyelike_mat(num_rows * num_cols, 0);
-	for(int i = 0; i < num_rows; ++i)
-	{
-		for(int j = 0; j < num_cols; ++j)
-		{
-			if(j == (i + k))
-			{
-				eyelike_mat[num_cols * i + j] = 1.;
-			}
-		}
-	}
-	mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
+    std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+    for(int i = 0; i < num_rows; ++i)
+    {
+        for(int j = 0; j < num_cols; ++j)
+        {
+            if(j == (i + k))
+            {
+                eyelike_mat[num_cols * i + j] = 1.;
+            }
+        }
+    }
+    mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
 
-	auto prog = optimize_onnx("eyelike_default_test.onnx");
-	EXPECT(p == prog);
+    auto prog = optimize_onnx("eyelike_default_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(eyelike_double_test)
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	std::vector<std::size_t> input_lens{6, 15};
-	int k = 0;
-	auto num_rows = input_lens.front();
-	auto num_cols = input_lens.back();
-	auto input_type = migraphx::shape::double_type;
-	auto output_type = migraphx::shape::double_type;
-	migraphx::shape s{input_type, input_lens};
-	mm->add_parameter("T1", s);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{6, 15};
+    int k            = 0;
+    auto num_rows    = input_lens.front();
+    auto num_cols    = input_lens.back();
+    auto input_type  = migraphx::shape::double_type;
+    auto output_type = migraphx::shape::double_type;
+    migraphx::shape s{input_type, input_lens};
+    mm->add_parameter("T1", s);
 
-	std::vector<double> eyelike_mat(num_rows * num_cols, 0);
-	for(int i = 0; i < num_rows; ++i)
-	{
-		for(int j = 0; j < num_cols; ++j)
-		{
-			if(j == (i + k))
-			{
-				eyelike_mat[num_cols * i + j] = 1.;
-			}
-		}
-	}
-	mm->add_literal( migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
+    std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+    for(int i = 0; i < num_rows; ++i)
+    {
+        for(int j = 0; j < num_cols; ++j)
+        {
+            if(j == (i + k))
+            {
+                eyelike_mat[num_cols * i + j] = 1.;
+            }
+        }
+    }
+    mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
 
-	auto prog = optimize_onnx("eyelike_double_test.onnx");
-	EXPECT(p == prog);
+    auto prog = optimize_onnx("eyelike_double_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(eyelike_half_test)
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	std::vector<std::size_t> input_lens{8, 8};
-	int k = 0;
-	auto num_rows = input_lens.front();
-	auto num_cols = input_lens.back();
-	auto input_type = migraphx::shape::half_type;
-	auto output_type = migraphx::shape::half_type;
-	migraphx::shape s{input_type, input_lens};
-	mm->add_parameter("T1", s);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{8, 8};
+    int k            = 0;
+    auto num_rows    = input_lens.front();
+    auto num_cols    = input_lens.back();
+    auto input_type  = migraphx::shape::half_type;
+    auto output_type = migraphx::shape::half_type;
+    migraphx::shape s{input_type, input_lens};
+    mm->add_parameter("T1", s);
 
+    std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+    for(int i = 0; i < num_rows; ++i)
+    {
+        for(int j = 0; j < num_cols; ++j)
+        {
+            if(j == (i + k))
+            {
+                eyelike_mat[num_cols * i + j] = 1.;
+            }
+        }
+    }
+    mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
 
-	std::vector<double> eyelike_mat(num_rows * num_cols, 0);
-	for(int i = 0; i < num_rows; ++i)
-	{
-		for(int j = 0; j < num_cols; ++j)
-		{
-			if(j == (i + k))
-			{
-				eyelike_mat[num_cols * i + j] = 1.;
-			}
-		}
-	}
-	mm->add_literal( migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
-
-	auto prog = optimize_onnx("eyelike_half_test.onnx");
-	EXPECT(p == prog);
+    auto prog = optimize_onnx("eyelike_half_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(eyelike_k_test)
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	std::vector<std::size_t> input_lens{3, 4};
-	int k = 1;
-	auto num_rows = input_lens.front();
-	auto num_cols = input_lens.back();
-	auto input_type = migraphx::shape::float_type;
-	auto output_type = migraphx::shape::float_type;
-	migraphx::shape s{input_type, input_lens};
-	mm->add_parameter("T1", s);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{3, 4};
+    int k            = 1;
+    auto num_rows    = input_lens.front();
+    auto num_cols    = input_lens.back();
+    auto input_type  = migraphx::shape::float_type;
+    auto output_type = migraphx::shape::float_type;
+    migraphx::shape s{input_type, input_lens};
+    mm->add_parameter("T1", s);
 
+    std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+    for(int i = 0; i < num_rows; ++i)
+    {
+        for(int j = 0; j < num_cols; ++j)
+        {
+            if(j == (i + k))
+            {
+                eyelike_mat[num_cols * i + j] = 1.;
+            }
+        }
+    }
+    mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
 
-	std::vector<double> eyelike_mat(num_rows * num_cols, 0);
-	for(int i = 0; i < num_rows; ++i)
-	{
-		for(int j = 0; j < num_cols; ++j)
-		{
-			if(j == (i + k))
-			{
-				eyelike_mat[num_cols * i + j] = 1.;
-			}
-		}
-	}
-	mm->add_literal( migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
-
-	auto prog = optimize_onnx("eyelike_k_test.onnx");
-	EXPECT(p == prog);
+    auto prog = optimize_onnx("eyelike_k_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(eyelike_k_outofbounds_test)
@@ -1393,33 +1391,32 @@ TEST_CASE(eyelike_not_rank2_test)
 
 TEST_CASE(eyelike_set_dtype_test)
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	std::vector<std::size_t> input_lens{3, 4};
-	int k = 0;
-	auto num_rows = input_lens.front();
-	auto num_cols = input_lens.back();
-	auto input_type = migraphx::shape::float_type;
-	auto output_type = migraphx::shape::double_type;
-	migraphx::shape s{input_type, input_lens};
-	mm->add_parameter("T1", s);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{3, 4};
+    int k            = 0;
+    auto num_rows    = input_lens.front();
+    auto num_cols    = input_lens.back();
+    auto input_type  = migraphx::shape::float_type;
+    auto output_type = migraphx::shape::double_type;
+    migraphx::shape s{input_type, input_lens};
+    mm->add_parameter("T1", s);
 
+    std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+    for(int i = 0; i < num_rows; ++i)
+    {
+        for(int j = 0; j < num_cols; ++j)
+        {
+            if(j == (i + k))
+            {
+                eyelike_mat[num_cols * i + j] = 1.;
+            }
+        }
+    }
+    mm->add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
 
-	std::vector<double> eyelike_mat(num_rows * num_cols, 0);
-	for(int i = 0; i < num_rows; ++i)
-	{
-		for(int j = 0; j < num_cols; ++j)
-		{
-			if(j == (i + k))
-			{
-				eyelike_mat[num_cols * i + j] = 1.;
-			}
-		}
-	}
-	mm->add_literal( migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
-
-	auto prog = optimize_onnx("eyelike_set_dtype_test.onnx");
-	EXPECT(p == prog);
+    auto prog = optimize_onnx("eyelike_set_dtype_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(flatten_test)

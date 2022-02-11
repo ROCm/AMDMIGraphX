@@ -74,9 +74,10 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
         std::size_t relative_slice_offset = 0;
         for(std::size_t idx = 0; idx < num_slice_dims; ++idx)
         {
-            int64_t index                      = slice_indices[idx];
+            int64_t index                   = slice_indices[idx];
             const std::size_t input_dim_idx = batch_dims + idx;
-            assert(index >= -static_cast<int64_t>(data_shape_lens[input_dim_idx]) and index < static_cast<int64_t>(data_shape_lens[input_dim_idx]));
+            assert(index >= -static_cast<int64_t>(data_shape_lens[input_dim_idx]) and
+                   index < static_cast<int64_t>(data_shape_lens[input_dim_idx]));
             if(index < 0)
                 index += data_shape_lens[input_dim_idx];
             std::size_t size_from_slice_dims =

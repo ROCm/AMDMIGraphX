@@ -100,10 +100,13 @@ struct gathernd
                     std::size_t relative_slice_offset = 0;
                     for(size_t dim_idx = 0; dim_idx < num_slice_dims; ++dim_idx)
                     {
-                        int64_t index = *(slice_indices + dim_idx);
+                        int64_t index                   = *(slice_indices + dim_idx);
                         const std::size_t input_dim_idx = batch_dims + dim_idx;
-                        if (index < -static_cast<int64_t>(data_shape_lens[input_dim_idx]) or index >= static_cast<int64_t>(data_shape_lens[input_dim_idx]))
-                            MIGRAPHX_THROW("GatherND: index " + std::to_string(index) + " is out of bounds for dim of len " + std::to_string(data_shape_lens[input_dim_idx]));
+                        if(index < -static_cast<int64_t>(data_shape_lens[input_dim_idx]) or
+                           index >= static_cast<int64_t>(data_shape_lens[input_dim_idx]))
+                            MIGRAPHX_THROW("GatherND: index " + std::to_string(index) +
+                                           " is out of bounds for dim of len " +
+                                           std::to_string(data_shape_lens[input_dim_idx]));
                         if(index < 0)
                             index += data_shape_lens[input_dim_idx];
 

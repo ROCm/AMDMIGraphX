@@ -2,9 +2,7 @@
 #define MIGRAPHX_GUARD_KERNELS_SCATTERND_HPP
 
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/array.hpp>
-#include <migraphx/kernels/dfor.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
+#include <migraphx/kernels/algorithm.hpp>
 
 namespace migraphx {
 
@@ -53,16 +51,13 @@ scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W
 
         auto updates_idx = updates_shape.multi(i);
         auto indices_idx = indices_shape.multi(0);
-        for(std::size_t j = 0; j < q - 1; ++j)
-            indices_idx[j] = updates_idx[j];
+        copy(updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());
 
-        auto index_start = indices_shape.index(indices_idx);
+        auto index_start = indices_t.begin() + indices_shape.index(indices_idx);
+        auto index_end = index_start + k;
         auto out_idx     = output_shape.multi(0);
-        for(std::size_t j = 0; j < k; ++j)
-            out_idx[j] = indices_t[index_start + j];
-
-        for(std::size_t j = q - 1; j < updates_idx.size(); ++j)
-            out_idx[j + k - (q - 1)] = updates_idx[j];
+        copy(index_start, index_end, out_idx.begin());
+        copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
         f(output_t[out_idx], updates_t[i]);
     }

@@ -1,4 +1,6 @@
 
+find_package(ROCM)
+
 include(DoxygenDoc)
 
 set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)

@@ -25,7 +25,7 @@ struct scatternd_op : op_name<Derived>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
-        return inputs.front();
+        return {inputs.front().type(), inputs.front().lens();
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

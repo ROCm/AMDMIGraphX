@@ -9,7 +9,7 @@ namespace op {
 
 struct scatternd_mul : scatternd_op<scatternd_mul>
 {
-    scatternd_mul() : scatternd_op() {}
+    scatternd_mul() {}
 
     auto reduction() const
     {

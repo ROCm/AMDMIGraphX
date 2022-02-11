@@ -96,7 +96,7 @@ struct gathernd
                     const std::size_t batch_idx   = i / num_slices_per_batch;
                     const std::size_t base_offset = batch_idx * data_batch_stride;
 
-                    auto slice_indices = indices.begin() + (i * num_slice_dims);
+                    auto slice_indices                = indices.begin() + (i * num_slice_dims);
                     std::size_t relative_slice_offset = 0;
                     for(size_t dim_idx = 0; dim_idx < num_slice_dims; ++dim_idx)
                     {

@@ -13,7 +13,7 @@ struct scatternd_none : scatternd_op<scatternd_none>
 
     auto reduction() const
     {
-        return [](auto& x, auto& y) { x = y; };
+        return [](auto& x, const auto& y) { x = y; };
     }
 };
 

@@ -13,7 +13,7 @@ struct scatternd_mul : scatternd_op<scatternd_mul>
 
     auto reduction() const
     {
-        return [](auto& x, auto& y) { x *= y; };
+        return [](auto& x, const auto& y) { x *= y; };
     }
 };
 

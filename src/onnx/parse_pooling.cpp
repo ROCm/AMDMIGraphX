@@ -28,10 +28,15 @@ struct parse_pooling : op_parser<parse_pooling>
                           std::vector<instruction_ref> args) const
     {
         std::string mode = opd.op_name;
+         if(!starts_with(mode, "max") && !starts_with(mode, "ave"))
+        {
+            MIGRAPHX_THROW("onnx pooling mode must be max or average");
+        }
         operation op     = make_op(
             "pooling",
             {{"mode", mode == "average" ? op::pooling_mode::kAvg : op::pooling_mode::kMax}});
         value values = op.to_value();
+    std::cout << std::string(" xxxxx sadf the mode name is") << mode.c_str()  << " value is " << values["mode"] << std::endl;
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
         assert(in_lens.size() > 2);
@@ -74,7 +79,8 @@ struct parse_pooling : op_parser<parse_pooling>
         check_padding_mode(info, "POOLING");
 
         std::vector<int64_t> paddings;
-        float pad_val = ((mode == "B max") ? std::numeric_limits<float>::lowest() : 0.0f);
+        float pad_val = ((mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
+
         if(contains(info.attributes, "pads"))
         {
             values["padding"].clear();
@@ -86,7 +92,7 @@ struct parse_pooling : op_parser<parse_pooling>
         if(contains(info.attributes, "auto_pad"))
         {
             values["padding"].clear();
-            // return paddings could be empty, then setting to 0 for no padding
+           // return paddings could be empty, then setting to 0 for no padding
             cal_auto_padding_size(info,
                                   values,
                                   values["lengths"].to_vector<std::size_t>(),
@@ -105,7 +111,7 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             values["padding"].resize(kdims);
             std::fill_n(values["padding"].begin(), kdims, 0);
-        }
+       }
 
         if(values["stride"].size() != kdims)
         {
@@ -117,7 +123,7 @@ struct parse_pooling : op_parser<parse_pooling>
 
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;
-        tune_padding_size(values, paddings, count_include_pad, slice_start);
+        tune_padding_size(values, paddings, count_include_pad, slice_start); this seems to be a problem
 
         if(!slice_start.empty())
         {

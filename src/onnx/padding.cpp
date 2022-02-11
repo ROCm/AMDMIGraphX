@@ -3,6 +3,7 @@
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -93,6 +94,9 @@ void tune_padding_size(const value& v,
                        int count_include_pad,
                        std::vector<int64_t>& s_start)
 {
+printf("xxxxxx sadf tune a  padding\n");
+std::cout << " in sadf tune_padding_size the mode is " << v.at("mode") << " and count="
+<< count_include_pad << "\n";
     // maxpooling or count_include_pad is 1, no change is required.
     if(v.at("mode").to<std::string>() == "max" or count_include_pad == 1)
     {

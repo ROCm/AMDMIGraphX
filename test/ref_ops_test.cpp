@@ -3999,12 +3999,12 @@ TEST_CASE(roialign_out_of_bound_test)
 TEST_CASE(roialign_test)
 {
     auto create_program = [](const std::string& trans_mode   = "half_pixel",
-                             const std::string& pooling_mode = "avg",
+                             const migraphx::op::roialign_mode pooling_mode = migraphx::op::roialign_mode::kAvg,
                              int64_t sampling_ratio          = 2) {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape x_s{migraphx::shape::float_type, {1, 1, 10, 10}};
-        std::vector<float> x_vec = {
+       std::vector<float> x_vec = {
             0.2764, 0.7150, 0.1958, 0.3416, 0.4638, 0.0259, 0.2963, 0.6518, 0.4856, 0.7250,
             0.9637, 0.0895, 0.2919, 0.6753, 0.0234, 0.6132, 0.8085, 0.5324, 0.8992, 0.4467,
             0.3265, 0.8479, 0.9698, 0.2471, 0.9336, 0.1878, 0.4766, 0.4308, 0.3400, 0.2162,
@@ -4036,7 +4036,7 @@ TEST_CASE(roialign_test)
                                 x,
                                 roi,
                                 ind);
-        mm->add_return({r});
+       mm->add_return({r});
         return p;
     };
 
@@ -4046,7 +4046,7 @@ TEST_CASE(roialign_test)
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {
+       std::vector<float> gold = {
             0.466421425, 0.446552634, 0.340521216, 0.568848491, 0.606780827, 0.371379346,
             0.429571986, 0.383519977, 0.556241512, 0.351050019, 0.27680251,  0.488286227,
             0.522200167, 0.552770197, 0.417057365, 0.471240699, 0.4844096,   0.690457463,
@@ -4086,7 +4086,7 @@ TEST_CASE(roialign_test)
     }
 
     {
-        auto p = create_program("output_half_pixel", "max", 0);
+        auto p = create_program("output_half_pixel", migraphx::op::roialign_mode::kMax, 0);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;

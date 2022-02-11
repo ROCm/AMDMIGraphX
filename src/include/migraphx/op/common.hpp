@@ -27,7 +27,7 @@ enum class pooling_mode
 enum class roialign_mode
 {
     kAvg,
-    kMode
+    kMax
 };
 
 // indicate rnn computation direction
@@ -42,6 +42,7 @@ std::ostream& operator<<(std::ostream& os, pooling_mode v);
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
 std::ostream& operator<<(std::ostream& os, roialign_mode v);
 
+std::string to_str(roialign_mode v);
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

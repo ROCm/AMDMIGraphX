@@ -1780,6 +1780,53 @@ TEST_CASE(gathernd_test)
     }
 }
 
+TEST_CASE(gathernd_negative_index_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 2}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 1, 1}};
+
+        std::vector<float> data_vec(2 * 2);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{-1, 0};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        mm->add_instruction(migraphx::make_op("gathernd"), data, indices);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> res_data{};
+        std::vector<float> gold{2, 3, 0, 1};
+        result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+
+        EXPECT(migraphx::verify_range(res_data, gold));
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 2}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 1, 1}};
+
+        std::vector<float> data_vec(2 * 2);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec{-3, 0};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        mm->add_instruction(migraphx::make_op("gathernd"), data, indices);
+        p.compile(migraphx::ref::target{});
+
+        EXPECT(test::throws([&] { p.eval({}); }));
+    }
+}
+
 TEST_CASE(globalavgpool_test)
 {
     migraphx::program p;

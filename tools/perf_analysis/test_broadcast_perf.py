@@ -44,6 +44,7 @@ base_dir = os.path.abspath(os.path.dirname(__file__) + '/../..')
 
 # output directory.  Change output locations to keep your output files organized.
 save_python_dir = os.path.join(base_dir, 'tools/perf_analysis/pointwise/')
+os.popen('mkdir ' + save_python_dir)
 
 # location of the application gpu-driver, by default in <base_dir>/build/bin
 app_path = os.path.join(base_dir, 'build/bin/gpu-driver')
@@ -278,7 +279,6 @@ for myshape in [[1024, 240], [1024, 64]]:
 
     # copy this Python script to a distinctively named backup.
     # This lets us review the exact Python code used for each script run.
-    os.popen('mkdir ' + save_python_dir)
     os.popen('cp ' + __file__ + ' ' + save_python_filename)
     # Save the plot to a file
     plt.savefig(output_plot_file)

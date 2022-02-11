@@ -48,7 +48,7 @@ TEST_CASE(as_json)
 
 TEST_CASE(as_file)
 {
-    std::string filename = "migraphx_program.dat";
+    std::string filename = "migraphx_program.mxr";
     migraphx::program p1 = create_program();
     migraphx::save(p1, filename);
     migraphx::program p2 = migraphx::load(filename);

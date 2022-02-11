@@ -2,11 +2,7 @@
 #define MIGRAPHX_GUARD_KERNELS_GATHERND_HPP
 
 #include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/array.hpp>
-#include <migraphx/kernels/dfor.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
-#include <args.hpp>
-#include <stdio.h>
+#include <migraphx/kernels/algorithm.hpp>
 
 namespace migraphx {
 
@@ -20,16 +16,6 @@ template <class... Ts>
 constexpr gathernd_settings<Ts...> make_gathernd_settings(Ts... xs)
 {
     return {xs...};
-}
-
-template <class InputIt, class T, class BinaryOperation>
-MIGRAPHX_DEVICE_CONSTEXPR T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
-{
-    for(; first != last; ++first)
-    {
-        init = op(std::move(init), *first);
-    }
-    return init;
 }
 
 template <class T, class U, class V, class Settings>

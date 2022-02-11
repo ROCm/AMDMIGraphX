@@ -21,6 +21,16 @@ struct greater
     }
 };
 
+template <class InputIt, class T, class BinaryOperation>
+constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
+{
+    for(; first != last; ++first)
+    {
+        init = op(std::move(init), *first);
+    }
+    return init;
+}
+
 template <class Iterator, class Compare>
 constexpr Iterator is_sorted_until(Iterator first, Iterator last, Compare comp)
 {

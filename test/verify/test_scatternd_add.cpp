@@ -16,11 +16,11 @@ struct test_scatternd_add : verify_program<test_scatternd_add>
         migraphx::shape us{dtype, {4}};
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
 
-        auto data      = mm->add_parameter("data", ds);
-        auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto updates   = mm->add_parameter("update", us);
-        auto scatternd = mm->add_instruction(
-            migraphx::make_op("scatternd_add"), data, indices, updates);
+        auto data    = mm->add_parameter("data", ds);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_parameter("update", us);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_add"), data, indices, updates);
         mm->add_return({scatternd});
 
         return p;

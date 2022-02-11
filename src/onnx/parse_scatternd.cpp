@@ -18,12 +18,12 @@ struct parse_scatternd : op_parser<parse_scatternd>
     {
         if(contains(info.attributes, "reduction"))
         {
-            if (info.attributes.at("reduction").s() == "add")
+            if(info.attributes.at("reduction").s() == "add")
                 return info.add_instruction(migraphx::make_op("scatternd_add"), args);
-            if (info.attributes.at("reduction").s() == "mul")
+            if(info.attributes.at("reduction").s() == "mul")
                 return info.add_instruction(migraphx::make_op("scatternd_mul"), args);
         }
-            
+
         return info.add_instruction(migraphx::make_op("scatternd_none"), args);
     }
 };

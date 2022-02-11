@@ -9,7 +9,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-operation compile_scatternd(context& ctx, const std::vector<shape>& io_shapes, const std::string& reduction);
+operation
+compile_scatternd(context& ctx, const std::vector<shape>& io_shapes, const std::string& reduction);
 
 operation compile_scatternd_copy(context& ctx, const std::vector<shape>& io_shapes);
 

@@ -4386,11 +4386,11 @@ TEST_CASE(scatternd_reduction_test)
         std::vector<int64_t> ind_vec{4, 3, 1, 7, 4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12, -8, -9, -10, -11};
 
-        auto data      = mm->add_literal(migraphx::literal{ds, data_vec});
-        auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(
-            migraphx::make_op("scatternd_add"), data, indices, updates);
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_add"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4415,11 +4415,11 @@ TEST_CASE(scatternd_reduction_test)
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12};
 
-        auto data      = mm->add_literal(migraphx::literal{ds, data_vec});
-        auto indices   = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto updates   = mm->add_literal(migraphx::literal{us, upd_vec});
-        auto scatternd = mm->add_instruction(
-            migraphx::make_op("scatternd_mul"), data, indices, updates);
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_mul"), data, indices, updates);
         mm->add_return({scatternd});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

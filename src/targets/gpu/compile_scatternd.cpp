@@ -64,7 +64,8 @@ int main() {}
 
 )__migraphx__";
 
-operation compile_scatternd(context&, const std::vector<shape>& io_shapes, const std::string& reduction)
+operation
+compile_scatternd(context&, const std::vector<shape>& io_shapes, const std::string& reduction)
 {
     hip_compile_options options;
     auto out_s             = io_shapes.back();

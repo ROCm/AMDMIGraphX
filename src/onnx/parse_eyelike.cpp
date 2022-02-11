@@ -1,5 +1,6 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -16,16 +17,16 @@ struct parse_eyelike : op_parser<parse_eyelike>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-		if(args.size() != 1)
-		{
-			MIGRAPHX_THROW("EYELIKE: expecting one tensor input");
-		}
+        if(args.size() != 1)
+        {
+            MIGRAPHX_THROW("EYELIKE: expecting one tensor input");
+        }
         auto input_shape = args[0]->get_shape();
         auto input_lens  = input_shape.lens();
-		if(input_lens.size != 2)
-		{
-			MIGRAPHX_THROW("EYELIKE: tensor input not of rank 2");
-		}
+        if(input_lens.size() != 2)
+        {
+            MIGRAPHX_THROW("EYELIKE: tensor input not of rank 2");
+        }
         auto num_rows = input_lens.front();
         auto num_cols = input_lens.back();
 
@@ -35,17 +36,19 @@ struct parse_eyelike : op_parser<parse_eyelike>
             output_type = get_type(info.attributes.at("dtype").i());
         }
 
-        int k = 0;
+        int k = 0; // issue with size_t to int compare?
         if(contains(info.attributes, "k"))
         {
             k = info.attributes.at("k").i();
         }
-		if(k <= -num_cols or k >= num_cols)
-		{
-			MIGRAPHX_THROW("EYELIKE: k out of bounds");
-		}
+        if(std::abs(k) >= num_cols)
+        {
+			std::ostringstream oss;
+			oss << "EYELIKE: k out of bounds, k = " << k << " num_cols = " << num_cols;
+            MIGRAPHX_THROW(oss.str());
+        }
 
-		// set to double, when convereted to literal should be converted properly
+        // set to double, when converted to literal should be converted properly
         std::vector<double> eyelike_mat(num_rows * num_cols, 0);
         for(int i = 0; i < num_rows; ++i)
         {
@@ -53,13 +56,15 @@ struct parse_eyelike : op_parser<parse_eyelike>
             {
                 if(j == (i + k))
                 {
-                    eyelike_mat[2 * i + j] = 1.;
+                    eyelike_mat[num_cols * i + j] = 1.;
                 }
             }
         }
-        auto eyelike =
-            info.add_instruction(info.add_literal(migraphx::literal{
-                                     migraphx::shape{output_type, input_lens}, eyelike_mat}));
+        auto eyelike = info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
         return eyelike;
     }
 };
+
+} // namespace onnx
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

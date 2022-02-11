@@ -103,6 +103,39 @@ TEST_CASE(spacetodepth_depthtospace_test)
     EXPECT(migraphx::verify_range(result_vector2, data_in));
 }
 
+TEST_CASE(eyelike_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("eyelike_verify_test.onnx");
+    p.compile(migraphx::ref::target{});
+	
+	migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> data = {
+		0., 0., 0., 0.,
+		0., 0., 0., 0.,
+		0., 0., 0., 0.
+	};
+    migraphx::parameter_map pp;
+    pp["T1"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+	std::cout << "EYELIKE verify: [";
+	for (auto val : result_vector)
+	{
+		std::cout << val << " ";
+	}
+	std::cout << "]\n";
+
+    std::vector<float> eyelike_mat = {
+		0., 1., 0., 0.,
+		0., 0., 1., 0.,
+		0., 0., 0., 1.
+	};
+	EXPECT(migraphx::verify_range(result_vector, eyelike_mat));
+}
+
 TEST_CASE(gather_elements)
 {
     migraphx::program p = migraphx::parse_onnx("gather_elements_axis0_test.onnx");

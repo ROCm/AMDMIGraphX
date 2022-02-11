@@ -38,7 +38,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Round", "round"},
                 {"Scatter", "scatter"},
                 {"ScatterElements", "scatter"},
-                {"ScatterND", "scatternd"},
                 {"Sigmoid", "sigmoid"},
                 {"Sign", "sign"},
                 {"Sin", "sin"},

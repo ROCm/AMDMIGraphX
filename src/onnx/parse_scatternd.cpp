@@ -9,7 +9,7 @@ namespace onnx {
 
 struct parse_scatternd : op_parser<parse_scatternd>
 {
-    std::vector<op_desc> operators() const { return {{"ScatterND", "scatternd"}}; }
+    std::vector<op_desc> operators() const { return {{"ScatterND"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,

@@ -50,14 +50,14 @@ constexpr auto shape_step(Shape s, Axis)
     });
 }
 
-// Bools can not be used as a vector type so convert it to int8
+// Bools can not be used as a vector type so convert it to uint8
 template <class T>
 __device__ __host__ T* remove_bool(T* x)
 {
     return x;
 }
 
-inline __device__ __host__ int8_t* remove_bool(bool* x) { return reinterpret_cast<int8_t*>(x); }
+inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_cast<uint8_t*>(x); }
 
 template <index_int N, class T, class Axis>
 __device__ __host__ auto as_vec(T x, Axis axis)

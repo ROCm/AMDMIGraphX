@@ -17,10 +17,6 @@ struct parse_eyelike : op_parser<parse_eyelike>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        if(args.size() != 1)
-        {
-            MIGRAPHX_THROW("EYELIKE: expecting one tensor input");
-        }
         auto input_shape = args[0]->get_shape();
         auto input_lens  = input_shape.lens();
         if(input_lens.size() != 2)
@@ -36,12 +32,12 @@ struct parse_eyelike : op_parser<parse_eyelike>
             output_type = get_type(info.attributes.at("dtype").i());
         }
 
-        int k = 0; // issue with size_t to int compare?
+        int k = 0;
         if(contains(info.attributes, "k"))
         {
             k = info.attributes.at("k").i();
         }
-        if(std::abs(k) >= num_cols)
+        if(static_cast<size_t>(std::abs(k)) >= num_cols)
         {
             std::ostringstream oss;
             oss << "EYELIKE: k out of bounds, k = " << k << " num_cols = " << num_cols;

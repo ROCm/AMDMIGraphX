@@ -10,7 +10,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 void auto_contiguous::apply(module& p) const
 {
-    std::string key = "standard_input_shape";
+    std::string key = "std_shape";
     for(auto ins : reverse_iterator_for(p))
     {
         auto&& attr = ins->get_operator().attributes();

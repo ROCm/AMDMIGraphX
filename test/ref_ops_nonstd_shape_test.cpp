@@ -57,14 +57,14 @@ TEST_CASE(squeeze_transpose_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 3, 0, 4}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_trans);
     auto p_uncompiled = p;
+    // contiguous is required to read the values in standard shaped order
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
-    // contiguous is required to read the values in standard shaped order
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4, 3}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(squeeze_multibroadcast_test)
@@ -77,13 +77,13 @@ TEST_CASE(squeeze_multibroadcast_test)
         migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 3, 4, 3}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_brcst);
     auto p_uncompiled = p;
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result              = p.eval({}).back();
     auto expected_result     = p_uncompiled.eval({}).back();
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 3, 4, 3}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(squeeze_slice_test)
@@ -96,13 +96,13 @@ TEST_CASE(squeeze_slice_test)
         migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {3}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze"), l0_slice);
     auto p_uncompiled = p;
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result              = p.eval({}).back();
     auto expected_result     = p_uncompiled.eval({}).back();
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 3}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(unsqueeze_transpose_test)
@@ -115,13 +115,13 @@ TEST_CASE(unsqueeze_transpose_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0_trans);
     auto p_uncompiled = p;
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result              = p.eval({}).back();
     auto expected_result     = p_uncompiled.eval({}).back();
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4, 1, 3}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(unsqueeze_multibroadcast_test)
@@ -134,13 +134,13 @@ TEST_CASE(unsqueeze_multibroadcast_test)
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 4, 3, 3}}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), l0_brcst);
     auto p_uncompiled = p;
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result              = p.eval({}).back();
     auto expected_result     = p_uncompiled.eval({}).back();
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {4, 4, 1, 3, 3}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 TEST_CASE(unsqueeze_slice_test)
@@ -153,13 +153,13 @@ TEST_CASE(unsqueeze_slice_test)
         migraphx::make_op("slice", {{"axes", {3}}, {"starts", {2}}, {"ends", {3}}}), l0);
     mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l0_slice);
     auto p_uncompiled = p;
+    auto *mm_uncompiled = p_uncompiled.get_main_module();
+    mm_uncompiled->add_instruction(migraphx::make_op("contiguous"), std::prev(mm_uncompiled->end()));
     p.compile(migraphx::ref::target{});
     auto result              = p.eval({}).back();
     auto expected_result     = p_uncompiled.eval({}).back();
-    auto tr_op               = migraphx::make_op("contiguous");
-    auto std_expected_result = tr_op.compute(result.get_shape(), {expected_result});
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {2, 1, 3, 4, 1}});
-    EXPECT(result == std_expected_result);
+    EXPECT(result == expected_result);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

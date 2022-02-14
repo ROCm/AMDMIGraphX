@@ -14,7 +14,7 @@ struct parse_scatternd : op_parser<parse_scatternd>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         if(contains(info.attributes, "reduction"))
         {

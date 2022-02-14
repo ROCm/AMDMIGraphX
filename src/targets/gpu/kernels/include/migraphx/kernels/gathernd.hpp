@@ -54,7 +54,6 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
         const auto* indices_ptr       = indices_t.data();
         const std::size_t j           = i / slice_size;
         const std::size_t batch_idx   = j / num_slices_per_batch;
-        const std::size_t base_offset = batch_idx * data_batch_stride;
 
         auto* slice_indices               = indices_ptr + (j * num_slice_dims);
         std::size_t relative_slice_offset = 0;
@@ -74,7 +73,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
             relative_slice_offset += index * size_from_slice_dims;
         }
 
-        auto slice_offset = base_offset + relative_slice_offset;
+        auto slice_offset = (batch_idx * data_batch_stride) + relative_slice_offset;
         output_t[i]       = data_t[slice_offset + i % slice_size];
     }
 }

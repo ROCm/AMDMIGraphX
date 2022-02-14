@@ -32,7 +32,7 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             MIGRAPHX_THROW("onnx pooling mode must be \"max\" or \"average\"");
         }
-        operation op     = make_op(
+        operation op = make_op(
             "pooling",
             {{"mode", mode == "average" ? op::pooling_mode::kAvg : op::pooling_mode::kMax}});
         value values = op.to_value();
@@ -91,7 +91,7 @@ struct parse_pooling : op_parser<parse_pooling>
         if(contains(info.attributes, "auto_pad"))
         {
             values["padding"].clear();
-           // return paddings could be empty, then setting to 0 for no padding
+            // return paddings could be empty, then setting to 0 for no padding
             cal_auto_padding_size(info,
                                   values,
                                   values["lengths"].to_vector<std::size_t>(),
@@ -110,7 +110,7 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             values["padding"].resize(kdims);
             std::fill_n(values["padding"].begin(), kdims, 0);
-       }
+        }
 
         if(values["stride"].size() != kdims)
         {

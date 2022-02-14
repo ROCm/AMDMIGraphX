@@ -16,7 +16,8 @@ struct test_conv_pooling : verify_program<test_conv_pooling>
         auto weights =
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
         auto conv    = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
-        auto pooling = mm->add_instruction(migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::kMax}}), conv);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::kMax}}), conv);
         mm->add_instruction(migraphx::make_op("relu"), pooling);
         return p;
     }

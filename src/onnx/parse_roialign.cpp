@@ -18,7 +18,7 @@ struct parse_roialign : op_parser<parse_roialign>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-printf("sdafhgjk qqqqqqqqqqqqqqqqqq sdfjhjk \n");
+        printf("sdafhgjk qqqqqqqqqqqqqqqqqq sdfjhjk \n");
         std::string coord_trans_mode = "half_pixel";
         if(contains(info.attributes, "coordinate_transformation_mode"))
         {
@@ -30,12 +30,14 @@ printf("sdafhgjk qqqqqqqqqqqqqqqqqq sdfjhjk \n");
                            "\": invalid value!");
         }
 
-        migraphx::op::roialign_mode rmode (migraphx::op::roialign_mode::kAvg);
+        migraphx::op::roialign_mode rmode(migraphx::op::roialign_mode::kAvg);
         if(contains(info.attributes, "mode"))
         {
-           // read mode; default is "avg"
-            if (info.attributes.at("mode").s() == "max")
-            { rmode = migraphx::op::roialign_mode::kMax;}
+            // read mode; default is "avg"
+            if(info.attributes.at("mode").s() == "max")
+            {
+                rmode = migraphx::op::roialign_mode::kMax;
+            }
         }
 
         int64_t output_height = 1;
@@ -61,7 +63,7 @@ printf("sdafhgjk qqqqqqqqqqqqqqqqqq sdfjhjk \n");
         {
             spatial_scale = info.attributes.at("spatial_scale").f();
         }
-printf("sdafhgjk fdsajhksdfa sdfjhjk \n");
+        printf("sdafhgjk fdsajhksdfa sdfjhjk \n");
         return info.add_instruction(make_op("roialign",
                                             {{"coordinate_transformation_mode", coord_trans_mode},
                                              {"mode", rmode},

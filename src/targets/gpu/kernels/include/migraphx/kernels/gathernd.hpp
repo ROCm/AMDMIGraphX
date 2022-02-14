@@ -51,9 +51,9 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
 
     if(i < output_shape.elements())
     {
-        const auto* indices_ptr       = indices_t.data();
-        const std::size_t j           = i / slice_size;
-        const std::size_t batch_idx   = j / num_slices_per_batch;
+        const auto* indices_ptr     = indices_t.data();
+        const std::size_t j         = i / slice_size;
+        const std::size_t batch_idx = j / num_slices_per_batch;
 
         auto* slice_indices               = indices_ptr + (j * num_slice_dims);
         std::size_t relative_slice_offset = 0;

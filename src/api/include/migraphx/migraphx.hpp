@@ -207,8 +207,8 @@ struct handle_base
     handle_base<const_ migraphx_##name,               \
                 decltype(&migraphx_##name##_destroy), \
                 migraphx_##name##_destroy,            \
-                decltype(&migraphx_##name##_assign),  \
-                migraphx_##name##_assign>
+                decltype(&migraphx_##name##_assign_to),  \
+                migraphx_##name##_assign_to>
 #endif
 // NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, )

@@ -1,4 +1,4 @@
-//
+//      
 //     Supporting functions for enum values used in operator parameters.
 //     These values are declared as "enum class" and should include << streaming operators
 //     to be able to write their values in human-readable format so users can
@@ -33,6 +33,13 @@ std::ostream& operator<<(std::ostream& os, roialign_mode v)
     static const std::vector<std::string> roi_str = {"average", "max"};
     os << roi_str[static_cast<std::underlying_type<roialign_mode>::type>(v)];
     return os;
+}
+
+std::string to_str(pooling_mode v)
+{
+    std::stringstream ss("");
+    ss << v;
+    return ss.str();
 }
 
 std::string to_str(roialign_mode v)

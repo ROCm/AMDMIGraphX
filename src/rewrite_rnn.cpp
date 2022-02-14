@@ -1417,7 +1417,7 @@ instruction_ref rewrite_rnn::pad_hidden_states(module& prog,
         pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
         shape pad_s{s.type(), pad_lens};
         std::vector<float> pad_data(pad_s.elements(), 0.0f);
-        auto pl = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());    
+        auto pl = prog.add_literal(pad_s, pad_data.begin(), pad_data.end());
         hs_padded =
             prog.insert_instruction(std::next(hs), make_op("concat", {{"axis", 0}}), hs, pl);
         prog.replace_instruction(hs, hs_padded);

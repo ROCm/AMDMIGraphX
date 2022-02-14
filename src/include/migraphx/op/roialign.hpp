@@ -22,7 +22,7 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    roialign_mode mode;
+    roialign_mode mode = {roialign_mode::kAvg};
     int64_t output_height  = 1;
     int64_t output_width   = 1;
     int64_t sampling_ratio = 0;

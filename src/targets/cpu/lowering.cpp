@@ -461,7 +461,7 @@ struct cpu_apply
            not v["ceil_mode"].to<bool>())
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         std::string mode = v["mode"].to<std::string>();
-        if(mode == "C max")
+        if(mode == "max")
             return replace(ins, make_op("cpu::pooling_max", v));
         else if(mode == "average")
             return replace(ins, make_op("cpu::pooling_average", v));

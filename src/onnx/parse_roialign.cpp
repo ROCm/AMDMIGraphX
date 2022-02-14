@@ -18,7 +18,6 @@ struct parse_roialign : op_parser<parse_roialign>
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        printf("sdafhgjk qqqqqqqqqqqqqqqqqq sdfjhjk \n");
         std::string coord_trans_mode = "half_pixel";
         if(contains(info.attributes, "coordinate_transformation_mode"))
         {
@@ -63,7 +62,6 @@ struct parse_roialign : op_parser<parse_roialign>
         {
             spatial_scale = info.attributes.at("spatial_scale").f();
         }
-        printf("sdafhgjk fdsajhksdfa sdfjhjk \n");
         return info.add_instruction(make_op("roialign",
                                             {{"coordinate_transformation_mode", coord_trans_mode},
                                              {"mode", rmode},

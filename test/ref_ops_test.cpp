@@ -4004,7 +4004,7 @@ TEST_CASE(roialign_test)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape x_s{migraphx::shape::float_type, {1, 1, 10, 10}};
-       std::vector<float> x_vec = {
+        std::vector<float> x_vec = {
             0.2764, 0.7150, 0.1958, 0.3416, 0.4638, 0.0259, 0.2963, 0.6518, 0.4856, 0.7250,
             0.9637, 0.0895, 0.2919, 0.6753, 0.0234, 0.6132, 0.8085, 0.5324, 0.8992, 0.4467,
             0.3265, 0.8479, 0.9698, 0.2471, 0.9336, 0.1878, 0.4766, 0.4308, 0.3400, 0.2162,
@@ -4036,7 +4036,7 @@ TEST_CASE(roialign_test)
                                 x,
                                 roi,
                                 ind);
-       mm->add_return({r});
+        mm->add_return({r});
         return p;
     };
 

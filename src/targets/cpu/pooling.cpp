@@ -130,7 +130,7 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_forward, op::po
     dnnl::pooling_forward::desc get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
         auto algo =
-            op.mode == op.kAvg ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
+            op.mode == op.kMax ? dnnl::algorithm::pooling_max : dnnl::algorithm::pooling_avg;
         auto kdims = op.kdims();
         std::vector<size_t> padding_l(op.padding.begin(), op.padding.begin() + kdims);
         std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());

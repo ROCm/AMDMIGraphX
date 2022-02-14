@@ -203,11 +203,11 @@ struct handle_base
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
 #else
-#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)     \
-    handle_base<const_ migraphx_##name,               \
-                decltype(&migraphx_##name##_destroy), \
-                migraphx_##name##_destroy,            \
-                decltype(&migraphx_##name##_assign_to),  \
+#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)       \
+    handle_base<const_ migraphx_##name,                 \
+                decltype(&migraphx_##name##_destroy),   \
+                migraphx_##name##_destroy,              \
+                decltype(&migraphx_##name##_assign_to), \
                 migraphx_##name##_assign_to>
 #endif
 // NOLINTNEXTLINE

@@ -93,7 +93,7 @@ struct gathernd
 
                 std::vector<std::size_t> input_slice_offsets(num_slices);
                 par_for(num_slices, [&](const auto i) {
-                    const std::size_t batch_idx   = i / num_slices_per_batch;
+                    const std::size_t batch_idx = i / num_slices_per_batch;
 
                     auto slice_indices                = indices.begin() + (i * num_slice_dims);
                     std::size_t relative_slice_offset = 0;
@@ -112,7 +112,8 @@ struct gathernd
                         relative_slice_offset += index * sizes_from_slice_dims[dim_idx];
                     }
 
-                    input_slice_offsets[i] = (batch_idx * data_batch_stride) + relative_slice_offset;
+                    input_slice_offsets[i] =
+                        (batch_idx * data_batch_stride) + relative_slice_offset;
                 });
 
                 par_for(num_slices * slice_size, [&](const auto i) {

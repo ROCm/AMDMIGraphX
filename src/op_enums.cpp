@@ -1,4 +1,4 @@
-//      
+//
 //     Supporting functions for enum values used in operator parameters.
 //     These values are declared as "enum class" and should include << streaming operators
 //     to be able to write their values in human-readable format so users can

@@ -1426,6 +1426,5 @@ instruction_ref rewrite_rnn::pad_hidden_states(module& prog,
     return hs_padded;
 }
 
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

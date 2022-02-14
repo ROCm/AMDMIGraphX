@@ -3998,9 +3998,10 @@ TEST_CASE(roialign_out_of_bound_test)
 
 TEST_CASE(roialign_test)
 {
-    auto create_program = [](const std::string& trans_mode   = "half_pixel",
-                             const migraphx::op::roialign_mode pooling_mode = migraphx::op::roialign_mode::kAvg,
-                             int64_t sampling_ratio          = 2) {
+    auto create_program = [](const std::string& trans_mode = "half_pixel",
+                             const migraphx::op::roialign_mode pooling_mode =
+                                 migraphx::op::roialign_mode::kAvg,
+                             int64_t sampling_ratio = 2) {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape x_s{migraphx::shape::float_type, {1, 1, 10, 10}};
@@ -4046,7 +4047,7 @@ TEST_CASE(roialign_test)
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-       std::vector<float> gold = {
+        std::vector<float> gold = {
             0.466421425, 0.446552634, 0.340521216, 0.568848491, 0.606780827, 0.371379346,
             0.429571986, 0.383519977, 0.556241512, 0.351050019, 0.27680251,  0.488286227,
             0.522200167, 0.552770197, 0.417057365, 0.471240699, 0.4844096,   0.690457463,

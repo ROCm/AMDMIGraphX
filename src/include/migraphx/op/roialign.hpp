@@ -22,11 +22,11 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    roialign_mode mode = {roialign_mode::kAvg};
-    int64_t output_height  = 1;
-    int64_t output_width   = 1;
-    int64_t sampling_ratio = 0;
-    float spatial_scale    = 1.0f;
+    roialign_mode mode           = {roialign_mode::kAvg};
+    int64_t output_height        = 1;
+    int64_t output_width         = 1;
+    int64_t sampling_ratio       = 0;
+    float spatial_scale          = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -242,16 +242,17 @@ struct roialign
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
-                        (mode == migraphx::op::roialign_mode::kAvg) ? this->calc_pooling(offset_bottom_data,
-                                                            bin_grid_size,
-                                                            pre_calc,
-                                                            vec_index[c],
-                                                            avg_pool{})
-                                       : this->calc_pooling(offset_bottom_data,
-                                                            bin_grid_size,
-                                                            pre_calc,
-                                                            vec_index[c],
-                                                            max_pool{});
+                        (mode == migraphx::op::roialign_mode::kAvg)
+                            ? this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 avg_pool{})
+                            : this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
             });

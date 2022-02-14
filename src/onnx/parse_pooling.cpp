@@ -28,15 +28,14 @@ struct parse_pooling : op_parser<parse_pooling>
                           std::vector<instruction_ref> args) const
     {
         std::string mode = opd.op_name;
-         if(!starts_with(mode, "max") && !starts_with(mode, "ave"))
+        if(mode != "max" && mode != "average")
         {
-            MIGRAPHX_THROW("onnx pooling mode must be max or average");
+            MIGRAPHX_THROW("onnx pooling mode must be \"max\" or \"average\"");
         }
         operation op     = make_op(
             "pooling",
             {{"mode", mode == "average" ? op::pooling_mode::kAvg : op::pooling_mode::kMax}});
         value values = op.to_value();
-    std::cout << std::string(" xxxxx sadf the mode name is") << mode.c_str()  << " value is " << values["mode"] << std::endl;
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
         assert(in_lens.size() > 2);
@@ -123,7 +122,7 @@ struct parse_pooling : op_parser<parse_pooling>
 
         std::vector<int64_t> slice_start;
         std::vector<int64_t> slice_end;
-        tune_padding_size(values, paddings, count_include_pad, slice_start); this seems to be a problem
+        tune_padding_size(values, paddings, count_include_pad, slice_start);
 
         if(!slice_start.empty())
         {

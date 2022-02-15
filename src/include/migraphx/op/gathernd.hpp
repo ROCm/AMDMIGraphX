@@ -74,7 +74,7 @@ struct gathernd
                                     data_shape_lens.begin() + batch_dims,
                                     1,
                                     std::multiplies<std::size_t>());
-                const std::size_t data_batch_stride =
+                std::size_t data_batch_stride =
                     std::accumulate(data_shape_lens.begin() + batch_dims,
                                     data_shape_lens.end(),
                                     1,
@@ -93,7 +93,7 @@ struct gathernd
 
                 std::vector<std::size_t> input_slice_offsets(num_slices);
                 par_for(num_slices, [&](const auto i) {
-                    const std::size_t batch_idx = i / num_slices_per_batch;
+                    std::size_t batch_idx = i / num_slices_per_batch;
 
                     auto slice_indices                = indices.begin() + (i * num_slice_dims);
                     std::size_t relative_slice_offset = 0;

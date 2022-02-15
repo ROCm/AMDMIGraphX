@@ -168,7 +168,7 @@ void program::compile(const target& t, compile_options options)
         {
             auto index = std::distance(mod->begin(), dangling);
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
-                           std::to_string(index));
+                           std::to_string(index) + ", (" + dangling->name() + ")");
         }
         mod->finalize(this->impl->ctx);
     }

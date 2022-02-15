@@ -83,15 +83,15 @@ struct miopen_apply
             const auto& prog_outputs = last->inputs();
             std::vector<instruction_ref> outputs(prog_outputs.size());
 
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs.begin(),
-                           [](const auto& i) {
-                               auto alias_ins = instruction::get_output_alias(i);
-                               auto alias_s = alias_ins->get_shape();
-                               return (alias_s.type() == shape::tuple_type or alias_s.elements() != i->get_shape().elements()) ? i : alias_ins;
-                           }
-            );
+            std::transform(
+                prog_outputs.begin(), prog_outputs.end(), outputs.begin(), [](const auto& i) {
+                    auto alias_ins = instruction::get_output_alias(i);
+                    auto alias_s   = alias_ins->get_shape();
+                    return (alias_s.type() == shape::tuple_type or
+                            alias_s.elements() != i->get_shape().elements())
+                               ? i
+                               : alias_ins;
+                });
 
             std::size_t index = 0;
             for(auto ins : outputs)
@@ -272,9 +272,10 @@ struct miopen_apply
         auto ins_alias = instruction::get_output_alias(ins);
         if(last->name() == "@return" and tag.empty())
         {
-            
+
             auto alias_s = ins_alias->get_shape();
-            if(alias_s.type() == shape::tuple_type or alias_s.elements() != ins->get_shape().elements())
+            if(alias_s.type() == shape::tuple_type or
+               alias_s.elements() != ins->get_shape().elements())
             {
                 if(prog_output_names.count(ins) > 0)
                 {

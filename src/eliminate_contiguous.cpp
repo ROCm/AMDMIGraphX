@@ -39,9 +39,8 @@ static bool try_compute_shape(instruction_ref ins,
             return false;
         }
 
-        if (std::any_of(outputs.begin(), outputs.end(), [](auto o) {
-            return o->name() == "@return";
-        }))
+        if(std::any_of(
+               outputs.begin(), outputs.end(), [](auto o) { return o->name() == "@return"; }))
         {
             return false;
         }

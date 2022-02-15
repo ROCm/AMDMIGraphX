@@ -12,7 +12,9 @@ struct test_prefix_scan_sum_reverse : verify_program<test_prefix_scan_sum_revers
         migraphx::shape s{migraphx::shape::float_type, {3, 3, 3}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(
-            migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}, {"reverse", true}}), x);
+            migraphx::make_op("prefix_scan_sum",
+                              {{"axis", 1}, {"exclusive", false}, {"reverse", true}}),
+            x);
         return p;
     }
 };

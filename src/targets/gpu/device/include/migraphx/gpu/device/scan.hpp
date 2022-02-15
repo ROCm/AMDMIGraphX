@@ -59,7 +59,8 @@ template <index_int N,
           class Input,
           class Output,
           MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
-__device__ void reverse_block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
+__device__ void
+reverse_block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
 {
     using type = decltype(input(deduce_for_stride(fs)));
     MIGRAPHX_DEVICE_SHARED type buffer[N];
@@ -84,14 +85,16 @@ __device__ void reverse_block_scan(index idx, Op op, T init, ForStride fs, Input
 }
 
 template <index_int N, class Op, class T, class Input, class Output>
-__device__ void reverse_block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
+__device__ void
+reverse_block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {
-    reverse_block_scan<N>(idx,
-                  op,
-                  init,
-                  [&](auto f) -> decltype(f(index_int{})) { return idx.reverse_local_stride(n, f); },
-                  input,
-                  output);
+    reverse_block_scan<N>(
+        idx,
+        op,
+        init,
+        [&](auto f) -> decltype(f(index_int{})) { return idx.reverse_local_stride(n, f); },
+        input,
+        output);
 }
 
 } // namespace device

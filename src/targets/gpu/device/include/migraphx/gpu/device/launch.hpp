@@ -39,6 +39,16 @@ struct index
             f(i);
         }
     }
+
+    template <class F>
+    __device__ void reverse_local_stride(index_int n, F f) const
+    {
+        const auto stride = nlocal();
+        for(index_int i = local; i < n; i += stride)
+        {
+            f(n - i - 1);
+        }
+    }
 };
 
 template <class F>

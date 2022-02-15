@@ -8,7 +8,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void prefix_scan_sum(hipStream_t stream, const argument& result, const argument& arg, int32_t axis)
+void prefix_scan_sum(hipStream_t stream, const argument& result, const argument& arg, int32_t axis, bool exclusive, bool reverse)
 {
     const index_int block_size = 256;
     const index_int n          = arg.get_shape().lens()[axis];
@@ -24,12 +24,24 @@ void prefix_scan_sum(hipStream_t stream, const argument& result, const argument&
                         k[axis] = j;
                         return k;
                     };
-                    block_scan<block_size>(idx,
+                    if (reverse)
+                    {
+                        reverse_block_scan<block_size>(idx,
                                            sum{},
                                            0,
                                            n,
                                            [&](auto j) { return input[compute_idx(j)]; },
                                            [&](auto j, auto x) { output[compute_idx(j)] = x; });
+                    }
+                    else 
+                    {
+                        block_scan<block_size>(idx,
+                                           sum{},
+                                           0,
+                                           n,
+                                           [&](auto j) { return input[compute_idx(j)]; },
+                                           [&](auto j, auto x) { output[compute_idx(j)] = x; });
+                    }
                 });
         });
 }

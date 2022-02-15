@@ -52,6 +52,48 @@ __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, O
                   output);
 }
 
+template <index_int N,
+          class Op,
+          class T,
+          class ForStride,
+          class Input,
+          class Output,
+          MIGRAPHX_REQUIRES(not std::is_integral<ForStride>{})>
+__device__ void reverse_block_scan(index idx, Op op, T init, ForStride fs, Input input, Output output)
+{
+    using type = decltype(input(deduce_for_stride(fs)));
+    MIGRAPHX_DEVICE_SHARED type buffer[N];
+    type x = init;
+    fs([&](auto i) {
+        if(idx.local == idx.nlocal() - 1)
+            buffer[idx.local] = op(input(i), x);
+        else
+            buffer[idx.local] = input(i);
+        __syncthreads();
+        for(index_int s = idx.nlocal() / 2; s >= 1; s /= 2)
+        {
+            if(idx.local + s < idx.nlocal())
+            {
+                buffer[idx.local + s] = op(buffer[idx.local], buffer[idx.local + s]);
+            }
+            __syncthreads();
+        }
+        x = buffer[idx.local];
+        output(i, buffer[idx.local]);
+    });
+}
+
+template <index_int N, class Op, class T, class Input, class Output>
+__device__ void reverse_block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
+{
+    reverse_block_scan<N>(idx,
+                  op,
+                  init,
+                  [&](auto f) -> decltype(f(index_int{})) { return idx.reverse_local_stride(n, f); },
+                  input,
+                  output);
+}
+
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

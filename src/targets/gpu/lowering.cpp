@@ -81,20 +81,15 @@ struct miopen_apply
         if(this->last->name() == "@return")
         {
             const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs(prog_outputs.size());
+            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
 
-            std::transform(
-                prog_outputs.begin(), prog_outputs.end(), outputs.begin(), [](const auto& i) {
-                    auto alias_ins = instruction::get_output_alias(i);
-                    auto alias_s   = alias_ins->get_shape();
-                    return (alias_s.type() == shape::tuple_type or
-                            alias_s.elements() != i->get_shape().elements())
-                               ? i
-                               : alias_ins;
-                });
+            std::transform(prog_outputs.begin(),
+                           prog_outputs.end(),
+                           outputs_alias.begin(),
+                           [](const auto& i) { return instruction::get_output_alias(i); });
 
             std::size_t index = 0;
-            for(auto ins : outputs)
+            for(auto ins : outputs_alias)
             {
                 prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
             }
@@ -270,28 +265,9 @@ struct miopen_apply
         }
 
         auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and tag.empty())
+        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
         {
-
-            auto alias_s = ins_alias->get_shape();
-            if(alias_s.type() == shape::tuple_type or
-               alias_s.elements() != ins->get_shape().elements())
-            {
-                if(prog_output_names.count(ins) > 0)
-                {
-                    auto out_ins = mod->add_parameter(prog_output_names[ins], s);
-                    mod->insert_instruction(std::next(ins), make_op("contiguous"), ins, out_ins);
-                    mod->replace_instruction(ins, out_ins);
-                    return out_ins;
-                }
-            }
-            else
-            {
-                if(prog_output_names.count(ins_alias) > 0)
-                {
-                    return mod->add_parameter(prog_output_names[ins_alias], s);
-                }
-            }
+            return mod->add_parameter(prog_output_names[ins_alias], s);
         }
         else if(ins == last and tag.empty())
         {

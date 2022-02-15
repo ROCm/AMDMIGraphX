@@ -23,8 +23,8 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             MIGRAPHX_THROW("tf pooling mode must be Max or Average");
         }
-        op::pooling op{starts_with(opd.tf_name, "Max") ? op::pooling_mode::kMax
-                                                       : op::pooling_mode::kAvg};
+        op::pooling op{starts_with(opd.tf_name, "Max") ? op::pooling_mode::max
+                                                       : op::pooling_mode::avg};
 
         if(contains(info.attributes, "strides"))
         {

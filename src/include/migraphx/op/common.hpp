@@ -20,14 +20,14 @@ enum padding_mode_t
 // The pooling modes must correspond 1-1 to the operators defined for struct parse_pooling.
 enum class pooling_mode
 {
-    kAvg,
-    kMax
+    avg,
+    max
 };
 
 enum class roialign_mode
 {
-    kAvg,
-    kMax
+    avg,
+    max
 };
 
 // indicate rnn computation direction

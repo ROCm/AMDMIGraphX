@@ -60,7 +60,7 @@ operation compile_roialign(context&, const std::vector<shape>& io_shapes, const 
     // pooling_mode
     assert(val.contains("mode"));
     auto mode           = val.at("mode").to<migraphx::op::pooling_mode>();
-    bool is_avg_pooling = (mode == migraphx::op::pooling_mode::kAvg);
+    bool is_avg_pooling = (mode == migraphx::op::pooling_mode::avg);
     options.params += " -DIS_AVG_POOLING=" + std::to_string(static_cast<int>(is_avg_pooling));
 
     // coord_trans_mode

@@ -21,7 +21,7 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
 
         auto pooling =
             mm->add_instruction(migraphx::make_op("pooling",
-                                                  {{"mode", migraphx::op::pooling_mode::kAvg},
+                                                  {{"mode", migraphx::op::pooling_mode::avg},
                                                    {"padding", {0, 0}},
                                                    {"stride", {1, 1}},
                                                    {"lengths", {8, 8}}}),

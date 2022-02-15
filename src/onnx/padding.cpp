@@ -95,7 +95,7 @@ void tune_padding_size(const value& v,
                        std::vector<int64_t>& s_start)
 {
     // maxpooling or count_include_pad is 1, no change is required.
-    if(v.at("mode").to<op::pooling_mode>() == op::pooling_mode::kMax or count_include_pad == 1)
+    if(v.at("mode").to<op::pooling_mode>() == op::pooling_mode::max or count_include_pad == 1)
     {
         return;
     }

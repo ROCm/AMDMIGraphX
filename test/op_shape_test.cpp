@@ -571,7 +571,7 @@ TEST_CASE(inconsistent_attr_shape)
                  input,
                  weights);
     throws_shape(migraphx::make_op("pooling",
-                                   {{"mode", migraphx::op::pooling_mode::kMax},
+                                   {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {1}},
                                     {"stride", {0}},
                                     {"lengths", {1, 1}}}),
@@ -986,14 +986,14 @@ TEST_CASE(pooling_shape)
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
     throws_shape(migraphx::make_op("pooling",
-                                   {{"mode", migraphx::op::pooling_mode::kMax},
+                                   {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {1}},
                                     {"stride", {0}},
                                     {"lengths", {1}}}),
                  input);
     expect_shape(output,
                  migraphx::make_op("pooling",
-                                   {{"mode", migraphx::op::pooling_mode::kMax},
+                                   {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}}}),
@@ -1002,7 +1002,7 @@ TEST_CASE(pooling_shape)
     migraphx::shape output1{migraphx::shape::float_type, {4, 3, 2, 2}};
     expect_shape(output1,
                  migraphx::make_op("pooling",
-                                   {{"mode", migraphx::op::pooling_mode::kMax},
+                                   {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}},

@@ -54,9 +54,9 @@ TEST_CASE(rewrite_pooling_test)
         EXPECT(m1 == m2);
     };
 
-    test_rewrite(migraphx::op::pooling_mode::kAvg,
+    test_rewrite(migraphx::op::pooling_mode::avg,
                  migraphx::make_op("reduce_mean", {{"axes", {1}}}));
-    test_rewrite(migraphx::op::pooling_mode::kMax,
+    test_rewrite(migraphx::op::pooling_mode::max,
                  migraphx::make_op("reduce_max", {{"axes", {1}}}));
 }
 
@@ -68,7 +68,7 @@ TEST_CASE(rewrite_avepooling_na1_test)
 
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::kAvg},
+                                                       {{"mode", migraphx::op::pooling_mode::avg},
                                                         {"padding", {0, 1, 0}},
                                                         {"stride", {1, 1, 1}},
                                                         {"lengths", {3, 4, 5}}}),
@@ -92,7 +92,7 @@ TEST_CASE(rewrite_avepooling_na2_test)
 
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::kAvg},
+                                                       {{"mode", migraphx::op::pooling_mode::avg},
                                                         {"padding", {0, 0, 0}},
                                                         {"stride", {1, 2, 1}},
                                                         {"lengths", {3, 4, 5}}}),
@@ -116,7 +116,7 @@ TEST_CASE(rewrite_avepooling_na3_test)
 
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::kMax},
+                                                       {{"mode", migraphx::op::pooling_mode::max},
                                                         {"padding", {0, 0, 0}},
                                                         {"stride", {1, 1, 1}},
                                                         {"lengths", {3, 3, 5}}}),
@@ -178,9 +178,9 @@ TEST_CASE(literal_rewrite_pooling_test)
                   result2)([&](auto r1, auto r2) { EXPECT(migraphx::verify_range(r1, r2)); });
     };
 
-    test_rewrite_pooling(migraphx::op::pooling_mode::kMax,
+    test_rewrite_pooling(migraphx::op::pooling_mode::max,
                          migraphx::make_op("reduce_max", {{"axes", {1}}}));
-    test_rewrite_pooling(migraphx::op::pooling_mode::kAvg,
+    test_rewrite_pooling(migraphx::op::pooling_mode::avg,
                          migraphx::make_op("reduce_mean", {{"axes", {1}}}));
 }
 

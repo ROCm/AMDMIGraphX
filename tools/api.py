@@ -147,18 +147,18 @@ class CFunction:
                                params=', '.join(self.params),
                                body=";\n        ".join(self.body),
                                va_start="\n    ".join(self.va_start),
-                               va_end="\n    ".join(self.va_end), **kwargs)
+                               va_end="\n    ".join(self.va_end),
+                               **kwargs)
 
     def generate_header(self) -> str:
         return self.substitute(header_function)
 
     def generate_function_pointer(self, name: Optional[str] = None) -> str:
-        return self.substitute(function_pointer_typedef, fname=name or self.name)
+        return self.substitute(function_pointer_typedef,
+                               fname=name or self.name)
 
     def generate_body(self) -> str:
         return self.substitute(c_api_impl)
-
-
 
 
 class BadParam:
@@ -571,7 +571,9 @@ def params(virtual: Optional[Dict[str, str]] = None,
         result.append(Parameter(name, kwargs[name]))
     return result
 
+
 gparams = params
+
 
 def add_function(name: str, *args, **kwargs) -> Function:
     f = Function(name, *args, **kwargs)
@@ -807,7 +809,9 @@ def add_handle(name: str,
                 p.add_param(t.add_pointer())
                 if p.type.is_reference():
                     p.cpp_write = '${cpptype}(${name}, false)'
-                    p.write = ['*${name} = object_cast<${ctype}>(&(${result}))']
+                    p.write = [
+                        '*${name} = object_cast<${ctype}>(&(${result}))'
+                    ]
                 elif p.type.is_pointer():
                     p.cpp_write = '${cpptype}(${name}, false)'
                     p.write = ['*${name} = object_cast<${ctype}>(${result})']
@@ -960,11 +964,9 @@ class Handle:
     def add_cpp_class(self) -> None:
         cpp_classes.append(self.cpp_class)
 
+
 class Interface:
-    def __init__(self,
-                 name: str,
-                 ctype: str,
-                 cpptype: str) -> None:
+    def __init__(self, name: str, ctype: str, cpptype: str) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
@@ -991,7 +993,9 @@ class Interface:
                     **kwargs) -> 'Interface':
         create = self.substitute('allocate<${opaque_type}>($@)')
 
-        initial_params = gparams(obj='void*', c=self.cname('copy'), d=self.cname('delete'))
+        initial_params = gparams(obj='void*',
+                                 c=self.cname('copy'),
+                                 d=self.cname('delete'))
 
         f = add_function(self.cname(name),
                          params=initial_params + (params or []),
@@ -1002,26 +1006,29 @@ class Interface:
         return self
 
     def virtual(self,
-               name: str,
-               params: Optional[List[Parameter]] = None,
-               const: Optional[bool] = None,
-               **kwargs) -> 'Interface':
+                name: str,
+                params: Optional[List[Parameter]] = None,
+                const: Optional[bool] = None,
+                **kwargs) -> 'Interface':
 
         f = Function(name, params=params, virtual=True, **kwargs)
         self.ifunctions.append(f)
 
-
         g = add_function(self.cname('set_' + name),
-                         params=gparams(obj=self.ctype, input=self.cname(name)),
-                         invoke='${{obj}}->{name} = ${{input}}'.format(name=self.mname(name)))
+                         params=gparams(obj=self.ctype,
+                                        input=self.cname(name)),
+                         invoke='${{obj}}->{name} = ${{input}}'.format(
+                             name=self.mname(name)))
         return self
 
     def generate(self):
         add_handle_preamble()
         for f in self.ifunctions:
             f.update()
-        c_header_preamble.extend([f.get_cfunction().generate_function_pointer(self.cname(f.name)) for f in self.ifunctions])
-
+        c_header_preamble.extend([
+            f.get_cfunction().generate_function_pointer(self.cname(f.name))
+            for f in self.ifunctions
+        ])
 
 
 def handle(ctype: str,
@@ -1042,9 +1049,9 @@ def handle(ctype: str,
 
     return with_handle
 
-def interface(ctype: str,
-           cpptype: str,
-           name: Optional[str] = None) -> Callable:
+
+def interface(ctype: str, cpptype: str,
+              name: Optional[str] = None) -> Callable:
     def with_interface(f):
         n = name or f.__name__
         h = Interface(n, ctype, cpptype)

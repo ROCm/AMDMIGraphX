@@ -1379,9 +1379,14 @@ TEST_CASE(eyelike_k_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(eyelike_k_outofbounds_test)
+TEST_CASE(eyelike_k_outofbounds_neg_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("eyelike_k_outofbounds_test.onnx"); }));
+    EXPECT(test::throws([&] { migraphx::parse_onnx("eyelike_k_outofbounds_neg_test.onnx"); }));
+}
+
+TEST_CASE(eyelike_k_outofbounds_pos_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("eyelike_k_outofbounds_pos_test.onnx"); }));
 }
 
 TEST_CASE(eyelike_not_rank2_test)

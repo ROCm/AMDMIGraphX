@@ -1429,13 +1429,24 @@ def eyelike_k_test():
 
 
 @onnx_test
-def eyelike_k_outofbounds_test():
+def eyelike_k_outofbounds_neg_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [2, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [2, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_outofbounds_pos_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
     T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
     node = onnx.helper.make_node('EyeLike',
                                  inputs=['T1'],
                                  outputs=['T2'],
-                                 k=-6)
+                                 k=4)
     return ([node], [T1], [T2])
 
 

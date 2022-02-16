@@ -109,20 +109,13 @@ TEST_CASE(eyelike_verify_test)
     p.compile(migraphx::ref::target{});
 
     migraphx::shape s{migraphx::shape::float_type, {3, 4}};
-    std::vector<float> data = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
+    std::vector<float> data{12, 0};
     migraphx::parameter_map pp;
     pp["T1"] = migraphx::argument(s, data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::cout << "EYELIKE verify: [";
-    for(auto val : result_vector)
-    {
-        std::cout << val << " ";
-    }
-    std::cout << "]\n";
 
     std::vector<float> eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
     EXPECT(migraphx::verify_range(result_vector, eyelike_mat));

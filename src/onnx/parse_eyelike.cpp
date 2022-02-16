@@ -37,15 +37,26 @@ struct parse_eyelike : op_parser<parse_eyelike>
         {
             k = info.attributes.at("k").i();
         }
-        if(static_cast<size_t>(std::abs(k)) >= num_cols)
-        {
-            std::ostringstream oss;
-            oss << "EYELIKE: k out of bounds, k = " << k << " num_cols = " << num_cols;
-            MIGRAPHX_THROW(oss.str());
-        }
+		if (k >= 0)
+		{
+			if (static_cast<size_t>(k) >= num_cols)
+			{
+				std::ostringstream oss;
+				oss << "EYELIKE: positive k out of bounds, k = " << k << " num_cols = " << num_cols;
+				MIGRAPHX_THROW(oss.str());
+			}
+		}
+		else
+		{
+			if (static_cast<size_t>(std::abs(k)) >= num_rows)
+			{
+				std::ostringstream oss;
+				oss << "EYELIKE: negative k out of bounds, k = " << k << " num_rows = " << num_cols;
+				MIGRAPHX_THROW(oss.str());
+			}
+		}
 
-        // set to double, when converted to literal should be converted properly
-        std::vector<double> eyelike_mat(num_rows * num_cols, 0);
+        std::vector<char> eyelike_mat(num_rows * num_cols, 0);
         for(int i = 0; i < num_rows; ++i)
         {
             for(int j = 0; j < num_cols; ++j)
@@ -56,10 +67,7 @@ struct parse_eyelike : op_parser<parse_eyelike>
                 }
             }
         }
-        auto eyelike = info.add_literal(
-            migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
-        return eyelike;
-    }
+        return info.add_literal(migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});}
 };
 
 } // namespace onnx

@@ -120,12 +120,11 @@ struct find_nop_reshapes
     void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
-        if (ins->name() == "contiguous")
+        if(ins->name() == "contiguous")
         {
             auto& outputs = ins->outputs();
-            if(std::any_of(outputs.begin(), outputs.end(), [&](auto o) {
-                return o->name() == "@return";
-            }))
+            if(std::any_of(
+                   outputs.begin(), outputs.end(), [&](auto o) { return o->name() == "@return"; }))
             {
                 return;
             }

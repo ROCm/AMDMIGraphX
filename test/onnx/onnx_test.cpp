@@ -1275,7 +1275,7 @@ TEST_CASE(eyelike_default_test)
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(int i = 0; i < num_rows; ++i)
     {
-        if(i + k >= 0 and i + k < num_cols)
+		if(i + k >= 0 and static_cast<size_t>(std::abs(i + k)) < num_cols)
         {
             eyelike_mat[(num_cols + 1) * i + k] = 1.;
         }
@@ -1302,7 +1302,7 @@ TEST_CASE(eyelike_double_test)
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(int i = 0; i < num_rows; ++i)
     {
-        if(i + k >= 0 and i + k < num_cols)
+		if(i + k >= 0 and static_cast<size_t>(std::abs(i + k)) < num_cols)
         {
             eyelike_mat[(num_cols + 1) * i + k] = 1.;
         }
@@ -1329,7 +1329,7 @@ TEST_CASE(eyelike_half_test)
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(int i = 0; i < num_rows; ++i)
     {
-        if(i + k >= 0 and i + k < num_cols)
+		if(i + k >= 0 and static_cast<size_t>(std::abs(i + k)) < num_cols)
         {
             eyelike_mat[(num_cols + 1) * i + k] = 1.;
         }
@@ -1356,7 +1356,7 @@ TEST_CASE(eyelike_k_test)
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(int i = 0; i < num_rows; ++i)
     {
-        if(i + k >= 0 and i + k < num_cols)
+		if(i + k >= 0 and static_cast<size_t>(std::abs(i + k)) < num_cols)
         {
             eyelike_mat[(num_cols + 1) * i + k] = 1.;
         }
@@ -1398,7 +1398,7 @@ TEST_CASE(eyelike_set_dtype_test)
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(int i = 0; i < num_rows; ++i)
     {
-        if(i + k >= 0 and i + k < num_cols)
+		if(i + k >= 0 and static_cast<size_t>(std::abs(i + k)) < num_cols)
         {
             eyelike_mat[(num_cols + 1) * i + k] = 1.;
         }

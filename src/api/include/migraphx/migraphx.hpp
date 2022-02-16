@@ -159,7 +159,7 @@ struct borrow
 {
 };
 
-template <class T, class D, D Deleter>
+template <class T, class D, D Deleter, class A, A Assigner>
 struct handle_base
 {
     handle_base() : m_handle(nullptr) {}
@@ -190,6 +190,12 @@ struct handle_base
         m_handle = std::shared_ptr<U>{ptr, [](U*) {}};
     }
 
+    template <class U>
+    void assign_to_handle(U* x)
+    {
+        Assigner(x, this->get_handle_ptr());
+    }
+
     protected:
     std::shared_ptr<T> m_handle;
 };
@@ -197,10 +203,12 @@ struct handle_base
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
 #else
-#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)     \
-    handle_base<const_ migraphx_##name,               \
-                decltype(&migraphx_##name##_destroy), \
-                migraphx_##name##_destroy>
+#define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)       \
+    handle_base<const_ migraphx_##name,                 \
+                decltype(&migraphx_##name##_destroy),   \
+                migraphx_##name##_destroy,              \
+                decltype(&migraphx_##name##_assign_to), \
+                migraphx_##name##_assign_to>
 #endif
 // NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, )

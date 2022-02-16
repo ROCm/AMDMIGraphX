@@ -408,6 +408,26 @@ class Function:
         for assign in assigns:
             self.cfunction.add_statement(assign)
 
+c_api_virtual_impl = Template('''
+${return_type} ${name}(${params})
+{
+    ${output_decls}
+    auto api_error_result = ${fname}(${args});
+    if (api_error_result != ${succes})
+        throw std::runtime_error("Error in ${name}.");
+    return ${output};
+}
+''')
+
+def generate_virtual(f: Function, fname: str) -> str:
+    return_type = 'void'
+    output_decls = ''
+    output = ''
+    if f.returns:
+        return_type = f.returns.type.str()
+        output_decls = f.returns.output_declarations()
+    return ""
+
 
 cpp_class_template = Template('''
 

@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include <limits>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -1944,6 +1945,39 @@ TEST_CASE(if_pl_test)
         auto ret                    = run_prog(false);
         EXPECT(gold_ret == ret);
     }
+}
+
+TEST_CASE(is_nan_test)
+{
+	// float test
+	{
+		migraphx::program p;
+		auto* mm = p.get_main_module();
+		migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+		auto l1 = mm->add_literal(migraphx::literal{s, {1.2, 5.2, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), 0., 100.}});
+		mm->add_instruction(migraphx::make_op("is_nan"), l1);
+		p.compile(migraphx::ref::target{});
+		auto result = p.eval({}).back();
+		std::vector<bool> results_vector;
+		result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+		std::vector<bool> correct = {false, false, true, true, false, false};
+		EXPECT(migraphx::verify_range(results_vector, correct));
+	}
+
+	// half test
+	{
+		migraphx::program p;
+		auto* mm = p.get_main_module();
+		migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+		auto l1 = mm->add_literal(migraphx::literal{s, {1.2, 5.2, std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), 0., 100.}});
+		mm->add_instruction(migraphx::make_op("is_nan"), l1);
+		p.compile(migraphx::ref::target{});
+		auto result = p.eval({}).back();
+		std::vector<bool> results_vector;
+		result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+		std::vector<bool> correct = {false, false, true, true, false, false};
+		EXPECT(migraphx::verify_range(results_vector, correct));
+	}
 }
 
 TEST_CASE(im2col_3x3_no_pad_identity_test)

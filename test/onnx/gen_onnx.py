@@ -2308,6 +2308,32 @@ def instance_norm_val_3d_test():
 
 
 @onnx_test
+def is_nan_float_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [2, 3])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsNaN',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+    
+
+@onnx_test
+def is_nan_half_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT16, [2, 3])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT16, [2, 3])
+
+    node = onnx.helper.make_node(
+        'IsNaN',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
 def layernorm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 1, 5])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 1, 5])

@@ -1471,7 +1471,10 @@ def eyelike_verify_test():
 def eyelike_verify_negk_test():
     T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
     T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
-    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=-2)
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
     return ([node], [T1], [T2])
 
 

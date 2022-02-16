@@ -135,10 +135,7 @@ TEST_CASE(eyelike_verify_negk_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> eyelike_mat = {
-		0., 0., 0., 0.,
-		0., 0., 0., 0.,
-		1., 0., 0., 0.};
+    std::vector<float> eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
     EXPECT(migraphx::verify_range(result_vector, eyelike_mat));
 }
 

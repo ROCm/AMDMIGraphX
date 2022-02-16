@@ -25,6 +25,17 @@ struct scatternd_op : op_name<Derived>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3);
+        auto r = inputs.front().lens().size();
+        auto q = inputs.at(1).lens().size();
+        auto k = inputs.at(1).lens().back();
+        auto ind_lens = inputs.at(1).lens();
+        auto upd_lens = inputs.back().lens();
+        auto data_lens = inputs.front().lens();
+        if (k > r)
+            MIGRAPHX_THROW("ScatterND: index of size " + std::to_string(k) + " is too large for tensor of rank " + std::to_string(r));
+        if (not (std::equal(ind_lens.begin(), ind_lens.begin() + q - 1, upd_lens.begin()) and std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
+            MIGRAPHX_THROW("ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] ++ data.lens[k:r-1]");
+
         return {inputs.front().type(), inputs.front().lens()};
     }
 

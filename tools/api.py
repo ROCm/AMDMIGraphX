@@ -408,6 +408,7 @@ class Function:
         for assign in assigns:
             self.cfunction.add_statement(assign)
 
+
 c_api_virtual_impl = Template('''
 ${return_type} ${name}(${params})
 {
@@ -418,6 +419,7 @@ ${return_type} ${name}(${params})
     return ${output};
 }
 ''')
+
 
 def generate_virtual(f: Function, fname: str) -> str:
     return_type = 'void'

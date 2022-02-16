@@ -32,7 +32,12 @@ void cse_range(module& p, Range&& r)
                 continue;
             p.replace_instruction(ins, eq);
             processed_ins.emplace(ins);
-            auto outputs = eq->outputs();
+            std::vector<instruction_ref> outputs;
+            std::copy_if(eq->outputs().begin(),
+                         eq->outputs().end(),
+                         std::back_inserter(outputs),
+                         [&](auto x) { return p.has_instruction(x); });
+
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);
             });

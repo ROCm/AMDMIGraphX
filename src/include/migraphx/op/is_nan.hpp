@@ -10,13 +10,13 @@ namespace op {
 
 struct is_nan : unary<is_nan>
 {
-	std::string point_function() const { return "is_nan"; }
-	auto apply() const
-	{
-		return [](auto x) { return std::isnan(x); };
-	}
-	
-	std::string name() const { return "is_nan"; }
+    std::string point_function() const { return "is_nan"; }
+    auto apply() const
+    {
+        return [](auto x) { return std::isnan(x); };
+    }
+
+    std::string name() const { return "is_nan"; }
 };
 
 } // namespace op

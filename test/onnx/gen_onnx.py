@@ -2318,7 +2318,7 @@ def is_nan_float_test():
         outputs=['T2'],
     )
     return ([node], [T1], [T2])
-    
+
 
 @onnx_test
 def is_nan_half_test():

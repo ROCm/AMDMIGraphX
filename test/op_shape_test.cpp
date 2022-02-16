@@ -1432,8 +1432,6 @@ TEST_CASE(test_scalar_nelemnts)
     throws_shape(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 3, 4, 5}}}), input);
 }
 
-
-
 TEST_CASE(test_scatternd)
 {
     {

@@ -37,11 +37,11 @@ struct unsqueeze
     std::string name() const { return "unsqueeze"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard_or_scalar();
+        check_shapes{inputs, *this}.has(1);
         auto input_shape = inputs[0];
         auto type        = input_shape.type();
         auto old_lens    = input_shape.lens();
-
+        auto old_strides = input_shape.strides();
         if(input_shape.scalar())
         {
             if(old_lens.size() == 1 and old_lens.front() == 1)
@@ -53,19 +53,29 @@ struct unsqueeze
         std::size_t new_size = old_lens.size() + axes.size();
 
         std::vector<std::size_t> new_lens(new_size);
+        std::vector<std::size_t> new_strides(new_size);
         std::size_t p = 0;
-        for(std::size_t i = 0; i < new_size; i++)
+        for(auto i : range(new_size))
         {
             if(std::find(axes.begin(), axes.end(), i) != axes.end())
             {
                 new_lens[i] = 1;
+                if(p == 0) // unsqueeze on the first axes
+                {
+                    new_strides[i] = old_lens[0] * old_strides[0];
+                }
+                else // unsqueeze on middle or last axes
+                {
+                    new_strides[i] = (p < old_strides.size()) ? old_strides[p - 1] : 1;
+                }
             }
             else
             {
-                new_lens[i] = old_lens[p++];
+                new_lens[i]    = old_lens[p];
+                new_strides[i] = old_strides[p++];
             }
         }
-        return shape{type, new_lens};
+        return shape{type, new_lens, new_strides};
     }
     argument compute(shape output_shape, std::vector<argument> args) const
     {

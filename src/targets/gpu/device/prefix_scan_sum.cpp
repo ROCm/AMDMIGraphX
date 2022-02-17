@@ -2,7 +2,6 @@
 #include <migraphx/gpu/device/scan.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>
 #include <migraphx/gpu/device/types.hpp>
-#include <migraphx/gpu/device/tensor_view.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

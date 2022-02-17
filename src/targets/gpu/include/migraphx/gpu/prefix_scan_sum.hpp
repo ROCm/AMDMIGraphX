@@ -40,8 +40,6 @@ struct hip_prefix_scan_sum : oper<hip_prefix_scan_sum>
 
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        /* if(op.exclusive or op.reverse)
-            MIGRAPHX_THROW("Exclusive and reverse scan not supported"); */
         device::prefix_scan_sum(
             ctx.get_stream().get(), args[1], args[0], op.axis, op.exclusive, op.reverse);
         return args[1];

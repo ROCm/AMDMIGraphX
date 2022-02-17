@@ -58,7 +58,7 @@ void auto_contiguous::apply(module& p) const
                 continue;
 
             auto ins_alias = ins->get_operator().output_alias({});
-            if(ins_alias == 0)
+            if(ins_alias == 0 and ins->get_shape().element_space() != ins->inputs().front()->get_shape().element_space())
             {
                 auto cont_ins = p.insert_instruction(last, make_op("contiguous"), ins);
                 p.replace_instruction(ins, cont_ins);

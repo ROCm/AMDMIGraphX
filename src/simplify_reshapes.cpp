@@ -120,7 +120,9 @@ struct find_nop_reshapes
     void apply(module& p, const match::matcher_result& mr) const
     {
         auto ins = mr.result;
-        if(ins->name() == "contiguous")
+        // output of reshape and contiguous is standard, so no need to add another contiguous
+        // if the output is used an a ret value
+        if(ins->name() == "contiguous" and ins->name() != "contiguous" and ins->name() != "reshape")
         {
             auto& outputs = ins->outputs();
             if(std::any_of(

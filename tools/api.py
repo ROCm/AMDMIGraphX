@@ -291,7 +291,10 @@ class Parameter:
     def virtual_output(self, prefix: Optional[str] = None) -> str:
         write = self.virtual_write
         if not write:
-            write = Template(self.read).safe_substitute(name='(&${name})')
+            if '*' in self.read or '->' in self.read:
+                write = Template(self.read).safe_substitute(name='(&${name})')
+            else:
+                write = self.read
         return self.substitute(write, prefix=prefix)
 
     def cpp_param(self, prefix: Optional[str] = None) -> str:
@@ -1008,6 +1011,8 @@ c_api_virtual_impl = Template('''
 ${return_type} ${name}(${params}) const
 {
     ${output_decls}
+    if (${fname} == nullptr)
+        throw std::runtime_error("${name} function is missing.");
     auto api_error_result = ${fname}(${args});
     if (api_error_result != ${success})
         throw std::runtime_error("Error in ${name}.");
@@ -1101,7 +1106,7 @@ class Interface:
         function = generate_virtual_impl(f,
                                          fname=mname,
                                          this='object_ptr.data')
-        return f"{cname} {mname};\n{function}"
+        return f"{cname} {mname} = nullptr;{function}"
 
     def generate(self):
         add_handle_preamble()

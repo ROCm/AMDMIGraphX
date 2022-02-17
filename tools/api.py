@@ -264,9 +264,11 @@ class Parameter:
     def virtual_arg(self, prefix: Optional[str] = None) -> str:
         read = self.virtual_read
         if not read and len(self.write) == 1 and '=' in self.write[0]:
-            read = Template(self.write[0].partition('=')[2]).safe_substitute(result='${name}')
+            read = Template(self.write[0].partition('=')[2]).safe_substitute(
+                result='${name}')
         if not read:
-            raise ValueError("No virtual_read parameter provided for: " + self.type.str())
+            raise ValueError("No virtual_read parameter provided for: " +
+                             self.type.str())
         return self.substitute(read, prefix=prefix)
 
     def virtual_param(self, prefix: Optional[str] = None) -> str:
@@ -274,14 +276,16 @@ class Parameter:
 
     def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
         return [
-            '&{prefix}{n}'.format(prefix=prefix or '', n=n) for t, n in self.cparams
+            '&{prefix}{n}'.format(prefix=prefix or '', n=n)
+            for t, n in self.cparams
         ]
 
-    def virtual_output_declarations(self, prefix: Optional[str] = None) -> List[str]:
+    def virtual_output_declarations(self,
+                                    prefix: Optional[str] = None) -> List[str]:
         return [
-            'std::remove_pointer_t<{type}> {prefix}{n};'.format(type=Type(t).str(),
-                                         prefix=prefix or '',
-                                         n=n) for t, n in self.cparams
+            'std::remove_pointer_t<{type}> {prefix}{n};'.format(
+                type=Type(t).str(), prefix=prefix or '', n=n)
+            for t, n in self.cparams
         ]
 
     def virtual_output(self, prefix: Optional[str] = None) -> str:
@@ -289,7 +293,6 @@ class Parameter:
         if not write:
             write = Template(self.read).safe_substitute(name='(&${name})')
         return self.substitute(write, prefix=prefix)
-
 
     def cpp_param(self, prefix: Optional[str] = None) -> str:
         return self.substitute('${cpptype} ${name}', prefix=prefix)
@@ -439,6 +442,7 @@ class Function:
             self.cfunction.add_statement(f)
         for assign in assigns:
             self.cfunction.add_statement(assign)
+
 
 cpp_class_template = Template('''
 
@@ -831,9 +835,7 @@ def add_handle(name: str,
         if p.type.is_reference():
             p.virtual_read = 'object_cast<${ctype}>(&(${name}))'
             p.cpp_write = '${cpptype}(${name}, false)'
-            p.write = [
-                '*${name} = object_cast<${ctype}>(&(${result}))'
-            ]
+            p.write = ['*${name} = object_cast<${ctype}>(&(${result}))']
         elif p.type.is_pointer():
             p.virtual_read = 'object_cast<${ctype}>(${result})'
             p.cpp_write = '${cpptype}(${name}, false)'
@@ -1013,7 +1015,9 @@ ${return_type} ${name}(${params}) const
 }
 ''')
 
-def generate_virtual_impl(f: Function, fname: str, this: Optional[str] = None) -> str:
+
+def generate_virtual_impl(f: Function, fname: str,
+                          this: Optional[str] = None) -> str:
     success = success_type
     name = f.name
     return_type = 'void'
@@ -1091,10 +1095,12 @@ class Interface:
                              name=self.mname(name)))
         return self
 
-    def generate_function(self, f:Function):
+    def generate_function(self, f: Function):
         cname = self.cname(f.name)
         mname = self.mname(f.name)
-        function = generate_virtual_impl(f, fname=mname, this='object_ptr.data')
+        function = generate_virtual_impl(f,
+                                         fname=mname,
+                                         this='object_ptr.data')
         return f"{cname} {mname};\n{function}"
 
     def generate(self):
@@ -1112,7 +1118,8 @@ class Interface:
         deleter = self.cname('delete')
         functions = '\n'.join(function_list)
 
-        c_api_body_preamble.append(interface_handle_definition.substitute(locals()))
+        c_api_body_preamble.append(
+            interface_handle_definition.substitute(locals()))
 
 
 def handle(ctype: str,

@@ -3,7 +3,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_prefix_scan_sum_exclusive_reverse : verify_program<test_prefix_scan_sum_exclusive_reverse>
+struct test_prefix_scan_sum_exclusive_reverse
+    : verify_program<test_prefix_scan_sum_exclusive_reverse>
 {
     migraphx::program create_program() const
     {

@@ -187,6 +187,8 @@ class Parameter:
         self.returns = returns
         self.virtual = virtual
         self.bad_param_check: Optional[BadParam] = None
+        self.virtual_read: Optional[str] = None
+        self.virtual_write: Optional[str] = None
 
     def get_name(self, prefix: Optional[str] = None) -> str:
         if prefix:
@@ -258,6 +260,36 @@ class Parameter:
         if isinstance(self.write, str):
             raise ValueError("Error for {}: write cannot be a string".format(
                 self.type.str()))
+
+    def virtual_arg(self, prefix: Optional[str] = None) -> str:
+        read = self.virtual_read
+        if not read and len(self.write) == 1 and '=' in self.write[0]:
+            read = Template(self.write[0].partition('=')[2]).safe_substitute(result='${name}')
+        if not read:
+            raise ValueError("No virtual_read parameter provided for: " + self.type.str())
+        return self.substitute(read, prefix=prefix)
+
+    def virtual_param(self, prefix: Optional[str] = None) -> str:
+        return self.substitute('${type} ${name}', prefix=prefix)
+
+    def virtual_output_args(self, prefix: Optional[str] = None) -> List[str]:
+        return [
+            '&{prefix}{n}'.format(prefix=prefix or '', n=n) for t, n in self.cparams
+        ]
+
+    def virtual_output_declarations(self, prefix: Optional[str] = None) -> List[str]:
+        return [
+            'std::remove_pointer_t<{type}> {prefix}{n};'.format(type=Type(t).str(),
+                                         prefix=prefix or '',
+                                         n=n) for t, n in self.cparams
+        ]
+
+    def virtual_output(self, prefix: Optional[str] = None) -> str:
+        write = self.virtual_write
+        if not write:
+            write = Template(self.read).safe_substitute(name='(&${name})')
+        return self.substitute(write, prefix=prefix)
+
 
     def cpp_param(self, prefix: Optional[str] = None) -> str:
         return self.substitute('${cpptype} ${name}', prefix=prefix)
@@ -407,29 +439,6 @@ class Function:
             self.cfunction.add_statement(f)
         for assign in assigns:
             self.cfunction.add_statement(assign)
-
-
-c_api_virtual_impl = Template('''
-${return_type} ${name}(${params})
-{
-    ${output_decls}
-    auto api_error_result = ${fname}(${args});
-    if (api_error_result != ${succes})
-        throw std::runtime_error("Error in ${name}.");
-    return ${output};
-}
-''')
-
-
-def generate_virtual(f: Function, fname: str) -> str:
-    return_type = 'void'
-    output_decls = ''
-    output = ''
-    if f.returns:
-        return_type = f.returns.type.str()
-        output_decls = f.returns.output_declarations()
-    return ""
-
 
 cpp_class_template = Template('''
 
@@ -674,19 +683,6 @@ struct ${ctype} {
 };
 ''')
 
-interface_handle_definition = Template('''
-extern "C" struct ${ctype};
-struct ${ctype} {
-    template<class... Ts>
-    ${ctype}(void* p, ${copier} c, ${deleter} d, Ts&&... xs)
-    : xobject(std::forward<Ts>(xs)...)
-    {}
-    manage_generic_ptr<${copier}, ${deleter}> obj = nullptr;
-    ${cpptype} xobject;
-    ${functions}
-};
-''')
-
 handle_preamble = '''
 template<class T, class U, class Target=std::remove_pointer_t<T>>
 Target* object_cast(U* x)
@@ -824,28 +820,30 @@ def add_handle(name: str,
         t = Type(opaque_type)
         if p.type.is_const():
             t = Type('const_' + opaque_type)
+        # p.read = 'object_cast<${ctype}>(&(${name}))'
         if p.virtual:
             p.add_param(t)
-            p.read = 'object_cast<${ctype}>(&(${name}))'
+        elif p.returns:
+            p.add_param(t.add_pointer())
         else:
-            if p.returns:
-                p.add_param(t.add_pointer())
-                if p.type.is_reference():
-                    p.cpp_write = '${cpptype}(${name}, false)'
-                    p.write = [
-                        '*${name} = object_cast<${ctype}>(&(${result}))'
-                    ]
-                elif p.type.is_pointer():
-                    p.cpp_write = '${cpptype}(${name}, false)'
-                    p.write = ['*${name} = object_cast<${ctype}>(${result})']
-                else:
-                    p.cpp_write = '${cpptype}(${name})'
-                    p.write = ['*${name} = allocate<${ctype}>(${result})']
-            else:
-                p.add_param(t)
-                p.bad_param('${name} == nullptr', 'Null pointer')
-                p.read = '${name}->object'
-                p.cpp_read = '${name}.get_handle_ptr()'
+            p.add_param(t)
+            p.bad_param('${name} == nullptr', 'Null pointer')
+        if p.type.is_reference():
+            p.virtual_read = 'object_cast<${ctype}>(&(${name}))'
+            p.cpp_write = '${cpptype}(${name}, false)'
+            p.write = [
+                '*${name} = object_cast<${ctype}>(&(${result}))'
+            ]
+        elif p.type.is_pointer():
+            p.virtual_read = 'object_cast<${ctype}>(${result})'
+            p.cpp_write = '${cpptype}(${name}, false)'
+            p.write = ['*${name} = object_cast<${ctype}>(${name})']
+        else:
+            p.virtual_read = 'object_cast<${ctype}>(&(${name}))'
+            p.cpp_write = '${cpptype}(${name})'
+            p.write = ['*${name} = allocate<${ctype}>(${result})']
+        p.read = '${name}->object'
+        p.cpp_read = '${name}.get_handle_ptr()'
 
     type_map[cpptype] = handle_wrap
     if not ref:
@@ -991,6 +989,52 @@ class Handle:
         cpp_classes.append(self.cpp_class)
 
 
+interface_handle_definition = Template('''
+extern "C" struct ${ctype};
+struct ${ctype} {
+    template<class... Ts>
+    ${ctype}(void* p, ${copier} c, ${deleter} d, Ts&&... xs)
+    : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+    {}
+    manage_generic_ptr<${copier}, ${deleter}> object_ptr = nullptr;
+    ${cpptype} xobject;
+    ${functions}
+};
+''')
+
+c_api_virtual_impl = Template('''
+${return_type} ${name}(${params}) const
+{
+    ${output_decls}
+    auto api_error_result = ${fname}(${args});
+    if (api_error_result != ${success})
+        throw std::runtime_error("Error in ${name}.");
+    return ${output};
+}
+''')
+
+def generate_virtual_impl(f: Function, fname: str, this: Optional[str] = None) -> str:
+    success = success_type
+    name = f.name
+    return_type = 'void'
+    output_decls = ''
+    output = ''
+    largs = []
+    lparams = []
+    if f.returns:
+        return_type = f.returns.type.str()
+        output_decls = '\n'.join(f.returns.virtual_output_declarations())
+        largs += f.returns.virtual_output_args()
+        output = f.returns.virtual_output()
+    if this:
+        largs += [this]
+    largs += [p.virtual_arg() for p in f.params]
+    lparams += [p.virtual_param() for p in f.params]
+    args = ', '.join(largs)
+    params = ', '.join(lparams)
+    return c_api_virtual_impl.substitute(locals())
+
+
 class Interface:
     def __init__(self, name: str, ctype: str, cpptype: str) -> None:
         self.name = name
@@ -1047,6 +1091,12 @@ class Interface:
                              name=self.mname(name)))
         return self
 
+    def generate_function(self, f:Function):
+        cname = self.cname(f.name)
+        mname = self.mname(f.name)
+        function = generate_virtual_impl(f, fname=mname, this='object_ptr.data')
+        return f"{cname} {mname};\n{function}"
+
     def generate(self):
         add_handle_preamble()
         for f in self.ifunctions:
@@ -1055,6 +1105,14 @@ class Interface:
             f.get_cfunction().generate_function_pointer(self.cname(f.name))
             for f in self.ifunctions
         ])
+        function_list = [self.generate_function(f) for f in self.ifunctions]
+        ctype = self.ctype
+        cpptype = self.cpptype
+        copier = self.cname('copy')
+        deleter = self.cname('delete')
+        functions = '\n'.join(function_list)
+
+        c_api_body_preamble.append(interface_handle_definition.substitute(locals()))
 
 
 def handle(ctype: str,

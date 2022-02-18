@@ -548,7 +548,7 @@ std::vector<argument> program::eval(parameter_map params) const
     if(trace_level > 0)
     {
         std::unordered_map<instruction_ref, std::string> ins_names;
-        this->print(ins_names, [&](auto, auto) { });
+        this->print(ins_names, [&](auto, auto) {});
         return generic_eval(*this,
                             ctx,
                             std::move(params),
@@ -561,8 +561,9 @@ std::vector<argument> program::eval(parameter_map params) const
                                 double t1   = t.record<milliseconds>();
                                 ctx.finish();
                                 double t2 = t.record<milliseconds>();
-                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms, execution time:\t";
-                                if(trace_level ==2 and ins->name().front() != '@' and
+                                std::cout << "Time: " << t1 << "ms, " << t2
+                                          << "ms, execution time:\t";
+                                if(trace_level == 2 and ins->name().front() != '@' and
                                    ins->name() != "load" and not result.empty())
                                 {
                                     target tgt  = make_target(this->impl->target_name);
@@ -581,10 +582,10 @@ std::vector<argument> program::eval(parameter_map params) const
                                         std::cout << "Output: " << buffer << std::endl;
                                     }
                                 }
-                                else if (trace_level == 3)
+                                else if(trace_level == 3)
                                 {
                                     // count max instruction length
-                                    auto titles           = get_titles();
+                                    auto titles   = get_titles();
                                     double exec_t = t2 - t1;
                                     print_ins_perf(std::cout, titles, ins, exec_t, exec_t);
                                 }
@@ -943,7 +944,8 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::debug_print(instruction_ref ins, const std::unordered_map<instruction_ref, std::string>& names) const
+void program::debug_print(instruction_ref ins,
+                          const std::unordered_map<instruction_ref, std::string>& names) const
 {
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
            return is_end(pp.second.end(), ins);
@@ -960,7 +962,7 @@ void program::debug_print(instruction_ref ins, const std::unordered_map<instruct
         return;
     }
 
-    if (contains(names, ins))
+    if(contains(names, ins))
     {
         instruction::print(std::cout, ins, names);
         std::cout << std::endl;

@@ -876,10 +876,11 @@ def vector_c_wrap(p: Parameter) -> None:
     if not inner:
         return
     t = inner.add_pointer()
+    if p.type.is_reference():
+        if p.type.is_const():
+            t = t.add_const()
     if p.returns:
         if p.type.is_reference():
-            if p.type.is_const():
-                t = t.add_const()
             p.add_param(t.add_pointer())
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
@@ -894,6 +895,7 @@ def vector_c_wrap(p: Parameter) -> None:
 
     p.read = '${type}(${name}, ${name}+${size})'
     p.cpp_write = '${type}(${name}, ${name}+${size})'
+    p.virtual_read = ['${name}.data()', '${name}.size()']
     if p.type.is_reference():
         p.write = [
             '*${name} = ${result}.data()', '*${size} = ${result}.size()'
@@ -919,6 +921,7 @@ def string_c_wrap(p: Parameter) -> None:
 
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
+    p.virtual_read = ['${name}.c_str()']
     if p.type.is_reference():
         p.write = ['*${name} = ${result}.c_str()']
     else:

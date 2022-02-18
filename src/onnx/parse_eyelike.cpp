@@ -59,7 +59,7 @@ struct parse_eyelike : op_parser<parse_eyelike>
         std::vector<char> eyelike_mat(num_rows * num_cols, 0);
         for(size_t i = 0; i < num_rows; ++i)
         {
-            auto tmp = static_cast<size_t>(std::abs(k));
+            size_t tmp = std::abs(k);
             if(k >= 0)
             {
                 if(i + tmp < num_cols)

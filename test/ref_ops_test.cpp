@@ -3999,8 +3999,8 @@ TEST_CASE(roialign_out_of_bound_test)
 TEST_CASE(roialign_test)
 {
     auto create_program = [](const std::string& trans_mode = "half_pixel",
-                             const migraphx::op::roialign_mode pooling_mode =
-                                 migraphx::op::roialign_mode::avg,
+                             const migraphx::op::pooling_mode pooling_mode =
+                                 migraphx::op::pooling_mode::avg,
                              int64_t sampling_ratio = 2) {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -4087,7 +4087,7 @@ TEST_CASE(roialign_test)
     }
 
     {
-        auto p = create_program("output_half_pixel", migraphx::op::roialign_mode::max, 0);
+        auto p = create_program("output_half_pixel", migraphx::op::pooling_mode::max, 0);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;

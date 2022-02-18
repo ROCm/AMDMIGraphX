@@ -29,13 +29,13 @@ struct parse_roialign : op_parser<parse_roialign>
                            "\": invalid value!");
         }
 
-        migraphx::op::roialign_mode rmode(migraphx::op::roialign_mode::avg);
+        migraphx::op::pooling_mode rmode(migraphx::op::pooling_mode::avg);
         if(contains(info.attributes, "mode"))
         {
             // read mode; default is "avg"
             if(info.attributes.at("mode").s() == "max")
             {
-                rmode = migraphx::op::roialign_mode::max;
+                rmode = migraphx::op::pooling_mode::max;
             }
         }
 

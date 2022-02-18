@@ -27,14 +27,6 @@ std::ostream& operator<<(std::ostream& os, rnn_direction v)
     return os;
 }
 
-// roi_align roialign_mode
-std::ostream& operator<<(std::ostream& os, roialign_mode v)
-{
-    static const std::vector<std::string> roi_str = {"average", "max"};
-    os << roi_str[static_cast<std::underlying_type<roialign_mode>::type>(v)];
-    return os;
-}
-
 std::string to_str(pooling_mode v)
 {
     std::stringstream ss("");
@@ -42,12 +34,6 @@ std::string to_str(pooling_mode v)
     return ss.str();
 }
 
-std::string to_str(roialign_mode v)
-{
-    std::stringstream ss("");
-    ss << v;
-    return ss.str();
-}
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

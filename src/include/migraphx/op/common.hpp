@@ -18,13 +18,8 @@ enum padding_mode_t
 };
 
 // The pooling modes must correspond 1-1 to the operators defined for struct parse_pooling.
+// Used in pooling and roialign operators.
 enum class pooling_mode
-{
-    avg,
-    max
-};
-
-enum class roialign_mode
 {
     avg,
     max
@@ -40,9 +35,7 @@ enum class rnn_direction
 
 std::ostream& operator<<(std::ostream& os, pooling_mode v);
 std::ostream& operator<<(std::ostream& os, rnn_direction v);
-std::ostream& operator<<(std::ostream& os, roialign_mode v);
 
-std::string to_str(roialign_mode v);
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

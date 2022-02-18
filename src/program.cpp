@@ -672,42 +672,42 @@ int program::max_ins_length() const
 
 static auto& get_titles()
 {
-    static std::vector<std::string> titles = 
-    {
-        "Instructions",
-        "Time(ms)    \t",
-        "Percentage  \t",
-        "(b, m, n, k)              \t",
-        "Flops(TFlops/s)  \t",
-        "Throughput(GB/s)"
-    };
+    static std::vector<std::string> titles = {"Instructions",
+                                              "Time(ms)    \t",
+                                              "Percentage  \t",
+                                              "(b, m, n, k)              \t",
+                                              "Flops(TFlops/s)  \t",
+                                              "Throughput(GB/s)"};
 
     return titles;
 }
 
 static void print_title(std::ostream& os, std::size_t max_ins_len)
 {
-    auto titles = get_titles();
-    std::string& str   = titles.front();
+    auto titles      = get_titles();
+    std::string& str = titles.front();
     str.append(max_ins_len + 1 - str.length(), ' ');
     str.append(1, '\t');
-    for (auto& s : titles)
+    for(auto& s : titles)
     {
         os << s;
     }
     os << std::endl;
 }
 
-static void print_ins_perf(std::ostream& os, const std::vector<std::string>& titles, 
-                           instruction_ref ins, double t, double total_t)
+static void print_ins_perf(std::ostream& os,
+                           const std::vector<std::string>& titles,
+                           instruction_ref ins,
+                           double t,
+                           double total_t)
 {
-    auto& time_str = titles.at(1);
-    auto& time_per = titles.at(2);
-    auto& size_str = titles.at(3);
+    auto& time_str  = titles.at(1);
+    auto& time_per  = titles.at(2);
+    auto& size_str  = titles.at(3);
     auto& flops_str = titles.at(4);
 
     auto& flops_funcs = get_flops_funcs();
-    std::string tms = std::to_string(t);
+    std::string tms   = std::to_string(t);
     tms.append(time_str.length() - tms.length(), ' ');
     tms.append(1, '\t');
     double percent   = 100.0 * t / total_t;
@@ -732,8 +732,8 @@ static void print_ins_perf(std::ostream& os, const std::vector<std::string>& tit
         auto inss  = to_shapes(ins->inputs());
         auto alens = inss.front().lens();
         auto blens = inss.at(1).lens();
-        auto mb    = std::accumulate(
-            alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
+        auto mb =
+            std::accumulate(alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
         int mm = alens[alens.size() - 2];
         int mk = alens.back();
         int mn = blens.back();
@@ -833,7 +833,7 @@ void program::perf_report(std::ostream& os,
     std::unordered_map<instruction_ref, std::string> names;
 
     // count max instruction length
-    auto titles = get_titles();
+    auto titles           = get_titles();
     const int max_ins_len = max_ins_length();
     print_title(os, max_ins_len);
 
@@ -849,7 +849,7 @@ void program::perf_report(std::ostream& os,
         // insert space to align
         print_space(os, max_ins_len - ss.str().length());
         os << "\t";
-        double avg      = common_average(ins_vec[ins]);
+        double avg = common_average(ins_vec[ins]);
         print_ins_perf(os, titles, ins, avg, total_instruction_time);
     });
 

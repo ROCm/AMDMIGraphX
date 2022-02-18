@@ -784,11 +784,8 @@ static void print_ins_perf(std::ostream& os,
         {
             thrpt.erase(thrpt.begin() + floc + 4, thrpt.end());
         }
-        // debugging
-        thrpt.append(1, ',');
-        thrpt.append(std::to_string(size));
     }
-    thrpt.append(thrpt_str.length() + 7 - thrpt.length(), ' ');
+    thrpt.append(thrpt_str.length() - thrpt.length(), ' ');
 
     os << tms << pers << szs << flps << thrpt << std::endl;
 }

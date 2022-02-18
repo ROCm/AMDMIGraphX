@@ -264,14 +264,17 @@ class Parameter:
     def virtual_arg(self, prefix: Optional[str] = None) -> List[str]:
         read = self.virtual_read
         if not read and len(self.write) >= len(self.cparams):
-            read = [Template(w.partition('=')[2]).safe_substitute(
-                result='${name}') for w in self.write]
+            read = [
+                Template(w.partition('=')[2]).safe_substitute(result='${name}')
+                for w in self.write
+            ]
         if not read:
             raise ValueError("No virtual_read parameter provided for: " +
                              self.type.str())
         if isinstance(read, str):
-            raise ValueError("Error for {}: virtual_read cannot be a string".format(
-                self.type.str()))
+            raise ValueError(
+                "Error for {}: virtual_read cannot be a string".format(
+                    self.type.str()))
         return [self.substitute(r, prefix=prefix) for r in read]
 
     def virtual_param(self, prefix: Optional[str] = None) -> str:
@@ -888,7 +891,7 @@ def vector_c_wrap(p: Parameter) -> None:
         p.add_param(t)
         p.add_size_param()
         p.bad_param('${name} == nullptr and ${size} != 0', 'Null pointer')
-    
+
     p.read = '${type}(${name}, ${name}+${size})'
     p.cpp_write = '${type}(${name}, ${name}+${size})'
     if p.type.is_reference():
@@ -896,9 +899,7 @@ def vector_c_wrap(p: Parameter) -> None:
             '*${name} = ${result}.data()', '*${size} = ${result}.size()'
         ]
     else:
-        p.write = [
-            'std::copy(${result}.begin(), ${result}.end(), ${name})'
-        ]
+        p.write = ['std::copy(${result}.begin(), ${result}.end(), ${name})']
 
 
 @cwrap('std::string')
@@ -915,7 +916,7 @@ def string_c_wrap(p: Parameter) -> None:
     else:
         p.add_param(t)
         p.bad_param('${name} == nullptr', 'Null pointer')
-    
+
     p.read = '${type}(${name})'
     p.cpp_write = '${type}(${name})'
     if p.type.is_reference():
@@ -925,7 +926,6 @@ def string_c_wrap(p: Parameter) -> None:
             'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
             '*it = \'\\0\''
         ]
-
 
 
 class Handle:

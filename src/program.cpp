@@ -777,15 +777,18 @@ static void print_ins_perf(std::ostream& os,
 
         double throughput = size / t;
         // convert to GB/s
-        throughput /= 1.0e9;
+        throughput /= 1.0e6;
         thrpt     = std::to_string(throughput);
         auto floc = flps.find('.');
         if(floc != std::string::npos)
         {
             thrpt.erase(thrpt.begin() + floc + 4, thrpt.end());
         }
+        // debugging
+        thrpt.append(1, ',');
+        thrpt.append(std::to_string(size));
     }
-    thrpt.append(thrpt_str.length() - thrpt.length(), ' ');
+    thrpt.append(thrpt_str.length() + 7 - thrpt.length(), ' ');
 
     os << tms << pers << szs << flps << thrpt << std::endl;
 }

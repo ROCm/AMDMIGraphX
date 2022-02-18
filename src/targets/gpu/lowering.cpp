@@ -517,7 +517,7 @@ struct miopen_apply
             auto args   = ins->inputs();
             args.push_back(output);
 
-            auto io_shapes              = to_shapes(args);
+            auto io_shapes = to_shapes(args);
             check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "none";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
@@ -534,7 +534,7 @@ struct miopen_apply
             auto args   = ins->inputs();
             args.push_back(output);
 
-            auto io_shapes              = to_shapes(args);
+            auto io_shapes = to_shapes(args);
             check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "add";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
@@ -551,7 +551,7 @@ struct miopen_apply
             auto args   = ins->inputs();
             args.push_back(output);
 
-            auto io_shapes              = to_shapes(args);
+            auto io_shapes = to_shapes(args);
             check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "mul";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);

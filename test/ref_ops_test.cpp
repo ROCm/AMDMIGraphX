@@ -4229,7 +4229,8 @@ TEST_CASE(scatternd_shapes_test)
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
         std::vector<float> upd_vec{9, 10, 11, 12};
 
-        auto data    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), mm->add_literal(migraphx::literal{0.0f}));
+        auto data    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}),
+                                        mm->add_literal(migraphx::literal{0.0f}));
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =
@@ -4258,8 +4259,9 @@ TEST_CASE(scatternd_shapes_test)
         std::vector<int64_t> ind_vec{0, 0, 0, 1};
         std::vector<float> upd_vec{5, 6};
 
-        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
-        auto td      = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
+        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto td =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto scatternd =

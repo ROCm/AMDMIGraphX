@@ -187,7 +187,7 @@ class Parameter:
         self.returns = returns
         self.virtual = virtual
         self.bad_param_check: Optional[BadParam] = None
-        self.virtual_read: Optional[str] = None
+        self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
 
     def get_name(self, prefix: Optional[str] = None) -> str:
@@ -261,15 +261,18 @@ class Parameter:
             raise ValueError("Error for {}: write cannot be a string".format(
                 self.type.str()))
 
-    def virtual_arg(self, prefix: Optional[str] = None) -> str:
+    def virtual_arg(self, prefix: Optional[str] = None) -> List[str]:
         read = self.virtual_read
-        if not read and len(self.write) == 1 and '=' in self.write[0]:
-            read = Template(self.write[0].partition('=')[2]).safe_substitute(
-                result='${name}')
+        if not read and len(self.write) >= len(self.cparams):
+            read = [Template(w.partition('=')[2]).safe_substitute(
+                result='${name}') for w in self.write]
         if not read:
             raise ValueError("No virtual_read parameter provided for: " +
                              self.type.str())
-        return self.substitute(read, prefix=prefix)
+        if isinstance(read, str):
+            raise ValueError("Error for {}: virtual_read cannot be a string".format(
+                self.type.str()))
+        return [self.substitute(r, prefix=prefix) for r in read]
 
     def virtual_param(self, prefix: Optional[str] = None) -> str:
         return self.substitute('${type} ${name}', prefix=prefix)
@@ -836,15 +839,15 @@ def add_handle(name: str,
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
         if p.type.is_reference():
-            p.virtual_read = 'object_cast<${ctype}>(&(${name}))'
+            p.virtual_read = ['object_cast<${ctype}>(&(${name}))']
             p.cpp_write = '${cpptype}(${name}, false)'
             p.write = ['*${name} = object_cast<${ctype}>(&(${result}))']
         elif p.type.is_pointer():
-            p.virtual_read = 'object_cast<${ctype}>(${result})'
+            p.virtual_read = ['object_cast<${ctype}>(${result})']
             p.cpp_write = '${cpptype}(${name}, false)'
             p.write = ['*${name} = object_cast<${ctype}>(${name})']
         else:
-            p.virtual_read = 'object_cast<${ctype}>(&(${name}))'
+            p.virtual_read = ['object_cast<${ctype}>(&(${name}))']
             p.cpp_write = '${cpptype}(${name})'
             p.write = ['*${name} = allocate<${ctype}>(${result})']
         p.read = '${name}->object'
@@ -878,22 +881,24 @@ def vector_c_wrap(p: Parameter) -> None:
             p.add_size_param()
             p.bad_param('${name} == nullptr or ${size} == nullptr',
                         'Null pointer')
-            p.cpp_write = '${type}(${name}, ${name}+${size})'
-            p.write = [
-                '*${name} = ${result}.data()', '*${size} = ${result}.size()'
-            ]
         else:
             p.add_param(t)
             p.bad_param('${name} == nullptr', 'Null pointer')
-            p.cpp_write = '${type}(${name}, ${name}+${size})'
-            p.write = [
-                'std::copy(${result}.begin(), ${result}.end(), ${name})'
-            ]
     else:
         p.add_param(t)
         p.add_size_param()
         p.bad_param('${name} == nullptr and ${size} != 0', 'Null pointer')
-        p.read = '${type}(${name}, ${name}+${size})'
+    
+    p.read = '${type}(${name}, ${name}+${size})'
+    p.cpp_write = '${type}(${name}, ${name}+${size})'
+    if p.type.is_reference():
+        p.write = [
+            '*${name} = ${result}.data()', '*${size} = ${result}.size()'
+        ]
+    else:
+        p.write = [
+            'std::copy(${result}.begin(), ${result}.end(), ${name})'
+        ]
 
 
 @cwrap('std::string')
@@ -903,21 +908,24 @@ def string_c_wrap(p: Parameter) -> None:
         if p.type.is_reference():
             p.add_param(t.add_pointer())
             p.bad_param('${name} == nullptr', 'Null pointer')
-            p.cpp_write = '${type}(${name})'
-            p.write = ['*${name} = ${result}.c_str()']
         else:
             p.add_param(t)
             p.add_param('size_t', p.name + '_size')
             p.bad_param('${name} == nullptr', 'Null pointer')
-            p.cpp_write = '${type}(${name})'
-            p.write = [
-                'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
-                '*it = \'\\0\''
-            ]
     else:
         p.add_param(t)
         p.bad_param('${name} == nullptr', 'Null pointer')
-        p.read = '${type}(${name})'
+    
+    p.read = '${type}(${name})'
+    p.cpp_write = '${type}(${name})'
+    if p.type.is_reference():
+        p.write = ['*${name} = ${result}.c_str()']
+    else:
+        p.write = [
+            'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'
+            '*it = \'\\0\''
+        ]
+
 
 
 class Handle:
@@ -1037,7 +1045,7 @@ def generate_virtual_impl(f: Function, fname: str,
         output = f.returns.virtual_output()
     if this:
         largs += [this]
-    largs += [p.virtual_arg() for p in f.params]
+    largs += [arg for p in f.params for arg in p.virtual_arg()]
     lparams += [p.virtual_param() for p in f.params]
     args = ', '.join(largs)
     params = ', '.join(lparams)

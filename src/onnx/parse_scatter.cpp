@@ -17,10 +17,10 @@ struct parse_scatter : op_parser<parse_scatter>
                           const std::vector<instruction_ref>& args) const
     {
         // The ScatterElements op replaces Scatter (deprecated in Onnx) and has three
-        // possible values for the attribute "reduction", which we implement as 
+        // possible values for the attribute "reduction", which we implement as
         // different structs.
         operation op;
- 
+
         int axis = 0;
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
@@ -28,11 +28,11 @@ struct parse_scatter : op_parser<parse_scatter>
         {
             if(info.attributes.at("reduction").s() == "add")
                 op = migraphx::make_op("scatter_add", {{"axis", axis}});
-                // return info.add_instruction(migraphx::make_op("scatter_add"), args);
+            // return info.add_instruction(migraphx::make_op("scatter_add"), args);
             else if(info.attributes.at("reduction").s() == "mul")
                 op = migraphx::make_op("scatter_mul", {{"axis", axis}});
-                // return info.add_instruction(migraphx::make_op("scatter_mul"), args);
-            else 
+            // return info.add_instruction(migraphx::make_op("scatter_mul"), args);
+            else
                 op = migraphx::make_op("scatter_none", {{"axis", axis}});
         }
         else

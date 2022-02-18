@@ -14,6 +14,9 @@
 
 // ScatterElement op. with "none" as the reduction attribute.  This is identical to the
 // deprecated Scatter op.
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
 struct scatter_none
 {
@@ -32,7 +35,7 @@ struct scatter_none
         return {{"normalize_axes", normalize}};
     }
 
-    std::string name() const { return "scatter"; }
+    std::string name() const { return "scatter_none"; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -61,9 +64,7 @@ struct scatter_none
 
         return result;
     }
-
-}
-
+};
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

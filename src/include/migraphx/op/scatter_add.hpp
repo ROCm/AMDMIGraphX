@@ -12,7 +12,10 @@
 #include <cmath>
 #include <utility>
 
-// ScatterElement op. with "add" as the reduction attribute.  
+// ScatterElement op. with "add" as the reduction attribute.
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
 struct scatter_add
 {
@@ -31,7 +34,7 @@ struct scatter_add
         return {{"normalize_axes", normalize}};
     }
 
-    std::string name() const { return "scatter"; }
+    std::string name() const { return "scatter_add"; }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -55,16 +58,13 @@ struct scatter_add
                     out_idx[axis] = index;
                     // reduction
                     output[output_shape.index(out_idx)] += update[ind_s.index(idx)];
-
                 });
             });
         });
 
         return result;
     }
-
-}
-
+};
 
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS

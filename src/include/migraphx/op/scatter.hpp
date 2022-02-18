@@ -15,10 +15,17 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
+enum class attrib_reduction
+{
+    none,
+    add,
+    mul
+};
 
 struct scatter
 {
     int64_t axis = 0;
+    attrib_reduction reduction = none;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

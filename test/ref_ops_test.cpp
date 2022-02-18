@@ -4215,6 +4215,66 @@ TEST_CASE(scatter_test)
     }
 }
 
+TEST_CASE(scatternd_shapes_test)
+{
+    {
+        // broadcasted input
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
+        std::vector<float> upd_vec{9, 10, 11, 12};
+
+        auto data    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), mm->add_literal(migraphx::literal{0.0f}));
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0, 11, 0, 10, 9, 0, 0, 12};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // non-standard shape input
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2}};
+        migraphx::shape is{itype, {2, 2}};
+        migraphx::shape us{dtype, {2}};
+
+        std::vector<float> data_vec{1, 2, 3, 4};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1};
+        std::vector<float> upd_vec{5, 6};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto td      = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), td, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{5, 6, 2, 4};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
 TEST_CASE(scatternd_test)
 {
     {

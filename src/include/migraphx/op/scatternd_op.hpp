@@ -38,8 +38,15 @@ struct scatternd_op : op_name<Derived>
                std::equal(data_lens.begin() + k, data_lens.end(), upd_lens.begin() + q - 1)))
             MIGRAPHX_THROW("ScatterND: incorrect update shape. update.lens != indices.lens[0:q-1] "
                            "++ data.lens[k:r-1]");
-
-        return {inputs.front().type(), inputs.front().lens()};
+        auto s = inputs.front();
+        if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
+        }
+        else
+        {
+            return s.with_lens(s.lens());
+        }
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

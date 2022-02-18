@@ -3,6 +3,7 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/check_shapes.hpp>
 
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -517,6 +518,7 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "none";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto co_copy                = compile_scatternd_copy(get_context(), io_shapes);
@@ -533,6 +535,7 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "add";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto co_copy                = compile_scatternd_copy(get_context(), io_shapes);
@@ -549,6 +552,7 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            check_shapes{io_shapes, ins->get_operator()}.standard();
             const std::string reduction = "mul";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto co_copy                = compile_scatternd_copy(get_context(), io_shapes);

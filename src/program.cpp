@@ -1,3 +1,4 @@
+#include "migraphx/instruction_ref.hpp"
 #include <functional>
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
@@ -608,8 +609,7 @@ static void print_space(std::ostream& os, int n)
 }
 
 using op_flops = std::function<double(const std::vector<shape>& vec_ss)>;
-
-auto get_flops_funcs()
+auto& get_flops_funcs()
 {
     static std::unordered_map<std::string, op_flops> op_funcs;
     op_funcs.emplace("gemm", [&](const std::vector<shape>& vec_ss) {
@@ -647,6 +647,123 @@ auto get_flops_funcs()
     });
 
     return op_funcs;
+}
+
+int program::max_ins_length() const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    int max_ins_len = 0;
+
+    this->print(names, [&](auto ins, auto ins_names) {
+        std::stringstream ss;
+        instruction::print(ss, ins, ins_names);
+        if(max_ins_len < ss.str().length())
+        {
+            max_ins_len = ss.str().length();
+        }
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+    });
+
+    return max_ins_len;
+}
+
+static auto& get_titles()
+{
+    static std::vector<std::string> titles = 
+    {
+        "Instructions",
+        "Time(ms)    \t",
+        "Percentage  \t",
+        "(b, m, n, k)              \t",
+        "Flops(TFlops/s)  \t",
+        "Throughput(GB/s)"
+    };
+
+    return titles;
+}
+
+static void print_title(std::ostream& os, std::size_t max_ins_len)
+{
+    auto titles = get_titles();
+    std::string& str   = titles.front();
+    str.append(max_ins_len + 1 - str.length(), ' ');
+    str.append(1, '\t');
+    for (auto& s : titles)
+    {
+        os << s;
+    }
+    os << std::endl;
+}
+
+static void print_ins_perf(std::ostream& os, const std::vector<std::string>& titles, 
+                           instruction_ref ins, double t, double total_t)
+{
+    auto& time_str = titles.at(1);
+    auto& time_per = titles.at(2);
+    auto& size_str = titles.at(3);
+    auto& flops_str = titles.at(4);
+
+    auto& flops_funcs = get_flops_funcs();
+    std::string tms = std::to_string(t);
+    tms.append(time_str.length() - tms.length(), ' ');
+    tms.append(1, '\t');
+    double percent   = 100.0 * t / total_t;
+    std::string pers = std::to_string(percent);
+    auto loc         = pers.find('.');
+    if(loc != std::string::npos)
+    {
+        pers.erase(pers.begin() + loc + 6, pers.end());
+    }
+    pers.append(time_per.length() - pers.length(), ' ');
+    pers.append(1, '\t');
+
+    // calculate flops
+    std::string szs;
+    std::string flps;
+    std::string op_name = ins->name();
+    auto nloc           = op_name.find("::");
+    op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
+    if(contains(flops_funcs, op_name))
+    {
+        // print size
+        auto inss  = to_shapes(ins->inputs());
+        auto alens = inss.front().lens();
+        auto blens = inss.at(1).lens();
+        auto mb    = std::accumulate(
+            alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
+        int mm = alens[alens.size() - 2];
+        int mk = alens.back();
+        int mn = blens.back();
+
+        szs = "{";
+        szs.append(std::to_string(mb));
+        szs.append(1, ',');
+        szs.append(std::to_string(mm));
+        szs.append(1, ',');
+        szs.append(std::to_string(mk));
+        szs.append(1, ',');
+        szs.append(std::to_string(mn));
+        szs.append("}");
+        szs.append(1, '\t');
+
+        auto op_flop_func = flops_funcs.at(op_name);
+        double flops      = op_flop_func(inss);
+        flops /= t;
+        // convert to GFlops
+        flops /= 1.0e9;
+        flps      = std::to_string(flops);
+        auto floc = flps.find('.');
+        if(floc != std::string::npos)
+        {
+            flps.erase(flps.begin() + floc + 4, flps.end());
+        }
+    }
+    szs.append(size_str.length() - szs.length(), ' ');
+    flps.append(flops_str.length() - flps.length(), ' ');
+    os << tms << pers << szs << flps << std::endl;
 }
 
 void program::perf_report(std::ostream& os,
@@ -716,31 +833,10 @@ void program::perf_report(std::ostream& os,
     std::unordered_map<instruction_ref, std::string> names;
 
     // count max instruction length
-    int max_ins_len = 0;
-    this->print(names, [&](auto ins, auto ins_names) {
-        std::stringstream ss;
-        instruction::print(ss, ins, ins_names);
-        if(max_ins_len < ss.str().length())
-        {
-            max_ins_len = ss.str().length();
-        }
+    auto titles = get_titles();
+    const int max_ins_len = max_ins_length();
+    print_title(os, max_ins_len);
 
-        // skip return instruction
-        if(ins->name() == "@return")
-            return;
-    });
-
-    int print_ins_len = max_ins_len + 1;
-    std::string str   = "Instructions";
-    str.append(print_ins_len - str.length(), ' ');
-    str.append("\t");
-    std::string time_str    = "Time(ms)    \t";
-    std::string percent_str = "Percentage  \t";
-    std::string size_str    = "(b, m, n, k)              \t";
-    std::string flops_str   = "Flops(TFlops/s)";
-    os << str << time_str << percent_str << size_str << flops_str << std::endl;
-
-    auto flops_funcs = get_flops_funcs();
     this->print(names, [&](auto ins, auto ins_names) {
         std::stringstream ss;
         instruction::print(ss, ins, ins_names);
@@ -750,66 +846,11 @@ void program::perf_report(std::ostream& os,
         if(ins->name() == "@return")
             return;
 
-        print_space(os, print_ins_len - ss.str().length());
+        // insert space to align
+        print_space(os, max_ins_len - ss.str().length());
         os << "\t";
-
         double avg      = common_average(ins_vec[ins]);
-        std::string tms = std::to_string(avg);
-        tms.append(time_str.length() - tms.length(), ' ');
-        tms.append(1, '\t');
-        double percent   = 100.0 * avg / total_instruction_time;
-        std::string pers = std::to_string(percent);
-        auto loc         = pers.find('.');
-        if(loc != std::string::npos)
-        {
-            pers.erase(pers.begin() + loc + 6, pers.end());
-        }
-        pers.append(percent_str.length() - pers.length(), ' ');
-        pers.append(1, '\t');
-
-        // calculate flops
-        std::string szs;
-        std::string flps;
-        std::string op_name = ins->name();
-        auto nloc           = op_name.find("::");
-        op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
-        if(contains(flops_funcs, op_name))
-        {
-            // print size
-            auto inss  = to_shapes(ins->inputs());
-            auto alens = inss.front().lens();
-            auto blens = inss.at(1).lens();
-            auto mb    = std::accumulate(
-                alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
-            int mm = alens[alens.size() - 2];
-            int mk = alens.back();
-            int mn = blens.back();
-
-            szs = "{";
-            szs.append(std::to_string(mb));
-            szs.append(1, ',');
-            szs.append(std::to_string(mm));
-            szs.append(1, ',');
-            szs.append(std::to_string(mk));
-            szs.append(1, ',');
-            szs.append(std::to_string(mn));
-            szs.append("}");
-            szs.append(1, '\t');
-
-            auto op_flop_func = flops_funcs.at(op_name);
-            double flops      = op_flop_func(inss);
-            flops /= avg;
-            // convert to GFlops
-            flops /= 1.0e9;
-            flps      = std::to_string(flops);
-            auto floc = flps.find('.');
-            if(floc != std::string::npos)
-            {
-                flps.erase(flps.begin() + floc + 4, flps.end());
-            }
-        }
-        szs.append(size_str.length() - szs.length(), ' ');
-        os << tms << pers << szs << flps << std::endl;
+        print_ins_perf(os, titles, ins, avg, total_instruction_time);
     });
 
     os << std::endl;

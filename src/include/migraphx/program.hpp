@@ -111,6 +111,7 @@ struct program
 
     private:
     void assign(const program& p);
+    int max_ins_length() const;
     std::unique_ptr<program_impl> impl;
 };
 

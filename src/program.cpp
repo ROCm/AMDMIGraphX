@@ -329,6 +329,196 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, make_trace);
 }
 
+static void print_space(std::ostream& os, int n)
+{
+    for(int i = 0; i < n; ++i)
+    {
+        os << ' ';
+    }
+}
+
+using op_flops = std::function<double(const std::vector<shape>& vec_ss)>;
+auto& get_flops_funcs()
+{
+    static std::unordered_map<std::string, op_flops> op_funcs;
+    op_funcs.emplace("gemm", [&](const std::vector<shape>& vec_ss) {
+        assert(vec_ss.size() >= 2);
+        auto sa     = vec_ss.front();
+        auto sb     = vec_ss.at(1);
+        auto batch  = 1;
+        auto lens_a = sa.lens();
+        batch =
+            std::accumulate(lens_a.rbegin() + 2, lens_a.rend(), 1, std::multiplies<std::size_t>{});
+        auto m      = lens_a[lens_a.size() - 2];
+        auto k      = lens_a.back();
+        auto lens_b = sb.lens();
+        assert(k == lens_b[lens_b.size() - 2]);
+        auto n = lens_b.back();
+
+        return 2.0 * m * n * k * batch;
+    });
+
+    op_funcs.emplace("convolution", [&](const std::vector<shape>& vec_ss) {
+        assert(vec_ss.size() >= 2);
+        auto alens = vec_ss.front().lens();
+        auto blens = vec_ss.at(1).lens();
+        auto olens = vec_ss.back().lens();
+
+        auto n  = alens.front();
+        auto k  = blens.front();
+        auto c  = alens.at(1);
+        auto y  = blens.at(2);
+        auto x  = blens.back();
+        auto ho = olens.at(2);
+        auto wo = olens.back();
+
+        return 2.0 * n * k * ho * wo * c * y * x;
+    });
+
+    return op_funcs;
+}
+
+int program::max_ins_length() const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    int max_ins_len = 0;
+
+    this->print(names, [&](auto ins, auto ins_names) {
+        std::stringstream ss;
+        instruction::print(ss, ins, ins_names);
+        if(max_ins_len < ss.str().length())
+        {
+            max_ins_len = ss.str().length();
+        }
+
+        // skip return instruction
+        if(ins->name() == "@return")
+            return;
+    });
+
+    return max_ins_len;
+}
+
+static auto& get_titles()
+{
+    static std::vector<std::string> titles = {"Instructions",
+                                              "Time(ms)    \t",
+                                              "Percentage  \t",
+                                              "(b, m, n, k)                    \t",
+                                              "Flops(TFlops/s)  \t",
+                                              "Throughput(GB/s)"};
+
+    return titles;
+}
+
+static void print_title(std::ostream& os, std::size_t max_ins_len)
+{
+    auto titles      = get_titles();
+    std::string& str = titles.front();
+    str.append(max_ins_len + 1 - str.length(), ' ');
+    str.append(1, '\t');
+    for(auto& s : titles)
+    {
+        os << s;
+    }
+    os << std::endl;
+}
+
+static void print_ins_perf(std::ostream& os,
+                           const std::vector<std::string>& titles,
+                           instruction_ref ins,
+                           double t,
+                           double total_t)
+{
+    auto& time_str  = titles.at(1);
+    auto& time_per  = titles.at(2);
+    auto& size_str  = titles.at(3);
+    auto& flops_str = titles.at(4);
+    auto& thrpt_str = titles.at(5);
+
+    auto& flops_funcs = get_flops_funcs();
+    std::string tms   = std::to_string(t);
+    tms.append(time_str.length() - tms.length(), ' ');
+    tms.append(1, '\t');
+    double percent   = 100.0 * t / total_t;
+    std::string pers = std::to_string(percent);
+    auto loc         = pers.find('.');
+    if(loc != std::string::npos)
+    {
+        pers.erase(pers.begin() + loc + 6, pers.end());
+    }
+    pers.append(time_per.length() - pers.length(), ' ');
+    pers.append(1, '\t');
+
+    // calculate flops
+    std::string szs;
+    std::string flps;
+    std::string op_name = ins->name();
+    auto nloc           = op_name.find("::");
+    op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
+    auto inss = to_shapes(ins->inputs());
+    if(contains(flops_funcs, op_name))
+    {
+        // print size
+        auto alens = inss.front().lens();
+        auto blens = inss.at(1).lens();
+        auto mb =
+            std::accumulate(alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
+        int mm = alens[alens.size() - 2];
+        int mk = alens.back();
+        int mn = blens.back();
+
+        szs = "{";
+        szs.append(std::to_string(mb));
+        szs.append(1, ',');
+        szs.append(std::to_string(mm));
+        szs.append(1, ',');
+        szs.append(std::to_string(mk));
+        szs.append(1, ',');
+        szs.append(std::to_string(mn));
+        szs.append("}");
+        szs.append(size_str.length() - szs.length(), ' ');
+
+        auto op_flop_func = flops_funcs.at(op_name);
+        double flops      = op_flop_func(inss);
+        flops /= t;
+        // convert to GFlops
+        flops /= 1.0e9;
+        flps      = std::to_string(flops);
+        auto floc = flps.find('.');
+        if(floc != std::string::npos)
+        {
+            flps.erase(flps.begin() + floc + 4, flps.end());
+        }
+    }
+    szs.append(size_str.length() - szs.length(), ' ');
+    flps.append(flops_str.length() - flps.length(), ' ');
+
+    // print throughput for pointwise instruction
+    auto alias_num = ins->get_operator().output_alias({});
+    std::string thrpt;
+    if(alias_num != 0)
+    {
+        auto size =
+            std::accumulate(inss.begin(), inss.end(), std::size_t{0}, [&](auto init, auto s) {
+                return init + s.bytes();
+            });
+
+        double throughput = size / t;
+        // convert to GB/s
+        throughput /= 1.0e6;
+        thrpt     = std::to_string(throughput);
+        auto floc = flps.find('.');
+        if(floc != std::string::npos)
+        {
+            thrpt.erase(thrpt.begin() + floc + 4, thrpt.end());
+        }
+    }
+    thrpt.append(thrpt_str.length() - thrpt.length(), ' ');
+
+    os << tms << pers << szs << flps << thrpt << std::endl;
+}
+
 std::vector<argument> program::eval(parameter_map params) const
 {
     auto& ctx = this->impl->ctx;
@@ -357,20 +547,22 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
+        std::unordered_map<instruction_ref, std::string> ins_names;
+        this->print(ins_names, [&](auto, auto) { });
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
                                 std::cout << "Run instruction: ";
-                                this->debug_print(ins);
+                                this->debug_print(ins, ins_names);
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
                                 ctx.finish();
                                 double t2 = t.record<milliseconds>();
-                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                                if(trace_level > 1 and ins->name().front() != '@' and
+                                std::cout << "Time: " << t1 << "ms, " << t2 << "ms, execution time:\t";
+                                if(trace_level ==2 and ins->name().front() != '@' and
                                    ins->name() != "load" and not result.empty())
                                 {
                                     target tgt  = make_target(this->impl->target_name);
@@ -388,6 +580,13 @@ std::vector<argument> program::eval(parameter_map params) const
                                     {
                                         std::cout << "Output: " << buffer << std::endl;
                                     }
+                                }
+                                else if (trace_level == 3)
+                                {
+                                    // count max instruction length
+                                    auto titles           = get_titles();
+                                    double exec_t = t2 - t1;
+                                    print_ins_perf(std::cout, titles, ins, exec_t, exec_t);
                                 }
                                 return result;
                             }));
@@ -600,196 +799,6 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-static void print_space(std::ostream& os, int n)
-{
-    for(int i = 0; i < n; ++i)
-    {
-        os << ' ';
-    }
-}
-
-using op_flops = std::function<double(const std::vector<shape>& vec_ss)>;
-auto& get_flops_funcs()
-{
-    static std::unordered_map<std::string, op_flops> op_funcs;
-    op_funcs.emplace("gemm", [&](const std::vector<shape>& vec_ss) {
-        assert(vec_ss.size() >= 2);
-        auto sa     = vec_ss.front();
-        auto sb     = vec_ss.at(1);
-        auto batch  = 1;
-        auto lens_a = sa.lens();
-        batch =
-            std::accumulate(lens_a.rbegin() + 2, lens_a.rend(), 1, std::multiplies<std::size_t>{});
-        auto m      = lens_a[lens_a.size() - 2];
-        auto k      = lens_a.back();
-        auto lens_b = sb.lens();
-        assert(k == lens_b[lens_b.size() - 2]);
-        auto n = lens_b.back();
-
-        return 2.0 * m * n * k * batch;
-    });
-
-    op_funcs.emplace("convolution", [&](const std::vector<shape>& vec_ss) {
-        assert(vec_ss.size() >= 2);
-        auto alens = vec_ss.front().lens();
-        auto blens = vec_ss.at(1).lens();
-        auto olens = vec_ss.back().lens();
-
-        auto n  = alens.front();
-        auto k  = blens.front();
-        auto c  = alens.at(1);
-        auto y  = blens.at(2);
-        auto x  = blens.back();
-        auto ho = olens.at(2);
-        auto wo = olens.back();
-
-        return 2.0 * n * k * ho * wo * c * y * x;
-    });
-
-    return op_funcs;
-}
-
-int program::max_ins_length() const
-{
-    std::unordered_map<instruction_ref, std::string> names;
-    int max_ins_len = 0;
-
-    this->print(names, [&](auto ins, auto ins_names) {
-        std::stringstream ss;
-        instruction::print(ss, ins, ins_names);
-        if(max_ins_len < ss.str().length())
-        {
-            max_ins_len = ss.str().length();
-        }
-
-        // skip return instruction
-        if(ins->name() == "@return")
-            return;
-    });
-
-    return max_ins_len;
-}
-
-static auto& get_titles()
-{
-    static std::vector<std::string> titles = {"Instructions",
-                                              "Time(ms)    \t",
-                                              "Percentage  \t",
-                                              "(b, m, n, k)                    \t",
-                                              "Flops(TFlops/s)  \t",
-                                              "Throughput(GB/s)"};
-
-    return titles;
-}
-
-static void print_title(std::ostream& os, std::size_t max_ins_len)
-{
-    auto titles      = get_titles();
-    std::string& str = titles.front();
-    str.append(max_ins_len + 1 - str.length(), ' ');
-    str.append(1, '\t');
-    for(auto& s : titles)
-    {
-        os << s;
-    }
-    os << std::endl;
-}
-
-static void print_ins_perf(std::ostream& os,
-                           const std::vector<std::string>& titles,
-                           instruction_ref ins,
-                           double t,
-                           double total_t)
-{
-    auto& time_str  = titles.at(1);
-    auto& time_per  = titles.at(2);
-    auto& size_str  = titles.at(3);
-    auto& flops_str = titles.at(4);
-    auto& thrpt_str = titles.at(5);
-
-    auto& flops_funcs = get_flops_funcs();
-    std::string tms   = std::to_string(t);
-    tms.append(time_str.length() - tms.length(), ' ');
-    tms.append(1, '\t');
-    double percent   = 100.0 * t / total_t;
-    std::string pers = std::to_string(percent);
-    auto loc         = pers.find('.');
-    if(loc != std::string::npos)
-    {
-        pers.erase(pers.begin() + loc + 6, pers.end());
-    }
-    pers.append(time_per.length() - pers.length(), ' ');
-    pers.append(1, '\t');
-
-    // calculate flops
-    std::string szs;
-    std::string flps;
-    std::string op_name = ins->name();
-    auto nloc           = op_name.find("::");
-    op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
-    auto inss = to_shapes(ins->inputs());
-    if(contains(flops_funcs, op_name))
-    {
-        // print size
-        auto alens = inss.front().lens();
-        auto blens = inss.at(1).lens();
-        auto mb =
-            std::accumulate(alens.rbegin() + 2, alens.rend(), 1, std::multiplies<std::size_t>{});
-        int mm = alens[alens.size() - 2];
-        int mk = alens.back();
-        int mn = blens.back();
-
-        szs = "{";
-        szs.append(std::to_string(mb));
-        szs.append(1, ',');
-        szs.append(std::to_string(mm));
-        szs.append(1, ',');
-        szs.append(std::to_string(mk));
-        szs.append(1, ',');
-        szs.append(std::to_string(mn));
-        szs.append("}");
-        szs.append(size_str.length() - szs.length(), ' ');
-
-        auto op_flop_func = flops_funcs.at(op_name);
-        double flops      = op_flop_func(inss);
-        flops /= t;
-        // convert to GFlops
-        flops /= 1.0e9;
-        flps      = std::to_string(flops);
-        auto floc = flps.find('.');
-        if(floc != std::string::npos)
-        {
-            flps.erase(flps.begin() + floc + 4, flps.end());
-        }
-    }
-    szs.append(size_str.length() - szs.length(), ' ');
-    flps.append(flops_str.length() - flps.length(), ' ');
-
-    // print throughput for pointwise instruction
-    auto alias_num = ins->get_operator().output_alias({});
-    std::string thrpt;
-    if(alias_num != 0)
-    {
-        auto size =
-            std::accumulate(inss.begin(), inss.end(), std::size_t{0}, [&](auto init, auto s) {
-                return init + s.bytes();
-            });
-
-        double throughput = size / t;
-        // convert to GB/s
-        throughput /= 1.0e6;
-        thrpt     = std::to_string(throughput);
-        auto floc = flps.find('.');
-        if(floc != std::string::npos)
-        {
-            thrpt.erase(thrpt.begin() + floc + 4, thrpt.end());
-        }
-    }
-    thrpt.append(thrpt_str.length() - thrpt.length(), ' ');
-
-    os << tms << pers << szs << flps << thrpt << std::endl;
-}
-
 void program::perf_report(std::ostream& os,
                           std::size_t n,
                           parameter_map params,
@@ -932,6 +941,30 @@ void program::debug_print(instruction_ref ins) const
             std::cout << std::endl;
         }
     });
+}
+
+void program::debug_print(instruction_ref ins, const std::unordered_map<instruction_ref, std::string>& names) const
+{
+    if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
+           return is_end(pp.second.end(), ins);
+       }))
+    {
+        std::cout << "End instruction" << std::endl;
+        return;
+    }
+    else if(std::none_of(this->impl->modules.begin(),
+                         this->impl->modules.end(),
+                         [&](const auto& pp) { return pp.second.has_instruction(ins); }))
+    {
+        std::cout << "Instruction not part of program" << std::endl;
+        return;
+    }
+
+    if (contains(names, ins))
+    {
+        instruction::print(std::cout, ins, names);
+        std::cout << std::endl;
+    }
 }
 
 void program::print(

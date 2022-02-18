@@ -675,7 +675,7 @@ static auto& get_titles()
     static std::vector<std::string> titles = {"Instructions",
                                               "Time(ms)    \t",
                                               "Percentage  \t",
-                                              "(b, m, n, k)              \t",
+                                              "(b, m, n, k)                    \t",
                                               "Flops(TFlops/s)  \t",
                                               "Throughput(GB/s)"};
 
@@ -705,6 +705,7 @@ static void print_ins_perf(std::ostream& os,
     auto& time_per  = titles.at(2);
     auto& size_str  = titles.at(3);
     auto& flops_str = titles.at(4);
+    auto& thrpt_str = titles.at(5);
 
     auto& flops_funcs = get_flops_funcs();
     std::string tms   = std::to_string(t);
@@ -726,10 +727,10 @@ static void print_ins_perf(std::ostream& os,
     std::string op_name = ins->name();
     auto nloc           = op_name.find("::");
     op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
+    auto inss  = to_shapes(ins->inputs());
     if(contains(flops_funcs, op_name))
     {
         // print size
-        auto inss  = to_shapes(ins->inputs());
         auto alens = inss.front().lens();
         auto blens = inss.at(1).lens();
         auto mb =
@@ -747,8 +748,8 @@ static void print_ins_perf(std::ostream& os,
         szs.append(1, ',');
         szs.append(std::to_string(mn));
         szs.append("}");
-        szs.append(1, '\t');
-
+        szs.append(size_str.length() - szs.length(), ' ');
+        
         auto op_flop_func = flops_funcs.at(op_name);
         double flops      = op_flop_func(inss);
         flops /= t;
@@ -763,7 +764,29 @@ static void print_ins_perf(std::ostream& os,
     }
     szs.append(size_str.length() - szs.length(), ' ');
     flps.append(flops_str.length() - flps.length(), ' ');
-    os << tms << pers << szs << flps << std::endl;
+
+    // print throughput for pointwise instruction
+    auto alias_num = ins->get_operator().output_alias({});
+    std::string thrpt;
+    if (alias_num != 0)
+    {
+        auto size = std::accumulate(inss.begin(), inss.end(), std::size_t{0}, [&](auto init, auto s) {
+            return init + s.bytes();
+        });
+
+        double throughput =  size / t;
+        // convert to GB/s
+        throughput /= 1.0e9;
+        thrpt = std::to_string(throughput);
+        auto floc = flps.find('.');
+        if(floc != std::string::npos)
+        {
+            thrpt.erase(thrpt.begin() + floc + 4, thrpt.end());
+        }
+    }
+    thrpt.append(thrpt_str.length() - thrpt.length(), ' ');
+
+    os << tms << pers << szs << flps << thrpt << std::endl;
 }
 
 void program::perf_report(std::ostream& os,

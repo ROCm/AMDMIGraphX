@@ -825,7 +825,8 @@ def add_handle(name: str,
                ctype: str,
                cpptype: str,
                destroy: Optional[str] = None,
-               ref: Optional[bool] = None) -> None:
+               ref = False,
+               skip_def = False) -> None:
     opaque_type = ctype + '_t'
     const_opaque_type = 'const_' + opaque_type
 
@@ -866,7 +867,8 @@ def add_handle(name: str,
                      invoke='*output = *input')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
-    c_api_body_preamble.append(handle_definition.substitute(locals()))
+    if not skip_def:
+        c_api_body_preamble.append(handle_definition.substitute(locals()))
 
 
 @cwrap('std::vector')
@@ -1063,6 +1065,7 @@ class Interface:
         self.ifunctions: List[Function] = []
         self.members: List[str] = []
         self.opaque_type = self.ctype + '_t'
+        add_handle(name, ctype, cpptype, skip_def=True)
 
     def cname(self, name: str) -> str:
         return self.ctype + '_' + name
@@ -1120,7 +1123,6 @@ class Interface:
         return f"{cname} {mname} = nullptr;{function}"
 
     def generate(self):
-        add_handle_preamble()
         for f in self.ifunctions:
             f.update()
         c_header_preamble.extend([

@@ -825,8 +825,8 @@ def add_handle(name: str,
                ctype: str,
                cpptype: str,
                destroy: Optional[str] = None,
-               ref = False,
-               skip_def = False) -> None:
+               ref=False,
+               skip_def=False) -> None:
     opaque_type = ctype + '_t'
     const_opaque_type = 'const_' + opaque_type
 

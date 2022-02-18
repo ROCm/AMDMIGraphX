@@ -223,11 +223,10 @@ struct shape
     static type_t parse_type(const std::string& s);
 
     const std::vector<shape>& sub_shapes() const;
+    std::size_t element_space() const;
 
     private:
     std::shared_ptr<const shape_impl> impl;
-
-    std::size_t element_space() const;
 };
 
 void migraphx_to_value(value& v, const shape& s);

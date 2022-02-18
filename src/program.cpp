@@ -727,7 +727,7 @@ static void print_ins_perf(std::ostream& os,
     std::string op_name = ins->name();
     auto nloc           = op_name.find("::");
     op_name.erase(op_name.begin(), op_name.begin() + nloc + 2);
-    auto inss  = to_shapes(ins->inputs());
+    auto inss = to_shapes(ins->inputs());
     if(contains(flops_funcs, op_name))
     {
         // print size
@@ -749,7 +749,7 @@ static void print_ins_perf(std::ostream& os,
         szs.append(std::to_string(mn));
         szs.append("}");
         szs.append(size_str.length() - szs.length(), ' ');
-        
+
         auto op_flop_func = flops_funcs.at(op_name);
         double flops      = op_flop_func(inss);
         flops /= t;
@@ -768,16 +768,17 @@ static void print_ins_perf(std::ostream& os,
     // print throughput for pointwise instruction
     auto alias_num = ins->get_operator().output_alias({});
     std::string thrpt;
-    if (alias_num != 0)
+    if(alias_num != 0)
     {
-        auto size = std::accumulate(inss.begin(), inss.end(), std::size_t{0}, [&](auto init, auto s) {
-            return init + s.bytes();
-        });
+        auto size =
+            std::accumulate(inss.begin(), inss.end(), std::size_t{0}, [&](auto init, auto s) {
+                return init + s.bytes();
+            });
 
-        double throughput =  size / t;
+        double throughput = size / t;
         // convert to GB/s
         throughput /= 1.0e9;
-        thrpt = std::to_string(throughput);
+        thrpt     = std::to_string(throughput);
         auto floc = flps.find('.');
         if(floc != std::string::npos)
         {

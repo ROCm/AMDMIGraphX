@@ -707,7 +707,7 @@ void program::perf_report(std::ostream& os,
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins, 
+void program::debug_print(instruction_ref ins,
                           const std::unordered_map<instruction_ref, std::string>& ins_names) const
 {
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
@@ -725,7 +725,7 @@ void program::debug_print(instruction_ref ins,
         return;
     }
 
-    if (contains(ins_names, ins))
+    if(contains(ins_names, ins))
     {
         instruction::print(std::cout, ins, ins_names);
     }

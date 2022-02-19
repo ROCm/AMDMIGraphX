@@ -65,8 +65,9 @@ operation compile_pointwise(context& ctx,
                             const std::string& lambda,
                             const std::string& preamble)
 {
+    assert(!inputs.empty());
     size_t local(1024);
-    size_t n      = inputs.size() > 0 ? inputs[0].elements() : 1024;
+    size_t n      = inputs.front().elements();
     size_t global = compute_global(n, local);
     return compile_pointwise(ctx, inputs, lambda, global, local, preamble);
 }

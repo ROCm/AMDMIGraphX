@@ -48,7 +48,10 @@ struct find_conv_pointwise
                        });
         mm.add_return(mm.insert_module_instructions(mm.end(), pm, param_map));
 
-        auto inputs = ins->inputs();
+        std::vector<instruction_ref> inputs;
+        std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto input) {
+            return input != conv_ins;
+        });
         inputs.insert(inputs.end(), conv_ins->inputs().begin(), conv_ins->inputs().end());
         inputs.push_back(m.insert_instruction(
             ins, make_op("hip::allocate", {{"shape", to_value(ins->get_shape())}})));

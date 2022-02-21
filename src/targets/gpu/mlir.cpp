@@ -386,6 +386,7 @@ struct mlir_program
     insert(MlirBlock body, const module& m, std::unordered_map<instruction_ref, MlirValue>& ins_map)
     {
         auto names = m.get_parameter_names();
+        std::sort(names.begin(), names.end());
         std::vector<shape> inputs;
         std::transform(names.begin(),
                        names.end(),
@@ -522,6 +523,7 @@ instruction_ref insert_mlir(module& m,
                             const module& mmlir,
                             const std::vector<instruction_ref>& inputs)
 {
+    assert(mmlir.get_parameter_names().size() == inputs.size() - 1);
     auto co = compile_mlir(mmlir);
 
     std::vector<instruction_ref> refs;

@@ -1947,7 +1947,7 @@ TEST_CASE(if_pl_test)
     }
 }
 
-TEST_CASE(is_nan_test)
+TEST_CASE(isnan_test)
 {
     // float test
     {
@@ -1961,7 +1961,7 @@ TEST_CASE(is_nan_test)
                                                      std::numeric_limits<double>::quiet_NaN(),
                                                      0.,
                                                      100.}});
-        mm->add_instruction(migraphx::make_op("is_nan"), l1);
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<bool> results_vector;
@@ -1982,7 +1982,7 @@ TEST_CASE(is_nan_test)
                                                      std::numeric_limits<double>::quiet_NaN(),
                                                      0.,
                                                      100.}});
-        mm->add_instruction(migraphx::make_op("is_nan"), l1);
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<bool> results_vector;

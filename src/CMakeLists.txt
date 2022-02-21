@@ -114,7 +114,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
-	is_nan
+	isnan
     leaky_relu
     less
     load

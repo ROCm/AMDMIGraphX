@@ -402,24 +402,27 @@ int program::max_ins_length() const
 static auto& get_titles()
 {
     static std::vector<std::string> titles = {"Instructions",
-                                              "Time(ms)    \t",
-                                              "Percentage  \t",
-                                              "(b, m, n, k)                    \t",
-                                              "Flops(TFlops/s)  \t",
+                                              "Time(ms)     ",
+                                              "Percentage   ",
+                                              "(b, m, n, k)                    ",
+                                              "Flops(TFlops/s)  ",
                                               "Throughput(GB/s)"};
 
     return titles;
 }
 
-static void print_title(std::ostream& os, std::size_t max_ins_len)
+static void print_title(std::ostream& os, std::size_t max_ins_len, bool print_percentage = true)
 {
     auto titles      = get_titles();
     std::string& str = titles.front();
     str.append(max_ins_len + 1 - str.length(), ' ');
     str.append(1, '\t');
-    for(auto& s : titles)
+    os << str;
+    if (not print_percentage) titles.erase(titles.begin() + 2);
+    int i = 1;
+    for (; i < titles.size(); ++i)
     {
-        os << s;
+        os << titles[i];
     }
     os << std::endl;
 }
@@ -428,7 +431,8 @@ static void print_ins_perf(std::ostream& os,
                            const std::vector<std::string>& titles,
                            instruction_ref ins,
                            double t,
-                           double total_t)
+                           double total_t,
+                           bool print_percentage = true)
 {
     auto& time_str  = titles.at(1);
     auto& time_per  = titles.at(2);
@@ -439,16 +443,19 @@ static void print_ins_perf(std::ostream& os,
     auto& flops_funcs = get_flops_funcs();
     std::string tms   = std::to_string(t);
     tms.append(time_str.length() - tms.length(), ' ');
-    tms.append(1, '\t');
-    double percent   = 100.0 * t / total_t;
-    std::string pers = std::to_string(percent);
-    auto loc         = pers.find('.');
-    if(loc != std::string::npos)
+
+    std::string pers;
+    if (print_percentage)
     {
-        pers.erase(pers.begin() + loc + 6, pers.end());
+        double percent   = 100.0 * t / total_t;
+        pers = std::to_string(percent);
+        auto loc         = pers.find('.');
+        if(loc != std::string::npos)
+        {
+            pers.erase(pers.begin() + loc + 6, pers.end());
+        }
+        pers.append(time_per.length() - pers.length(), ' ');
     }
-    pers.append(time_per.length() - pers.length(), ' ');
-    pers.append(1, '\t');
 
     // calculate flops
     std::string szs;
@@ -547,47 +554,70 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
+        auto max_ins_len = max_ins_length();
         std::unordered_map<instruction_ref, std::string> ins_names;
         this->print(ins_names, [&](auto, auto) {});
+        if (trace_level == 3)
+        {
+            std::string prefix = "Run instruction: ";
+            max_ins_len += prefix.length();
+            print_title(std::cout, max_ins_len, false);
+        }
+
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
-                                std::cout << "Run instruction: ";
-                                this->debug_print(ins, ins_names);
+                                std::stringstream ss;
+                                ss << "Run instruction: ";
+                                this->debug_print(ss, ins, ins_names);
+
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
                                 ctx.finish();
                                 double t2 = t.record<milliseconds>();
-                                std::cout << "Time: " << t1 << "ms, " << t2
-                                          << "ms, execution time:\t";
-                                if(trace_level == 2 and ins->name().front() != '@' and
-                                   ins->name() != "load" and not result.empty())
+                                if (trace_level < 3)
                                 {
-                                    target tgt  = make_target(this->impl->target_name);
-                                    auto buffer = tgt.copy_from(result);
-                                    if(trace_level == 2)
+                                    std::cout << ss.str() << std::endl;
+                                    std::cout << "Time: " << t1 << "ms, " << t2
+                                            << "ms, execution time:\t";
+                                    if(trace_level == 2 and ins->name().front() != '@' and
+                                    ins->name() != "load" and not result.empty())
                                     {
-                                        std::cout << "Output has "
-                                                  << to_string_range(classify_argument(buffer))
-                                                  << std::endl;
-                                        std::cout << "Output: ";
-                                        preview_argument(std::cout, buffer);
-                                        std::cout << std::endl;
-                                    }
-                                    else
-                                    {
-                                        std::cout << "Output: " << buffer << std::endl;
+                                        target tgt  = make_target(this->impl->target_name);
+                                        auto buffer = tgt.copy_from(result);
+                                        if(trace_level == 2)
+                                        {
+                                            std::cout << "Output has "
+                                                    << to_string_range(classify_argument(buffer))
+                                                    << std::endl;
+                                            std::cout << "Output: ";
+                                            preview_argument(std::cout, buffer);
+                                            std::cout << std::endl;
+                                        }
+                                        else
+                                        {
+                                            std::cout << "Output: " << buffer << std::endl;
+                                        }
                                     }
                                 }
                                 else if(trace_level == 3)
                                 {
                                     // count max instruction length
+                                    if (ins->get_operator().output_alias({}) == 0)
+                                    {
+                                        std::cout << ss.str() << std::endl;
+                                        return result;
+                                    }
+                                    
+                                    print_space(ss, max_ins_len - ss.str().length());
+                                    ss << '\t';
+                                    std::cout << ss.str();
                                     auto titles   = get_titles();
                                     double exec_t = t2 - t1;
-                                    print_ins_perf(std::cout, titles, ins, exec_t, exec_t);
+                                    print_ins_perf(std::cout, titles, ins, exec_t, exec_t, false);
                                 }
                                 return result;
                             }));
@@ -944,28 +974,28 @@ void program::debug_print(instruction_ref ins) const
     });
 }
 
-void program::debug_print(instruction_ref ins,
+void program::debug_print(std::ostream& os,
+                          instruction_ref ins,
                           const std::unordered_map<instruction_ref, std::string>& names) const
 {
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
            return is_end(pp.second.end(), ins);
        }))
     {
-        std::cout << "End instruction" << std::endl;
+        os << "End instruction" << std::endl;
         return;
     }
     else if(std::none_of(this->impl->modules.begin(),
                          this->impl->modules.end(),
                          [&](const auto& pp) { return pp.second.has_instruction(ins); }))
     {
-        std::cout << "Instruction not part of program" << std::endl;
+        os << "Instruction not part of program" << std::endl;
         return;
     }
 
     if(contains(names, ins))
     {
-        instruction::print(std::cout, ins, names);
-        std::cout << std::endl;
+        instruction::print(os, ins, names);
     }
 }
 

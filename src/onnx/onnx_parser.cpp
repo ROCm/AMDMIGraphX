@@ -70,7 +70,7 @@ static literal from_repeated(shape::type_t t, const T& r)
 
 instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
 {
-    auto attr = ins->get_operator().to_value();
+    auto attr       = ins->get_operator().to_value();
     std::string key = "require_std_shape";
     if((attr.get(key, false)) or (not ins->get_shape().standard()))
     {

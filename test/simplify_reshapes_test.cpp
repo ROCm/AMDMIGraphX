@@ -1,6 +1,5 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>

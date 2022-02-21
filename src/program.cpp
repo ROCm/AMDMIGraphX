@@ -418,9 +418,10 @@ static void print_title(std::ostream& os, std::size_t max_ins_len, bool print_pe
     str.append(max_ins_len + 1 - str.length(), ' ');
     str.append(1, '\t');
     os << str;
-    if (not print_percentage) titles.erase(titles.begin() + 2);
+    if(not print_percentage)
+        titles.erase(titles.begin() + 2);
     int i = 1;
-    for (; i < titles.size(); ++i)
+    for(; i < titles.size(); ++i)
     {
         os << titles[i];
     }
@@ -445,11 +446,11 @@ static void print_ins_perf(std::ostream& os,
     tms.append(time_str.length() - tms.length(), ' ');
 
     std::string pers;
-    if (print_percentage)
+    if(print_percentage)
     {
-        double percent   = 100.0 * t / total_t;
-        pers = std::to_string(percent);
-        auto loc         = pers.find('.');
+        double percent = 100.0 * t / total_t;
+        pers           = std::to_string(percent);
+        auto loc       = pers.find('.');
         if(loc != std::string::npos)
         {
             pers.erase(pers.begin() + loc + 6, pers.end());
@@ -557,7 +558,7 @@ std::vector<argument> program::eval(parameter_map params) const
         auto max_ins_len = max_ins_length();
         std::unordered_map<instruction_ref, std::string> ins_names;
         this->print(ins_names, [&](auto, auto) {});
-        if (trace_level == 3)
+        if(trace_level == 3)
         {
             std::string prefix = "Run instruction: ";
             max_ins_len += prefix.length();
@@ -578,21 +579,21 @@ std::vector<argument> program::eval(parameter_map params) const
                                 double t1   = t.record<milliseconds>();
                                 ctx.finish();
                                 double t2 = t.record<milliseconds>();
-                                if (trace_level < 3)
+                                if(trace_level < 3)
                                 {
                                     std::cout << ss.str() << std::endl;
                                     std::cout << "Time: " << t1 << "ms, " << t2
-                                            << "ms, execution time:\t";
+                                              << "ms, execution time:\t";
                                     if(trace_level == 2 and ins->name().front() != '@' and
-                                    ins->name() != "load" and not result.empty())
+                                       ins->name() != "load" and not result.empty())
                                     {
                                         target tgt  = make_target(this->impl->target_name);
                                         auto buffer = tgt.copy_from(result);
                                         if(trace_level == 2)
                                         {
                                             std::cout << "Output has "
-                                                    << to_string_range(classify_argument(buffer))
-                                                    << std::endl;
+                                                      << to_string_range(classify_argument(buffer))
+                                                      << std::endl;
                                             std::cout << "Output: ";
                                             preview_argument(std::cout, buffer);
                                             std::cout << std::endl;
@@ -606,12 +607,12 @@ std::vector<argument> program::eval(parameter_map params) const
                                 else if(trace_level == 3)
                                 {
                                     // count max instruction length
-                                    if (ins->get_operator().output_alias({}) == 0)
+                                    if(ins->get_operator().output_alias({}) == 0)
                                     {
                                         std::cout << ss.str() << std::endl;
                                         return result;
                                     }
-                                    
+
                                     print_space(ss, max_ins_len - ss.str().length());
                                     ss << '\t';
                                     std::cout << ss.str();

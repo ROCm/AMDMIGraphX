@@ -1264,7 +1264,7 @@ TEST_CASE(eyelike_default_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<std::size_t> input_lens{3, 4};
-    const size_t k         = 0;
+    const size_t k   = 0;
     auto num_rows    = input_lens.front();
     auto num_cols    = input_lens.back();
     auto input_type  = migraphx::shape::float_type;
@@ -1289,7 +1289,7 @@ TEST_CASE(eyelike_double_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<std::size_t> input_lens{6, 15};
-    const size_t k         = 0;
+    const size_t k   = 0;
     auto num_rows    = input_lens.front();
     auto num_cols    = input_lens.back();
     auto input_type  = migraphx::shape::double_type;
@@ -1314,7 +1314,7 @@ TEST_CASE(eyelike_half_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<std::size_t> input_lens{8, 8};
-    const size_t k         = 0;
+    const size_t k   = 0;
     auto num_rows    = input_lens.front();
     auto num_cols    = input_lens.back();
     auto input_type  = migraphx::shape::half_type;
@@ -1339,7 +1339,7 @@ TEST_CASE(eyelike_k_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<std::size_t> input_lens{3, 4};
-    const size_t k         = 1;
+    const size_t k   = 1;
     auto num_rows    = input_lens.front();
     auto num_cols    = input_lens.back();
     auto input_type  = migraphx::shape::float_type;
@@ -1379,7 +1379,7 @@ TEST_CASE(eyelike_set_dtype_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<std::size_t> input_lens{3, 4};
-    const size_t k         = 0;
+    const size_t k   = 0;
     auto num_rows    = input_lens.front();
     auto num_cols    = input_lens.back();
     auto input_type  = migraphx::shape::float_type;

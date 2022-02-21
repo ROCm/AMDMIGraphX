@@ -57,23 +57,23 @@ struct parse_eyelike : op_parser<parse_eyelike>
         }
 
         std::vector<char> eyelike_mat(num_rows * num_cols, 0);
-		size_t k_abs = std::abs(k);
-		if (k >= 0)
-		{
-			for(size_t i = 0; i < num_rows; ++i)
-			{
-				if(i + k_abs < num_cols)
-					eyelike_mat[(num_cols + 1) * i + k_abs] = 1.;
-			}
-		}
-		else
-		{
-			for(size_t i = 0; i < num_rows; ++i)
-			{
+        size_t k_abs = std::abs(k);
+        if(k >= 0)
+        {
+            for(size_t i = 0; i < num_rows; ++i)
+            {
+                if(i + k_abs < num_cols)
+                    eyelike_mat[(num_cols + 1) * i + k_abs] = 1.;
+            }
+        }
+        else
+        {
+            for(size_t i = 0; i < num_rows; ++i)
+            {
                 if(i >= k_abs) // i - k_abs >= 0
                     eyelike_mat[(num_cols + 1) * i - k_abs] = 1.;
-			}
-		}
+            }
+        }
         return info.add_literal(
             migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});
     }

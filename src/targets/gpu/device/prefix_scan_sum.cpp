@@ -53,14 +53,17 @@ void prefix_scan_sum(hipStream_t stream,
                     };
                     if(reverse)
                     {
-                        block_scan<block_size>(idx,
-                                    sum{},
-                                    0,
-                                    n,
-                                    reverse_scan(n, [&](auto j) {
-                                                   return exclusive ? output[compute_idx(j)]
-                                                                    : input[compute_idx(j)]; }),
-                                    reverse_scan(n, [&](auto j, auto x) { output[compute_idx(j)] = x; }));
+                        block_scan<block_size>(
+                            idx,
+                            sum{},
+                            0,
+                            n,
+                            reverse_scan(n,
+                                         [&](auto j) {
+                                             return exclusive ? output[compute_idx(j)]
+                                                              : input[compute_idx(j)];
+                                         }),
+                            reverse_scan(n, [&](auto j, auto x) { output[compute_idx(j)] = x; }));
                     }
                     else
                     {

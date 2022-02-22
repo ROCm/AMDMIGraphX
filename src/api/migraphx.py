@@ -197,8 +197,8 @@ def instructions_refs(h):
              returns='const migraphx::instruction_ref&')
 
 
-@api.handle('migraphx_modules_refs', 'std::vector<migraphx::module*>')
-def modules_refs(h):
+@api.handle('migraphx_modules', 'std::vector<migraphx::module*>')
+def modules(h):
     h.constructor('create',
                   api.params(ptr='migraphx_module_t*', size='size_t'),
                   fname='migraphx::to_objptr_vector<migraphx::module*>')

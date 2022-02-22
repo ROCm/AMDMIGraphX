@@ -547,7 +547,7 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
 struct instruction_ref : MIGRAPHX_HANDLE_BASE(instruction_ref)
 {
-    instruction_ref(migraphx_instruction_ref* p) { this->set_handle(p, own{}); }
+    instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own{}); }
 };
 
 struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<instruction_ref>
@@ -567,18 +567,18 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
 
 struct module;
 
-struct modules_refs : MIGRAPHX_HANDLE_BASE(modules_refs), array_base<module*>
+struct modules : MIGRAPHX_HANDLE_BASE(modules), array_base<module*>
 {
 
-    modules_refs(migraphx_modules_refs* p, own) { this->set_handle(p, own{}); }
+    modules(migraphx_modules* p, own) { this->set_handle(p, own{}); }
 
-    modules_refs(migraphx_modules_refs* p, borrow) { this->set_handle(p, borrow{}); }
+    modules(migraphx_modules* p, borrow) { this->set_handle(p, borrow{}); }
 
     template <class... Ts>
-    modules_refs(Ts... xs)
+    modules(Ts... xs)
     {
         std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.mm...};
-        this->make_handle(&migraphx_modules_refs_create, a.data(), a.size());
+        this->make_handle(&migraphx_modules_create, a.data(), a.size());
     }
 };
 
@@ -604,7 +604,7 @@ struct module
 
     instruction_ref add_instruction(const migraphx::operation& op,
                                     const migraphx::instructions_refs& args,
-                                    const migraphx::modules_refs& module_args)
+                                    const migraphx::modules& module_args)
     {
         migraphx_instruction_ref_t op_ins;
         call(&migraphx_module_add_instruction_with_mod_args,

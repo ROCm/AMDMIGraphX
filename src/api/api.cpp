@@ -329,11 +329,11 @@ struct migraphx_instructions_refs
     std::vector<migraphx::instruction_ref> object;
 };
 
-extern "C" struct migraphx_modules_refs;
-struct migraphx_modules_refs
+extern "C" struct migraphx_modules;
+struct migraphx_modules
 {
     template <class... Ts>
-    migraphx_modules_refs(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_modules(Ts&&... xs) : object(std::forward<Ts>(xs)...)
     {
     }
     std::vector<migraphx::module*> object;
@@ -890,50 +890,46 @@ migraphx_instructions_refs_get(const_migraphx_instruction_ref_t* out,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_modules_refs_destroy(migraphx_modules_refs_t modules_refs)
+extern "C" migraphx_status migraphx_modules_destroy(migraphx_modules_t modules)
 {
-    auto api_error_result = migraphx::try_([&] { destroy((modules_refs)); });
+    auto api_error_result = migraphx::try_([&] { destroy((modules)); });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_modules_refs_assign_to(migraphx_modules_refs_t output,
-                                                           const_migraphx_modules_refs_t input)
+extern "C" migraphx_status migraphx_modules_assign_to(migraphx_modules_t output,
+                                                      const_migraphx_modules_t input)
 {
     auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_modules_refs_create(migraphx_modules_refs_t* modules_refs,
-                                                        migraphx_module_t* ptr,
-                                                        size_t size)
+extern "C" migraphx_status
+migraphx_modules_create(migraphx_modules_t* modules, migraphx_module_t* ptr, size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
-        *modules_refs =
-            object_cast<migraphx_modules_refs_t>(allocate<std::vector<migraphx::module*>>(
-                migraphx::to_objptr_vector<migraphx::module*>((ptr), (size))));
+        *modules = object_cast<migraphx_modules_t>(allocate<std::vector<migraphx::module*>>(
+            migraphx::to_objptr_vector<migraphx::module*>((ptr), (size))));
     });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_modules_refs_size(size_t* out,
-                                                      migraphx_modules_refs_t modules_refs)
+extern "C" migraphx_status migraphx_modules_size(size_t* out, migraphx_modules_t modules)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(modules_refs == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter modules_refs: Null pointer");
-        *out = (modules_refs->object).size();
+        if(modules == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter modules: Null pointer");
+        *out = (modules->object).size();
     });
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_modules_refs_get(const_migraphx_module_t* out,
-                                                     migraphx_modules_refs_t modules_refs,
-                                                     size_t idx)
+extern "C" migraphx_status
+migraphx_modules_get(const_migraphx_module_t* out, migraphx_modules_t modules, size_t idx)
 {
     auto api_error_result = migraphx::try_([&] {
-        if(modules_refs == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter modules_refs: Null pointer");
-        *out = object_cast<const_migraphx_module_t>(&((modules_refs->object).at((idx))));
+        if(modules == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter modules: Null pointer");
+        *out = object_cast<const_migraphx_module_t>(&((modules->object).at((idx))));
     });
     return api_error_result;
 }
@@ -981,7 +977,7 @@ migraphx_module_add_instruction_with_mod_args(migraphx_instruction_ref_t* out,
                                               migraphx_module_t module,
                                               migraphx_operation_t op,
                                               migraphx_instructions_refs_t args,
-                                              migraphx_modules_refs_t module_refs)
+                                              migraphx_modules_t module_refs)
 {
     auto api_error_result = migraphx::try_([&] {
         if(module == nullptr)

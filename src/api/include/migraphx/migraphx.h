@@ -70,8 +70,8 @@ typedef const struct migraphx_instruction_ref* const_migraphx_instruction_ref_t;
 typedef struct migraphx_instructions_refs* migraphx_instructions_refs_t;
 typedef const struct migraphx_instructions_refs* const_migraphx_instructions_refs_t;
 
-typedef struct migraphx_modules_refs* migraphx_modules_refs_t;
-typedef const struct migraphx_modules_refs* const_migraphx_modules_refs_t;
+typedef struct migraphx_modules* migraphx_modules_t;
+typedef const struct migraphx_modules* const_migraphx_modules_t;
 
 typedef struct migraphx_module* migraphx_module_t;
 typedef const struct migraphx_module* const_migraphx_module_t;
@@ -231,20 +231,18 @@ migraphx_status migraphx_instructions_refs_get(const_migraphx_instruction_ref_t*
                                                migraphx_instructions_refs_t instructions_refs,
                                                size_t idx);
 
-migraphx_status migraphx_modules_refs_destroy(migraphx_modules_refs_t modules_refs);
+migraphx_status migraphx_modules_destroy(migraphx_modules_t modules);
 
-migraphx_status migraphx_modules_refs_assign_to(migraphx_modules_refs_t output,
-                                                const_migraphx_modules_refs_t input);
+migraphx_status migraphx_modules_assign_to(migraphx_modules_t output,
+                                           const_migraphx_modules_t input);
 
-migraphx_status migraphx_modules_refs_create(migraphx_modules_refs_t* modules_refs,
-                                             migraphx_module_t* ptr,
-                                             size_t size);
+migraphx_status
+migraphx_modules_create(migraphx_modules_t* modules, migraphx_module_t* ptr, size_t size);
 
-migraphx_status migraphx_modules_refs_size(size_t* out, migraphx_modules_refs_t modules_refs);
+migraphx_status migraphx_modules_size(size_t* out, migraphx_modules_t modules);
 
-migraphx_status migraphx_modules_refs_get(const_migraphx_module_t* out,
-                                          migraphx_modules_refs_t modules_refs,
-                                          size_t idx);
+migraphx_status
+migraphx_modules_get(const_migraphx_module_t* out, migraphx_modules_t modules, size_t idx);
 
 migraphx_status migraphx_module_create(migraphx_module_t* module, char* name);
 
@@ -259,7 +257,7 @@ migraphx_status migraphx_module_add_instruction_with_mod_args(migraphx_instructi
                                                               migraphx_module_t module,
                                                               migraphx_operation_t op,
                                                               migraphx_instructions_refs_t args,
-                                                              migraphx_modules_refs_t module_refs);
+                                                              migraphx_modules_t module_refs);
 
 migraphx_status migraphx_module_add_parameter(migraphx_instruction_ref_t* out,
                                               migraphx_module_t module,

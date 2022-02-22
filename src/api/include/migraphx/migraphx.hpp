@@ -547,7 +547,7 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
 struct instruction_ref : MIGRAPHX_HANDLE_BASE(instruction_ref)
 {
-    instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own()); }
+    instruction_ref(migraphx_instruction_ref* p) { this->set_handle(p, own{}); }
 };
 
 struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<instruction_ref>

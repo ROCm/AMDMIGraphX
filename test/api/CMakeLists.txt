@@ -10,6 +10,7 @@ function(add_api_test TEST_NAME TEST_SRC TEST_DIR)
     add_dependencies(check ${NAME})
 endfunction()
 
+add_api_test(assign test_assign.cpp ${TEST_ONNX_DIR})
 add_api_test(compile_options test_compile_options.cpp ${TEST_ONNX_DIR})
 add_api_test(ref test_cpu.cpp ${TEST_ONNX_DIR})
 add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})

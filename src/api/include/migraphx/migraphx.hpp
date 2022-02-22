@@ -549,7 +549,7 @@ struct instruction_ref : MIGRAPHX_CONST_HANDLE_BASE(instruction_ref)
 {
     instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own{}); }
 
-    instruction_ref(const migraphx_instruction_ref* p) {this->set_handle(p, borrow{});}
+    instruction_ref(const migraphx_instruction_ref* p) { this->set_handle(p, borrow{}); }
 };
 
 struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<instruction_ref>
@@ -557,7 +557,7 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
 
     instructions_refs(migraphx_instructions_refs* p, own) { this->set_handle(p, own{}); }
 
-    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{});}
+    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{}); }
 
     template <class... Ts>
     instructions_refs(Ts... xs)
@@ -576,7 +576,6 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
             return {pout};
         }
     };
-
 };
 
 struct module;

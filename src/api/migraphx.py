@@ -186,9 +186,10 @@ def instruction_ref(h):
 @api.handle('migraphx_instructions_refs',
             'std::vector<migraphx::instruction_ref>')
 def instructions_refs(h):
-    h.constructor('create',
-                  api.params(ptr='const_migraphx_instruction_ref_t*', size='size_t'),
-                  fname='migraphx::to_obj_vector<const_migraphx_instruction_ref_t>')
+    h.constructor(
+        'create',
+        api.params(ptr='const_migraphx_instruction_ref_t*', size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_instruction_ref_t>')
     h.method('size', returns='size_t')
     h.method('get',
              api.params(idx='size_t'),

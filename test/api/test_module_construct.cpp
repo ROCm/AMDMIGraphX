@@ -36,7 +36,8 @@ TEST_CASE(if_then_else_op)
     then_mod.print();
 }
 
-TEST_CASE(instructions_refs) {
+TEST_CASE(instructions_refs)
+{
     migraphx::program p;
     migraphx::module m = p.get_main_module();
     auto x             = m.add_parameter("x", migraphx::shape(migraphx_shape_float_type, {3, 3}));

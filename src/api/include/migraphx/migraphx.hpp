@@ -579,7 +579,7 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
         call(&migraphx_instructions_refs_get, &pout, this->get_handle_ptr(), pidx);
         return {pout};
     }
-    
+
     struct iterator_read
     {
         migraphx_instructions_refs* self;

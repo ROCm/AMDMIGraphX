@@ -501,6 +501,13 @@ struct module
     void print() const { call(&migraphx_module_print, mm); }
 };
 
+struct context
+{
+    migraphx_context_t ctx;
+
+    void finish() const { call(&migraphx_context_finish, ctx); }
+};
+
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }

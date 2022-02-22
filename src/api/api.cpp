@@ -379,6 +379,16 @@ struct migraphx_quantize_int8_options
     migraphx::quantize_int8_options object;
 };
 
+extern "C" struct migraphx_context;
+struct migraphx_context
+{
+    template <class... Ts>
+    migraphx_context(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::context object;
+};
+
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
 {
     auto api_error_result = migraphx::try_([&] { destroy((shape)); });
@@ -1321,6 +1331,16 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(context == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
+        (context->object).finish();
     });
     return api_error_result;
 }

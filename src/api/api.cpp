@@ -852,13 +852,15 @@ migraphx_instructions_refs_assign_to(migraphx_instructions_refs_t output,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_instructions_refs_create(
-    migraphx_instructions_refs_t* instructions_refs, migraphx_instruction_ref_t* ptr, size_t size)
+extern "C" migraphx_status
+migraphx_instructions_refs_create(migraphx_instructions_refs_t* instructions_refs,
+                                  const_migraphx_instruction_ref_t* ptr,
+                                  size_t size)
 {
     auto api_error_result = migraphx::try_([&] {
         *instructions_refs = object_cast<migraphx_instructions_refs_t>(
             allocate<std::vector<migraphx::instruction_ref>>(
-                migraphx::to_obj_vector<migraphx_instruction_ref_t>((ptr), (size))));
+                migraphx::to_obj_vector<const_migraphx_instruction_ref_t>((ptr), (size))));
     });
     return api_error_result;
 }

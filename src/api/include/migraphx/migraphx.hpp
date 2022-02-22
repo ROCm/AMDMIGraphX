@@ -545,9 +545,11 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
     }
 };
 
-struct instruction_ref : MIGRAPHX_HANDLE_BASE(instruction_ref)
+struct instruction_ref : MIGRAPHX_CONST_HANDLE_BASE(instruction_ref)
 {
     instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own{}); }
+
+    instruction_ref(const migraphx_instruction_ref* p) {this->set_handle(p, borrow{});}
 };
 
 struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<instruction_ref>
@@ -555,14 +557,26 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
 
     instructions_refs(migraphx_instructions_refs* p, own) { this->set_handle(p, own{}); }
 
-    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{}); }
+    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{});}
 
     template <class... Ts>
     instructions_refs(Ts... xs)
     {
-        std::array<migraphx_instruction_ref_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        std::array<const_migraphx_instruction_ref_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_instructions_refs_create, a.data(), a.size());
     }
+
+    struct iterator_read
+    {
+        migraphx_instructions_refs* self;
+        instruction_ref operator()(size_t pidx) const
+        {
+            const_migraphx_instruction_ref_t pout;
+            call(&migraphx_instructions_refs_get, &pout, self, pidx);
+            return {pout};
+        }
+    };
+
 };
 
 struct module;

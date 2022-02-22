@@ -221,7 +221,7 @@ migraphx_status migraphx_instructions_refs_assign_to(migraphx_instructions_refs_
                                                      const_migraphx_instructions_refs_t input);
 
 migraphx_status migraphx_instructions_refs_create(migraphx_instructions_refs_t* instructions_refs,
-                                                  migraphx_instruction_ref_t* ptr,
+                                                  const_migraphx_instruction_ref_t* ptr,
                                                   size_t size);
 
 migraphx_status migraphx_instructions_refs_size(size_t* out,

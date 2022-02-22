@@ -34,16 +34,21 @@ value to_value_context(const T&)
 }
 
 template <class T>
-void from_value_context(T&, const value&){}
+void from_value_context(T&, const value&)
+{
+}
 
 template <class T>
-any_ptr get_queue_context(T&){ return {};}
+any_ptr get_queue_context(T&)
+{
+    return {};
+}
 
 <%
  interface('context',
            virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
            virtual('from_value', v = 'const value&', default = 'from_value_context'),
-           virtual('get_queue', returns='any_ptr', default = 'get_queue_context'),
+           virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
            virtual('finish', returns = 'void', const = True)) %>
 
     inline void migraphx_to_value(value& v, const context& ctx)

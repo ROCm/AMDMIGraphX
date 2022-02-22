@@ -215,8 +215,6 @@ migraphx_status migraphx_instruction_ref_destroy(migraphx_instruction_ref_t inst
 migraphx_status migraphx_instruction_ref_assign_to(migraphx_instruction_ref_t output,
                                                    const_migraphx_instruction_ref_t input);
 
-migraphx_status migraphx_instruction_ref_create(migraphx_instruction_ref_t* instruction_ref);
-
 migraphx_status migraphx_instructions_refs_destroy(migraphx_instructions_refs_t instructions_refs);
 
 migraphx_status migraphx_instructions_refs_assign_to(migraphx_instructions_refs_t output,

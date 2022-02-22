@@ -180,8 +180,7 @@ def shapes(h):
 
 @auto_handle()
 def instruction_ref(h):
-    h.constructor('create')
-
+    pass
 
 @api.handle('migraphx_instructions_refs',
             'std::vector<migraphx::instruction_ref>')

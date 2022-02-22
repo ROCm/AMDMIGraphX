@@ -838,16 +838,6 @@ migraphx_instruction_ref_assign_to(migraphx_instruction_ref_t output,
 }
 
 extern "C" migraphx_status
-migraphx_instruction_ref_create(migraphx_instruction_ref_t* instruction_ref)
-{
-    auto api_error_result = migraphx::try_([&] {
-        *instruction_ref =
-            object_cast<migraphx_instruction_ref_t>(allocate<migraphx::instruction_ref>());
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status
 migraphx_instructions_refs_destroy(migraphx_instructions_refs_t instructions_refs)
 {
     auto api_error_result = migraphx::try_([&] { destroy((instructions_refs)); });

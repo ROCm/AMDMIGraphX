@@ -566,6 +566,20 @@ struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs), array_base<i
         this->make_handle(&migraphx_instructions_refs_create, a.data(), a.size());
     }
 
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_instructions_refs_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    instruction_ref operator[](size_t pidx) const
+    {
+        const_migraphx_instruction_ref_t pout;
+        call(&migraphx_instructions_refs_get, &pout, this->get_handle_ptr(), pidx);
+        return {pout};
+    }
+    
     struct iterator_read
     {
         migraphx_instructions_refs* self;

@@ -38,11 +38,9 @@ __device__ void
 scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, F f)
 {
     auto index         = make_index();
-    auto i             = index.global;
     auto updates_shape = updates_t.get_shape();
 
-    if(i < updates_shape.elements())
-    {
+    index.global_stride(updates_shape.elements(), [&](auto i) {
         auto output_shape = output_t.get_shape();
 
         auto indices_shape = indices_t.get_shape();
@@ -60,7 +58,7 @@ scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W
         copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
         f(output_t[out_idx], updates_t[i]);
-    }
+    });
 }
 
 } // namespace migraphx

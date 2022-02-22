@@ -354,6 +354,7 @@ api.add_function('migraphx_quantize_int8',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
 
+
 @auto_handle(ref=True)
 def context(h):
     h.method('finish', const=True)

@@ -182,6 +182,7 @@ def shapes(h):
 def instruction_ref(h):
     pass
 
+
 @api.handle('migraphx_instructions_refs',
             'std::vector<migraphx::instruction_ref>')
 def instructions_refs(h):

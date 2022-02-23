@@ -152,8 +152,9 @@ struct array_base
     }
 };
 
-template<class T>
-struct holder {
+template <class T>
+struct holder
+{
     // Friend injection
     friend auto migraphx_adl_handle_lookup(holder<T>);
     // Function left unimplemented since its only used in non-evaluated
@@ -161,17 +162,15 @@ struct holder {
     T get() const;
 };
 
-
-template<class C, class T>
+template <class C, class T>
 struct handle_lookup
 {
-    friend auto migraphx_adl_handle_lookup(holder<T>) {
-        return holder<C>{};
-    }
+    friend auto migraphx_adl_handle_lookup(holder<T>) { return holder<C>{}; }
 };
 
-template<class T>
-using as_handle = decltype(migraphx_adl_handle_lookup(holder<std::remove_cv_t<std::remove_pointer_t<T>>>{}).get());
+template <class T>
+using as_handle = decltype(
+    migraphx_adl_handle_lookup(holder<std::remove_cv_t<std::remove_pointer_t<T>>>{}).get());
 
 struct own
 {
@@ -225,7 +224,7 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
 #else
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_)       \
-    handle_base<name, \
+    handle_base<name,                                   \
                 const_ migraphx_##name,                 \
                 decltype(&migraphx_##name##_destroy),   \
                 migraphx_##name##_destroy,              \

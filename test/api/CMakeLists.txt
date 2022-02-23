@@ -12,6 +12,7 @@ endfunction()
 
 add_api_test(assign test_assign.cpp ${TEST_ONNX_DIR})
 add_api_test(compile_options test_compile_options.cpp ${TEST_ONNX_DIR})
+add_api_test(lookup test_lookup.cpp ${TEST_ONNX_DIR})
 add_api_test(ref test_cpu.cpp ${TEST_ONNX_DIR})
 add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})
 add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})

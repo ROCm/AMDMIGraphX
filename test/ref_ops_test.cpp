@@ -1960,9 +1960,9 @@ TEST_CASE(isnan_test)
         mm->add_instruction(migraphx::make_op("isnan"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
-        std::vector<bool> results_vector;
+        std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<bool> correct = {false, false, true, true, false, false};
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
         EXPECT(migraphx::verify_range(results_vector, correct));
     }
 

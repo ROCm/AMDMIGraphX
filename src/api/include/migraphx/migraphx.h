@@ -224,13 +224,6 @@ migraphx_status migraphx_instructions_refs_create(migraphx_instructions_refs_t* 
                                                   const_migraphx_instruction_ref_t* ptr,
                                                   size_t size);
 
-migraphx_status migraphx_instructions_refs_size(size_t* out,
-                                                migraphx_instructions_refs_t instructions_refs);
-
-migraphx_status migraphx_instructions_refs_get(const_migraphx_instruction_ref_t* out,
-                                               migraphx_instructions_refs_t instructions_refs,
-                                               size_t idx);
-
 migraphx_status migraphx_modules_destroy(migraphx_modules_t modules);
 
 migraphx_status migraphx_modules_assign_to(migraphx_modules_t output,
@@ -238,11 +231,6 @@ migraphx_status migraphx_modules_assign_to(migraphx_modules_t output,
 
 migraphx_status
 migraphx_modules_create(migraphx_modules_t* modules, migraphx_module_t* ptr, size_t size);
-
-migraphx_status migraphx_modules_size(size_t* out, migraphx_modules_t modules);
-
-migraphx_status
-migraphx_modules_get(const_migraphx_module_t* out, migraphx_modules_t modules, size_t idx);
 
 migraphx_status migraphx_module_create(migraphx_module_t* module, char* name);
 

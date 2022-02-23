@@ -36,16 +36,4 @@ TEST_CASE(if_then_else_op)
     then_mod.print();
 }
 
-TEST_CASE(instructions_refs)
-{
-    migraphx::program p;
-    migraphx::module m = p.get_main_module();
-    auto x             = m.add_parameter("x", migraphx::shape(migraphx_shape_float_type, {3, 3}));
-    auto y             = m.add_parameter("y", migraphx::shape(migraphx_shape_float_type, {3, 3}));
-    migraphx::api::instructions_refs args{x, y};
-    EXPECT(args.size() == 2);
-    EXPECT(migraphx::as_address(args[0]) == migraphx::as_address(x));
-    EXPECT(migraphx::as_address(args[1]) == migraphx::as_address(y));
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

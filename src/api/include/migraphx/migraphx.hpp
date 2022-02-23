@@ -153,8 +153,8 @@ struct array_base
 };
 
 #if defined(__GNUC__) && !defined(__clang__)
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wnon-template-friend"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-template-friend"
 #endif
 
 template <class T>
@@ -174,7 +174,7 @@ struct handle_lookup
 };
 
 #if defined(__GNUC__) && !defined(__clang__)
-  #pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 #endif
 
 template <class T>

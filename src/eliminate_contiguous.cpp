@@ -78,15 +78,16 @@ void eliminate_contiguous::apply(module& p) const
             continue;
 
         // Make a copy so we can modify it while we iterate
-        auto args = ins->inputs();
+        auto args     = ins->inputs();
+        auto new_args = args;
+        auto mod_args = ins->module_inputs();
         for(auto arg : ins->inputs())
         {
             if(arg->name() == op_name)
             {
-                auto new_args = args;
-                auto prev     = arg->inputs().front();
+                auto prev = arg->inputs().front();
                 replace(new_args, arg, prev);
-                if(try_compute_shape(ins, new_args, ins->module_inputs()))
+                if(try_compute_shape(ins, new_args, mod_args))
                 {
                     instruction::replace_argument(ins, arg, prev);
                 }

@@ -590,8 +590,7 @@ struct module
 
     void print() const { call(&migraphx_module_print, mm); }
 
-    instruction add_instruction(const migraphx::operation& op,
-                                    const migraphx::instructions& args)
+    instruction add_instruction(const migraphx::operation& op, const migraphx::instructions& args)
     {
         migraphx_instruction_t op_ins;
         call(&migraphx_module_add_instruction,

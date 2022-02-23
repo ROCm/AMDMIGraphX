@@ -182,8 +182,8 @@ def shapes(h):
 def instruction(h):
     pass
 
-@api.handle('migraphx_instructions',
-            'std::vector<migraphx::instruction_ref>')
+
+@api.handle('migraphx_instructions', 'std::vector<migraphx::instruction_ref>')
 def instructions(h):
     h.constructor(
         'create',

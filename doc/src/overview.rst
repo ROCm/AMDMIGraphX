@@ -2,14 +2,16 @@ Overview
 ========
 
 MIGraphX provides an optimized execution engine for deep learning neural networks.
+This is a getting started guide for developers of MIGraphX where we will cover some simple operations in the MIGraphX framework.
 
 Building a program
 ------------------
 
-A program consists of a set of instructions to be executed when calling `eval <migraphx::program::eval>`. Each instruction has an associated `operation <migraphx::operation>` which represents the computation to be performed by the instruction.
+A program consists of a set of instructions to be executed when calling `eval <migraphx::program::eval>`.
+Each instruction has an associated `operation <migraphx::operation>` which represents the computation to be performed by the instruction.
 
 We can start by building a simple program to add two numbers together::
-
+    
     program p;
     instruction_ref one = p.add_literal(1);
     instruction_ref two = p.add_literal(2);

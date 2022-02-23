@@ -1971,17 +1971,17 @@ TEST_CASE(isnan_test)
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::half_type, {2, 3}};
-        auto nan_val                      = std::numeric_limits<migraphx::half>::quiet_NaN();
-        auto a                            = half_float::half_cast<migraphx::half>(1.2);
-        auto b                            = half_float::half_cast<migraphx::half>(5.2);
+        auto nan_val = std::numeric_limits<migraphx::half>::quiet_NaN();
+        migraphx::half a{1.2};
+        migraphx::half b{5.2};
         std::vector<migraphx::half> data0 = {a, b, nan_val, nan_val, b, a};
         auto l1                           = mm->add_literal(migraphx::literal{s, data0});
         mm->add_instruction(migraphx::make_op("isnan"), l1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
-        std::vector<bool> results_vector;
+        std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<bool> correct = {false, false, true, true, false, false};
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
         EXPECT(migraphx::verify_range(results_vector, correct));
     }
 }

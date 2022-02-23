@@ -190,14 +190,14 @@ def instructions_refs(h):
         'create',
         api.params(ptr='const_migraphx_instruction_ref_t*', size='size_t'),
         fname='migraphx::to_obj_vector<const_migraphx_instruction_ref_t>')
-    
+
 
 @api.handle('migraphx_modules', 'std::vector<migraphx::module*>')
 def modules(h):
     h.constructor('create',
                   api.params(ptr='migraphx_module_t*', size='size_t'),
                   fname='migraphx::to_objptr_vector<migraphx::module*>')
-    
+
 
 @auto_handle(ref=True)
 def module(h):

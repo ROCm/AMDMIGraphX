@@ -1,12 +1,12 @@
-is_nan_half_test:O
+isnan_half_test:N
 
-T1T2"IsNaNis_nan_half_testZ
-T1
+t1t2"IsNaNisnan_half_testZ
+t1
 
 
 
 b
-T2
+t2
 
 
 

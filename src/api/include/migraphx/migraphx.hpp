@@ -152,6 +152,11 @@ struct array_base
     }
 };
 
+#if defined(__GNUC__) && !defined(__clang__)
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wnon-template-friend"
+#endif
+
 template <class T>
 struct holder
 {
@@ -167,6 +172,10 @@ struct handle_lookup
 {
     friend auto migraphx_adl_handle_lookup(holder<T>) { return holder<C>{}; }
 };
+
+#if defined(__GNUC__) && !defined(__clang__)
+  #pragma GCC diagnostic pop
+#endif
 
 template <class T>
 using as_handle = decltype(

@@ -64,11 +64,11 @@ typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 typedef struct migraphx_shapes* migraphx_shapes_t;
 typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
-typedef struct migraphx_instruction_ref* migraphx_instruction_ref_t;
-typedef const struct migraphx_instruction_ref* const_migraphx_instruction_ref_t;
+typedef struct migraphx_instruction* migraphx_instruction_t;
+typedef const struct migraphx_instruction* const_migraphx_instruction_t;
 
-typedef struct migraphx_instructions_refs* migraphx_instructions_refs_t;
-typedef const struct migraphx_instructions_refs* const_migraphx_instructions_refs_t;
+typedef struct migraphx_instructions* migraphx_instructions_t;
+typedef const struct migraphx_instructions* const_migraphx_instructions_t;
 
 typedef struct migraphx_modules* migraphx_modules_t;
 typedef const struct migraphx_modules* const_migraphx_modules_t;
@@ -210,19 +210,19 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
 
-migraphx_status migraphx_instruction_ref_destroy(migraphx_instruction_ref_t instruction_ref);
+migraphx_status migraphx_instruction_destroy(migraphx_instruction_t instruction);
 
-migraphx_status migraphx_instruction_ref_assign_to(migraphx_instruction_ref_t output,
-                                                   const_migraphx_instruction_ref_t input);
+migraphx_status migraphx_instruction_assign_to(migraphx_instruction_t output,
+                                               const_migraphx_instruction_t input);
 
-migraphx_status migraphx_instructions_refs_destroy(migraphx_instructions_refs_t instructions_refs);
+migraphx_status migraphx_instructions_destroy(migraphx_instructions_t instructions);
 
-migraphx_status migraphx_instructions_refs_assign_to(migraphx_instructions_refs_t output,
-                                                     const_migraphx_instructions_refs_t input);
+migraphx_status migraphx_instructions_assign_to(migraphx_instructions_t output,
+                                                const_migraphx_instructions_t input);
 
-migraphx_status migraphx_instructions_refs_create(migraphx_instructions_refs_t* instructions_refs,
-                                                  const_migraphx_instruction_ref_t* ptr,
-                                                  size_t size);
+migraphx_status migraphx_instructions_create(migraphx_instructions_t* instructions,
+                                             const_migraphx_instruction_t* ptr,
+                                             size_t size);
 
 migraphx_status migraphx_modules_destroy(migraphx_modules_t modules);
 
@@ -236,25 +236,25 @@ migraphx_status migraphx_module_create(migraphx_module_t* module, char* name);
 
 migraphx_status migraphx_module_print(const_migraphx_module_t module);
 
-migraphx_status migraphx_module_add_instruction(migraphx_instruction_ref_t* out,
+migraphx_status migraphx_module_add_instruction(migraphx_instruction_t* out,
                                                 migraphx_module_t module,
                                                 migraphx_operation_t op,
-                                                migraphx_instructions_refs_t args);
+                                                migraphx_instructions_t args);
 
-migraphx_status migraphx_module_add_instruction_with_mod_args(migraphx_instruction_ref_t* out,
+migraphx_status migraphx_module_add_instruction_with_mod_args(migraphx_instruction_t* out,
                                                               migraphx_module_t module,
                                                               migraphx_operation_t op,
-                                                              migraphx_instructions_refs_t args,
+                                                              migraphx_instructions_t args,
                                                               migraphx_modules_t module_refs);
 
-migraphx_status migraphx_module_add_parameter(migraphx_instruction_ref_t* out,
+migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
                                               migraphx_module_t module,
                                               const char* name,
                                               const_migraphx_shape_t shape);
 
-migraphx_status migraphx_module_add_return(migraphx_instruction_ref_t* out,
+migraphx_status migraphx_module_add_return(migraphx_instruction_t* out,
                                            migraphx_module_t module,
-                                           migraphx_instructions_refs_t args);
+                                           migraphx_instructions_t args);
 
 migraphx_status migraphx_program_destroy(migraphx_program_t program);
 

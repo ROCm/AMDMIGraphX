@@ -545,23 +545,23 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
     }
 };
 
-struct instruction_ref : MIGRAPHX_CONST_HANDLE_BASE(instruction_ref)
+struct instruction : MIGRAPHX_CONST_HANDLE_BASE(instruction)
 {
-    instruction_ref(migraphx_instruction_ref* p, own) { this->set_handle(p, own{}); }
+    instruction(migraphx_instruction* p, own) { this->set_handle(p, own{}); }
 };
 
-struct instructions_refs : MIGRAPHX_HANDLE_BASE(instructions_refs)
+struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
 {
 
-    instructions_refs(migraphx_instructions_refs* p, own) { this->set_handle(p, own{}); }
+    instructions(migraphx_instructions* p, own) { this->set_handle(p, own{}); }
 
-    instructions_refs(migraphx_instructions_refs* p, borrow) { this->set_handle(p, borrow{}); }
+    instructions(migraphx_instructions* p, borrow) { this->set_handle(p, borrow{}); }
 
     template <class... Ts>
-    instructions_refs(Ts... xs)
+    instructions(Ts... xs)
     {
-        std::array<const_migraphx_instruction_ref_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
-        this->make_handle(&migraphx_instructions_refs_create, a.data(), a.size());
+        std::array<const_migraphx_instruction_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_instructions_create, a.data(), a.size());
     }
 };
 
@@ -590,44 +590,44 @@ struct module
 
     void print() const { call(&migraphx_module_print, mm); }
 
-    instruction_ref add_instruction(const migraphx::operation& op,
-                                    const migraphx::instructions_refs& args)
+    instruction add_instruction(const migraphx::operation& op,
+                                    const migraphx::instructions& args)
     {
-        migraphx_instruction_ref_t op_ins;
+        migraphx_instruction_t op_ins;
         call(&migraphx_module_add_instruction,
              &op_ins,
              mm,
              op.get_handle_ptr(),
              args.get_handle_ptr());
-        return instruction_ref(op_ins, own{});
+        return instruction(op_ins, own{});
     }
 
-    instruction_ref add_instruction(const migraphx::operation& op,
-                                    const migraphx::instructions_refs& args,
-                                    const migraphx::modules& module_args)
+    instruction add_instruction(const migraphx::operation& op,
+                                const migraphx::instructions& args,
+                                const migraphx::modules& module_args)
     {
-        migraphx_instruction_ref_t op_ins;
+        migraphx_instruction_t op_ins;
         call(&migraphx_module_add_instruction_with_mod_args,
              &op_ins,
              mm,
              op.get_handle_ptr(),
              args.get_handle_ptr(),
              module_args.get_handle_ptr());
-        return instruction_ref(op_ins, own{});
+        return instruction(op_ins, own{});
     }
 
-    instruction_ref add_parameter(const std::string& name, shape s)
+    instruction add_parameter(const std::string& name, shape s)
     {
-        migraphx_instruction_ref_t param_ins;
+        migraphx_instruction_t param_ins;
         call(&migraphx_module_add_parameter, &param_ins, mm, name.c_str(), s.get_handle_ptr());
-        return instruction_ref(param_ins, own{});
+        return instruction(param_ins, own{});
     }
 
-    instruction_ref add_return(const migraphx::instructions_refs& args)
+    instruction add_return(const migraphx::instructions& args)
     {
-        migraphx_instruction_ref_t ret_ins;
+        migraphx_instruction_t ret_ins;
         call(&migraphx_module_add_return, &ret_ins, mm, args.get_handle_ptr());
-        return instruction_ref(ret_ins, own{});
+        return instruction(ret_ins, own{});
     }
 };
 

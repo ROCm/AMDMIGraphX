@@ -178,18 +178,17 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
-@auto_handle()
-def instruction_ref(h):
+@api.handle('migraphx_instruction', 'migraphx::instruction_ref')
+def instruction(h):
     pass
 
-
-@api.handle('migraphx_instructions_refs',
+@api.handle('migraphx_instructions',
             'std::vector<migraphx::instruction_ref>')
-def instructions_refs(h):
+def instructions(h):
     h.constructor(
         'create',
-        api.params(ptr='const_migraphx_instruction_ref_t*', size='size_t'),
-        fname='migraphx::to_obj_vector<const_migraphx_instruction_ref_t>')
+        api.params(ptr='const_migraphx_instruction_t*', size='size_t'),
+        fname='migraphx::to_obj_vector<const_migraphx_instruction_t>')
 
 
 @api.handle('migraphx_modules', 'std::vector<migraphx::module*>')

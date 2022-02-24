@@ -19,21 +19,7 @@ struct isnan : unary<isnan>
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto i = inputs.at(0);
-        auto s = shape{shape::bool_type, i.lens(), i.strides()};
-        if(s.scalar())
-        {
-            return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        return unary<isnan>::compute_shape(inputs).with_type(shape::bool_type);
     }
 };
 

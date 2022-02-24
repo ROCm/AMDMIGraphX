@@ -15,8 +15,6 @@ target_link_libraries(migraphx_ref migraphx Threads::Threads)
 target_include_directories(migraphx_ref PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraphx_ref PRIVATE -DBLAZE_USE_CPP_THREADS)
 
-target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
-
 rocm_install_targets(
   TARGETS migraphx_ref
   INCLUDE

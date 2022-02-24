@@ -10,7 +10,6 @@ namespace op {
 
 struct isnan : unary<isnan>
 {
-    std::string point_function() const { return "isnan"; }
     auto apply() const
     {
         return [](auto x) { return std::isnan(x); };

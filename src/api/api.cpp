@@ -194,6 +194,8 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::context get_context(const program& p) { return p.get_context(); }
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -889,6 +891,17 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
         if(x == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
         *out = migraphx::equal((program->object), (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_get_context(migraphx_context_t* out,
+                                                        const_migraphx_program_t program)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        *out = allocate<migraphx_context_t>(migraphx::get_context((program->object)));
     });
     return api_error_result;
 }

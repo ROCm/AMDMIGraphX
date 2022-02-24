@@ -207,6 +207,10 @@ def program(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
+    h.method('get_context',
+             invoke='migraphx::get_context($@)', const=True,
+             returns='migraphx::context'
+    )
 
 
 @auto_handle()

@@ -230,6 +230,9 @@ migraphx_status migraphx_program_run(migraphx_arguments_t* out,
 migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x);
 
+migraphx_status migraphx_program_get_context(migraphx_context_t* out,
+                                             const_migraphx_program_t program);
+
 migraphx_status migraphx_operation_destroy(migraphx_operation_t operation);
 
 migraphx_status migraphx_operation_assign_to(migraphx_operation_t output,

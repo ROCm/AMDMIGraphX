@@ -604,6 +604,13 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return module{p_modu};
     }
 
+    context get_context()
+    {
+        migraphx_context_t ctx;
+        call(&migraphx_program_get_context, &ctx, this->get_handle_ptr());
+        return context{ctx};
+    }
+
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }
 };
 

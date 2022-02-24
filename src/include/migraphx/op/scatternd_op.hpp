@@ -57,12 +57,13 @@ struct scatternd_op : op_name<Derived>
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto updates_shape = updates.get_shape();
+                auto updates_std   = shape{updates_shape.type(), updates_shape.lens()};
                 auto indices_shape = indices.get_shape();
                 auto k             = indices_shape.lens().back();
                 auto q             = indices_shape.lens().size();
                 auto r             = output_shape.lens().size();
                 par_for(updates_shape.elements(), [&](const auto i) {
-                    auto updates_idx = updates_shape.multi(i);
+                    auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
                         updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());

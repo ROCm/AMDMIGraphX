@@ -16,10 +16,6 @@ struct parse_scatternd : op_parser<parse_scatternd>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref>& args) const
     {
-        std::transform(args.begin(), args.end(), args.begin(), [&](auto arg) {
-            return info.make_contiguous(arg);
-        });
-
         if(contains(info.attributes, "reduction"))
         {
             if(info.attributes.at("reduction").s() == "add")

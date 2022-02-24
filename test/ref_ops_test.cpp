@@ -4275,6 +4275,37 @@ TEST_CASE(scatternd_shapes_test)
 
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
+
+    {
+        // non-standard updates shape
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2, 2}};
+        migraphx::shape is{itype, {2, 1, 3}};
+        migraphx::shape us{dtype, {1, 2}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1, 1, 1};
+        std::vector<float> upd_vec{9, 10};
+
+        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto tu =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, tu);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{9, 2, 3, 4, 5, 6, 7, 10};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
 }
 
 TEST_CASE(scatternd_test)

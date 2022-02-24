@@ -1,5 +1,5 @@
 
-file(GLOB VERIFY_TESTS *.cpp)
+file(GLOB VERIFY_TESTS ${CONFIGURE_DEPENDS} *.cpp)
 
 add_executable(test_verify ${VERIFY_TESTS})
 add_dependencies(tests test_verify)

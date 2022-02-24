@@ -4290,7 +4290,7 @@ TEST_CASE(scatternd_shapes_test)
         std::vector<int64_t> ind_vec{0, 0, 0, 1, 1, 1};
         std::vector<float> upd_vec{9, 10};
 
-        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
         auto tu =

@@ -137,7 +137,7 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
 
-shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(pimpl) {}
+shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
 shape shape::from_permutation(type_t t,
                               const std::vector<std::size_t>& l,

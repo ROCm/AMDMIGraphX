@@ -235,6 +235,8 @@ struct context
         this->current_device = std::make_shared<hip_device>(0, n_streams);
     }
 
+    any_ptr get_queue() { return get_stream().get(); }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;

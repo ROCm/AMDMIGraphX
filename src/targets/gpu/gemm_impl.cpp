@@ -83,8 +83,21 @@ void gemm_impl(context& ctx,
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
+        
         auto alpha_r = as(alpha);
         auto beta_r  = as(beta);
+
+
+        // use void pointer to select different data type if using fp32 mode
+        void* alpha_v{&alpha_r};
+        void* beta_v{&beta_r};
+
+        if(compute_fp32)
+        {
+            alpha_v = &alpha;
+            beta_v = &beta;
+        }
+        
 
         auto out_lens   = output_shape.lens();
         rocblas_int m   = out_lens[dim_0];
@@ -100,128 +113,64 @@ void gemm_impl(context& ctx,
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1)
         {
-            // the rocblas_gemm API handles inputs and output matrices as
-            // column-major format. When doing a C = A * B, we actually do
-            // C^T = (B^T) * (A^T). That is the reason we input args[1] as
-            // A and args[0] as B in calling the rocblas_gemm.
-
-            if(compute_fp32)
-                rocblas_invoke(&rocblas_gemm_ex,
-                               ctx.get_stream().get_rocblas(),
-                               transb ? rocblas_operation_transpose : rocblas_operation_none,
-                               transa ? rocblas_operation_transpose : rocblas_operation_none,
-                               n,
-                               m,
-                               k,
-                               &alpha,
-                               to_pointer(args.at(1)),
-                               arg_type,
-                               ldb,
-                               to_pointer(args.at(0)),
-                               arg_type,
-                               lda,
-                               &beta,
-                               to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               compute_type,
-                               rocblas_gemm_algo_standard,
-                               0,
-                               flag);
-            else
-                rocblas_invoke(&rocblas_gemm_ex,
-                               ctx.get_stream().get_rocblas(),
-                               transb ? rocblas_operation_transpose : rocblas_operation_none,
-                               transa ? rocblas_operation_transpose : rocblas_operation_none,
-                               n,
-                               m,
-                               k,
-                               &alpha_r,
-                               to_pointer(args.at(1)),
-                               arg_type,
-                               ldb,
-                               to_pointer(args.at(0)),
-                               arg_type,
-                               lda,
-                               &beta_r,
-                               to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               compute_type,
-                               rocblas_gemm_algo_standard,
-                               0,
-                               flag);
+            rocblas_invoke(&rocblas_gemm_ex,
+                            ctx.get_stream().get_rocblas(),
+                            transb ? rocblas_operation_transpose : rocblas_operation_none,
+                            transa ? rocblas_operation_transpose : rocblas_operation_none,
+                            n,
+                            m,
+                            k,
+                            alpha_v,
+                            to_pointer(args.at(1)),
+                            arg_type,
+                            ldb,
+                            to_pointer(args.at(0)),
+                            arg_type,
+                            lda,
+                            beta_v,
+                            to_pointer(args[2]),
+                            output_type,
+                            ldc,
+                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                            output_type,
+                            ldc,
+                            compute_type,
+                            rocblas_gemm_algo_standard,
+                            0,
+                            flag);
         }
         else
         {
-            if(compute_fp32)
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                               ctx.get_stream().get_rocblas(),
-                               transb ? rocblas_operation_transpose : rocblas_operation_none,
-                               transa ? rocblas_operation_transpose : rocblas_operation_none,
-                               n,
-                               m,
-                               k,
-                               &alpha,
-                               to_pointer(args.at(1)),
-                               arg_type,
-                               ldb,
-                               k * n,
-                               to_pointer(args.at(0)),
-                               arg_type,
-                               lda,
-                               m * k,
-                               &beta,
-                               to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               m * n,
-                               is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               m * n,
-                               num_matrices,
-                               compute_type,
-                               rocblas_gemm_algo_standard,
-                               0,
-                               flag);
-            else
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                               ctx.get_stream().get_rocblas(),
-                               transb ? rocblas_operation_transpose : rocblas_operation_none,
-                               transa ? rocblas_operation_transpose : rocblas_operation_none,
-                               n,
-                               m,
-                               k,
-                               &alpha_r,
-                               to_pointer(args.at(1)),
-                               arg_type,
-                               ldb,
-                               k * n,
-                               to_pointer(args.at(0)),
-                               arg_type,
-                               lda,
-                               m * k,
-                               &beta_r,
-                               to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               m * n,
-                               is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
-                               output_type,
-                               ldc,
-                               m * n,
-                               num_matrices,
-                               compute_type,
-                               rocblas_gemm_algo_standard,
-                               0,
-                               flag);
+            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                            ctx.get_stream().get_rocblas(),
+                            transb ? rocblas_operation_transpose : rocblas_operation_none,
+                            transa ? rocblas_operation_transpose : rocblas_operation_none,
+                            n,
+                            m,
+                            k,
+                            alpha_v,
+                            to_pointer(args.at(1)),
+                            arg_type,
+                            ldb,
+                            k * n,
+                            to_pointer(args.at(0)),
+                            arg_type,
+                            lda,
+                            m * k,
+                            beta_v,
+                            to_pointer(args[2]),
+                            output_type,
+                            ldc,
+                            m * n,
+                            is_3inputs ? to_pointer(args[3]) : to_pointer(args[2]),
+                            output_type,
+                            ldc,
+                            m * n,
+                            num_matrices,
+                            compute_type,
+                            rocblas_gemm_algo_standard,
+                            0,
+                            flag);
         }
     });
 }

@@ -14,4 +14,6 @@ function api {
 }
 
 api $DIR/api/migraphx.h $SRC_DIR/api/include/migraphx/migraphx.h
+echo "Finished generating header migraphx.h"
 api $DIR/api/api.cpp $SRC_DIR/api/api.cpp
+echo "Finished generating source api.cpp "

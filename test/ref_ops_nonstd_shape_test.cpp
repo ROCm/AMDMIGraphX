@@ -47,6 +47,27 @@ TEST_CASE(argmin_test_nonstd_shape)
     EXPECT(migraphx::verify_range(result_vec, res_gold_vec));
 }
 
+TEST_CASE(isnan_broadcast_test)
+{
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {3}};
+        migraphx::shape s1{migraphx::shape::float_type, {3, 2}};
+        auto nan_val             = std::numeric_limits<float>::quiet_NaN();
+        std::vector<float> data0 = {1.2, 5.2, nan_val};
+        auto l0                  = mm->add_literal(migraphx::literal{s0, data0});
+        auto l1                  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s1.lens()}}), l0);
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> correct = {0, 0, 0, 0, 1, 1};
+        EXPECT(migraphx::verify_range(results_vector, correct));
+}
+
+
 TEST_CASE(squeeze_transpose_test)
 {
     migraphx::program p;

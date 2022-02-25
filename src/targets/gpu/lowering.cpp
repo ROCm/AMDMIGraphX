@@ -518,10 +518,12 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
             const std::string reduction = "none";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
             args.back() = copy;
+            args.erase(args.begin());
             return mod->replace_instruction(ins, co, args);
         });
 
@@ -533,10 +535,12 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
             const std::string reduction = "add";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
             args.back() = copy;
+            args.erase(args.begin());
             return mod->replace_instruction(ins, co, args);
         });
 
@@ -548,10 +552,12 @@ struct miopen_apply
             args.push_back(output);
 
             auto io_shapes              = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
             const std::string reduction = "mul";
             auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
             auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
             args.back() = copy;
+            args.erase(args.begin());
             return mod->replace_instruction(ins, co, args);
         });
     }

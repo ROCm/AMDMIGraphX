@@ -33,9 +33,9 @@ struct assign_mul
     }
 };
 
-template <class T, class U, class V, class W, class F>
+template <class T, class U, class V, class F>
 __device__ void
-scatternd(const T& /* data_t */, const U& indices_t, const V& updates_t, const W& output_t, F f)
+scatternd(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
     auto index         = make_index();
     auto updates_shape = updates_t.get_shape();

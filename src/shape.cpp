@@ -86,6 +86,8 @@ struct shape_impl
         return std::accumulate(
             m_lens.begin(), m_lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
     }
+
+    std::shared_ptr<shape_impl> copy() const { return std::make_shared<shape_impl>(*this); }
 };
 
 const std::vector<shape::type_t>& shape::types()
@@ -134,6 +136,8 @@ shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
 }
 
 shape::shape(const std::vector<shape>& subs) : impl(std::make_shared<shape_impl>(subs)) {}
+
+shape::shape(std::shared_ptr<shape_impl> pimpl) : impl(std::move(pimpl)) {}
 
 shape shape::from_permutation(type_t t,
                               const std::vector<std::size_t>& l,
@@ -292,6 +296,13 @@ shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 shape shape::with_lens(const std::vector<std::size_t>& l) const
 {
     return this->with_lens(this->type(), l);
+}
+
+shape shape::with_type(type_t t) const
+{
+    auto c    = impl->copy();
+    c->m_type = t;
+    return {c};
 }
 
 std::size_t shape::element_space() const { return impl->element_space(); }

@@ -131,6 +131,8 @@ struct shape
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
 
+    shape with_type(type_t t) const;
+
     friend bool operator==(const shape& x, const shape& y);
     friend bool operator!=(const shape& x, const shape& y);
     friend std::ostream& operator<<(std::ostream& os, const shape& x);
@@ -225,6 +227,7 @@ struct shape
     const std::vector<shape>& sub_shapes() const;
 
     private:
+    shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 
     std::size_t element_space() const;

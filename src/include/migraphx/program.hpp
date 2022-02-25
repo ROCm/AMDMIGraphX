@@ -77,6 +77,9 @@ struct program
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
+    void debug_print(std::ostream& os,
+                     instruction_ref ins,
+                     const std::unordered_map<instruction_ref, std::string>& names) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
                const std::function<void(instruction_ref,
                                         std::unordered_map<instruction_ref, std::string>)>&
@@ -111,6 +114,7 @@ struct program
 
     private:
     void assign(const program& p);
+    int max_ins_length() const;
     std::unique_ptr<program_impl> impl;
 };
 

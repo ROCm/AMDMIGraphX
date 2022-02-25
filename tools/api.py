@@ -15,7 +15,7 @@ c_api_body_preamble: List[str] = []
 cpp_header_preamble: List[str] = []
 
 
-def bad_param_error(msg):
+def bad_param_error(msg: str):
     return 'throw std::runtime_error("{}")'.format(msg)
 
 
@@ -89,7 +89,7 @@ class Type:
         else:
             return t.remove_const()
 
-    def const_compatible(self, t):
+    def const_compatible(self, t: 'Type'):
         if t.is_const():
             return self.add_const()
         return self
@@ -720,6 +720,7 @@ def add_handle(name: str,
                destroy: Optional[str] = None,
                ref: Optional[bool] = None) -> None:
     opaque_type = ctype + '_t'
+    const_opaque_type = 'const_' + opaque_type
 
     def handle_wrap(p):
         t = Type(opaque_type)
@@ -747,6 +748,9 @@ def add_handle(name: str,
         add_function(destroy or ctype + '_' + 'destroy',
                      params({name: opaque_type}),
                      fname='destroy')
+        add_function(ctype + '_' + 'assign_to',
+                     params(output=opaque_type, input=const_opaque_type),
+                     invoke='*output = *input')
     add_handle_preamble()
     c_header_preamble.append(handle_typedef.substitute(locals()))
     c_api_body_preamble.append(handle_definition.substitute(locals()))

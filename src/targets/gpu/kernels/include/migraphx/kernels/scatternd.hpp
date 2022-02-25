@@ -34,8 +34,7 @@ struct assign_mul
 };
 
 template <class T, class U, class V, class F>
-__device__ void
-scatternd(const T& indices_t, const U& updates_t, const V& output_t, F f)
+__device__ void scatternd(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
     auto index         = make_index();
     auto updates_shape = updates_t.get_shape();

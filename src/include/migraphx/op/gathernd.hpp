@@ -69,7 +69,7 @@ struct gathernd
                                                          data_shape_lens.end(),
                                                          1,
                                                          std::multiplies<std::size_t>());
-                const std::size_t num_batches =
+                std::size_t num_batches =
                     std::accumulate(data_shape_lens.begin(),
                                     data_shape_lens.begin() + batch_dims,
                                     1,
@@ -79,7 +79,7 @@ struct gathernd
                                     data_shape_lens.end(),
                                     1,
                                     std::multiplies<std::size_t>());
-                const auto num_slices_per_batch = num_slices / num_batches;
+                auto num_slices_per_batch = num_slices / num_batches;
 
                 std::vector<std::size_t> sizes_from_slice_dims(num_slice_dims);
                 {

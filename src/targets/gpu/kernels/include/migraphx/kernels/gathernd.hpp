@@ -22,7 +22,6 @@ template <class T, class U, class V, class Settings>
 __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t, Settings s)
 {
     auto ind           = make_index();
-    auto i             = ind.global;
     auto batch_dims    = s.batch_dims;
     auto output_shape  = output_t.get_shape();
     auto indices_shape = indices_t.get_shape();
@@ -49,8 +48,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
                                                      std::multiplies<std::size_t>());
     const auto num_slices_per_batch     = num_slices / num_batches;
 
-    if(i < output_shape.elements())
-    {
+    ind.global_stride(output_shape.elements(), [&](auto i) {
         const auto* indices_ptr     = indices_t.data();
         const std::size_t j         = i / slice_size;
         const std::size_t batch_idx = j / num_slices_per_batch;
@@ -75,7 +73,7 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
 
         auto slice_offset = (batch_idx * data_batch_stride) + relative_slice_offset;
         output_t[i]       = data_t[slice_offset + i % slice_size];
-    }
+    });
 }
 
 } // namespace migraphx

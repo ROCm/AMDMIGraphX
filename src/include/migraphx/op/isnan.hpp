@@ -19,7 +19,7 @@ struct isnan : unary<isnan>
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        return unary<isnan>::compute_shape(inputs).with_type(shape::bool_type);
+        return unary<isnan>::compute_shape(std::move(inputs)).with_type(shape::bool_type);
     }
 };
 

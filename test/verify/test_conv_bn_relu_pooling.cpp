@@ -30,7 +30,7 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling>
             migraphx::make_op("batch_norm_inference"), conv, scale, bias, mean, variance);
         auto relu = mm->add_instruction(migraphx::make_op("relu"), bn);
         mm->add_instruction(migraphx::make_op("pooling",
-                                              {{"mode", migraphx::op::pooling_mode::avg},
+                                              {{"mode", migraphx::op::pooling_mode::average},
                                                {"padding", {1, 1}},
                                                {"stride", {2, 2}},
                                                {"lengths", {3, 3}}}),

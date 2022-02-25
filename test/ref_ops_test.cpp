@@ -369,7 +369,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::avg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -391,7 +391,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::avg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2};
         op.padding = {1};
         op.stride  = {2};
@@ -438,7 +438,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::avg};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {1, 1, 1};
@@ -1657,7 +1657,7 @@ TEST_CASE(globalavgpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::avg};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -4000,7 +4000,7 @@ TEST_CASE(roialign_test)
 {
     auto create_program = [](const std::string& trans_mode = "half_pixel",
                              const migraphx::op::pooling_mode pooling_mode =
-                                 migraphx::op::pooling_mode::avg,
+                                 migraphx::op::pooling_mode::average,
                              int64_t sampling_ratio = 2) {
         migraphx::program p;
         auto* mm = p.get_main_module();

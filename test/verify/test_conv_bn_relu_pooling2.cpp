@@ -48,7 +48,7 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2>
         auto add  = mm->add_instruction(migraphx::make_op("add"), bn1, bn2);
         auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
         mm->add_instruction(migraphx::make_op("pooling",
-                                              {{"mode", migraphx::op::pooling_mode::avg},
+                                              {{"mode", migraphx::op::pooling_mode::average},
                                                {"padding", {1, 1}},
                                                {"stride", {2, 2}},
                                                {"lengths", {3, 3}}}),

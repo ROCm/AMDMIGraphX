@@ -29,7 +29,7 @@ struct parse_roialign : op_parser<parse_roialign>
                            "\": invalid value!");
         }
 
-        migraphx::op::pooling_mode rmode(migraphx::op::pooling_mode::avg);
+        migraphx::op::pooling_mode rmode(migraphx::op::pooling_mode::average);
         if(contains(info.attributes, "mode"))
         {
             // read mode; default is "avg"

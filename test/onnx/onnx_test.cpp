@@ -192,7 +192,7 @@ TEST_CASE(averagepool_1d_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
     mm->add_instruction(migraphx::make_op("pooling",
-                                          {{"mode", migraphx::op::pooling_mode::avg},
+                                          {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
                                            {"lengths", {3}}}),
@@ -208,7 +208,7 @@ TEST_CASE(averagepool_3d_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
     mm->add_instruction(migraphx::make_op("pooling",
-                                          {{"mode", migraphx::op::pooling_mode::avg},
+                                          {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0, 0, 0, 0, 0}},
                                            {"stride", {1, 1, 1}},
                                            {"lengths", {3, 3, 3}}}),
@@ -224,7 +224,7 @@ TEST_CASE(averagepool_notset_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::avg},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {2, 2, 2, 2}},
                                                       {"stride", {2, 2}},
                                                       {"lengths", {6, 6}}}),
@@ -245,7 +245,7 @@ TEST_CASE(averagepool_nt_cip_test)
     std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::avg},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {2, 2}},
                                                       {"lengths", {6, 6}}}),
@@ -262,7 +262,7 @@ TEST_CASE(averagepool_same_lower_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::avg},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -283,7 +283,7 @@ TEST_CASE(averagepool_sl_cip_test)
     std::vector<int64_t> pads = {0, 0, 1, 1, 0, 0, 0, 0};
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::avg},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -300,7 +300,7 @@ TEST_CASE(averagepool_same_upper_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::avg},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -1486,7 +1486,7 @@ TEST_CASE(globalavgpool_test)
     auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::avg};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
     auto lens  = input->get_shape().lens();
     op.lengths = {lens[2], lens[3]};
     op.padding = {0, 0, 0, 0};

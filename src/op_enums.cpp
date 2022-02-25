@@ -27,14 +27,6 @@ std::ostream& operator<<(std::ostream& os, rnn_direction v)
     return os;
 }
 
-std::string to_str(pooling_mode v)
-{
-    std::stringstream ss("");
-    ss << v;
-    return ss.str();
-}
-
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

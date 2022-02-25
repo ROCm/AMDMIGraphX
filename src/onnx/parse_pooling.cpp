@@ -34,7 +34,7 @@ struct parse_pooling : op_parser<parse_pooling>
         }
         operation op =
             make_op("pooling",
-                    {{"mode", mode == "average" ? op::pooling_mode::avg : op::pooling_mode::max}});
+                    {{"mode", mode == "average" ? op::pooling_mode::average : op::pooling_mode::max}});
         value values = op.to_value();
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();

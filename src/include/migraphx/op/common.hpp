@@ -21,7 +21,7 @@ enum padding_mode_t
 // Used in pooling and roialign operators.
 enum class pooling_mode
 {
-    avg,
+    average,
     max
 };
 

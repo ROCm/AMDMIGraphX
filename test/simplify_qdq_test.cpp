@@ -465,7 +465,7 @@ TEST_CASE(conv_pooling_dot)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1  = m1.add_instruction(migraphx::make_op("add"), c1, bc1);
         auto ap  = m1.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::avg},
+                                                       {{"mode", migraphx::op::pooling_mode::average},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},
@@ -511,7 +511,7 @@ TEST_CASE(conv_pooling_dot)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 1280, 7, 7}}}), d2);
         auto a1  = m2.add_instruction(migraphx::make_op("add"), d5, bc1);
         auto ap  = m2.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::avg},
+                                                       {{"mode", migraphx::op::pooling_mode::average},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},
@@ -569,7 +569,7 @@ TEST_CASE(mobilenet_snippet)
         auto q2  = add_quantize_op(mm, "quantizelinear", a1, scale, zero);
         auto d6  = add_quantize_op(mm, "dequantizelinear", q2, scale, zero);
         auto ap  = mm.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::avg},
+                                                       {{"mode", migraphx::op::pooling_mode::average},
                                                         {"padding", {0, 0, 0, 0}},
                                                         {"stride", {1, 1}},
                                                         {"lengths", {7, 7}},

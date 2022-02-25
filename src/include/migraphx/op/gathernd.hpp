@@ -65,15 +65,14 @@ struct gathernd
                                                          indices_shape_lens.end() - 1,
                                                          1,
                                                          std::multiplies<std::size_t>());
-                std::size_t slice_size = std::accumulate(data_shape_lens.begin() + k + batch_dims,
+                std::size_t slice_size  = std::accumulate(data_shape_lens.begin() + k + batch_dims,
                                                          data_shape_lens.end(),
                                                          1,
                                                          std::multiplies<std::size_t>());
-                std::size_t num_batches =
-                    std::accumulate(data_shape_lens.begin(),
-                                    data_shape_lens.begin() + batch_dims,
-                                    1,
-                                    std::multiplies<std::size_t>());
+                std::size_t num_batches = std::accumulate(data_shape_lens.begin(),
+                                                          data_shape_lens.begin() + batch_dims,
+                                                          1,
+                                                          std::multiplies<std::size_t>());
                 std::size_t data_batch_stride =
                     std::accumulate(data_shape_lens.begin() + batch_dims,
                                     data_shape_lens.end(),

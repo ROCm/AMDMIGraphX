@@ -34,7 +34,7 @@ struct parse_scatter : op_parser<parse_scatter>
         //     name_of_op ="scatter_" + info.attributes.at("reduction").s();
         // }
 
-        // // should throw an error if invalid reduction string is given            
+        // // should throw an error if invalid reduction string is given
         // op = migraphx::make_op(name_of_op, {{"axis", axis}});
 
         // return info.add_instruction(op, args);

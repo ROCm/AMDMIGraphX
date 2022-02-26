@@ -15,6 +15,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
+
+// values of the Reduction attribute in Onnx ScatterElements op.
 enum class attrib_reduction
 {
     none,
@@ -24,8 +26,8 @@ enum class attrib_reduction
 
 struct scatter
 {
-    int64_t axis = 0;
-    attrib_reduction reduction = none;
+    int64_t axis               = 0;
+    attrib_reduction reduction = attrib_reduction::none;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

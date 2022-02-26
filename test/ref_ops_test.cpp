@@ -4189,7 +4189,6 @@ TEST_CASE(scatter_test)
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 
-
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -4223,19 +4222,19 @@ TEST_CASE(scatter_reduction_test)
 
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {1,5}};
-        std::vector<float> vd( {1., 2., 3., 4., 5.});
+        migraphx::shape sd{migraphx::shape::float_type, {1, 5}};
+        std::vector<float> vd({1., 2., 3., 4., 5.});
 
-        migraphx::shape si{migraphx::shape::int32_type, {1,2}};
+        migraphx::shape si{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> vi = {1, 3};
 
-        migraphx::shape su{migraphx::shape::float_type, {1,2}};
+        migraphx::shape su{migraphx::shape::float_type, {1, 2}};
         std::vector<float> vu = {1.1, 2.1};
 
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", 1}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", 1}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4248,19 +4247,19 @@ TEST_CASE(scatter_reduction_test)
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {1,5}};
-        std::vector<float> vd( {1., 2., 3., 4., 5.});
+        migraphx::shape sd{migraphx::shape::float_type, {1, 5}};
+        std::vector<float> vd({1., 2., 3., 4., 5.});
 
-        migraphx::shape si{migraphx::shape::int32_type, {1,2}};
+        migraphx::shape si{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> vi = {1, 3};
 
-        migraphx::shape su{migraphx::shape::float_type, {1,2}};
+        migraphx::shape su{migraphx::shape::float_type, {1, 2}};
         std::vector<float> vu = {1.1, 2.1};
 
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_mul", {{"axis", 1}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_mul", {{"axis", 1}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4273,19 +4272,19 @@ TEST_CASE(scatter_reduction_test)
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {1,5}};
-        std::vector<float> vd( {1., 2., 3., 4., 5.});
+        migraphx::shape sd{migraphx::shape::float_type, {1, 5}};
+        std::vector<float> vd({1., 2., 3., 4., 5.});
 
-        migraphx::shape si{migraphx::shape::int32_type, {1,2}};
+        migraphx::shape si{migraphx::shape::int32_type, {1, 2}};
         std::vector<int> vi = {1, 3};
 
-        migraphx::shape su{migraphx::shape::float_type, {1,2}};
+        migraphx::shape su{migraphx::shape::float_type, {1, 2}};
         std::vector<float> vu = {1.1, 2.1};
 
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 1}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 1}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4299,7 +4298,7 @@ TEST_CASE(scatter_reduction_test)
     //  3x3 matrix
     {
         migraphx::program p;
-        auto* mm =   p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
         std::vector<float> vd(sd.elements(), 3.0f);
 
@@ -4312,7 +4311,7 @@ TEST_CASE(scatter_reduction_test)
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 1}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 1}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4326,7 +4325,7 @@ TEST_CASE(scatter_reduction_test)
     // test on vertical (0) axis. su and si are transposed from previous cases
     {
         migraphx::program p;
-        auto* mm =   p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
         std::vector<float> vd(sd.elements(), 3.0f);
 
@@ -4339,7 +4338,7 @@ TEST_CASE(scatter_reduction_test)
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4352,7 +4351,7 @@ TEST_CASE(scatter_reduction_test)
     // test on vertical (0) axis.
     {
         migraphx::program p;
-        auto* mm =   p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
         std::vector<float> vd(sd.elements(), 3.0f);
 
@@ -4365,7 +4364,7 @@ TEST_CASE(scatter_reduction_test)
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 0}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 0}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4379,7 +4378,7 @@ TEST_CASE(scatter_reduction_test)
     // test on vertical (0) axis.
     {
         migraphx::program p;
-        auto* mm =   p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
         std::vector<float> vd(sd.elements(), 3.0f);
 
@@ -4392,7 +4391,7 @@ TEST_CASE(scatter_reduction_test)
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter_mul", {{"axis", 0}}),  ld, li, lu);
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_mul", {{"axis", 0}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
@@ -4401,7 +4400,7 @@ TEST_CASE(scatter_reduction_test)
         std::vector<float> gold_mul2 = {3.3, 21.0, 3.0, 3.0, 21.6, 3.0, 3.6, 21.3, 3.0};
 
         EXPECT(migraphx::verify_range(results_vector, gold_mul2));
-    }        
+    }
 }
 
 TEST_CASE(sigmoid_test)

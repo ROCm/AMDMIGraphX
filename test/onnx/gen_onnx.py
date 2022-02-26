@@ -4117,7 +4117,7 @@ def scatter_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
 
     node = onnx.helper.make_node(
-        'Scatter',
+        'ScatterElements',
         inputs=['data', 'indices', 'update'],
         outputs=['y'],
         axis=-2,

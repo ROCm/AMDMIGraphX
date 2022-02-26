@@ -38,8 +38,9 @@ struct scatter_add
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).standard();
-        return inputs.front();
+        check_shapes{inputs, *this}.has(3);
+        // If non-packed, this converts to a packed output while preserving permutation of tensor
+        return inputs.front().with_lens(inputs.front().lens());
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const

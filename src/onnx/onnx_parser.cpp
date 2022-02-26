@@ -380,8 +380,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, t.int64_data());
     case onnx::TensorProto::UINT64:
         return create_literal(shape::uint64_type, dims, t.uint64_data());
-    case onnx::TensorProto::FLOAT16:
-    {
+    case onnx::TensorProto::FLOAT16: {
         std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
         std::vector<half> data_half;
         std::transform(data_uint16.begin(),
@@ -451,7 +450,8 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
-    default: { MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+    default: {
+        MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
 }

@@ -66,12 +66,13 @@ TEST_CASE(rewrite_avepooling_na1_test)
         migraphx::module m;
 
         auto input = m.add_parameter("x", s);
-        auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::average},
-                                                        {"padding", {0, 1, 0}},
-                                                        {"stride", {1, 1, 1}},
-                                                        {"lengths", {3, 4, 5}}}),
-                                     input);
+        auto ret =
+            m.add_instruction(migraphx::make_op("pooling",
+                                                {{"mode", migraphx::op::pooling_mode::average},
+                                                 {"padding", {0, 1, 0}},
+                                                 {"stride", {1, 1, 1}},
+                                                 {"lengths", {3, 4, 5}}}),
+                              input);
         m.add_return({ret});
         return m;
     };
@@ -90,12 +91,13 @@ TEST_CASE(rewrite_avepooling_na2_test)
         migraphx::module m;
 
         auto input = m.add_parameter("x", s);
-        auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::average},
-                                                        {"padding", {0, 0, 0}},
-                                                        {"stride", {1, 2, 1}},
-                                                        {"lengths", {3, 4, 5}}}),
-                                     input);
+        auto ret =
+            m.add_instruction(migraphx::make_op("pooling",
+                                                {{"mode", migraphx::op::pooling_mode::average},
+                                                 {"padding", {0, 0, 0}},
+                                                 {"stride", {1, 2, 1}},
+                                                 {"lengths", {3, 4, 5}}}),
+                              input);
         m.add_return({ret});
         return m;
     };

@@ -1513,6 +1513,55 @@ TEST_CASE(test_unsqueeze_scalar_tensor2)
     throws_shape(migraphx::make_op("unsqueeze", {{"axes", {-2}}}), s);
 }
 
+TEST_CASE(test_unsqueeze_transpose)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {4, 4, 3}, {12, 1, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 4, 1, 3}, {12, 1, 1, 4}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multibroadcast)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {0, 1, 0}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {0, 1, 1, 0}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_slice)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}, {108, 36, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 1, 4}, {108, 36, 36, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_axis_zero)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 3, 4}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_axis_last)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 3, 4, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {-1}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_1)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 2, 3, 4, 1}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0, -1}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_multiple_axes_2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 1, 2, 3, 4}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), s1);
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};

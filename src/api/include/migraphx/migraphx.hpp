@@ -239,14 +239,12 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     std::shared_ptr<T> m_handle;
 };
 
-template<class Base>
+template <class Base>
 struct interface_base : Base
 {
-    interface_base()
-    : Base()
-    {}
+    interface_base() : Base() {}
 
-protected:
+    protected:
     template <class T, class Setter, class F>
     void set_fp(Setter setter, F pf)
     {
@@ -272,62 +270,68 @@ protected:
         });
     }
 
-    struct no_out_arg {};
+    struct no_out_arg
+    {
+    };
 
-    template<class T, class F, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
+    template <class T, class F, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<0>, F f, X* obj, Xs... xs)
     {
         f(reinterpret_cast<T*>(obj), no_out_arg{}, xs...);
     }
 
-    template<class T, class F, class R, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
+    template <class T,
+              class F,
+              class R,
+              class X,
+              class... Xs,
+              class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
     {
         f(reinterpret_cast<T*>(obj), result, xs...);
     }
 
-    template<class F, class T, class... Ts>
+    template <class F, class T, class... Ts>
     void auto_invoke(F f, T* out, Ts&&... xs)
     {
         auto_assign(out, f(std::forward<Ts>(xs)...));
     }
 
-    template<class F, class T, class... Ts>
+    template <class F, class T, class... Ts>
     void auto_invoke(F f, no_out_arg, Ts&&... xs)
     {
         f(std::forward<Ts>(xs)...);
     }
 
-    template<class T>
+    template <class T>
     T auto_convert_param(rank<0>, T x)
     {
         return x;
     }
 
-    template<class T>
+    template <class T>
     auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
     {
         return as_handle<T>{x};
     }
 
-    template<class T>
+    template <class T>
     auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})
     {
         return as_handle<T>{x, borrow{}};
     }
 
-    template<class T, class U>
+    template <class T, class U>
     void auto_assign(rank<0>, T* out, U x)
     {
         return *out = x;
     }
 
-    template<class T, class U>
+    template <class T, class U>
     auto auto_assign(rank<1>, T* out, U x) -> decltype(x.assign_to_handle(out))
     {
         x.assign_to_handle(out);
     }
-
 };
 
 #ifdef DOXYGEN

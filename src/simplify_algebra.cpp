@@ -335,7 +335,6 @@ struct find_concat_op
             }
             auto y = p.insert_instruction(ins, op, concats);
             return {y};
-
         };
 
         std::vector<instruction_ref> args;

@@ -173,7 +173,8 @@ class Parameter:
                  type: str,
                  optional: bool = False,
                  returns: bool = False,
-                 virtual: bool = False) -> None:
+                 virtual: bool = False,
+                 this: bool = False) -> None:
         self.name = name
         self.type = Type(type)
         self.optional = optional
@@ -186,6 +187,7 @@ class Parameter:
         self.cpp_write = '${name}'
         self.returns = returns
         self.virtual = virtual
+        self.this = this
         self.bad_param_check: Optional[BadParam] = None
         self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
@@ -1052,7 +1054,7 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
         largs += f.returns.virtual_output_args()
         output = f.returns.virtual_output()
     largs += [arg for p in f.params for arg in p.virtual_arg()]
-    lparams += [p.virtual_param() for p in f.params]
+    lparams += [p.virtual_param() for p in f.params if not p.this]
     args = ', '.join(largs)
     params = ', '.join(lparams)
     return c_api_virtual_impl.substitute(locals())
@@ -1106,7 +1108,7 @@ class Interface:
                 **kwargs) -> 'Interface':
 
         # Add this parameter to the function
-        this = Parameter('obj', 'void*')
+        this = Parameter('obj', 'void*', this=True)
         this.virtual_read = ['object_ptr.data']
         f = Function(name,
                      params=[this] + (params or []),

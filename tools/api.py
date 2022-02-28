@@ -853,7 +853,7 @@ def add_handle(name: str,
         elif p.type.is_pointer():
             p.virtual_read = ['object_cast<${ctype}>(${result})']
             p.cpp_write = '${cpptype}(${name}, false)'
-            p.write = ['*${name} = object_cast<${ctype}>(${name})']
+            p.write = ['*${name} = object_cast<${ctype}>(${result})']
         else:
             p.virtual_read = ['object_cast<${ctype}>(&(${name}))']
             p.cpp_write = '${cpptype}(${name})'

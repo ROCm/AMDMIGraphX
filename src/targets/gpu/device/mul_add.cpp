@@ -23,17 +23,16 @@ namespace device {
 
 __global__ void mul_add_kernel(void* a, int an, void* x, int xn, void* b, int bn, void* r, int n)
 {
-    int id = blockDim.x * blockIdx.x + threadIdx.x;
+    int id      = blockDim.x * blockIdx.x + threadIdx.x;
     __half2* ha = reinterpret_cast<__half2*>(a);
     __half2* hb = reinterpret_cast<__half2*>(b);
     __half2* hx = reinterpret_cast<__half2*>(x);
     __half2* hr = reinterpret_cast<__half2*>(r);
-    if (id < n)
+    if(id < n)
     {
         hr[id] = __hadd2(__hmul2(ha[id % an], hx[id % xn]), hb[id % bn]);
     }
 }
-
 
 void mul_add(hipStream_t stream,
              const argument& result,
@@ -42,26 +41,28 @@ void mul_add(hipStream_t stream,
              const argument& arg3)
 {
     auto type = result.get_shape().type();
-    if (type == shape::half_type)
+    if(type == shape::half_type)
     {
         std::cout << "case1" << std::endl;
-        int s1e = arg1.get_shape().element_space() / 2;
-        int s2e = arg2.get_shape().element_space() / 2;
-        int s3e = arg3.get_shape().element_space() / 2;
+        int s1e      = arg1.get_shape().element_space() / 2;
+        int s2e      = arg2.get_shape().element_space() / 2;
+        int s3e      = arg3.get_shape().element_space() / 2;
         int elem_num = result.get_shape().elements() / 2;
-        s1e = (s1e == 0 ? 1 : s1e);
-        s2e = (s2e == 0 ? 1 : s2e);
-        s3e = (s3e == 0 ? 1 : s3e);
-        std::cout << "re =" << elem_num << ", s1e = " << s1e << ", s2e = " << s2e << ", s3e = " << s3e << std::endl;
+        s1e          = (s1e == 0 ? 1 : s1e);
+        s2e          = (s2e == 0 ? 1 : s2e);
+        s3e          = (s3e == 0 ? 1 : s3e);
+        std::cout << "re =" << elem_num << ", s1e = " << s1e << ", s2e = " << s2e
+                  << ", s3e = " << s3e << std::endl;
         int block_size = 1024;
-        int block_num = (elem_num + block_size - 1) / block_size;
-        mul_add_kernel<<<block_num, block_size>>>(arg1.data(), s1e, arg2.data(), s2e, arg3.data(), s3e, result.data(), elem_num);
+        int block_num  = (elem_num + block_size - 1) / block_size;
+        mul_add_kernel<<<block_num, block_size>>>(
+            arg1.data(), s1e, arg2.data(), s2e, arg3.data(), s3e, result.data(), elem_num);
     }
     else
     {
         std::cout << "case2" << std::endl;
         nary(stream, result, arg1, arg2, arg3)([](auto x, auto a, auto b)
-                                                __device__ { return a * x + b; });        
+                                                   __device__ { return a * x + b; });
     }
 }
 

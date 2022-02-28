@@ -227,7 +227,6 @@ struct shape
 
     private:
     std::shared_ptr<const shape_impl> impl;
-
 };
 
 void migraphx_to_value(value& v, const shape& s);

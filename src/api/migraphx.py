@@ -353,3 +353,9 @@ api.add_function('migraphx_quantize_int8',
                             target='migraphx::target',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
+
+@api.interface('migraphx_experimental_custom_op', 'migraphx::experimental_custom_op')
+def experimental_custom_op(h):
+    h.constructor('create', api.params(name='const char*'))
+    h.virtual('compute_shape', api.params(inputs='const std::vector<migraphx::shape>&'), returns='migraphx::shape')
+

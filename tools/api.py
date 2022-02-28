@@ -724,6 +724,10 @@ template <class C, class D>
 struct manage_generic_ptr
 {
     manage_generic_ptr() = default;
+    
+    manage_generic_ptr(std::nullptr_t)
+    {
+    }
 
     manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
         : data(pdata), copier(pcopier), deleter(pdeleter)
@@ -1034,8 +1038,7 @@ ${return_type} ${name}(${params}) const
 ''')
 
 
-def generate_virtual_impl(f: Function, fname: str,
-                          this: Optional[str] = None) -> str:
+def generate_virtual_impl(f: Function, fname: str) -> str:
     success = success_type
     name = f.name
     return_type = 'void'
@@ -1048,8 +1051,6 @@ def generate_virtual_impl(f: Function, fname: str,
         output_decls = '\n'.join(f.returns.virtual_output_declarations())
         largs += f.returns.virtual_output_args()
         output = f.returns.virtual_output()
-    if this:
-        largs += [this]
     largs += [arg for p in f.params for arg in p.virtual_arg()]
     lparams += [p.virtual_param() for p in f.params]
     args = ', '.join(largs)
@@ -1104,11 +1105,14 @@ class Interface:
                 const: Optional[bool] = None,
                 **kwargs) -> 'Interface':
 
-        f = Function(name, params=params, virtual=True, **kwargs)
+        # Add this parameter to the function
+        this = Parameter('obj', 'void*')
+        this.virtual_read = ['object_ptr.data']
+        f = Function(name, params=[this]+(params or []), virtual=True, **kwargs)
         self.ifunctions.append(f)
 
         g = add_function(self.cname('set_' + name),
-                         params=gparams(obj=self.ctype,
+                         params=gparams(obj=self.opaque_type,
                                         input=self.cname(name)),
                          invoke='${{obj}}->{name} = ${{input}}'.format(
                              name=self.mname(name)))
@@ -1118,16 +1122,19 @@ class Interface:
         cname = self.cname(f.name)
         mname = self.mname(f.name)
         function = generate_virtual_impl(f,
-                                         fname=mname,
-                                         this='object_ptr.data')
+                                         fname=mname)
         return f"{cname} {mname} = nullptr;{function}"
 
     def generate(self):
-        for f in self.ifunctions:
+        required_functions = [
+            Function('copy', params=gparams(out='void**', input='void*'), virtual=True),
+            Function('delete', params=gparams(input='void*'), virtual=True)
+        ]
+        for f in self.ifunctions+required_functions:
             f.update()
         c_header_preamble.extend([
             f.get_cfunction().generate_function_pointer(self.cname(f.name))
-            for f in self.ifunctions
+            for f in self.ifunctions+required_functions
         ])
         function_list = [self.generate_function(f) for f in self.ifunctions]
         ctype = self.ctype

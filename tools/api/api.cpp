@@ -194,6 +194,16 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+struct experimental_custom_op
+{
+    std::string name;
+    experimental_custom_op() = default;
+
+    experimental_custom_op(std::string pname)
+    : name(std::move(pname))
+    {}
+};
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

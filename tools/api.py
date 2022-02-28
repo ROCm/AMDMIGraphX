@@ -1108,7 +1108,10 @@ class Interface:
         # Add this parameter to the function
         this = Parameter('obj', 'void*')
         this.virtual_read = ['object_ptr.data']
-        f = Function(name, params=[this]+(params or []), virtual=True, **kwargs)
+        f = Function(name,
+                     params=[this] + (params or []),
+                     virtual=True,
+                     **kwargs)
         self.ifunctions.append(f)
 
         g = add_function(self.cname('set_' + name),
@@ -1121,20 +1124,21 @@ class Interface:
     def generate_function(self, f: Function):
         cname = self.cname(f.name)
         mname = self.mname(f.name)
-        function = generate_virtual_impl(f,
-                                         fname=mname)
+        function = generate_virtual_impl(f, fname=mname)
         return f"{cname} {mname} = nullptr;{function}"
 
     def generate(self):
         required_functions = [
-            Function('copy', params=gparams(out='void**', input='void*'), virtual=True),
+            Function('copy',
+                     params=gparams(out='void**', input='void*'),
+                     virtual=True),
             Function('delete', params=gparams(input='void*'), virtual=True)
         ]
-        for f in self.ifunctions+required_functions:
+        for f in self.ifunctions + required_functions:
             f.update()
         c_header_preamble.extend([
             f.get_cfunction().generate_function_pointer(self.cname(f.name))
-            for f in self.ifunctions+required_functions
+            for f in self.ifunctions + required_functions
         ])
         function_list = [self.generate_function(f) for f in self.ifunctions]
         ctype = self.ctype

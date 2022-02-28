@@ -199,9 +199,7 @@ struct experimental_custom_op
     std::string name;
     experimental_custom_op() = default;
 
-    experimental_custom_op(std::string pname)
-    : name(std::move(pname))
-    {}
+    experimental_custom_op(std::string pname) : name(std::move(pname)) {}
 };
 
 } // namespace migraphx

@@ -8,10 +8,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-template<class F>
+template <class F>
 MIGRAPHX_DEVICE_CONSTEXPR void visit_bool(bool b, F f)
 {
-    if (b)
+    if(b)
         f(std::true_type{});
     else
         f(std::false_type{});
@@ -47,55 +47,49 @@ void prefix_scan_sum(hipStream_t stream,
                                 sum{},
                                 0,
                                 n,
-                                reverse_scan(n,
-                                            [&](auto j) {
-                                                return input[compute_idx(j)];
-                                            }),
-                                reverse_scan(n, [&](auto j, auto x) { 
+                                reverse_scan(n, [&](auto j) { return input[compute_idx(j)]; }),
+                                reverse_scan(n, [&](auto j, auto x) {
                                     visit_bool(exclusive, [&](auto exclusive_c) {
                                         if constexpr(exclusive_c)
                                         {
-                                            if (j == n - 1)
+                                            if(j == n - 1)
                                                 output[compute_idx(j)] = 0;
-                                            if (j > 0)
+                                            if(j > 0)
                                                 output[compute_idx(j - 1)] = x;
                                         }
-                                        else 
+                                        else
                                         {
                                             output[compute_idx(j)] = x;
                                         }
                                     });
                                 }));
                         }
-                        else 
+                        else
                         {
-                            block_scan<block_size>(
-                                idx,
-                                sum{},
-                                0,
-                                n,
-                                [&](auto j) {
-                                    return input[compute_idx(j)];
-                                },
-                                [&](auto j, auto x) { 
-                                    visit_bool(exclusive, [&](auto exclusive_c) {
-                                        if constexpr(exclusive_c)
-                                        {
-                                            auto k = j + 1;
-                                            if (j == 0)
-                                                output[compute_idx(0)] = 0;
-                                            if (k < n)
-                                                output[compute_idx(k)] = x;
-                                        }
-                                        else 
-                                        {
-                                            output[compute_idx(j)] = x;
-                                        }
-                                    });
-                                });
+                            block_scan<block_size>(idx,
+                                                   sum{},
+                                                   0,
+                                                   n,
+                                                   [&](auto j) { return input[compute_idx(j)]; },
+                                                   [&](auto j, auto x) {
+                                                       visit_bool(exclusive, [&](auto exclusive_c) {
+                                                           if constexpr(exclusive_c)
+                                                           {
+                                                               auto k = j + 1;
+                                                               if(j == 0)
+                                                                   output[compute_idx(0)] = 0;
+                                                               if(k < n)
+                                                                   output[compute_idx(k)] = x;
+                                                           }
+                                                           else
+                                                           {
+                                                               output[compute_idx(j)] = x;
+                                                           }
+                                                       });
+                                                   });
                         }
                     });
-                    
+
                 });
         });
 }

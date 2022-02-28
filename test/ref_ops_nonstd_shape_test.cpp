@@ -67,7 +67,6 @@ TEST_CASE(isnan_broadcast_test)
     EXPECT(migraphx::verify_range(results_vector, correct));
 }
 
-
 TEST_CASE(squeeze_transpose_test)
 {
     migraphx::program p;

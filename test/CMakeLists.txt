@@ -90,7 +90,7 @@ function(add_test_executable TEST_NAME)
     target_include_directories(${TEST_NAME} PUBLIC include)
 endfunction(add_test_executable)
 
-file(GLOB TESTS *.cpp)
+file(GLOB TESTS ${CONFIGURE_DEPENDS} *.cpp)
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -100,7 +100,7 @@ endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
-    file(GLOB GPU_TESTS gpu/*.cpp)
+    file(GLOB GPU_TESTS ${CONFIGURE_DEPENDS} gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -120,7 +120,7 @@ file (GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
 foreach(ONNX_TEST ${ONNX_TESTS})
     get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)
     set(TEST_NAME test_${BASE_NAME})
-    add_executable(${TEST_NAME} ${TES_ONNX_DIR}/${ONNX_TEST})
+    add_executable(${TEST_NAME} ${ONNX_TEST})
     rocm_clang_tidy_check(${TEST_NAME})
     target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref)
     target_include_directories(${TEST_NAME} PUBLIC include)
@@ -160,7 +160,7 @@ function(test_header NAME HEADER)
 endfunction()
 
 function(test_headers PREFIX)
-    file(GLOB HEADERS ${ARGN})
+    file(GLOB HEADERS ${CONFIGURE_DEPENDS} ${ARGN})
 
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})

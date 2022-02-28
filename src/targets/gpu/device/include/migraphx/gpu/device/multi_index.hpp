@@ -57,8 +57,8 @@ inline auto mi_nglobal(const hip_shape<N>& s, index_int nlocal)
 {
     assert(s.standard);
     assert(s.elements() > 0);
-    index_int n       = s.elements();
-    index_int groups  = (n + nlocal - 1) / nlocal;
+    index_int n      = s.elements();
+    index_int groups = (n + nlocal - 1) / nlocal;
     // change the max group num to 1 Million
     index_int nglobal = std::min<index_int>((1 << 20), groups) * nlocal;
 

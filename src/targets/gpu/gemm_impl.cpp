@@ -88,8 +88,8 @@ void gemm_impl(context& ctx,
         auto beta_r  = as(beta);
 
         // use void pointer to select different data type if using fp32 mode
-        void* alpha_v{&alpha_r};
-        void* beta_v{&beta_r};
+        void* alpha_v = &alpha_r;
+        void* beta_v  = &beta_r;
 
         if(compute_fp32)
         {

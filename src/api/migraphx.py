@@ -362,3 +362,4 @@ def experimental_custom_op(h):
     h.virtual('compute_shape',
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
+    h.method('register', invoke='migraphx::register_custom_op($@)')

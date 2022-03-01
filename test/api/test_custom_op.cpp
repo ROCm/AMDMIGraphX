@@ -11,10 +11,14 @@ struct my_custom_op final : migraphx::experimental_custom_op_base
     }
 };
 
-TEST_CASE(construct_custom_op)
+TEST_CASE(register_custom_op)
 {
-    my_custom_op op;
-    migraphx::experimental_custom_op cop{op};
+    my_custom_op cop;
+    migraphx::register_experimental_custom_op(cop);
+
+    auto op = migraphx::operation("my_custom_op");
+    EXPECT(op.name() == "my_custom_op");
+
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

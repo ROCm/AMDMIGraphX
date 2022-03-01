@@ -1038,7 +1038,20 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
         this->set_auto_fp<T>(&migraphx_experimental_custom_op_set_compute_shape,
                              [](T& x, auto... xs) { return x.compute_shape(xs...); });
     }
+
+    void register_op()
+    {
+        call(&migraphx_experimental_custom_op_register, this->get_handle_ptr());
+    }
 };
+
+template<class T>
+void register_experimental_custom_op(T& obj)
+{
+    experimental_custom_op op{obj};
+    op.register_op();
+
+}
 
 #ifndef DOXYGEN
 } // namespace api

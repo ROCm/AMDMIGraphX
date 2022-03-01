@@ -381,6 +381,9 @@ migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experi
 migraphx_status migraphx_experimental_custom_op_set_compute_shape(
     migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input);
 
+migraphx_status
+migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);
+
 #ifdef __cplusplus
 }
 #endif

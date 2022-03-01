@@ -861,7 +861,10 @@ def add_handle(name: str,
             p.virtual_read = ['object_cast<${ctype}>(&(${name}))']
             p.cpp_write = '${cpptype}(${name})'
             p.write = ['*${name} = allocate<${ctype}>(${result})']
-        p.read = '${name}->object'
+        if skip_def:
+            p.read = '*${name}'
+        else:
+            p.read = '${name}->object'
         p.cpp_read = '${name}.get_handle_ptr()'
 
     type_map[cpptype] = handle_wrap

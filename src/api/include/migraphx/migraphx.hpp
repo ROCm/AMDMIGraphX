@@ -245,27 +245,57 @@ struct interface_base : Base
     interface_base() : Base() {}
 
     protected:
+
+    template<class F>
+    static migraphx_status try_(F f)
+    {
+        try
+        {
+            f();
+            return migraphx_status_success;
+        }
+        catch(...)
+        {
+            return migraphx_status_unknown_error;
+        }
+    }
+
+    template<class F, class T, class... Ts>
+    void make_interface(F f, T& obj, Ts&&... xs)
+    {
+        auto copy = [](void** out, void* input) {
+            return try_([&] {
+                T** y = reinterpret_cast<T**>(out);
+                T* x = reinterpret_cast<T*>(input);
+                assert(x != nullptr and y != nullptr and *y == nullptr);
+                *y = new T(*x); // NOLINT
+            });
+        };
+        auto del = [](void* input) {
+            return try_([&] {
+                T* x = reinterpret_cast<T*>(input);
+                delete x; // NOLINT
+            });
+        };
+        this->make_handle(f, &obj, copy, del, std::forward<Ts>(xs)...);
+    }
+
+
     template <class T, class Setter, class F>
     void set_fp(Setter setter, F pf)
     {
         static F f = pf;
         call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
-            try
-            {
+            return try_([&] {
                 call_cast_arg<T>(rank<1>{}, f, xs...);
-                return migraphx_status_success;
-            }
-            catch(...)
-            {
-                return migraphx_status_unknown_error;
-            }
+            });
         });
     }
 
     template <class T, class Setter, class F>
     void set_auto_fp(Setter setter, F f)
     {
-        return set_fp(setter, [=](T* obj, auto out, auto... xs) {
+        return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
             auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
         });
     }
@@ -288,13 +318,13 @@ struct interface_base : Base
               class = std::enable_if_t<std::is_void<X>{}>>
     static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
     {
-        f(reinterpret_cast<T*>(obj), result, xs...);
+        f(*reinterpret_cast<T*>(obj), result, xs...);
     }
 
     template <class F, class T, class... Ts>
     void auto_invoke(F f, T* out, Ts&&... xs)
     {
-        auto_assign(out, f(std::forward<Ts>(xs)...));
+        auto_assign(rank<2>{}, out, f(std::forward<Ts>(xs)...));
     }
 
     template <class F, class T, class... Ts>
@@ -303,7 +333,7 @@ struct interface_base : Base
         f(std::forward<Ts>(xs)...);
     }
 
-    template <class T>
+    template <class T, class = std::enable_if_t<std::is_fundamental<T>{} or std::is_enum<T>{}>>
     T auto_convert_param(rank<0>, T x)
     {
         return x;
@@ -992,6 +1022,25 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
          ptarget.get_handle_ptr(),
          options.get_handle_ptr());
 }
+
+struct experimental_custom_op_base
+{
+    virtual std::string name() const = 0;
+    virtual shape compute_shape(shapes inputs) const = 0;
+    virtual ~experimental_custom_op_base()= default;
+};
+
+struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
+{
+    template<class T, class = std::enable_if_t<std::is_base_of<experimental_custom_op_base, T>{} and not std::is_same<T, experimental_custom_op_base>{} and std::is_copy_constructible<T>{} and std::is_final<T>{}>>
+    experimental_custom_op(T& obj)
+    {
+        this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
+        this->set_auto_fp<T>(&migraphx_experimental_custom_op_set_compute_shape, [](T& x, auto... xs) {
+            return x.compute_shape(xs...);
+        });
+    }
+};
 
 #ifndef DOXYGEN
 } // namespace api

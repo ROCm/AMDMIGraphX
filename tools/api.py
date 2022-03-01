@@ -732,8 +732,9 @@ struct manage_generic_ptr
     }
 
     manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
-        : data(pdata), copier(pcopier), deleter(pdeleter)
+        : data(nullptr), copier(pcopier), deleter(pdeleter)
     {
+        copier(&data, pdata);
     }
 
     manage_generic_ptr(const manage_generic_ptr& rhs)

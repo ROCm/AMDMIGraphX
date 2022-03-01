@@ -194,6 +194,14 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+struct experimental_custom_op
+{
+    std::string name;
+    experimental_custom_op() = default;
+
+    experimental_custom_op(std::string pname) : name(std::move(pname)) {}
+};
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -218,6 +226,53 @@ void destroy(T* x)
 {
     delete x; // NOLINT
 }
+// TODO: Move to interface preamble
+template <class C, class D>
+struct manage_generic_ptr
+{
+    manage_generic_ptr() = default;
+
+    manage_generic_ptr(std::nullptr_t) {}
+
+    manage_generic_ptr(void* pdata, C pcopier, D pdeleter)
+        : data(nullptr), copier(pcopier), deleter(pdeleter)
+    {
+        copier(&data, pdata);
+    }
+
+    manage_generic_ptr(const manage_generic_ptr& rhs)
+        : data(nullptr), copier(rhs.copier), deleter(rhs.deleter)
+    {
+        if(copier)
+            copier(&data, rhs.data);
+    }
+
+    manage_generic_ptr(manage_generic_ptr&& other)
+        : data(other.data), copier(other.copier), deleter(other.deleter)
+    {
+        other.data    = nullptr;
+        other.copier  = nullptr;
+        other.deleter = nullptr;
+    }
+
+    manage_generic_ptr& operator=(manage_generic_ptr rhs)
+    {
+        std::swap(data, rhs.data);
+        std::swap(copier, rhs.copier);
+        std::swap(deleter, rhs.deleter);
+        return *this;
+    }
+
+    ~manage_generic_ptr()
+    {
+        if(data != nullptr)
+            deleter(data);
+    }
+
+    void* data = nullptr;
+    C copier   = nullptr;
+    D deleter  = nullptr;
+};
 
 extern "C" struct migraphx_shape;
 struct migraphx_shape
@@ -377,6 +432,34 @@ struct migraphx_quantize_int8_options
     {
     }
     migraphx::quantize_int8_options object;
+};
+
+extern "C" struct migraphx_experimental_custom_op;
+struct migraphx_experimental_custom_op
+{
+    template <class... Ts>
+    migraphx_experimental_custom_op(void* p,
+                                    migraphx_experimental_custom_op_copy c,
+                                    migraphx_experimental_custom_op_delete d,
+                                    Ts&&... xs)
+        : object_ptr(p, c, d), xobject(std::forward<Ts>(xs)...)
+    {
+    }
+    manage_generic_ptr<migraphx_experimental_custom_op_copy, migraphx_experimental_custom_op_delete>
+        object_ptr = nullptr;
+    migraphx::experimental_custom_op xobject;
+    migraphx_experimental_custom_op_compute_shape compute_shape_f = nullptr;
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        std::remove_pointer_t<migraphx_shape_t> out;
+        if(compute_shape_f == nullptr)
+            throw std::runtime_error("compute_shape function is missing.");
+        auto api_error_result =
+            compute_shape_f(&out, object_ptr.data, object_cast<migraphx_shapes_t>(&(inputs)));
+        if(api_error_result != migraphx_status_success)
+            throw std::runtime_error("Error in compute_shape.");
+        return (&out)->object;
+    }
 };
 
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
@@ -1322,5 +1405,41 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_destroy(migraphx_experimental_custom_op_t experimental_custom_op)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((experimental_custom_op)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_assign_to(migraphx_experimental_custom_op_t output,
+                                          const_migraphx_experimental_custom_op_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experimental_custom_op,
+                                       void* obj,
+                                       migraphx_experimental_custom_op_copy c,
+                                       migraphx_experimental_custom_op_delete d,
+                                       const char* name)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *experimental_custom_op =
+            allocate<migraphx_experimental_custom_op_t>((obj), (c), (d), (name));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_experimental_custom_op_set_compute_shape(
+    migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input)
+{
+    auto api_error_result = migraphx::try_([&] { (obj)->compute_shape_f = (input); });
     return api_error_result;
 }

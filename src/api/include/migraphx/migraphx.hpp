@@ -360,6 +360,11 @@ struct interface_base : Base
     }
 };
 
+template<class Base, class T>
+using require_interface = std::enable_if_t<std::is_base_of<Base, T>{} and
+                                       not std::is_same<T, Base>{} and
+                                       std::is_copy_constructible<T>{} and std::is_final<T>{}>;
+
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
 #else
@@ -1028,10 +1033,7 @@ struct experimental_custom_op_base
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
 {
-    template <class T,
-              class = std::enable_if_t<std::is_base_of<experimental_custom_op_base, T>{} and
-                                       not std::is_same<T, experimental_custom_op_base>{} and
-                                       std::is_copy_constructible<T>{} and std::is_final<T>{}>>
+    template <class T>
     experimental_custom_op(T& obj)
     {
         this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
@@ -1042,7 +1044,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }
 };
 
-template <class T>
+template <class T, class = require_interface<experimental_custom_op_base, T>>
 void register_experimental_custom_op(T& obj)
 {
     experimental_custom_op op{obj};

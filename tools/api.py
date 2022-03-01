@@ -1085,6 +1085,10 @@ class Interface(Handle):
                          **kwargs)
         return self
 
+    def method(self, *args, **kwargs) -> 'Interface':
+        super().method(*args, **kwargs)
+        return self
+
     def virtual(self,
                 name: str,
                 params: Optional[List[Parameter]] = None,

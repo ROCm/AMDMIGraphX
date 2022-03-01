@@ -50,6 +50,7 @@ jobs:
       # see https://github.com/easimon/maximize-build-space/blob/master/.github/workflows/test.yaml
     - name: Determine free space after
       run: |
+        echo "FREE_GIG_AFTER=$(df --output=avail --sync -BG "${{ github.workspace }}" | tail -1 | sed 's/[^0-9]*//g')"
         echo "FREE_GIG_AFTER=$(df --output=avail --sync -BG "${{ github.workspace }}" | tail -1 | sed 's/[^0-9]*//g')" >> $GITHUB_ENV
         FREED_GIG=$(expr ${FREE_GIG_AFTER} - ${FREE_GIG_BEFORE})
         echo "Free space before: ${FREE_GIG_BEFORE}G"
@@ -88,7 +89,7 @@ jobs:
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}
+      shell: cmake -P {0}git pull
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
         message("::set-output name=timestamp::${current_date}")

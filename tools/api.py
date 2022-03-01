@@ -692,7 +692,7 @@ extern "C" struct ${ctype};
 struct ${ctype} {
     template<class... Ts>
     ${ctype}(Ts&&... xs)
-    : object(std::forward<Ts>(xs)...)
+    : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {}
     ${cpptype} object;
 };
@@ -744,7 +744,7 @@ struct manage_generic_ptr
             copier(&data, rhs.data);
     }
 
-    manage_generic_ptr(manage_generic_ptr&& other)
+    manage_generic_ptr(manage_generic_ptr&& other) noexcept
         : data(other.data), copier(other.copier), deleter(other.deleter)
     {
         other.data    = nullptr;

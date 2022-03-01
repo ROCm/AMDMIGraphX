@@ -273,7 +273,7 @@ struct manage_generic_ptr
             copier(&data, rhs.data);
     }
 
-    manage_generic_ptr(manage_generic_ptr&& other)
+    manage_generic_ptr(manage_generic_ptr&& other) noexcept
         : data(other.data), copier(other.copier), deleter(other.deleter)
     {
         other.data    = nullptr;
@@ -304,7 +304,8 @@ extern "C" struct migraphx_shape;
 struct migraphx_shape
 {
     template <class... Ts>
-    migraphx_shape(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_shape(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::shape object;
@@ -314,7 +315,8 @@ extern "C" struct migraphx_argument;
 struct migraphx_argument
 {
     template <class... Ts>
-    migraphx_argument(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_argument(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::argument object;
@@ -324,7 +326,8 @@ extern "C" struct migraphx_target;
 struct migraphx_target
 {
     template <class... Ts>
-    migraphx_target(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_target(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::target object;
@@ -334,7 +337,8 @@ extern "C" struct migraphx_program_parameter_shapes;
 struct migraphx_program_parameter_shapes
 {
     template <class... Ts>
-    migraphx_program_parameter_shapes(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_program_parameter_shapes(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::unordered_map<std::string, migraphx::shape> object;
@@ -344,7 +348,8 @@ extern "C" struct migraphx_program_parameters;
 struct migraphx_program_parameters
 {
     template <class... Ts>
-    migraphx_program_parameters(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_program_parameters(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::unordered_map<std::string, migraphx::argument> object;
@@ -354,7 +359,8 @@ extern "C" struct migraphx_arguments;
 struct migraphx_arguments
 {
     template <class... Ts>
-    migraphx_arguments(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_arguments(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::argument> object;
@@ -364,7 +370,8 @@ extern "C" struct migraphx_shapes;
 struct migraphx_shapes
 {
     template <class... Ts>
-    migraphx_shapes(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_shapes(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::shape> object;
@@ -374,7 +381,8 @@ extern "C" struct migraphx_module;
 struct migraphx_module
 {
     template <class... Ts>
-    migraphx_module(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_module(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::module object;
@@ -384,7 +392,8 @@ extern "C" struct migraphx_program;
 struct migraphx_program
 {
     template <class... Ts>
-    migraphx_program(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_program(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::program object;
@@ -394,7 +403,8 @@ extern "C" struct migraphx_operation;
 struct migraphx_operation
 {
     template <class... Ts>
-    migraphx_operation(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_operation(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::operation object;
@@ -404,7 +414,8 @@ extern "C" struct migraphx_onnx_options;
 struct migraphx_onnx_options
 {
     template <class... Ts>
-    migraphx_onnx_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_onnx_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::onnx_options object;
@@ -414,7 +425,8 @@ extern "C" struct migraphx_file_options;
 struct migraphx_file_options
 {
     template <class... Ts>
-    migraphx_file_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_file_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::file_options object;
@@ -424,7 +436,8 @@ extern "C" struct migraphx_compile_options;
 struct migraphx_compile_options
 {
     template <class... Ts>
-    migraphx_compile_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_compile_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::compile_options object;
@@ -434,7 +447,8 @@ extern "C" struct migraphx_tf_options;
 struct migraphx_tf_options
 {
     template <class... Ts>
-    migraphx_tf_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_tf_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::tf_options object;
@@ -444,7 +458,8 @@ extern "C" struct migraphx_quantize_op_names;
 struct migraphx_quantize_op_names
 {
     template <class... Ts>
-    migraphx_quantize_op_names(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_quantize_op_names(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<std::string> object;
@@ -454,7 +469,8 @@ extern "C" struct migraphx_quantize_int8_options;
 struct migraphx_quantize_int8_options
 {
     template <class... Ts>
-    migraphx_quantize_int8_options(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_quantize_int8_options(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::quantize_int8_options object;

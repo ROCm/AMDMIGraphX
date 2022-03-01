@@ -246,7 +246,7 @@ struct interface_base : Base
 
     protected:
     template <class F>
-    static migraphx_status try_(F f)
+    static migraphx_status try_(F f) // NOLINT
     {
         try
         {

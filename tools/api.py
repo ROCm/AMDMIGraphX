@@ -940,11 +940,7 @@ def string_c_wrap(p: Parameter) -> None:
 
 
 class Handle:
-    def __init__(self,
-                 name: str,
-                 ctype: str,
-                 cpptype: str,
-                 **kwargs) -> None:
+    def __init__(self, name: str, ctype: str, cpptype: str, **kwargs) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype

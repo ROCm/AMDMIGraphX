@@ -944,12 +944,13 @@ class Handle:
                  name: str,
                  ctype: str,
                  cpptype: str,
-                 ref: Optional[bool] = None) -> None:
+                 **kwargs) -> None:
         self.name = name
         self.ctype = ctype
         self.cpptype = cpptype
+        self.opaque_type = self.ctype + '_t'
         self.cpp_class = CPPClass(name, ctype)
-        add_handle(name, ctype, cpptype, ref=ref)
+        add_handle(name, ctype, cpptype, **kwargs)
         cpp_type_map[cpptype] = name
 
     def cname(self, name: str) -> str:
@@ -959,6 +960,7 @@ class Handle:
         return Template(s).safe_substitute(name=self.name,
                                            ctype=self.ctype,
                                            cpptype=self.cpptype,
+                                           opaque_type=self.opaque_type,
                                            **kwargs)
 
     def constructor(self,
@@ -1060,28 +1062,14 @@ def generate_virtual_impl(f: Function, fname: str) -> str:
     return c_api_virtual_impl.substitute(locals())
 
 
-class Interface:
+class Interface(Handle):
     def __init__(self, name: str, ctype: str, cpptype: str) -> None:
-        self.name = name
-        self.ctype = ctype
-        self.cpptype = cpptype
+        super().__init__(name, ctype, cpptype, skip_def=True)
         self.ifunctions: List[Function] = []
         self.members: List[str] = []
-        self.opaque_type = self.ctype + '_t'
-        add_handle(name, ctype, cpptype, skip_def=True)
-
-    def cname(self, name: str) -> str:
-        return self.ctype + '_' + name
 
     def mname(self, name: str) -> str:
         return name + "_f"
-
-    def substitute(self, s: str, **kwargs) -> str:
-        return Template(s).safe_substitute(name=self.name,
-                                           ctype=self.ctype,
-                                           cpptype=self.cpptype,
-                                           opaque_type=self.opaque_type,
-                                           **kwargs)
 
     def constructor(self,
                     name: str,

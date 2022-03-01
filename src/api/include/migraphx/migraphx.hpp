@@ -360,10 +360,10 @@ struct interface_base : Base
     }
 };
 
-template<class Base, class T>
-using require_interface = std::enable_if_t<std::is_base_of<Base, T>{} and
-                                       not std::is_same<T, Base>{} and
-                                       std::is_copy_constructible<T>{} and std::is_final<T>{}>;
+template <class Base, class T>
+using require_interface =
+    std::enable_if_t<std::is_base_of<Base, T>{} and not std::is_same<T, Base>{} and
+                     std::is_copy_constructible<T>{} and std::is_final<T>{}>;
 
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>

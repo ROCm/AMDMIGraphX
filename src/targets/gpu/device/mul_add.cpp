@@ -21,7 +21,7 @@ __global__ void mul_add_kernel_dim3(void* a, void* x, void* b, int dim3, void* r
     if(id < n)
     {
         auto id1 = id % dim3;
-        hr[id] = __hadd2(__hmul2(ha[id], hx[id1]), hb[id1]);
+        hr[id]   = __hadd2(__hmul2(ha[id], hx[id1]), hb[id1]);
     }
 }
 
@@ -35,7 +35,7 @@ __global__ void mul_add_kernel_dim4(void* a, void* x, void* b, int factor, int d
     if(id < n)
     {
         int idb = id / factor + id % dim4;
-        hr[id] = __hadd2(__hmul2(ha[id], hx[id]), hb[idb]);
+        hr[id]  = __hadd2(__hmul2(ha[id], hx[id]), hb[idb]);
     }
 }
 
@@ -72,20 +72,22 @@ void mul_add(hipStream_t stream,
     ss.push_back(arg3.get_shape());
     if(type == shape::half_type and is_bert(ss))
     {
-        auto elem_num = sr.elements() / 2;
-        auto lens = sr.lens();
-        int last_dim = lens.back() / 2;
-        auto n_dim = lens.size();
+        auto elem_num  = sr.elements() / 2;
+        auto lens      = sr.lens();
+        int last_dim   = lens.back() / 2;
+        auto n_dim     = lens.size();
         int block_size = 1024;
-        int block_num = (elem_num + block_size - 1) / block_size;
-        if (n_dim == 2)
+        int block_num  = (elem_num + block_size - 1) / block_size;
+        if(n_dim == 2)
         {
-            mul_add_kernel_dim3<<<block_num, block_size>>>(arg1.data(), arg2.data(), arg3.data(), last_dim, result.data(), elem_num);
+            mul_add_kernel_dim3<<<block_num, block_size>>>(
+                arg1.data(), arg2.data(), arg3.data(), last_dim, result.data(), elem_num);
         }
         else
         {
             int factor = lens[1];
-            mul_add_kernel_dim4<<<block_num, block_size>>>(arg1.data(), arg2.data(), arg3.data(), factor, last_dim, result.data(), elem_num);
+            mul_add_kernel_dim4<<<block_num, block_size>>>(
+                arg1.data(), arg2.data(), arg3.data(), factor, last_dim, result.data(), elem_num);
         }
     }
     else

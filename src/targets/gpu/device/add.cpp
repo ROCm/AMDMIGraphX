@@ -25,7 +25,7 @@ __global__ void add_kernel(void* a, void* b, int n_dim, void* r, int n)
     __half2* ha = reinterpret_cast<__half2*>(a);
     __half2* hb = reinterpret_cast<__half2*>(b);
     __half2* hr = reinterpret_cast<__half2*>(r);
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int tid     = blockIdx.x * blockDim.x + threadIdx.x;
     if(tid < n)
     {
         int idb = tid % n_dim;
@@ -42,10 +42,11 @@ void add(hipStream_t stream, const argument& result, const argument& arg1, const
     if(sr.type() == shape::half_type and is_bert(ss))
     {
         auto elem_num  = sr.elements() / 2;
-        auto last_dim = sr.lens().back() / 2;
+        auto last_dim  = sr.lens().back() / 2;
         int block_size = 1024;
         int block_num  = (elem_num + block_size - 1) / block_size;
-        add_kernel<<<block_num, block_size>>>(arg1.data(), arg2.data(), last_dim, result.data(), elem_num);
+        add_kernel<<<block_num, block_size>>>(
+            arg1.data(), arg2.data(), last_dim, result.data(), elem_num);
     }
     else
     {

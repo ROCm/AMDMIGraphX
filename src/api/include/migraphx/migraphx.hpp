@@ -360,6 +360,7 @@ struct interface_base : Base
     }
 };
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_INTERFACE_LIFT(T, prefix, name)          \
     this->set_auto_fp<T>(&migraphx_##prefix##_set_##name, \
                          [](T& x, auto... xs) { return x.name(xs...); })

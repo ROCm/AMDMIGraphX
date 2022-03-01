@@ -1081,7 +1081,7 @@ class Interface(Handle):
                                  c=self.cname('copy'),
                                  d=self.cname('delete'))
 
-        f = add_function(self.cname(name),
+        add_function(self.cname(name),
                          params=initial_params + (params or []),
                          invoke=create,
                          returns=self.opaque_type,
@@ -1108,7 +1108,7 @@ class Interface(Handle):
                      **kwargs)
         self.ifunctions.append(f)
 
-        g = add_function(self.cname('set_' + name),
+        add_function(self.cname('set_' + name),
                          params=gparams(obj=self.opaque_type,
                                         input=self.cname(name)),
                          invoke='${{obj}}->{name} = ${{input}}'.format(

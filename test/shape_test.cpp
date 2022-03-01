@@ -608,4 +608,15 @@ TEST_CASE(cpp_type_name)
     EXPECT(test::throws([&] { migraphx::shape::cpp_type(migraphx::shape::tuple_type); }));
 }
 
+TEST_CASE(test_with_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 0}};
+    EXPECT(s.type() == migraphx::shape::float_type);
+    auto new_s = s.with_type(migraphx::shape::half_type);
+    EXPECT(s.type() == migraphx::shape::float_type);
+    EXPECT(s.type() != new_s.type());
+    EXPECT(s.lens() == new_s.lens());
+    EXPECT(s.strides() == new_s.strides());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

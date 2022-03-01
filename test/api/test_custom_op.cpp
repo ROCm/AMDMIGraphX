@@ -18,7 +18,6 @@ TEST_CASE(register_custom_op)
 
     auto op = migraphx::operation("my_custom_op");
     EXPECT(op.name() == "my_custom_op");
-
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

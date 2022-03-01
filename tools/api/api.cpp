@@ -203,7 +203,7 @@ struct experimental_custom_op
     experimental_custom_op(std::string pname) : name(std::move(pname)) {}
 };
 
-template<class CustomOp>
+template <class CustomOp>
 struct custom_operation
 {
     template <class Self, class F>
@@ -212,28 +212,21 @@ struct custom_operation
         return pack();
     }
     CustomOp op;
-    std::string name() const
-    {
-        return op.xobject.name;
-    }
+    std::string name() const { return op.xobject.name; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         return op.compute_shape(std::move(inputs));
     }
 
-    argument compute(const std::vector<argument>&) const
-    {
-        MIGRAPHX_THROW("Not computable");
-    }
+    argument compute(const std::vector<argument>&) const { MIGRAPHX_THROW("Not computable"); }
 };
 
-template<class CustomOp>
+template <class CustomOp>
 void register_custom_op(const CustomOp& op)
 {
     register_op(custom_operation<CustomOp>{op});
 }
-
 
 } // namespace migraphx
 

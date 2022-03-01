@@ -1082,11 +1082,11 @@ class Interface(Handle):
                                  d=self.cname('delete'))
 
         add_function(self.cname(name),
-                         params=initial_params + (params or []),
-                         invoke=create,
-                         returns=self.opaque_type,
-                         return_name=self.name,
-                         **kwargs)
+                     params=initial_params + (params or []),
+                     invoke=create,
+                     returns=self.opaque_type,
+                     return_name=self.name,
+                     **kwargs)
         return self
 
     def method(self, *args, **kwargs) -> 'Interface':
@@ -1109,10 +1109,10 @@ class Interface(Handle):
         self.ifunctions.append(f)
 
         add_function(self.cname('set_' + name),
-                         params=gparams(obj=self.opaque_type,
-                                        input=self.cname(name)),
-                         invoke='${{obj}}->{name} = ${{input}}'.format(
-                             name=self.mname(name)))
+                     params=gparams(obj=self.opaque_type,
+                                    input=self.cname(name)),
+                     invoke='${{obj}}->{name} = ${{input}}'.format(
+                         name=self.mname(name)))
         return self
 
     def generate_function(self, f: Function):

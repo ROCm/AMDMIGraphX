@@ -3,7 +3,6 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/check_shapes.hpp>
 
 #include <migraphx/op/abs.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>

@@ -360,6 +360,10 @@ struct interface_base : Base
     }
 };
 
+#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name) \
+    this->set_auto_fp<T>(& migraphx_##prefix##_set_##name, \
+                             [](T& x, auto... xs) { return x.name(xs...); })
+
 template <class Base, class T>
 using require_interface =
     std::enable_if_t<std::is_base_of<Base, T>{} and not std::is_same<T, Base>{} and
@@ -1037,8 +1041,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     experimental_custom_op(T& obj)
     {
         this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
-        this->set_auto_fp<T>(&migraphx_experimental_custom_op_set_compute_shape,
-                             [](T& x, auto... xs) { return x.compute_shape(xs...); });
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
     }
 
     void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }

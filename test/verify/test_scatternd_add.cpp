@@ -18,7 +18,8 @@ struct test_scatternd_add : verify_program<test_scatternd_add>
 
         auto data    = mm->add_parameter("data", ds);
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
-        auto t_ind   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), indices);
+        auto t_ind =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), indices);
         auto updates = mm->add_parameter("update", us);
         auto scatternd =
             mm->add_instruction(migraphx::make_op("scatternd_add"), data, t_ind, updates);

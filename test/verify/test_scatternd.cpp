@@ -16,8 +16,9 @@ struct test_scatternd : verify_program<test_scatternd>
         migraphx::shape us{dtype, {4}};
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
 
-        auto ld      = mm->add_literal(migraphx::literal{ds, {1}});
-        auto data    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), ld);
+        auto ld = mm->add_literal(migraphx::literal{ds, {1}});
+        auto data =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}), ld);
         auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
         auto updates = mm->add_parameter("update", us);
         auto scatternd =

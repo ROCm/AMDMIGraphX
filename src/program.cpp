@@ -353,13 +353,17 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
+        std::unordered_map<instruction_ref, std::string> ins_names;
+        // get instruction names
+        this->print(ins_names, [](auto, auto) {});
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
                                 std::cout << "Run instruction: ";
-                                this->debug_print(ins);
+                                this->debug_print(ins, ins_names);
+                                std::cout << std::endl;
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
@@ -703,9 +707,9 @@ void program::perf_report(std::ostream& os,
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins) const
+void program::debug_print(instruction_ref ins,
+                          const std::unordered_map<instruction_ref, std::string>& ins_names) const
 {
-    std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
            return is_end(pp.second.end(), ins);
        }))
@@ -721,14 +725,10 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
 
-    std::stringstream ss;
-    this->print(names, [&](auto x, auto ins_names) {
-        if(x == ins)
-        {
-            instruction::print(std::cout, x, ins_names);
-            std::cout << std::endl;
-        }
-    });
+    if(contains(ins_names, ins))
+    {
+        instruction::print(std::cout, ins, ins_names);
+    }
 }
 
 void program::print(

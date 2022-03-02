@@ -44,12 +44,13 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
 template <index_int N, class Op, class T, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {
-    block_scan<N>(idx,
-                  op,
-                  init,
-                  [&](auto f) -> decltype(f(index_int{})) { return idx.local_stride(n, f); },
-                  input,
-                  output);
+    block_scan<N>(
+        idx,
+        op,
+        init,
+        [&](auto f) -> decltype(f(index_int{})) { return idx.local_stride(n, f); },
+        input,
+        output);
 }
 
 } // namespace device

@@ -10,6 +10,12 @@ if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
     set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
+# Setup valid strings for build type
+if (NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
+
 # Default installation path
 if(WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
@@ -36,21 +42,15 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.0)
+rocm_setup_version(VERSION 2.2)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.4")
-        message(FATAL_ERROR "MIGraph requires at least gcc 5.4")
-    endif()
-endif()
-
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
 if(HAS_HIP)
-    message(STATUS "Enable miopen backend")
+    message(STATUS "Enable gpu backend")
     set(MIGRAPHX_ENABLE_GPU On CACHE BOOL "")
 else()
     set(MIGRAPHX_ENABLE_GPU Off CACHE BOOL "")
@@ -60,10 +60,12 @@ endif()
 set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-std=c++17)
+add_compile_options(-std=c++17)
+
+if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
+    set(CONFIGURE_DEPENDS)
 else()
-    add_compile_options(-std=c++14)
+    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)

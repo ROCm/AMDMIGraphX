@@ -9,6 +9,7 @@
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/any_ptr.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,6 +38,12 @@ void from_value_context(T&, const value&)
 {
 }
 
+template <class T>
+any_ptr get_queue_context(T&)
+{
+    return {};
+}
+
 /*
  * Type-erased interface for:
  *
@@ -44,6 +51,7 @@ void from_value_context(T&, const value&)
  * {
  *      value to_value() const;
  *      void from_value(const value& v) ;
+ *      any_ptr get_queue() ;
  *      void finish() const;
  * };
  *
@@ -124,6 +132,12 @@ struct context
         (*this).private_detail_te_get_handle().from_value(v);
     }
 
+    any_ptr get_queue()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_queue();
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -145,6 +159,7 @@ struct context
 
         virtual value to_value() const          = 0;
         virtual void from_value(const value& v) = 0;
+        virtual any_ptr get_queue()             = 0;
         virtual void finish() const             = 0;
     };
 
@@ -174,6 +189,19 @@ struct context
     private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
     {
         from_value_context(private_detail_te_self, v);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_get_queue(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_queue())
+    {
+        return private_detail_te_self.get_queue();
+    }
+
+    template <class T>
+    static any_ptr private_detail_te_default_get_queue(float, T&& private_detail_te_self)
+    {
+        return get_queue_context(private_detail_te_self);
     }
 
     template <typename PrivateDetailTypeErasedT>
@@ -214,6 +242,12 @@ struct context
         {
 
             private_detail_te_default_from_value(char(0), private_detail_te_value, v);
+        }
+
+        any_ptr get_queue() override
+        {
+
+            return private_detail_te_default_get_queue(char(0), private_detail_te_value);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

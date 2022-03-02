@@ -4,7 +4,7 @@
 # are installed, and if so, uses the installed version to format
 # the staged changes.
 
-base=clang-format-5.0
+base=clang-format-10
 format=""
 yapf_base=yapf
 yapf_format=""

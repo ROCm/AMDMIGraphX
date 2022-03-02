@@ -9,18 +9,20 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/op/scatter.hpp>
 #include <cmath>
 #include <utility>
 
 // ScatterElement op. with "none" as the reduction attribute.  This is identical to the
-// deprecated Scatter op.
+// deprecated Scatter op in onnx.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter_none
+struct scatter_none : scatter<scatter_none>
 {
-    int64_t axis = 0;
+    // int64_t axis = 0;
+    scatter_none() {}
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -37,32 +39,12 @@ struct scatter_none
 
     std::string name() const { return "scatter_none"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    // reduction (pointwise operation) is called by the parent struct's compute() method.
+    // It works much like a function overload. 
+    // For the scatter methods, there are three different reduction functions.
+    auto reduction() const
     {
-        check_shapes{inputs, *this}.has(3).standard();
-        return inputs.front();
-    }
-
-    argument compute(const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        // max dimension in axis
-        auto axis_dim_size = output_shape.lens()[axis];
-        visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
-            std::copy(data.begin(), data.end(), output.begin());
-            args[1].visit([&](auto indices) {
-                auto ind_s = indices.get_shape();
-                shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx  = idx;
-                    auto index    = indices[ind_s.index(idx)];
-                    index         = (index < 0) ? index + axis_dim_size : index;
-                    out_idx[axis] = index;
-                    output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
-                });
-            });
-        });
-
-        return result;
+        return [](auto& x, const auto& y) { x = y; };
     }
 };
 

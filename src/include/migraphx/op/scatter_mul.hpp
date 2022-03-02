@@ -11,17 +11,21 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
+#include <migraphx/op/scatter.hpp>
 
 // ScatterElement op. with "multiply" as the reduction attribute.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter_mul
+struct scatter_mul : scatter<scatter_mul>
 {
-    int64_t axis = 0;
+    // int64_t axis = 0;
+    scatter_mul() {}
 
     template <class Self, class F>
+
+    // define the attributes that can be found by the parser
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.axis, "axis"));
@@ -36,34 +40,14 @@ struct scatter_mul
 
     std::string name() const { return "scatter_mul"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    // reduction (pointwise operation) is called by the parent struct's compute() method.
+    // It works much like a function overload. 
+    // For the scatter methods, there are three different reduction functions.
+    auto reduction() const
     {
-        check_shapes{inputs, *this}.has(3).standard();
-        return inputs.front();
+        return [](auto& x, const auto& y) { x *= y; };
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
-    {
-        argument result{output_shape};
-        // max dimension in axis
-        auto axis_dim_size = output_shape.lens()[axis];
-        visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
-            std::copy(data.begin(), data.end(), output.begin());
-            args[1].visit([&](auto indices) {
-                auto ind_s = indices.get_shape();
-                shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx  = idx;
-                    auto index    = indices[ind_s.index(idx)];
-                    index         = (index < 0) ? index + axis_dim_size : index;
-                    out_idx[axis] = index;
-                    // reduction
-                    output[output_shape.index(out_idx)] *= update[ind_s.index(idx)];
-                });
-            });
-        });
-
-        return result;
-    }
 };
 
 } // namespace op

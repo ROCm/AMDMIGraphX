@@ -16,51 +16,24 @@ struct parse_scatter : op_parser<parse_scatter>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        // // The ScatterElements op replaces Scatter (deprecated in Onnx) and has three
-        // // possible values for the attribute "reduction", which we implement as
-        // // different structs.
-        // operation op;
-
-        // int axis = 0;
-        // std::string name_of_op("scatter_none");
-
-        // if(contains(info.attributes, "axis"))
-        // {
-        //     axis = info.attributes.at("axis").i();
-        // }
-        // if(contains(info.attributes, "reduction"))
-        // {
-        //     // valid possibilities for Onnx ScatterElements are {add, mul, none}
-        //     name_of_op ="scatter_" + info.attributes.at("reduction").s();
-        // }
-
-        // // should throw an error if invalid reduction string is given
-        // op = migraphx::make_op(name_of_op, {{"axis", axis}});
-
-        // return info.add_instruction(op, args);
-        // The ScatterElements op replaces Scatter (deprecated in Onnx) and has three
-        // possible values for the attribute "reduction", which we implement as
-        // different structs.
         operation op;
 
+        std::string op_name = "scatter_none";
         int axis = 0;
+
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
         if(contains(info.attributes, "reduction"))
         {
             if(info.attributes.at("reduction").s() == "add")
-                op = migraphx::make_op("scatter_add", {{"axis", axis}});
-            // return info.add_instruction(migraphx::make_op("scatter_add"), args);
+                op_name = "scatter_add";
             else if(info.attributes.at("reduction").s() == "mul")
-                op = migraphx::make_op("scatter_mul", {{"axis", axis}});
-            // return info.add_instruction(migraphx::make_op("scatter_mul"), args);
+                op_name = "scatter_mul";
             else
-                op = migraphx::make_op("scatter_none", {{"axis", axis}});
+                op_name = "scatter_none";
         }
-        else
-            op = migraphx::make_op("scatter_none", {{"axis", axis}});
-        // return info.add_instruction(migraphx::make_op("scatter_none"), args);
-
+        
+        op = migraphx::make_op(op_name, {{"axis", axis}});
         return info.add_instruction(op, args);
     }
 };

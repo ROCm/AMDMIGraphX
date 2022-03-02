@@ -11,15 +11,17 @@
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
+#include <migraphx/op/scatter.hpp>
 
 // ScatterElement op. with "add" as the reduction attribute.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter_add
+struct scatter_add : scatter<scatter_add>
 {
-    int64_t axis = 0;
+    // int64_t axis = 0;
+    scatter_add() {}
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -36,34 +38,19 @@ struct scatter_add
 
     std::string name() const { return "scatter_add"; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this}.has(3);
-        // If non-packed, this converts to a packed output while preserving permutation of tensor
-        return inputs.front().with_lens(inputs.front().lens());
-    }
+    // shape normalize_compute_shape(std::vector<shape> inputs) const
+    // {
+    //     check_shapes{inputs, *this}.has(3);
+    //     // If non-packed, this converts to a packed output while preserving permutation of tensor
+    //     return inputs.front().with_lens(inputs.front().lens());
+    // }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    // reduction (pointwise operation) is called by the parent struct's compute() method.
+    // Its function, code design-wise, is much like a function overload. 
+    // For the scatter methods, there are three different reduction functions.
+    auto reduction() const
     {
-        argument result{output_shape};
-        // max dimension in axis
-        auto axis_dim_size = output_shape.lens()[axis];
-        visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
-            std::copy(data.begin(), data.end(), output.begin());
-            args[1].visit([&](auto indices) {
-                auto ind_s = indices.get_shape();
-                shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx  = idx;
-                    auto index    = indices[ind_s.index(idx)];
-                    index         = (index < 0) ? index + axis_dim_size : index;
-                    out_idx[axis] = index;
-                    // reduction
-                    output[output_shape.index(out_idx)] += update[ind_s.index(idx)];
-                });
-            });
-        });
-
-        return result;
+        return [](auto& x, const auto& y) { x += y; };
     }
 };
 

@@ -11,7 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 include(Embed)
-file(GLOB KERNEL_FILES
+file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES})

@@ -8,7 +8,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_celu: op_parser<parse_celu>
+struct parse_celu : op_parser<parse_celu>
 {
     std::vector<op_desc> operators() const { return {{"Celu"}}; }
 
@@ -25,7 +25,7 @@ struct parse_celu: op_parser<parse_celu>
 
         auto input_lens = args[0]->get_shape().lens();
         auto input_type = args[0]->get_shape().type();
-        if (input_type != migraphx::shape::float_type)
+        if(input_type != migraphx::shape::float_type)
         {
             MIGRAPHX_THROW("CELU: input tensor not float type");
         }
@@ -39,11 +39,11 @@ struct parse_celu: op_parser<parse_celu>
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
         auto linear_part = info.add_instruction(migraphx::make_op("max"), zero_lit, args[0]);
-        auto divi = info.add_instruction(migraphx::make_op("div"), args[0], alpha_lit);
-        auto expo = info.add_instruction(migraphx::make_op("exp"), divi);
-        auto sub = info.add_instruction(migraphx::make_op("sub"), expo, one_lit);
-        auto mul = info.add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
-        auto exp_part = info.add_instruction(migraphx::make_op("min"), zero_lit, mul);
+        auto divi        = info.add_instruction(migraphx::make_op("div"), args[0], alpha_lit);
+        auto expo        = info.add_instruction(migraphx::make_op("exp"), divi);
+        auto sub         = info.add_instruction(migraphx::make_op("sub"), expo, one_lit);
+        auto mul         = info.add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
+        auto exp_part    = info.add_instruction(migraphx::make_op("min"), zero_lit, mul);
         return info.add_instruction(migraphx::make_op("add"), linear_part, exp_part);
     }
 };

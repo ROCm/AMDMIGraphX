@@ -434,7 +434,6 @@ struct miopen_apply
                                             reshapes[2],
                                             reshapes[3],
                                             output);
-
         });
     }
 
@@ -494,7 +493,6 @@ struct miopen_apply
     void add_roialign()
     {
         apply_map.emplace("roialign", [=](instruction_ref ins) {
-
             auto s      = ins->get_shape();
             auto op_val = ins->get_operator().to_value();
             auto output = insert_allocation(ins, s);

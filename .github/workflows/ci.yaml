@@ -14,9 +14,6 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-    - name: Determine free space before
-      run: |
-        echo "FREE_GIG_BEFORE=$(df --output=avail --sync -BG "${{ github.workspace }}" | tail -1 | sed 's/[^0-9]*//g')" >> $GITHUB_ENV
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
@@ -24,9 +21,9 @@ jobs:
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-# let's see if we can do without this.  - uses: satackey/action-docker-layer-caching@v0.0.11
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
-      # continue-on-error: true
+      continue-on-error: true
 
     - name: Prepare timestamp
       id: cache_timestamp
@@ -44,22 +41,11 @@ jobs:
             tidy-cache-${{ steps.cache_timestamp.outputs.timestamp }}
             tidy-cache-
 
-    # see if we can do without the docker - name: Build the Docker image
-    #  run: docker build . --file hip-clang.docker --tag migraphx
-
-      # see https://github.com/easimon/maximize-build-space/blob/master/.github/workflows/test.yaml
-    - name: Determine free space after
-      run: |
-        echo "FREE_GIG_AFTER=$(df --output=avail --sync -BG "${{ github.workspace }}" | tail -1 | sed 's/[^0-9]*//g')"
-        echo "FREE_GIG_AFTER=$(df --output=avail --sync -BG "${{ github.workspace }}" | tail -1 | sed 's/[^0-9]*//g')" >> $GITHUB_ENV
-        FREED_GIG=$(expr ${FREE_GIG_AFTER} - ${FREE_GIG_BEFORE})
-        echo "Free space before: ${FREE_GIG_BEFORE}G"
-        echo "Free space after : ${FREE_GIG_AFTER}G"
-        echo "Space freed      : ${FREED_GIG}G"
+    - name: Build the Docker image
+      run: docker build . --file hip-clang.docker --tag migraphx
 
     - name: Clang tidy
-      # shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
-      shell: bash 
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
       run: |
         mkdir build
         cd build
@@ -83,13 +69,13 @@ jobs:
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    # - uses: satackey/action-docker-layer-caching@v0.0.11
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
-    #   continue-on-error: true
+      continue-on-error: true
 
     - name: Prepare timestamp
       id: cache_timestamp
-      shell: cmake -P {0}git pull
+      shell: cmake -P {0}
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
         message("::set-output name=timestamp::${current_date}")
@@ -128,9 +114,9 @@ jobs:
     # In this step, this action saves a list of existing images,
     # the cache is created without them in the post run.
     # It also restores the cache if it exists.
-    # - uses: satackey/action-docker-layer-caching@v0.0.11
+    - uses: satackey/action-docker-layer-caching@v0.0.11
       # Ignore the failure of a step and avoid terminating the job.
-    #   continue-on-error: true
+      continue-on-error: true
 
     - name: Build the Docker image
       run: docker build . --file hip-clang.docker --tag migraphx
@@ -147,7 +133,7 @@ jobs:
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
           | grep -v 'build/' \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
+          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-5.0 -style=file {} | diff - {}'
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'

@@ -23,15 +23,13 @@ struct find_layernorm
         if(relements > 1024 or (relements % 4 != 0 and relements > 256))
             return;
 
-        auto a = m.insert_instruction(ins, make_op("hip::allocate", {"shape", to_value(x_ins->get_shape())}));
+        auto a = m.insert_instruction(
+            ins, make_op("hip::allocate", {"shape", to_value(x_ins->get_shape())}));
         m.replace_instruction(ins, make_op("gpu::layernorm"), x_ins, a);
     }
 };
 
-void prefuse_ops::apply(module& m) const
-{
-    match::find_matches(m, find_layernorm{});
-}
+void prefuse_ops::apply(module& m) const { match::find_matches(m, find_layernorm{}); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

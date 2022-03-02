@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include <limits>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -1943,6 +1944,45 @@ TEST_CASE(if_pl_test)
         std::vector<float> gold_ret = {6.0f, 5.0f, 4.0f, 3.0f, 2.0f};
         auto ret                    = run_prog(false);
         EXPECT(gold_ret == ret);
+    }
+}
+
+TEST_CASE(isnan_test)
+{
+    // float test
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        auto nan_val             = std::numeric_limits<float>::quiet_NaN();
+        std::vector<float> data0 = {1.2, 5.2, nan_val, nan_val, 0., 100.};
+        auto l1                  = mm->add_literal(migraphx::literal{s, data0});
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, correct));
+    }
+
+    // half test
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+        auto nan_val = std::numeric_limits<migraphx::half>::quiet_NaN();
+        migraphx::half a{1.2};
+        migraphx::half b{5.2};
+        std::vector<migraphx::half> data0 = {a, b, nan_val, nan_val, b, a};
+        auto l1                           = mm->add_literal(migraphx::literal{s, data0});
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, correct));
     }
 }
 

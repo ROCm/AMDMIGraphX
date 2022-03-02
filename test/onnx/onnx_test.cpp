@@ -46,7 +46,7 @@ migraphx::program optimize_onnx(const std::string& name, bool run_passes = false
     return prog;
 }
 
-void add_celu_instruction(migraphx::module* mm, migraphx::shape s, float alpha)
+void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha)
 {
     auto x = mm->add_parameter("x", s);
     auto input_lens = s.lens();

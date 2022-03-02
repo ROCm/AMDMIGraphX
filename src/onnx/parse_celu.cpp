@@ -22,8 +22,6 @@ struct parse_celu: op_parser<parse_celu>
         {
             alpha = info.attributes.at("alpha").f();
         }
-        // Can the rest of the code handle a division by zero or near zero (floating point exception or infinity)?
-        // Will alpha < 0 ever be used? This inverts the shape of the exponential portion of the rectifier.
 
         auto input_lens = args[0]->get_shape().lens();
         auto input_type = args[0]->get_shape().type();

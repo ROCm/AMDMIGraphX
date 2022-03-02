@@ -48,9 +48,9 @@ migraphx::program optimize_onnx(const std::string& name, bool run_passes = false
 
 void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha)
 {
-    auto x          = mm->add_parameter("x", s);
-    auto input_lens = s.lens();
-    auto input_type = s.type();
+    auto x                 = mm->add_parameter("x", s);
+    const auto& input_lens = s.lens();
+    const auto& input_type = s.type();
     auto zero_lit =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));

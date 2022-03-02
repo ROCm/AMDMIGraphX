@@ -316,7 +316,6 @@ struct find_nested_concat
                 else
                     args.push_back(i);
             }
-
         })(ins->inputs());
         p.replace_instruction(ins, ins->get_operator(), args);
     }

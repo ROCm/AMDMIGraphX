@@ -499,8 +499,7 @@ literal tf_parser::parse_tensor(const tensorflow::TensorProto& t) const
         return create_literal(shape::int64_type, dims, get_data_vals(t.int64_val(), shape_size));
     case tensorflow::DataType::DT_BOOL:
         return create_literal(shape::int32_type, dims, get_data_vals(t.bool_val(), shape_size));
-    case tensorflow::DataType::DT_HALF:
-    {
+    case tensorflow::DataType::DT_HALF: {
         std::vector<int> data_int32 = get_data_vals(t.half_val(), shape_size);
         std::vector<uint16_t> data_uint16(data_int32.begin(), data_int32.end());
         std::vector<half> data_half;

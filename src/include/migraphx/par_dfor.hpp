@@ -41,7 +41,6 @@ auto par_dfor(Ts... xs)
         {
             dfor(xs...)(f);
         }
-
     };
 }
 

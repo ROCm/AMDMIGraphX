@@ -14,28 +14,23 @@ constexpr void visit_tensor_size(index_int n, F f)
 {
     switch(n)
     {
-    case 1:
-    {
+    case 1: {
         f(std::integral_constant<index_int, 1>{});
         break;
     }
-    case 2:
-    {
+    case 2: {
         f(std::integral_constant<index_int, 2>{});
         break;
     }
-    case 3:
-    {
+    case 3: {
         f(std::integral_constant<index_int, 3>{});
         break;
     }
-    case 4:
-    {
+    case 4: {
         f(std::integral_constant<index_int, 4>{});
         break;
     }
-    case 5:
-    {
+    case 5: {
         f(std::integral_constant<index_int, 5>{});
         break;
     }

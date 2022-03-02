@@ -110,6 +110,10 @@ void gemm_impl(context& ctx,
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1)
         {
+            // the rocblas_gemm API handles inputs and output matrices as
+            // column-major format. When doing a C = A * B, we actually do
+            // C^T = (B^T) * (A^T). That is the reason we input args[1] as
+            // A and args[0] as B in calling the rocblas_gemm.
             rocblas_invoke(&rocblas_gemm_ex,
                            ctx.get_stream().get_rocblas(),
                            transb ? rocblas_operation_transpose : rocblas_operation_none,

@@ -253,7 +253,6 @@ struct roialign
                                                              max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
-
             });
         });
 

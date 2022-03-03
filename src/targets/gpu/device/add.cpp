@@ -45,7 +45,7 @@ void add(hipStream_t stream, const argument& result, const argument& arg1, const
         auto last_dim  = sr.lens().back() / 2;
         int block_size = 1024;
         int block_num  = (elem_num + block_size - 1) / block_size;
-        add_kernel<<<block_num, block_size>>>(
+        add_kernel<<<block_num, block_size, 0, stream>>>(
             arg1.data(), arg2.data(), last_dim, result.data(), elem_num);
     }
     else

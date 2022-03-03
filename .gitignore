@@ -1,1 +1,10 @@
+# Vim swaps
 *.swp
+
+# Builds
+/bin
+/build
+/exe
+
+# Compiled python
+*.pyc

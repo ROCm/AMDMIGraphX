@@ -114,6 +114,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isnan
     leaky_relu
     less
     load
@@ -161,6 +162,9 @@ register_migraphx_ops(
     rsqrt
     scalar
     scatter
+    scatternd_none
+    scatternd_add
+    scatternd_mul
     sigmoid
     sign
     sinh

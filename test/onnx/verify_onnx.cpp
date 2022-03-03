@@ -51,13 +51,10 @@ TEST_CASE(celu_verify_test)
     p.compile(migraphx::ref::target{});
 
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    std::vector<float> data = {
-        -5.5, 2.0, 100.,
-        7.0, 0., -1.
-    };
+    std::vector<float> data = {-5.5, 2.0, 100., 7.0, 0., -1.};
 
     migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(s, data.data());
+    pp["x"]     = migraphx::argument(s, data.data());
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

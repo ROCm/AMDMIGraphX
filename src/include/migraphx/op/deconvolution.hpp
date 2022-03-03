@@ -97,7 +97,6 @@ struct deconvolution
             shape win_shape{output_shape.type(), win_size};
 
             par_dfor(in_n, wei_c)([&](int o, int k) {
-
                 shape_for_each(win_shape, [&](auto idx_win) {
                     const int w = idx_win[0];
 
@@ -140,9 +139,7 @@ struct deconvolution
                             weights(idx_wei.begin(), idx_wei.end());
                     }
                 });
-
             });
-
         });
         return result;
     }

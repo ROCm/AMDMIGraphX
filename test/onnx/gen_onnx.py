@@ -357,10 +357,9 @@ def celu_alpha_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
 
     node = onnx.helper.make_node('Celu',
-            inputs=['x'],
-            outputs=['y'],
-            alpha=0.8
-            )
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.8)
 
     return ([node], [x], [y])
 
@@ -370,9 +369,7 @@ def celu_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
 
-    node = onnx.helper.make_node('Celu',
-            inputs=['x'],
-            outputs=['y'])
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
 
@@ -383,10 +380,9 @@ def celu_verify_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
 
     node = onnx.helper.make_node('Celu',
-            inputs=['x'],
-            outputs=['y'],
-            alpha = 0.5
-            )
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.5)
 
     return ([node], [x], [y])
 

@@ -46,7 +46,7 @@ migraphx::program optimize_onnx(const std::string& name, bool run_passes = false
     return prog;
 }
 
-std::vector<double> make_r_eyelike(size_t num_rows, size_t num_cols, size_t k)
+static std::vector<double> make_r_eyelike(size_t num_rows, size_t num_cols, size_t k)
 {
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
     for(size_t i = 0; i < num_rows; ++i)

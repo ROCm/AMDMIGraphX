@@ -61,7 +61,7 @@ struct parse_eyelike : op_parser<parse_eyelike>
         {
             auto idx = i + k;
             if(idx < num_cols and idx >= 0)
-                eyelike_mat[(num_cols + 1) * i + k] = 1.;
+                eyelike_mat[(num_cols + 1) * i + k] = char{1};
         }
         return info.add_literal(
             migraphx::literal{migraphx::shape{output_type, input_lens}, eyelike_mat});

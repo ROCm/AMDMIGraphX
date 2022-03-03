@@ -14,8 +14,15 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Print Free space
+      run: df -h
+
     - name: Free space
       run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
+
+    - name: Print Free space
+      run: df -h
+
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,

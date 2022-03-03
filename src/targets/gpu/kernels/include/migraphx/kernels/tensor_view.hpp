@@ -9,7 +9,8 @@ namespace migraphx {
 template <class T, class Shape>
 struct tensor_view
 {
-    using type = T;
+    using type       = T;
+    using shape_type = Shape;
 
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr index_int size() const { return get_shape().elements(); }

@@ -24,12 +24,13 @@ void prefix_scan_sum(hipStream_t stream, const argument& result, const argument&
                         k[axis] = j;
                         return k;
                     };
-                    block_scan<block_size>(idx,
-                                           sum{},
-                                           0,
-                                           n,
-                                           [&](auto j) { return input[compute_idx(j)]; },
-                                           [&](auto j, auto x) { output[compute_idx(j)] = x; });
+                    block_scan<block_size>(
+                        idx,
+                        sum{},
+                        0,
+                        n,
+                        [&](auto j) { return input[compute_idx(j)]; },
+                        [&](auto j, auto x) { output[compute_idx(j)] = x; });
                 });
         });
 }

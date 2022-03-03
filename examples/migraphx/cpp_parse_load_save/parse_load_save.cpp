@@ -24,7 +24,6 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    char* parse_arg        = getCmdOption(argv + 2, argv + argc, "--parse");
     char* load_arg         = getCmdOption(argv + 2, argv + argc, "--load");
     char* save_arg         = getCmdOption(argv + 2, argv + argc, "--save");
     const char* input_file = argv[1];
@@ -78,7 +77,7 @@ int main(int argc, char** argv)
         std::cout << "Saving program..." << std::endl;
         std::string output_file;
         output_file = save_arg == nullptr ? "out" : save_arg;
-        output_file.append(".msgpack");
+        output_file.append(".mxr");
 
         migraphx::file_options options;
         options.set_file_format("msgpack");

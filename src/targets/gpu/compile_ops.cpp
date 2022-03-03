@@ -12,6 +12,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
+
 struct precompile_op
 {
     operation op = op::identity{};
@@ -70,6 +72,14 @@ struct compiled_result
     instruction_ref ins;
 };
 
+template <class F>
+void par_compile(std::size_t n, F f)
+{
+    if(n == 0)
+        return;
+    par_for(n, n / value_of(MIGRAPHX_GPU_COMPILE_PARALLEL{}, n), f);
+}
+
 void compile_ops::apply(module& m) const
 {
     auto compilers = make_compilers(pointwise_compiler{});
@@ -85,7 +95,7 @@ void compile_ops::apply(module& m) const
         compiles.emplace_back([=]() -> compiled_result { return {c(*ctx, ins, preop), ins}; });
     }
     std::vector<compiled_result> results(compiles.size());
-    par_for(compiles.size(), 1, [&](auto i) { results[i] = compiles[i](); });
+    par_compile(compiles.size(), [&](auto i) { results[i] = compiles[i](); });
     for(const auto& cr : results)
     {
         m.replace_instruction(cr.ins, cr.op, cr.ins->inputs());

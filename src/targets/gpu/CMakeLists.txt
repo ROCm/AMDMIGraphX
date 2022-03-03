@@ -11,7 +11,7 @@ if(NOT TARGET MIOpen)
 endif()
 
 include(Embed)
-file(GLOB KERNEL_FILES
+file(GLOB KERNEL_FILES ${CONFIGURE_DEPENDS}
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 add_embed_library(migraphx_kernels ${KERNEL_FILES})
@@ -133,6 +133,7 @@ add_library(migraphx_gpu
     compile_hip_code_object.cpp
     compile_pointwise.cpp
     compile_roialign.cpp
+    compile_scatternd.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -316,8 +317,12 @@ target_flags(HIP_COMPILER_FLAGS hip::device)
 # Remove cuda arch flags
 string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-string(REPLACE "$<LINK_LANGUAGE:CXX>" "1" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-string(REPLACE "SHELL:" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+# Skip library paths since hip will incorrectly treat it as a source file
+string(APPEND HIP_COMPILER_FLAGS " ")
+foreach(_unused RANGE 2)
+    string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+endforeach()
+
 message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
 target_compile_definitions(migraphx_gpu PRIVATE 
     "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}" 

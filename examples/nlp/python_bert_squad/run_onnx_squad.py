@@ -1,3 +1,4 @@
+# Modifications Copyright (C) 2022, Advanced Micro Devices, Inc. All rights reserved
 # Copyright 2018 The Google AI Language Team Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

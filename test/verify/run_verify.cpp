@@ -6,6 +6,7 @@
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/load_save.hpp>
 #include <migraphx/verify_args.hpp>
 #include <set>
 
@@ -15,6 +16,7 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_TEST)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
@@ -125,6 +127,8 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
+    if(migraphx::enabled(MIGRAPHX_DUMP_TEST{}))
+        migraphx::save(p, name + ".mxr");
     std::vector<std::pair<std::string, result_future>> results;
     std::vector<std::string> target_names;
     for(const auto& tname : migraphx::get_targets())

@@ -21,6 +21,16 @@ struct greater
     }
 };
 
+template <class InputIt, class OutputIt>
+constexpr OutputIt copy(InputIt first, InputIt last, OutputIt d_first)
+{
+    while(first != last)
+    {
+        *d_first++ = *first++;
+    }
+    return d_first;
+}
+
 template <class Iterator, class Compare>
 constexpr Iterator is_sorted_until(Iterator first, Iterator last, Compare comp)
 {

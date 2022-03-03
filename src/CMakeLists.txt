@@ -162,6 +162,9 @@ register_migraphx_ops(
     rsqrt
     scalar
     scatter
+    scatternd_none
+    scatternd_add
+    scatternd_mul
     sigmoid
     sign
     sinh

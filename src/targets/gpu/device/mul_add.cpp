@@ -70,9 +70,9 @@ void mul_add(hipStream_t stream,
     ss.push_back(arg1.get_shape());
     ss.push_back(arg2.get_shape());
     ss.push_back(arg3.get_shape());
-    auto lens      = sr.lens();
-    int last_dim   = lens.back() / 2;
-    auto n_dim     = lens.size();
+    auto lens    = sr.lens();
+    int last_dim = lens.back() / 2;
+    auto n_dim   = lens.size();
     if(type == shape::half_type and is_bert(ss))
     {
         auto elem_num  = sr.elements() / 2;

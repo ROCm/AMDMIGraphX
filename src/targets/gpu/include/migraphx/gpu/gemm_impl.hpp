@@ -14,13 +14,15 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           float alpha,
           float beta,
-          bool int8_x4_format);
+          bool int8_x4_format,
+          bool compute_fp32);
 void gemm(context& ctx,
           const shape& output_shape,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
-          bool int8_x4_format);
+          bool int8_x4_format,
+          bool compute_fp32);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -809,11 +809,12 @@ void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputItera
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(),
-                 m.end(),
-                 out,
-                 [&](auto&& pp) { return not contains(used, pp.first); },
-                 [](auto&& pp) { return &pp.second; });
+    transform_if(
+        m.begin(),
+        m.end(),
+        out,
+        [&](auto&& pp) { return not contains(used, pp.first); },
+        [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const

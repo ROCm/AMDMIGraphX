@@ -123,6 +123,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_hardswish.*')
         backend_test.include(r'.*test_identity.*')
         backend_test.include(r'.*test_if.*')
+        backend_test.include(r'.*test_isnan.*')
         backend_test.include(r'.*test_LeakyReLU*')
         backend_test.include(r'.*test_leakyrelu.*')
         backend_test.include(r'.*test_less.*')
@@ -271,7 +272,6 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
-        backend_test.exclude(r'test_scatternd_*')
 
         # all reduce ops have dynamic axes inputs
         backend_test.exclude(r'test_size_cpu')

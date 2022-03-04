@@ -27,7 +27,7 @@ TEST_CASE(load_and_run)
 
 TEST_CASE(load_and_run_ctx)
 {
-    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     migraphx::compile_options options;
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);

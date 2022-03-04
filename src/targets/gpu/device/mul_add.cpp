@@ -21,7 +21,7 @@ __global__ void mul_add_kernel_dim3(void* a, void* x, void* b, int dim3, void* r
     if(id < n)
     {
         auto id1 = id % dim3;
-        hr[id]   = __hadd2(__hmul2(ha[id], hx[id1]), hb[id1]);
+        hr[id]   = __hfma2(ha[id], hx[id1], hb[id1]);
     }
 }
 

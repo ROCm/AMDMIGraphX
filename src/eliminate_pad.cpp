@@ -44,7 +44,7 @@ static void update_op(const instruction_ref& input, const instruction_ref& ins, 
 static void update_pooling(const instruction_ref& input, const instruction_ref& ins, module& m)
 {
     auto op = any_cast<op::pooling>(ins->get_operator());
-    if(op.mode == "average")
+    if(op.mode == op::pooling_mode::average)
     {
         return;
     }

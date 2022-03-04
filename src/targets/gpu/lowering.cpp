@@ -143,6 +143,7 @@ struct miopen_apply
         add_generic_op("relu");
         add_generic_op("round");
         add_generic_op("rsqrt");
+        add_generic_op("scatter_none");
         add_generic_op("sigmoid");
         add_generic_op("sign");
         add_generic_op("sin");
@@ -179,7 +180,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("scatter");
         add_extend_op("softmax");
         add_extend_op("topk");
 

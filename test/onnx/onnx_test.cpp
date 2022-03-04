@@ -3963,7 +3963,7 @@ TEST_CASE(scatter_test)
     auto l2 =
         mm->add_parameter("update", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     int axis = -2;
-    auto r   = mm->add_instruction(migraphx::make_op("scatter", {{"axis", axis}}), l0, l1, l2);
+    auto r   = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
     auto prog = migraphx::parse_onnx("scatter_test.onnx");
 

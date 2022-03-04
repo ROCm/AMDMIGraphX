@@ -22,7 +22,7 @@ struct scatter_mul : scatter<scatter_mul>
 {
     // int64_t axis = 0;
     scatter_mul() {}
-
+    scatter_mul(int64_t ax) : scatter(ax) {}
     template <class Self, class F>
 
     // define the attributes that can be found by the parser
@@ -41,13 +41,12 @@ struct scatter_mul : scatter<scatter_mul>
     std::string name() const { return "scatter_mul"; }
 
     // reduction (pointwise operation) is called by the parent struct's compute() method.
-    // It works much like a function overload. 
+    // It works much like a function overload.
     // For the scatter methods, there are three different reduction functions.
     auto reduction() const
     {
         return [](auto& x, const auto& y) { x *= y; };
     }
-
 };
 
 } // namespace op

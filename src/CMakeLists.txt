@@ -160,7 +160,6 @@ register_migraphx_ops(
     round
     rsqrt
     scalar
-    scatter
     scatter_add
     scatter_mul
     scatter_none

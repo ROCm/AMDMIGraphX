@@ -19,7 +19,7 @@ struct parse_scatter : op_parser<parse_scatter>
         operation op;
 
         std::string op_name = "scatter_none";
-        int axis = 0;
+        int axis            = 0;
 
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
@@ -32,7 +32,7 @@ struct parse_scatter : op_parser<parse_scatter>
             else
                 op_name = "scatter_none";
         }
-        
+
         op = migraphx::make_op(op_name, {{"axis", axis}});
         return info.add_instruction(op, args);
     }

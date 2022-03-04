@@ -35,7 +35,7 @@ struct scatter : op_name<Derived>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.reduction, "reduction"));
     }
 
     value attributes() const
@@ -58,7 +58,7 @@ struct scatter : op_name<Derived>
     {
         argument result{output_shape};
         auto& self = static_cast<const Derived&>(*this);
-        
+
         // max dimension in axis
         auto axis_dim_size = output_shape.lens()[axis];
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
@@ -71,7 +71,7 @@ struct scatter : op_name<Derived>
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
                     // output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
-                    self.reduction()(output[output_shape.index(out_idx)], update[ind_s.index(idx)]);                        
+                    self.reduction()(output[output_shape.index(out_idx)], update[ind_s.index(idx)]);
                 });
             });
         });
@@ -79,7 +79,8 @@ struct scatter : op_name<Derived>
         return result;
     }
     auto init() const {}
-    scatter() {}    
+    scatter() {}
+    scatter(int64_t ax) : axis(ax) {}
 };
 
 } // namespace op

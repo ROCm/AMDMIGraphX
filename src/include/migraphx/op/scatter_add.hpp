@@ -22,6 +22,7 @@ struct scatter_add : scatter<scatter_add>
 {
     // int64_t axis = 0;
     scatter_add() {}
+    scatter_add(int64_t ax) : scatter(ax) {}
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -46,7 +47,7 @@ struct scatter_add : scatter<scatter_add>
     // }
 
     // reduction (pointwise operation) is called by the parent struct's compute() method.
-    // Its function, code design-wise, is much like a function overload. 
+    // Its function, code design-wise, is much like a function overload.
     // For the scatter methods, there are three different reduction functions.
     auto reduction() const
     {

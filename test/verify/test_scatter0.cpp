@@ -18,7 +18,7 @@ struct test_scatter0 : verify_program<test_scatter0>
         auto pd = mm->add_parameter("data", sd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -1}}), pd, li, pu);
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
         mm->add_return({r});
 
         return p;

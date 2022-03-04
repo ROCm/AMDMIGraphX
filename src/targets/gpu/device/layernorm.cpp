@@ -184,8 +184,8 @@ auto layernorm_fusion(hipStream_t stream,
                       const Arguments&... args)
 {
     return [=](auto input, auto output) {
-        auto relements    = arg1.get_shape().lens().back();
-        auto nelements    = result.get_shape().elements() / relements;
+        auto relements = arg1.get_shape().lens().back();
+        auto nelements = result.get_shape().elements() / relements;
         // auto output_shape = result.get_shape();
         // auto reduce_output_lens(output_shape.lens());
         // reduce_output_lens.back() = 1;

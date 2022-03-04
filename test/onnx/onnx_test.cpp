@@ -4279,9 +4279,9 @@ TEST_CASE(sinh_test)
 TEST_CASE(size_float_test)
 {
     migraphx::program p;
-    auto* mm        = p.get_main_module();
-    auto s          = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
-    auto input_lens = s.lens();
+    auto* mm               = p.get_main_module();
+    auto s                 = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+    const auto& input_lens = s.lens();
     mm->add_parameter("x", s);
     int64_t size =
         std::accumulate(input_lens.cbegin(), input_lens.cend(), int64_t{1}, std::multiplies<>());
@@ -4294,9 +4294,9 @@ TEST_CASE(size_float_test)
 TEST_CASE(size_half_test)
 {
     migraphx::program p;
-    auto* mm        = p.get_main_module();
-    auto s          = migraphx::shape{migraphx::shape::half_type, {3, 1}};
-    auto input_lens = s.lens();
+    auto* mm               = p.get_main_module();
+    auto s                 = migraphx::shape{migraphx::shape::half_type, {3, 1}};
+    const auto& input_lens = s.lens();
     mm->add_parameter("x", s);
     int64_t size =
         std::accumulate(input_lens.cbegin(), input_lens.cend(), int64_t{1}, std::multiplies<>());
@@ -4308,9 +4308,9 @@ TEST_CASE(size_half_test)
 TEST_CASE(size_int_test)
 {
     migraphx::program p;
-    auto* mm        = p.get_main_module();
-    auto s          = migraphx::shape{migraphx::shape::int32_type, {8, 2, 3}};
-    auto input_lens = s.lens();
+    auto* mm               = p.get_main_module();
+    auto s                 = migraphx::shape{migraphx::shape::int32_type, {8, 2, 3}};
+    const auto& input_lens = s.lens();
     mm->add_parameter("x", s);
     int64_t size =
         std::accumulate(input_lens.cbegin(), input_lens.cend(), int64_t{1}, std::multiplies<>());

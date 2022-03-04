@@ -1382,6 +1382,114 @@ def expand_test():
 
 
 @onnx_test
+def eyelike_default_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_double_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.DOUBLE, [6, 15])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.DOUBLE, [6, 15])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_half_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT16, [8, 8])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT16, [8, 8])
+
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=1)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_outofbounds_neg_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [2, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [2, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_k_outofbounds_pos_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=4)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_not_rank2_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4, 2])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node(
+        'EyeLike',
+        inputs=['T1'],
+        outputs=['T2'],
+    )
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_verify_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike', inputs=['T1'], outputs=['T2'], k=1)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_verify_negk_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.FLOAT, [3, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 k=-2)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
+def eyelike_set_dtype_test():
+    T1 = helper.make_tensor_value_info('T1', TensorProto.FLOAT, [3, 4])
+    T2 = helper.make_tensor_value_info('T2', TensorProto.DOUBLE, [3, 4])
+    node = onnx.helper.make_node('EyeLike',
+                                 inputs=['T1'],
+                                 outputs=['T2'],
+                                 dtype=TensorProto.DOUBLE)
+    return ([node], [T1], [T2])
+
+
+@onnx_test
 def flatten_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 3, 4, 5])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [6, 20])

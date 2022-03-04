@@ -76,12 +76,12 @@ struct program
     void from_value(const value& v);
 
     void debug_print() const;
-    void debug_print(instruction_ref ins,
-                     const std::unordered_map<instruction_ref, std::string>& ins_names) const;
+    void debug_print(instruction_ref ins) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
                const std::function<void(instruction_ref,
                                         std::unordered_map<instruction_ref, std::string>)>&
                    print_func) const;
+    void print(const std::function<void(instruction_ref ins, std::unordered_map<instruction_ref, std::string>)>& print_func) const;
 
     void print_graph(std::ostream& os, bool brief = false) const;
     void print_cpp(std::ostream& os) const;

@@ -353,17 +353,20 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
-        std::unordered_map<instruction_ref, std::string> ins_names;
+        std::unordered_map<instruction_ref, std::string> ins_out;
         // get instruction names
-        this->print(ins_names, [](auto, auto) {});
+        this->print([&](auto x, auto ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
+        });
+
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
-                                std::cout << "Run instruction: ";
-                                this->debug_print(ins, ins_names);
-                                std::cout << std::endl;
+                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
@@ -707,9 +710,9 @@ void program::perf_report(std::ostream& os,
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins,
-                          const std::unordered_map<instruction_ref, std::string>& ins_names) const
+void program::debug_print(instruction_ref ins) const
 {
+    std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
            return is_end(pp.second.end(), ins);
        }))
@@ -725,10 +728,14 @@ void program::debug_print(instruction_ref ins,
         return;
     }
 
-    if(contains(ins_names, ins))
-    {
-        instruction::print(std::cout, ins, ins_names);
-    }
+    std::stringstream ss;
+    this->print(names, [&](auto x, auto ins_names) {
+        if(x == ins)
+        {
+            instruction::print(std::cout, x, ins_names);
+            std::cout << std::endl;
+        }
+    });
 }
 
 void program::print(
@@ -740,6 +747,12 @@ void program::print(
     {
         names = pp.second.print(print_func, names);
     }
+}
+
+void program::print(const std::function<void(instruction_ref ins, std::unordered_map<instruction_ref, std::string>)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, print_func);
 }
 
 void program::print_graph(std::ostream& os, bool brief) const

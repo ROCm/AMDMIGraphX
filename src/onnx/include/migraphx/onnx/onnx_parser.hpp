@@ -37,10 +37,12 @@ struct onnx_parser
                                                     instruction_ref arg0,
                                                     instruction_ref arg1) const;
 
-        instruction_ref add_common_op(const std::string& op_name, std::vector<instruction_ref> inputs) const;
+        instruction_ref add_common_op(const std::string& op_name,
+                                      std::vector<instruction_ref> inputs) const;
 
-        template<class... Ts>
-        instruction_ref add_common_op(const std::string& op_name, Ts... xs) const {
+        template <class... Ts>
+        instruction_ref add_common_op(const std::string& op_name, Ts... xs) const
+        {
             return add_common_op(op_name, {xs...});
         }
 
@@ -62,7 +64,6 @@ struct onnx_parser
         {
             return add_literal(literal{std::forward<Ts>(xs)...});
         }
-        
     };
     using node_map = std::unordered_map<std::string, onnx::NodeProto>;
     using op_func  = std::function<std::vector<instruction_ref>(

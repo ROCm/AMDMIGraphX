@@ -38,7 +38,15 @@ struct prefix_scan_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        return inputs.at(0);
+        auto s = inputs.front();
+        if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
+        }
+        else
+        {
+            return s.with_lens(s.lens());
+        }
     }
 
     argument compute(const shape&, std::vector<argument> args) const

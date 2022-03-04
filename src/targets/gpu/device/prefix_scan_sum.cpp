@@ -1,6 +1,7 @@
 #include <migraphx/gpu/device/prefix_scan_sum.hpp>
 #include <migraphx/gpu/device/scan.hpp>
 #include <migraphx/gpu/device/reduce_ops.hpp>
+#include <migraphx/gpu/device/reduce.hpp>
 #include <migraphx/gpu/device/types.hpp>
 
 namespace migraphx {
@@ -15,13 +16,14 @@ void prefix_scan_sum(hipStream_t stream,
                      bool exclusive,
                      bool reverse)
 {
-    const index_int block_size = 256;
+    const index_int max_block_size = 256;
     const index_int n          = arg.get_shape().lens()[axis];
     auto rlens                 = result.get_shape().lens();
     rlens[axis]                = 1;
 
     hip_visit_all(result, arg, result.get_shape().with_lens(rlens))(
         [=](auto output, auto input, auto rshape) {
+            const index_int block_size = compute_block_size(rshape.elements(), max_block_size);
             if(reverse and exclusive)
             {
                 gs_launch(stream, rshape.elements() * block_size, block_size)(
@@ -32,7 +34,7 @@ void prefix_scan_sum(hipStream_t stream,
                             k[axis] = j;
                             return k;
                         };
-                        block_scan<block_size>(
+                        block_scan<max_block_size>(
                             idx,
                             sum{},
                             0,
@@ -57,7 +59,7 @@ void prefix_scan_sum(hipStream_t stream,
                             k[axis] = j;
                             return k;
                         };
-                        block_scan<block_size>(
+                        block_scan<max_block_size>(
                             idx,
                             sum{},
                             0,
@@ -76,7 +78,7 @@ void prefix_scan_sum(hipStream_t stream,
                             k[axis] = j;
                             return k;
                         };
-                        block_scan<block_size>(idx,
+                        block_scan<max_block_size>(idx,
                                                sum{},
                                                0,
                                                n,
@@ -101,7 +103,7 @@ void prefix_scan_sum(hipStream_t stream,
                             k[axis] = j;
                             return k;
                         };
-                        block_scan<block_size>(idx,
+                        block_scan<max_block_size>(idx,
                                                sum{},
                                                0,
                                                n,

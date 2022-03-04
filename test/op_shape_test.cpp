@@ -570,10 +570,12 @@ TEST_CASE(inconsistent_attr_shape)
                                    {{"padding", {1, 1}}, {"stride", {2}}, {"dilation", {3, 3, 3}}}),
                  input,
                  weights);
-    throws_shape(
-        migraphx::make_op(
-            "pooling", {{"mode", "max"}, {"padding", {1}}, {"stride", {0}}, {"lengths", {1, 1}}}),
-        input);
+    throws_shape(migraphx::make_op("pooling",
+                                   {{"mode", migraphx::op::pooling_mode::max},
+                                    {"padding", {1}},
+                                    {"stride", {0}},
+                                    {"lengths", {1, 1}}}),
+                 input);
 }
 
 template <class T>
@@ -983,21 +985,24 @@ TEST_CASE(pooling_shape)
 {
     migraphx::shape output{migraphx::shape::float_type, {4, 3, 1, 1}};
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};
-    throws_shape(
-        migraphx::make_op("pooling",
-                          {{"mode", "max"}, {"padding", {1}}, {"stride", {0}}, {"lengths", {1}}}),
-        input);
-    expect_shape(
-        output,
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0}}, {"stride", {3, 3}}, {"lengths", {1, 1}}}),
-        input);
+    throws_shape(migraphx::make_op("pooling",
+                                   {{"mode", migraphx::op::pooling_mode::max},
+                                    {"padding", {1}},
+                                    {"stride", {0}},
+                                    {"lengths", {1}}}),
+                 input);
+    expect_shape(output,
+                 migraphx::make_op("pooling",
+                                   {{"mode", migraphx::op::pooling_mode::max},
+                                    {"padding", {0, 0}},
+                                    {"stride", {3, 3}},
+                                    {"lengths", {1, 1}}}),
+                 input);
 
     migraphx::shape output1{migraphx::shape::float_type, {4, 3, 2, 2}};
     expect_shape(output1,
                  migraphx::make_op("pooling",
-                                   {{"mode", "max"},
+                                   {{"mode", migraphx::op::pooling_mode::max},
                                     {"padding", {0, 0}},
                                     {"stride", {3, 3}},
                                     {"lengths", {1, 1}},
@@ -1430,6 +1435,29 @@ TEST_CASE(test_scalar_nelemnts)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
     throws_shape(migraphx::make_op("scalar", {{"scalar_bcst_dims", {2, 3, 4, 5}}}), input);
+}
+
+TEST_CASE(test_scatternd)
+{
+    {
+        // k > r
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 2}};
+        migraphx::shape us{dtype, {4}};
+        throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+    }
+
+    {
+        // update.lens != indices.lens[0:q-1] ++ data.lens[k:r-1]
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {2, 2}};
+        throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+    }
 }
 
 TEST_CASE(test_squeeze)

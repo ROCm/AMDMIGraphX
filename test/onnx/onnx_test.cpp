@@ -191,11 +191,12 @@ TEST_CASE(averagepool_1d_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5}});
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "average"}, {"padding", {0, 0}}, {"stride", {1}}, {"lengths", {3}}}),
-        l0);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"padding", {0, 0}},
+                                           {"stride", {1}},
+                                           {"lengths", {3}}}),
+                        l0);
 
     auto prog = optimize_onnx("averagepool_1d_test.onnx");
     EXPECT(p == prog);
@@ -207,7 +208,7 @@ TEST_CASE(averagepool_3d_test)
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 5, 5, 5}});
     mm->add_instruction(migraphx::make_op("pooling",
-                                          {{"mode", "average"},
+                                          {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0, 0, 0, 0, 0}},
                                            {"stride", {1, 1, 1}},
                                            {"lengths", {3, 3, 3}}}),
@@ -223,7 +224,7 @@ TEST_CASE(averagepool_notset_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", "average"},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {2, 2, 2, 2}},
                                                       {"stride", {2, 2}},
                                                       {"lengths", {6, 6}}}),
@@ -244,7 +245,7 @@ TEST_CASE(averagepool_nt_cip_test)
     std::vector<int64_t> pads = {0, 0, 0, 0, 0, 0, 1, 1};
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", "average"},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {2, 2}},
                                                       {"lengths", {6, 6}}}),
@@ -261,7 +262,7 @@ TEST_CASE(averagepool_same_lower_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", "average"},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -282,7 +283,7 @@ TEST_CASE(averagepool_sl_cip_test)
     std::vector<int64_t> pads = {0, 0, 1, 1, 0, 0, 0, 0};
     auto ins_pad = mm->add_instruction(migraphx::make_op("pad", {{"pads", pads}}), input);
     auto ret     = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", "average"},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {0, 0, 0, 0}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -299,7 +300,7 @@ TEST_CASE(averagepool_same_upper_test)
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
     auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", "average"},
+                                                     {{"mode", migraphx::op::pooling_mode::average},
                                                       {"padding", {1, 1, 1, 1}},
                                                       {"stride", {1, 1}},
                                                       {"lengths", {2, 2}}}),
@@ -669,11 +670,12 @@ TEST_CASE(conv_bn_relu_maxpool_test)
     auto l6 = mm->add_instruction(
         migraphx::make_op("batch_norm_inference", {{"epsilon", 1.0e-5f}}), l5, p3, p4, p5, p6);
     auto l7 = mm->add_instruction(migraphx::make_op("relu"), l6);
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 0, 0}}, {"stride", {2, 2}}, {"lengths", {2, 2}}}),
-        l7);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0, 0, 0}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {2, 2}}}),
+                        l7);
 
     auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
     EXPECT(p == prog);
@@ -693,11 +695,12 @@ TEST_CASE(conv_relu_maxpool_test)
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
     auto l6 = mm->add_instruction(migraphx::make_op("relu"), l5);
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 0, 0}}, {"stride", {2, 2}}, {"lengths", {2, 2}}}),
-        l6);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0, 0, 0}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {2, 2}}}),
+                        l6);
 
     auto prog = optimize_onnx("conv_relu_maxpool_test.onnx");
     EXPECT(p == prog);
@@ -717,11 +720,12 @@ TEST_CASE(conv_relu_maxpool_x2_test)
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
     auto l5 = mm->add_instruction(migraphx::make_op("add"), l3, l4);
     auto l6 = mm->add_instruction(migraphx::make_op("relu"), l5);
-    auto l7 = mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 0, 0}}, {"stride", {2, 2}}, {"lengths", {2, 2}}}),
-        l6);
+    auto l7 = mm->add_instruction(migraphx::make_op("pooling",
+                                                    {{"mode", migraphx::op::pooling_mode::max},
+                                                     {"padding", {0, 0, 0, 0}},
+                                                     {"stride", {2, 2}},
+                                                     {"lengths", {2, 2}}}),
+                                  l6);
 
     auto l8 = mm->add_parameter("3", {migraphx::shape::float_type, {1, 5, 5, 5}});
     auto l9 = mm->add_parameter("4", {migraphx::shape::float_type, {1}});
@@ -732,11 +736,12 @@ TEST_CASE(conv_relu_maxpool_x2_test)
         l9);
     auto l12 = mm->add_instruction(migraphx::make_op("add"), l10, l11);
     auto l13 = mm->add_instruction(migraphx::make_op("relu"), l12);
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 0, 0}}, {"stride", {2, 2}}, {"lengths", {2, 2}}}),
-        l13);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0, 0, 0}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {2, 2}}}),
+                        l13);
 
     auto prog = optimize_onnx("conv_relu_maxpool_x2_test.onnx");
 
@@ -1481,7 +1486,7 @@ TEST_CASE(globalavgpool_test)
     auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto op    = migraphx::op::pooling{"average"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
     auto lens  = input->get_shape().lens();
     op.lengths = {lens[2], lens[3]};
     op.padding = {0, 0, 0, 0};
@@ -1498,7 +1503,7 @@ TEST_CASE(globalmaxpool_test)
     auto* mm = p.get_main_module();
     auto input =
         mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
-    auto op    = migraphx::op::pooling{"max"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
     auto lens  = input->get_shape().lens();
     op.lengths = {lens[2], lens[3]};
     op.padding = {0, 0, 0, 0};
@@ -1926,6 +1931,32 @@ TEST_CASE(if_tuple_test)
     mm->add_return({r0, r1});
 
     auto prog = migraphx::parse_onnx("if_tuple_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isnan_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto t1  = mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(migraphx::make_op("isnan"), t1);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isnan_float_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isnan_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    auto t1  = mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(migraphx::make_op("isnan"), t1);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isnan_half_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -2465,11 +2496,12 @@ TEST_CASE(maxpool_notset_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 1, 1}}, {"stride", {2, 2}}, {"lengths", {6, 6}}}),
-        input);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0, 1, 1}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {6, 6}}}),
+                        input);
 
     auto prog = optimize_onnx("maxpool_notset_test.onnx");
 
@@ -2481,11 +2513,12 @@ TEST_CASE(maxpool_same_upper_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0, 1, 1}}, {"stride", {1, 1}}, {"lengths", {2, 2}}}),
-        input);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0, 1, 1}},
+                                           {"stride", {1, 1}},
+                                           {"lengths", {2, 2}}}),
+                        input);
 
     auto prog = optimize_onnx("maxpool_same_upper_test.onnx");
 
@@ -3968,6 +4001,57 @@ TEST_CASE(scatter_test)
     auto prog = migraphx::parse_onnx("scatter_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(scatternd_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto l0 =
+            mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+        auto l1 =
+            mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
+        auto l2 =
+            mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
+        auto r = mm->add_instruction(migraphx::make_op("scatternd_none"), l0, l1, l2);
+        mm->add_return({r});
+        auto prog = migraphx::parse_onnx("scatternd_test.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto l0 =
+            mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+        auto l1 =
+            mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
+        auto l2 =
+            mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
+        auto r = mm->add_instruction(migraphx::make_op("scatternd_add"), l0, l1, l2);
+        mm->add_return({r});
+        auto prog = migraphx::parse_onnx("scatternd_add_test.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto l0 =
+            mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+        auto l1 =
+            mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
+        auto l2 =
+            mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
+        auto r = mm->add_instruction(migraphx::make_op("scatternd_mul"), l0, l1, l2);
+        mm->add_return({r});
+        auto prog = migraphx::parse_onnx("scatternd_mul_test.onnx");
+
+        EXPECT(p == prog);
+    }
 }
 
 TEST_CASE(selu_test)

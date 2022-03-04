@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par_for.hpp>
@@ -21,7 +22,7 @@ namespace op {
 struct roialign
 {
     std::string coord_trans_mode = "half_pixel";
-    std::string mode             = "avg";
+    pooling_mode mode            = {pooling_mode::average};
     int64_t output_height        = 1;
     int64_t output_width         = 1;
     int64_t sampling_ratio       = 0;
@@ -241,19 +242,19 @@ struct roialign
                                                            in_dims[0] * in_dims[1]);
                     double output_val;
                     std::tie(output_val, vec_index[c]) =
-                        (mode == "avg") ? this->calc_pooling(offset_bottom_data,
-                                                             bin_grid_size,
-                                                             pre_calc,
-                                                             vec_index[c],
-                                                             avg_pool{})
-                                        : this->calc_pooling(offset_bottom_data,
-                                                             bin_grid_size,
-                                                             pre_calc,
-                                                             vec_index[c],
-                                                             max_pool{});
+                        (mode == migraphx::op::pooling_mode::average)
+                            ? this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 avg_pool{})
+                            : this->calc_pooling(offset_bottom_data,
+                                                 bin_grid_size,
+                                                 pre_calc,
+                                                 vec_index[c],
+                                                 max_pool{});
                     output(n, c, ph, pw) = output_val;
                 });
-
             });
         });
 

@@ -25,7 +25,8 @@ extern "C" {
 #endif
 
 // return code, more to be added later
-typedef enum {
+typedef enum
+{
     migraphx_status_success        = 0,
     migraphx_status_bad_param      = 1,
     migraphx_status_unknown_target = 3,
@@ -35,7 +36,8 @@ typedef enum {
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,
 /// An enum to represent the different data type inputs
-typedef enum {
+typedef enum
+{
     migraphx_shape_tuple_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;

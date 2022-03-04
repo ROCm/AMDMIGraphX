@@ -59,12 +59,12 @@ __global__ void add_gelu_kernel(void* a, void* b, int n_dim, void* r, int n)
         __half2 sqrt2 = __float2half2_rn(M_SQRT1_2);
         auto x        = __hmul2(sum, sqrt2);
         auto f2       = __half22float2(x);
-        f2.x = ::erf(f2.x);
-        f2.y = ::erf(f2.y);
-        auto h2 = __floats2half2_rn(f2.x, f2.y);
+        f2.x          = ::erf(f2.x);
+        f2.y          = ::erf(f2.y);
+        auto h2       = __floats2half2_rn(f2.x, f2.y);
 
-        auto one      = __float2half2_rn(1.0f);
-        h2 =   __hadd2(h2, one);
+        auto one = __float2half2_rn(1.0f);
+        h2       = __hadd2(h2, one);
 
         __half2 point5 = __float2half2_rn(0.5f);
         hr[tid]        = __hmul2(sum, __hmul2(point5, h2));

@@ -111,6 +111,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_equal.*')
         backend_test.include(r'.*test_Embedding*')
         backend_test.include(r'.*test_exp.*')
+        backend_test.include(r'.*test_eyelike.*')
         backend_test.include(r'.*test_flatten.*')
         backend_test.include(r'.*test_floor.*')
         backend_test.include(r'.*test_gather.*')

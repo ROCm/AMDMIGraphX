@@ -16,7 +16,6 @@ struct parse_clip : op_parser<parse_clip>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto input_lens = args[0]->get_shape().lens();
         instruction_ref min_arg;
         instruction_ref max_arg;
         bool min_used = false;

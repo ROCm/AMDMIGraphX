@@ -38,7 +38,7 @@ TEST_CASE(load_and_run_ctx)
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
     auto ctx     = p.get_context();
-    auto outputs = p.eval(pp);
+    p.eval(pp);
     ctx.finish();
 }
 

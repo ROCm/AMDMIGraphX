@@ -38,6 +38,7 @@ add_library(migraphx
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
+    op_enums.cpp
     operation.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp

@@ -460,10 +460,10 @@ struct cpu_apply
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
            not v["ceil_mode"].to<bool>())
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
-        std::string mode = v["mode"].to<std::string>();
-        if(mode == "max")
+        op::pooling_mode mode = v["mode"].to<op::pooling_mode>();
+        if(mode == op::pooling_mode::max)
             return replace(ins, make_op("cpu::pooling_max", v));
-        else if(mode == "average")
+        else if(mode == op::pooling_mode::average)
             return replace(ins, make_op("cpu::pooling_average", v));
         return ins;
     }

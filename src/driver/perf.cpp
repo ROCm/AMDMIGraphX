@@ -87,6 +87,6 @@ target get_target(bool gpu)
 
 void compile_program(program& p, bool gpu) { p.compile(get_target(gpu)); }
 
-} // namespace MIGRAPHX_INLINE_NS
+} // namespace  MIGRAPHX_INLINE_NS
 } // namespace driver
 } // namespace migraphx

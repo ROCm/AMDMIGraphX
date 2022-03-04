@@ -4333,7 +4333,7 @@ def size_half_test():
     )
     return ([node], [x], [y])
 
-    
+
 @onnx_test
 def size_int_test():
     x = helper.make_tensor_value_info('x', TensorProto.INT32, [8, 2, 3])

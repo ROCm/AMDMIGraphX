@@ -18,8 +18,10 @@ struct parse_size : op_parser<parse_size>
                           std::vector<instruction_ref> args) const
     {
         auto input_lens = args[0]->get_shape().lens();
-        int64_t size = std::accumulate(input_lens.cbegin(), input_lens.cend(), int64_t{1}, std::multiplies<>());
-        return info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {size}});
+        int64_t size    = std::accumulate(
+            input_lens.cbegin(), input_lens.cend(), int64_t{1}, std::multiplies<>());
+        return info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {size}});
     }
 };
 

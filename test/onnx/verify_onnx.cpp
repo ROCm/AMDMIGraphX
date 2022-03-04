@@ -597,8 +597,8 @@ TEST_CASE(size_verify_test)
     std::vector<float> data(30, 1.);
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s, data.data());
-    
-    auto result = p.eval(pp).back();
+
+    auto result      = p.eval(pp).back();
     auto size_result = result.at<int64_t>();
     EXPECT(size_result == int64_t{30});
 }

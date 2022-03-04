@@ -186,9 +186,9 @@ auto layernorm_fusion(hipStream_t stream,
     return [=](auto input, auto output) {
         auto relements    = arg1.get_shape().lens().back();
         auto nelements    = result.get_shape().elements() / relements;
-        auto output_shape = result.get_shape();
-        auto reduce_output_lens(output_shape.lens());
-        reduce_output_lens.back() = 1;
+        // auto output_shape = result.get_shape();
+        // auto reduce_output_lens(output_shape.lens());
+        // reduce_output_lens.back() = 1;
 
         if((relements % 4) == 0)
             layernorm_vec_impl<4>(

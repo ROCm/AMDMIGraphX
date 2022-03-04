@@ -25,22 +25,23 @@ argument nonzero(hipStream_t stream, const argument& result, const argument& arg
             // fill all output to 0 first
             idx.local_stride(out_elem_num, [&](auto j) { ptr[j] = 0; });
 
-            block_scan<block_size>(idx,
-                                   sum{},
-                                   0,
-                                   elem_num,
-                                   [&](auto j) { return (float_equal(in_ptr[j], 0)) ? 0 : 1; },
-                                   [&](auto j, auto x) {
-                                       auto out_loc = x - 1;
-                                       if(float_equal(in_ptr[j], 0))
-                                           return;
+            block_scan<block_size>(
+                idx,
+                sum{},
+                0,
+                elem_num,
+                [&](auto j) { return (float_equal(in_ptr[j], 0)) ? 0 : 1; },
+                [&](auto j, auto x) {
+                    auto out_loc = x - 1;
+                    if(float_equal(in_ptr[j], 0))
+                        return;
 
-                                       auto index = si.multi(j);
-                                       for(size_t k = 0; k < index.size(); ++k)
-                                       {
-                                           ptr[k * elem_num + out_loc] = index[k];
-                                       }
-                                   });
+                    auto index = si.multi(j);
+                    for(size_t k = 0; k < index.size(); ++k)
+                    {
+                        ptr[k * elem_num + out_loc] = index[k];
+                    }
+                });
         });
     });
 

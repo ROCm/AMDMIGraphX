@@ -21,6 +21,7 @@
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/compile_roialign.hpp>
+#include <migraphx/gpu/compile_scatternd.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
@@ -207,6 +208,7 @@ struct miopen_apply
         add_nms_op();
         add_quant_convolution_op();
         add_roialign();
+        add_scatternd();
     }
 
     void copy_params()
@@ -443,7 +445,6 @@ struct miopen_apply
                                             reshapes[2],
                                             reshapes[3],
                                             output);
-
         });
     }
 
@@ -503,7 +504,6 @@ struct miopen_apply
     void add_roialign()
     {
         apply_map.emplace("roialign", [=](instruction_ref ins) {
-
             auto s      = ins->get_shape();
             auto op_val = ins->get_operator().to_value();
             auto output = insert_allocation(ins, s);
@@ -512,6 +512,60 @@ struct miopen_apply
 
             auto io_shapes = to_shapes(args);
             auto co        = compile_roialign(get_context(), io_shapes, op_val);
+            return mod->replace_instruction(ins, co, args);
+        });
+    }
+
+    void add_scatternd()
+    {
+        apply_map.emplace("scatternd_none", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "none";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_add", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "add";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_mul", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "mul";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
             return mod->replace_instruction(ins, co, args);
         });
     }

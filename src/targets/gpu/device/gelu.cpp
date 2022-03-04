@@ -57,10 +57,14 @@ __global__ void add_gelu_kernel(void* a, void* b, int n_dim, void* r, int n)
         int idb       = tid % n_dim;
         auto sum      = __hadd2(ha[tid], hb[idb]);
         __half2 sqrt2 = __float2half2_rn(M_SQRT1_2);
-        sum           = __hmul2(sum, sqrt2);
-        auto f2       = __half22float2(sum);
-        f2 += 1.0f;
+        auto x        = __hmul2(sum, sqrt2);
+        auto f2       = __half22float2(x);
+        f2.x = ::erf(f2.x);
+        f2.y = ::erf(f2.y);
         auto h2 = __floats2half2_rn(f2.x, f2.y);
+
+        auto one      = __float2half2_rn(1.0f);
+        h2 =   __hadd2(h2, one);
 
         __half2 point5 = __float2half2_rn(0.5f);
         hr[tid]        = __hmul2(sum, __hmul2(point5, h2));
@@ -83,7 +87,7 @@ void add_gelu(hipStream_t stream,
         auto last_dim  = sr.lens().back() / 2;
         int block_size = 1024;
         int block_num  = (elem_num + block_size - 1) / block_size;
-        add_gelu_kernel<<<block_num, block_size>>>(
+        add_gelu_kernel<<<block_num, block_size, 0, stream>>>(
             arg1.data(), arg2.data(), last_dim, result.data(), elem_num);
     }
     else

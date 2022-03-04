@@ -35,7 +35,7 @@ __global__ void mul_add_kernel_dim4(void* a, void* x, void* b, int factor, int d
     if(id < n)
     {
         int idb = id / (factor * dim4) * dim4 + id % dim4;
-        hr[id]  = __hadd2(__hmul2(ha[id], hx[id]), hb[idb]);
+        hr[id]  = __hfma2(ha[id], hx[id], hb[idb]);
     }
 }
 

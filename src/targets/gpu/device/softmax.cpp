@@ -16,33 +16,27 @@ namespace device {
 
 struct half2_sum
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(__half2 x, __half2 y) const
-    {
-        return __hadd2(x, y);
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(__half2 x, __half2 y) const { return __hadd2(x, y); }
 };
 
 inline __device__ __half2 hmax2(__half2 x, __half2 y)
 {
     auto fx2 = __half22float2(x);
     auto fy2 = __half22float2(y);
-    auto fx = fx2.x > fy2.x ? fx2.x : fy2.x;
-    auto fy = fx2.y > fy2.y ? fx2.y : fy2.y;
+    auto fx  = fx2.x > fy2.x ? fx2.x : fy2.x;
+    auto fy  = fx2.y > fy2.y ? fx2.y : fy2.y;
     return __floats2half2_rn(fx, fy);
 }
 
 struct half2_max
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(__half2 x, __half2 y) const
-    {
-        return hmax2(x, y);
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(__half2 x, __half2 y) const { return hmax2(x, y); }
 };
 
-
 // in_data is in shared memory
-template<class Op>
-__device__ __half2 block_reduce(__half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+template <class Op>
+__device__ __half2
+block_reduce(__half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     for(index_int s = 1; s < block_size; s *= 2)
     {
@@ -54,49 +48,53 @@ __device__ __half2 block_reduce(__half2* buffer, index_int batch_item_num, index
         __syncthreads();
     }
 
-    auto lows2 = __low2half2(buffer[0]);
+    auto lows2  = __low2half2(buffer[0]);
     auto highs2 = __high2half2(buffer[0]);
 
     return op(lows2, highs2);
 }
 
-__global__ void softmax_kernel(void *data_in, index_int batch_item_num, index_int block_size, void* data_out)
+__global__ void
+softmax_kernel(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
 {
-    __half2* input = reinterpret_cast<__half2*>(data_in);
+    __half2* input  = reinterpret_cast<__half2*>(data_in);
     __half2* output = reinterpret_cast<__half2*>(data_out);
     batch_item_num /= 2;
     int tid = blockDim.x * blockIdx.x + threadIdx.x;
     extern MIGRAPHX_DEVICE_SHARED __half2 buffer2[];
 
     __half2* in_data_reduce = buffer2;
-    __half2* in_data = buffer2 + batch_item_num;
-    int start = tid / block_size * batch_item_num;
-    for (int i = tid; i < batch_item_num; i += block_size)
+    __half2* in_data        = buffer2 + batch_item_num;
+    int start               = tid / block_size * batch_item_num;
+    for(int i = tid; i < batch_item_num; i += block_size)
     {
-        auto d = input[i + start];
-        in_data[i] = d;
+        auto d            = input[i + start];
+        in_data[i]        = d;
         in_data_reduce[i] = d;
     }
 
-    auto batch_max = block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_max{});
-    
-    for (int i = tid; i < batch_item_num; i += block_size)
+    auto batch_max =
+        block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_max{});
+
+    for(int i = tid; i < batch_item_num; i += block_size)
     {
-        in_data[i] = h2exp(__hsub2(in_data[i], batch_max));
+        in_data[i]        = h2exp(__hsub2(in_data[i], batch_max));
         in_data_reduce[i] = in_data[i];
     }
 
-    auto batch_sum = block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
+    auto batch_sum =
+        block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
 
-    for (int i = tid; i < batch_item_num; i += block_size)
+    for(int i = tid; i < batch_item_num; i += block_size)
     {
         output[i + start] = __h2div(in_data[i], batch_sum);
     }
 }
 
 // in_data is in shared memory
-template<class Op>
-__device__ __half block_reduce2(__half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+template <class Op>
+__device__ __half
+block_reduce2(__half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     for(index_int s = 1; s < block_size; s *= 2)
     {
@@ -111,36 +109,37 @@ __device__ __half block_reduce2(__half* data, index_int batch_item_num, index_in
     return data[0];
 }
 
-__global__ void softmax_kernel2(void *data_in, index_int batch_item_num, index_int block_size, void* data_out)
+__global__ void
+softmax_kernel2(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
 {
-    __half* input = reinterpret_cast<__half*>(data_in);
+    __half* input  = reinterpret_cast<__half*>(data_in);
     __half* output = reinterpret_cast<__half*>(data_out);
-    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    int tid        = blockDim.x * blockIdx.x + threadIdx.x;
     extern MIGRAPHX_DEVICE_SHARED __half buffer[];
 
     __half* in_data_reduce = buffer;
-    __half* in_data = buffer + batch_item_num;
-    int start = tid / block_size * batch_item_num;
-    for (int i = threadIdx.x; i < batch_item_num; i += block_size)
+    __half* in_data        = buffer + batch_item_num;
+    int start              = tid / block_size * batch_item_num;
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
-        auto d = input[i + start];
-        in_data[i] = d;
+        auto d            = input[i + start];
+        in_data[i]        = d;
         in_data_reduce[i] = d;
     }
 
     auto batch_max = block_reduce2(in_data_reduce, batch_item_num, threadIdx.x, block_size, max{});
-    for (int i = threadIdx.x; i < batch_item_num; i += block_size)
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
 
-        in_data[i] = __float2half(::exp(__half2float(in_data[i]) - __half2float(batch_max)));
+        in_data[i]        = __float2half(::exp(__half2float(in_data[i]) - __half2float(batch_max)));
         in_data_reduce[i] = in_data[i];
     }
 
     auto batch_sum = block_reduce2(in_data_reduce, batch_item_num, threadIdx.x, block_size, sum{});
 
-    for (int i = threadIdx.x; i < batch_item_num; i += block_size)
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
-        output[i + start] = __float2half(__half2float(in_data[i])/__half2float(batch_sum));
+        output[i + start] = __float2half(__half2float(in_data[i]) / __half2float(batch_sum));
     }
 }
 
@@ -160,11 +159,12 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
         if(axis == batch_lens.size() - 1)
         {
             auto in_type = result.get_shape().type();
-            if (in_type == shape::half_type and batch_item_num <= 2048)
+            if(in_type == shape::half_type and batch_item_num <= 2048)
             {
-                int block_num = batch_shape.elements();
+                int block_num   = batch_shape.elements();
                 int shared_size = batch_item_num * 2 * result.get_shape().type_size();
-                softmax_kernel2<<<block_num, block_size, shared_size, stream>>>(arg.data(), batch_item_num, block_size, result.data());
+                softmax_kernel2<<<block_num, block_size, shared_size, stream>>>(
+                    arg.data(), batch_item_num, block_size, result.data());
             }
             else
             {

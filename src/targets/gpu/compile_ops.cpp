@@ -63,7 +63,9 @@ void compile_ops::apply(module& m) const
         if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        compiles.emplace_back([=]() -> compiled_result { return {compile(*ctx, ins, preop), ins}; });
+        compiles.emplace_back([=]() -> compiled_result {
+            return {compile(*ctx, ins, preop), ins};
+        });
     }
     std::vector<compiled_result> results(compiles.size());
     par_compile(compiles.size(), [&](auto i) { results[i] = compiles[i](); });

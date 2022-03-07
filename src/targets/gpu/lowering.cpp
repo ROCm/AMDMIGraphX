@@ -263,7 +263,7 @@ struct miopen_apply
             {
                 check_shape(s, apply_map.at(it->name())(it));
             }
-            else if (has_compiler_for(it->name()))
+            else if(has_compiler_for(it->name()))
             {
                 check_shape(s, insert_precompile_op(it));
             }

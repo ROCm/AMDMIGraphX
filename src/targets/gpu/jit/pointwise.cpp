@@ -50,10 +50,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
         auto src               = interpolate_string(pointwise_kernel,
-                                    {{"params", enum_params(inputs.size(), "void * private_p")},
-                                    {"args", enum_params(inputs.size(), "private_p")},
-                                    {"lambda", v.at("lambda").to<std::string>()},
-                                    {"preamble", v.get("preamble", std::string{})}});
+                                      {{"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"lambda", v.at("lambda").to<std::string>()},
+                                       {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);
     }
 
@@ -66,7 +66,8 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
         g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
         g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
-        g.add_point_op("sign", "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
+        g.add_point_op("sign",
+                       "${function:where}(${0} > 0, 1, ${function:where}(${0} < 0, -1, 0))");
         g.add_point_op("equal", "migraphx::abs(${0} == ${1})");
         g.add_point_op("less", "migraphx::abs(${0} < ${1})");
         g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
@@ -74,10 +75,11 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         // Add explict conversions
         g.fresult(
             [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
-        auto name =
-            g.create_function(g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
+        auto name = g.create_function(
+            g.generate_module(*pm).set_attributes({"__device__"}).set_generic_types(*pm));
         std::string lambda = "MIGRAPHX_LIFT(" + name + ")";
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), {{"lambda", lambda}, {"preamble", g.str()}}));
+        return replace(
+            compile_op(ctx, to_shapes(ins->inputs()), {{"lambda", lambda}, {"preamble", g.str()}}));
     }
 };
 } // namespace gpu

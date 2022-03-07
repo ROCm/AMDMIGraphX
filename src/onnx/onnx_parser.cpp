@@ -104,7 +104,7 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
 {
-    return migraphx::add_common_op(*mod, make_op(op_name), inputs);
+    return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
 }
 
 instruction_ref

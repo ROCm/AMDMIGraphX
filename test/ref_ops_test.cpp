@@ -4156,7 +4156,8 @@ TEST_CASE(scatter_test)
         auto ld = mm->add_literal(migraphx::literal{sd, vd});
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ld, li, lu);
+        // scatter_none, formerly the scatter op
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}), ld, li, lu);
         mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();

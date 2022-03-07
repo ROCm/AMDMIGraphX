@@ -15,11 +15,20 @@ struct compile_pointwise : action<compile_pointwise>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
 
-        size_t global = p.get(v, "global", 64);
-        size_t local  = p.get(v, "local", 64);
+        size_t global = p.get(v, "global", 0);
+        size_t local  = p.get(v, "local", 0);
 
-        auto op = gpu::compile_pointwise(
+        operation op;
+        
+        if(global != 0 && local != 0){ 
+            op = gpu::compile_pointwise(
             ctx, inputs, v.at("lambda").to<std::string>(), global, local, "");
+        }
+        else{
+            // if global and local aren't provided, this overload of compile_pointwise() computes defaults.
+            op = gpu::compile_pointwise(
+            ctx, inputs, v.at("lambda").to<std::string>());
+        }
 
         double t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;

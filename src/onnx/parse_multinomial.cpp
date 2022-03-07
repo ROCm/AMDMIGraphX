@@ -27,11 +27,6 @@ struct parse_multinomial : op_parser<parse_multinomial>
         if(contains(info.attributes, "sample_size"))
             sample_size = info.attributes.at("sample_size").i();
 
-        float seed = static_cast<float>(
-            std::chrono::high_resolution_clock::now().time_since_epoch().count());
-        if(contains(info.attributes, "seed"))
-            seed = info.attributes.at("seed").f();
-
         // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
             info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
@@ -46,7 +41,10 @@ struct parse_multinomial : op_parser<parse_multinomial>
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
         // Pre-compute random distribution
-        std::mt19937 gen(seed);
+        std::mt19937 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        if(contains(info.attributes, "seed"))
+            gen.seed(info.attributes.at("seed").f());
+
         std::uniform_real_distribution<> dis(0.0, 1.0);
         size_t batch_size = args[0]->get_shape().lens().front();
         migraphx::shape dist_shape{migraphx::shape::float_type, {batch_size, sample_size}};

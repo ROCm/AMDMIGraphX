@@ -39,9 +39,7 @@ bool reduce_dim(std::vector<shape>& shapes, std::size_t n)
 
 std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
 {
-    while(reduce_dim(shapes, n) and n < shapes.size())
-    {
-    }
+    while(reduce_dim(shapes, n) and n < shapes.size()) {}
 
     return n + 1;
 }

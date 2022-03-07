@@ -90,6 +90,13 @@ inline std::ptrdiff_t operator-(basic_iota_iterator<F, Iterator> x,
 }
 
 template <class F, class Iterator>
+inline basic_iota_iterator<F, Iterator> operator-(basic_iota_iterator<F, Iterator> x,
+                                                  std::ptrdiff_t y)
+{
+    return x -= y;
+}
+
+template <class F, class Iterator>
 inline bool operator==(basic_iota_iterator<F, Iterator> x, basic_iota_iterator<F, Iterator> y)
 {
     return x.index == y.index;

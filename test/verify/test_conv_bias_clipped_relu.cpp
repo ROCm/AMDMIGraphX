@@ -28,9 +28,9 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         auto min_val  = mm->add_literal(0.0f);
         auto max_val  = mm->add_literal(6.0f);
         min_val       = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), min_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}}), min_val);
         max_val = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), max_val);
+            migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}}), max_val);
         mm->add_instruction(migraphx::make_op("clip"), bias_add, min_val, max_val);
         return p;
     }

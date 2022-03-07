@@ -20,9 +20,6 @@ namespace op {
 
 struct scatter_add : scatter<scatter_add>
 {
-    // int64_t axis = 0;
-    scatter_add() {}
-    scatter_add(int64_t ax) : scatter(ax) {}
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -39,15 +36,8 @@ struct scatter_add : scatter<scatter_add>
 
     std::string name() const { return "scatter_add"; }
 
-    // shape normalize_compute_shape(std::vector<shape> inputs) const
-    // {
-    //     check_shapes{inputs, *this}.has(3);
-    //     // If non-packed, this converts to a packed output while preserving permutation of tensor
-    //     return inputs.front().with_lens(inputs.front().lens());
-    // }
-
     // reduction (pointwise operation) is called by the parent struct's compute() method.
-    // Its function, code design-wise, is much like a function overload.
+    // It works much like a virtual function overload.
     // For the scatter methods, there are three different reduction functions.
     auto reduction() const
     {

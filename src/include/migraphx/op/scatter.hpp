@@ -17,25 +17,21 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// values of the Reduction attribute in Onnx ScatterElements op.
-enum class attrib_reduction
-{
-    none,
-    add,
-    mul
-};
+// The scatter operator fetches a subset of data given by an index array and then performs a
+// reduction operation (add, multiply, or just set the data) on each element returned.  We implement
+// it as a separate derived struct for each of the three reduction methods.  The related operator
+// scatterND is a generalization that works on a set of 3 tensors of different ranks.  The
+// complementary operations are gather/gatherND.
 
-// struct scatter
 template <class Derived>
 struct scatter : op_name<Derived>
 {
-    int64_t axis               = 0;
-    attrib_reduction reduction = attrib_reduction::none;
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.reduction, "reduction"));
+        return pack(f(self.axis, "axis"));
     }
 
     value attributes() const
@@ -61,16 +57,20 @@ struct scatter : op_name<Derived>
 
         // max dimension in axis
         auto axis_dim_size = output_shape.lens()[axis];
+        // iterate through all elements in output
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
+                // iterate through items in index
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx  = idx;
-                    auto index    = indices[ind_s.index(idx)];
+                    auto out_idx = idx;
+                    auto index   = indices[ind_s.index(idx)];
+                    // normalize negative indexes
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
-                    // output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
+
+                    // call reduction() method of derived struct
                     self.reduction()(output[output_shape.index(out_idx)], update[ind_s.index(idx)]);
                 });
             });

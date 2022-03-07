@@ -14,7 +14,7 @@ struct compile_op : action<compile_op>
     {
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
+        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
         double t    = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;
     }

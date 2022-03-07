@@ -20,7 +20,6 @@
 
 #include <migraphx/gpu/abs.hpp>
 #include <migraphx/gpu/batch_norm_inference.hpp>
-#include <migraphx/gpu/compile_roialign.hpp>
 #include <migraphx/gpu/compile_scatternd.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
@@ -196,8 +195,6 @@ struct miopen_apply
         add_extend_op("softmax");
         add_extend_op("topk");
 
-        add_precompile_op("pointwise");
-
         add_batch_norm_inference_op();
         add_convolution_op();
         add_deconvolution_op();
@@ -208,7 +205,6 @@ struct miopen_apply
         add_neg_op();
         add_nms_op();
         add_quant_convolution_op();
-        add_roialign();
         add_scatternd();
     }
 
@@ -414,21 +410,6 @@ struct miopen_apply
         });
     }
 
-    void add_precompile_op(const std::string& name)
-    {
-        apply_map.emplace(name, [=](instruction_ref ins) {
-            auto output                       = insert_allocation(ins, ins->get_shape());
-            std::vector<instruction_ref> refs = ins->inputs();
-            refs.push_back(output);
-
-            return mod->replace_instruction(
-                ins,
-                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-                refs,
-                ins->module_inputs());
-        });
-    }
-
     void add_batch_norm_inference_op()
     {
         apply_map.emplace("batch_norm_inference", [=](instruction_ref ins) {
@@ -516,21 +497,6 @@ struct miopen_apply
             }
 
             return mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
-        });
-    }
-
-    void add_roialign()
-    {
-        apply_map.emplace("roialign", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto op_val = ins->get_operator().to_value();
-            auto output = insert_allocation(ins, s);
-            auto args   = ins->inputs();
-            args.push_back(output);
-
-            auto io_shapes = to_shapes(args);
-            auto co        = compile_roialign(get_context(), io_shapes, op_val);
-            return mod->replace_instruction(ins, co, args);
         });
     }
 

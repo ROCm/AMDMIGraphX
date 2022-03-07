@@ -42,6 +42,7 @@
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/unary_not.hpp>
 #include <migraphx/gpu/where.hpp>
+#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 #include <utility>
@@ -262,9 +263,26 @@ struct miopen_apply
             {
                 check_shape(s, apply_map.at(it->name())(it));
             }
+            else if (has_compiler_for(it->name()))
+            {
+                check_shape(s, insert_precompile_op(it));
+            }
         }
 
         copy_params();
+    }
+
+    instruction_ref insert_precompile_op(instruction_ref ins)
+    {
+        auto output                       = insert_allocation(ins, ins->get_shape());
+        std::vector<instruction_ref> refs = ins->inputs();
+        refs.push_back(output);
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+            refs,
+            ins->module_inputs());
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")

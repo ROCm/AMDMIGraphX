@@ -230,7 +230,8 @@ TEST_CASE(compile_pointwise)
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
 
     migraphx::gpu::context ctx;
-    auto co = migraphx::gpu::compile_op("pointwise", ctx, {input, input}, {{"lambda", "[](auto x) { return x + 1; }"}});
+    auto co = migraphx::gpu::compile_op(
+        "pointwise", ctx, {input, input}, {{"lambda", "[](auto x) { return x + 1; }"}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

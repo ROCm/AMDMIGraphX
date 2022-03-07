@@ -432,8 +432,8 @@ def clip_test_args_type_mismatch():
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 3])
 
     min_val = helper.make_tensor('min', TensorProto.FLOAT, [1, 3],
-                                 [1.2, 3.2, 2.2])
-    max_val = helper.make_tensor('max', TensorProto.INT64, [3, 1], [2, 4, 6])
+                                 [1.5, 2.5, 3.5])
+    max_val = helper.make_tensor('max', TensorProto.INT64, [3, 1], [2, 3, 4])
 
     node = onnx.helper.make_node('Clip',
                                  inputs=['0', 'min', 'max'],
@@ -5353,6 +5353,3 @@ def where_test():
 
     return ([node], [c, x, y], [z])
 
-
-if __name__ == "__main__":
-    clip_test_args_type_mismatch()

@@ -475,9 +475,9 @@ TEST_CASE(clip_test_args_type_mismatch)
     migraphx::program p;
     auto* mm     = p.get_main_module();
     auto min_val = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.2, 3.2, 2.2}});
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.5, 2.5, 3.5}});
     auto max_val = mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 4, 6}});
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 3, 4}});
 
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
     min_val =

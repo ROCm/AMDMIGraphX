@@ -5352,4 +5352,3 @@ def where_test():
                                  outputs=['z'])
 
     return ([node], [c, x, y], [z])
-

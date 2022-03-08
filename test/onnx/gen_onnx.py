@@ -4128,6 +4128,7 @@ def scatter_add_test():
 
     return ([node], [x, i, u], [y])
 
+
 @onnx_test
 def scatter_mul_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -4146,6 +4147,7 @@ def scatter_mul_test():
     )
 
     return ([node], [x, i, u], [y])
+
 
 @onnx_test
 def scatter_none_test():

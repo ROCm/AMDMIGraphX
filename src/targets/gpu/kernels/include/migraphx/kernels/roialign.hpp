@@ -43,10 +43,8 @@ struct avg_pool
 };
 
 template <class Iterator, class Op>
-MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(const Iterator data,
-                                                 const array<index_int, 2>& dims,
-                                                 array<float, 2> xy,
-                                                 Op pooling)
+MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
+    const Iterator data, const array<index_int, 2>& dims, array<float, 2> xy, Op pooling)
 {
     array<int, 2> low{};
     array<int, 2> high{};
@@ -66,14 +64,14 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(con
         }
     }
     array<index_int, 4> locs = {low[0] * dims[1] + low[1],
-                                  low[0] * dims[1] + high[1],
-                                  high[0] * dims[1] + low[1],
-                                  high[0] * dims[1] + high[1]};
+                                low[0] * dims[1] + high[1],
+                                high[0] * dims[1] + low[1],
+                                high[0] * dims[1] + high[1]};
 
-    float ly       = xy[0] - low[0];
-    float lx       = xy[1] - low[1];
-    float hy       = 1.0f - ly;
-    float hx       = 1.0f - lx;
+    float ly                                   = xy[0] - low[0];
+    float lx                                   = xy[1] - low[1];
+    float hy                                   = 1.0f - ly;
+    float hx                                   = 1.0f - lx;
     array<typename Iterator::value_type, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
@@ -83,16 +81,16 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(con
 
 template <class Iterator, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
-                                         const array<float, 2>& roi_starts,
-                                         const array<float, 2>& bin_size,
-                                         const array<int, 2>& idx,
-                                         const array<index_int, 2>& bin_grid_size,
-                                         const array<index_int, 2>& dims,
-                                         float roi_offset,
-                                         Op op)
+                                            const array<float, 2>& roi_starts,
+                                            const array<float, 2>& bin_size,
+                                            const array<int, 2>& idx,
+                                            const array<index_int, 2>& bin_grid_size,
+                                            const array<index_int, 2>& dims,
+                                            float roi_offset,
+                                            Op op)
 {
-    typename Iterator::value_type output_val        = op.init();
-    const int64_t count = bin_grid_size[0] * bin_grid_size[1];
+    typename Iterator::value_type output_val = op.init();
+    const int64_t count                      = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
         array<float, 2> locs =
@@ -122,7 +120,7 @@ constexpr roalign_settings<Ts...> make_roalign_settings(Ts... xs)
 template <class T, class U, class V, class W, class Settings>
 __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
 {
-    auto index       = make_index();
+    auto index      = make_index();
     const auto x    = x_t.begin();
     const auto rois = rois_t.begin();
     const auto ind  = ind_t.begin();
@@ -142,7 +140,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
 
     // output dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
-    const auto& out_lens           = out_s.lens;
+    const auto& out_lens         = out_s.lens;
     array<index_int, 2> out_dims = {out_lens[2], out_lens[3]};
 
     for(index_int i = index.global; i < out_s.elements(); i += stride)
@@ -154,7 +152,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
         int pw   = idx[3];
 
         const auto offset_rois = rois + (n * roi_column_num);
-        const int batch_ind     = ind[n];
+        const int batch_ind    = ind[n];
 
         array<float, 2> roi_starts = {offset_rois[1] * s.spatial_scale,
                                       offset_rois[0] * s.spatial_scale};

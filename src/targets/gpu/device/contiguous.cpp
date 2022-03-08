@@ -9,18 +9,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-__global__ void cont_kernel(void* in, void* out, int os1, int os2, int os3, int is1, int is2, int is3)
+__global__ void
+cont_kernel(void* in, void* out, int os1, int os2, int os3, int is1, int is2, int is3)
 {
     int i1 = blockIdx.x;
     int i2 = blockIdx.y;
     int i3 = blockIdx.z;
     int i4 = threadIdx.x;
 
-    __half* in_ptr = reinterpret_cast<__half*>(in);
+    __half* in_ptr  = reinterpret_cast<__half*>(in);
     __half* out_ptr = reinterpret_cast<__half*>(out);
 
-    int out_idx = i1 * os1 + i2 * os2 + i3 * os3 + i4;
-    int in_idx = i1 * is1 + i2 * is2 + i3 * is3 + i4;
+    int out_idx      = i1 * os1 + i2 * os2 + i3 * os3 + i4;
+    int in_idx       = i1 * is1 + i2 * is2 + i3 * is3 + i4;
     out_ptr[out_idx] = in_ptr[in_idx];
 }
 
@@ -39,16 +40,17 @@ void contiguous_nonstandard(hipStream_t stream, const argument& result, const ar
     //     auto in_stride = in_s.strides();
     //     auto out_stride = s.strides();
 
-    //     cont_kernel<<<grid, block, 0, stream>>>(arg.data(), result.data(), out_stride[0], out_stride[1], out_stride[2], in_stride[0], in_stride[1], in_stride[2]);
+    //     cont_kernel<<<grid, block, 0, stream>>>(arg.data(), result.data(), out_stride[0],
+    //     out_stride[1], out_stride[2], in_stride[0], in_stride[1], in_stride[2]);
     // }
     // else
     // {
-        visit_all(result, arg)([&](auto output_v, auto input_v) {
-            hip_visit_views(output_v, input_v, s)([&](auto output, auto input, auto standard_shape) {
-                mi_gs_launch(stream,
-                            standard_shape)([=](auto idx) __device__ { output[idx] = input[idx]; });
-            });
-        });        
+    visit_all(result, arg)([&](auto output_v, auto input_v) {
+        hip_visit_views(output_v, input_v, s)([&](auto output, auto input, auto standard_shape) {
+            mi_gs_launch(stream,
+                         standard_shape)([=](auto idx) __device__ { output[idx] = input[idx]; });
+        });
+    });
     // }
 }
 

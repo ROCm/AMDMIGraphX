@@ -4116,8 +4116,6 @@ def scatter_add_test():
                                       [2, 3, 4, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5, 6])
 
-    reduction = onnx.helper.make_attribute('reduction', 'add')
-
     node = onnx.helper.make_node(
         'ScatterElements',
         reduction='add',

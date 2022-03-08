@@ -1,9 +1,10 @@
-scatter_test:Ó
-A
+scatter_mul_test:ì
+V
 data
 indices
 updatey"ScatterElements*
-axisþÿÿÿÿÿÿÿÿ scatter_testZ
+axisþÿÿÿÿÿÿÿÿ *
+	reduction"mul scatter_mul_testZ
 data
 
 

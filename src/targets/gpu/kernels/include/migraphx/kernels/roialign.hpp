@@ -19,7 +19,7 @@ struct max_pool
     }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, std::size_t)
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int)
     {
         return (x);
     }
@@ -36,21 +36,21 @@ struct avg_pool
     }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, std::size_t y)
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y)
     {
         return (y == 0) ? 0.0 : (x / y);
     }
 };
 
-template <class T, class Op>
-MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
-                                                 const array<std::size_t, 2>& dims,
+template <class Iterator, class Op>
+MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(const Iterator data,
+                                                 const array<index_int, 2>& dims,
                                                  array<float, 2> xy,
                                                  Op pooling)
 {
     array<int, 2> low{};
     array<int, 2> high{};
-    for(std::size_t ii = 0; ii < xy.size(); ++ii)
+    for(index_int ii = 0; ii < xy.size(); ++ii)
     {
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
@@ -65,7 +65,7 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
             xy[ii] = high[ii] = low[ii] = dims[ii] - 1;
         }
     }
-    array<std::size_t, 4> locs = {low[0] * dims[1] + low[1],
+    array<index_int, 4> locs = {low[0] * dims[1] + low[1],
                                   low[0] * dims[1] + high[1],
                                   high[0] * dims[1] + low[1],
                                   high[0] * dims[1] + high[1]};
@@ -74,27 +74,27 @@ MIGRAPHX_DEVICE_CONSTEXPR T bilinear_interpolate(const T* data,
     float lx       = xy[1] - low[1];
     float hy       = 1.0f - ly;
     float hx       = 1.0f - lx;
-    array<T, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
+    array<typename Iterator::value_type, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
     return pooling(v01, v23);
 }
 
-template <class T, class Op>
-MIGRAPHX_DEVICE_CONSTEXPR T calc_pooling(const T*& data,
+template <class Iterator, class Op>
+MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
                                          const array<float, 2>& roi_starts,
                                          const array<float, 2>& bin_size,
                                          const array<int, 2>& idx,
-                                         const array<std::size_t, 2>& bin_grid_size,
-                                         const array<std::size_t, 2>& dims,
+                                         const array<index_int, 2>& bin_grid_size,
+                                         const array<index_int, 2>& dims,
                                          float roi_offset,
                                          Op op)
 {
-    T output_val        = op.init();
+    typename Iterator::value_type output_val        = op.init();
     const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
-        array<std::size_t, 2> id = {iy, ix};
+        array<index_int, 2> id = {iy, ix};
         array<float, 2> locs =
             roi_starts + idx * bin_size + bin_size * (id + 0.5f) / bin_grid_size + roi_offset;
 
@@ -123,18 +123,18 @@ template <class T, class U, class V, class W, class Settings>
 __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W& y_t, Settings s)
 {
     auto index       = make_index();
-    const auto* x    = x_t.data();
-    const auto* rois = rois_t.data();
-    const auto* ind  = ind_t.data();
+    const auto x    = x_t.begin();
+    const auto rois = rois_t.begin();
+    const auto ind  = ind_t.begin();
 
-    auto* out_ptr = y_t.data();
+    auto out_ptr = y_t.begin();
 
     // input shape
     auto x_lens      = x_t.get_shape().lens;
     auto channel_num = x_lens[1];
     // input dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
-    array<std::size_t, 2> in_dims = {x_lens[2], x_lens[3]};
+    array<index_int, 2> in_dims = {x_lens[2], x_lens[3]};
 
     const auto stride   = index.nglobal();
     auto out_s          = y_t.get_shape();
@@ -143,7 +143,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
     // output dims of height and width, in all 2-dim arrays, the first dim
     // is for height and second dim is for width
     const auto& out_lens           = out_s.lens;
-    array<std::size_t, 2> out_dims = {out_lens[2], out_lens[3]};
+    array<index_int, 2> out_dims = {out_lens[2], out_lens[3]};
 
     for(index_int i = index.global; i < out_s.elements(); i += stride)
     {
@@ -153,7 +153,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
         int ph   = idx[2];
         int pw   = idx[3];
 
-        const auto* offset_rois = rois + (n * roi_column_num);
+        const auto offset_rois = rois + (n * roi_column_num);
         const int batch_ind     = ind[n];
 
         array<float, 2> roi_starts = {offset_rois[1] * s.spatial_scale,
@@ -163,9 +163,9 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};
-        array<std::size_t, 2> bin_grid_size{};
+        array<index_int, 2> bin_grid_size{};
 
-        for(std::size_t ii = 0; ii < roi_size.size(); ++ii)
+        for(index_int ii = 0; ii < roi_size.size(); ++ii)
         {
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
             roi_size[ii] = max(roi_size[ii], 1.0f);
@@ -175,7 +175,7 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
                 (s.sampling_ratio > 0) ? s.sampling_ratio : std::ceil(roi_size[ii] / out_dims[ii]);
         }
 
-        const auto* offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
+        const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
         if constexpr(s.is_avg_pooling)
         {
             out_ptr[i] = calc_pooling(offset_x,

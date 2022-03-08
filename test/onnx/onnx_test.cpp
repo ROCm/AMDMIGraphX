@@ -434,6 +434,11 @@ TEST_CASE(celu_wrong_type_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("celu_wrong_type_test.onnx"); }));
 }
 
+TEST_CASE(celu_zero_alpha_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("celu_zero_alpha_test.onnx"); }));
+}
+
 TEST_CASE(clip_test)
 {
     migraphx::program p;

@@ -22,6 +22,10 @@ struct parse_celu : op_parser<parse_celu>
         {
             alpha = info.attributes.at("alpha").f();
         }
+        if(float_equal(alpha, 0.0f))
+        {
+            MIGRAPHX_THROW("CELU: alpha is zero (division by zero)");
+        }
 
         auto input_lens = args[0]->get_shape().lens();
         auto input_type = args[0]->get_shape().type();

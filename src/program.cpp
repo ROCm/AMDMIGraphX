@@ -740,8 +740,8 @@ void program::debug_print(instruction_ref ins) const
 
 void program::print(
     std::unordered_map<instruction_ref, std::string>& names,
-    const std::function<void(instruction_ref, std::unordered_map<instruction_ref, std::string>)>&
-        print_func) const
+    const std::function<void(instruction_ref, 
+                             std::unordered_map<instruction_ref, std::string>)>& print_func) const
 {
     for(const auto& pp : this->impl->modules)
     {
@@ -749,7 +749,8 @@ void program::print(
     }
 }
 
-void program::print(const std::function<void(instruction_ref ins, std::unordered_map<instruction_ref, std::string>)>& print_func) const
+void program::print(
+    const std::function<void(instruction_ref ins, std::unordered_map<instruction_ref, std::string>)>& print_func) const
 {
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, print_func);

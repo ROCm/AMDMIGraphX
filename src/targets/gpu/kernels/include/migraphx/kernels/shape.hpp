@@ -66,9 +66,9 @@ struct shape
             return i;
         else
         {
-            const auto rank = this->lens.size();
-            index_int s          = 1;
-            index_int result     = 0;
+            const auto rank  = this->lens.size();
+            index_int s      = 1;
+            index_int result = 0;
             for(index_int j = 0; j < rank; j++)
             {
                 const index_int k      = rank - j - 1;

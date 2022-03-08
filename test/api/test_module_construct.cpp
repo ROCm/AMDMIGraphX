@@ -3,8 +3,9 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-void run_test_on_gpu(const migraphx::program p) {
-    // make a copy of the program 
+void run_test_on_gpu(const migraphx::program p)
+{
+    // make a copy of the program
     migraphx_program_t p_ref_c;
     migraphx_program_create(&p_ref_c);
     migraphx_program_assign_to(p_ref_c, p.get_handle_ptr());
@@ -21,9 +22,9 @@ void run_test_on_gpu(const migraphx::program p) {
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
     // get results from GPU
-    auto outputs = p.eval(pp);
-    auto output  = outputs[0];
-    auto lens    = output.get_shape().lengths();
+    auto outputs  = p.eval(pp);
+    auto output   = outputs[0];
+    auto lens     = output.get_shape().lengths();
     auto elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
     float* output_data_ptr = reinterpret_cast<float*>(output.data());
     std::vector<float> output_vec(output_data_ptr, output_data_ptr + elem_num);
@@ -32,8 +33,8 @@ void run_test_on_gpu(const migraphx::program p) {
     // get results from Ref target
     auto outputs_ref = p_ref.eval(pp);
     auto output_ref  = outputs_ref[0];
-    lens    = output_ref.get_shape().lengths();
-    elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
+    lens             = output_ref.get_shape().lengths();
+    elem_num         = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
     float* output_ref_data_ptr = reinterpret_cast<float*>(output_ref.data());
     std::vector<float> output_ref_vec(output_ref_data_ptr, output_ref_data_ptr + elem_num);
     // compare the results;
@@ -47,7 +48,7 @@ TEST_CASE(add_op)
     auto x             = m.add_parameter("x", migraphx::shape(migraphx_shape_float_type, {3, 3}));
     auto y             = m.add_parameter("y", migraphx::shape(migraphx_shape_float_type, {3, 3}));
     auto add_op        = migraphx::operation("add");
-    auto r = m.add_instruction(add_op, {x, y});
+    auto r             = m.add_instruction(add_op, {x, y});
     m.add_return({r});
     run_test_on_gpu(p);
 }

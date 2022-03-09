@@ -445,6 +445,33 @@ TEST_CASE(lessorequal_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(lpnormalization)
+{
+    migraphx::program p = migraphx::parse_onnx("lpnormalization_float_test.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> data{0.f, 2.f, -2.f, 1.f, 1.f, -5.f, 3.f, -1.f, -4.f, 3.f, 0.f, 0.f};
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> correct{0.f,
+                               2.f / 3.f,
+                               -2.f / 3.f,
+                               1.f / 3.f,
+                               1.f / 6.f,
+                               -5.f / 6.f,
+                               3.f / 6.f,
+                               -1.f / 6.f,
+                               -4.f / 5.f,
+                               3.f / 5.f,
+                               0.f,
+                               0.f};
+}
+
 TEST_CASE(mean_broadcast_test)
 {
     migraphx::program p = migraphx::parse_onnx("mean_broadcast_test.onnx");

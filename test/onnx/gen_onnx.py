@@ -2746,6 +2746,69 @@ def loop_test():
 
 
 @onnx_test
+def lpnormalization_double_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3, 4, 2])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=0,
+                                 p=1)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_float_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_axis_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_p_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=3)
+    return ([node], [x], [y])
+
+
+@onnx_test
 def lrn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 28, 24, 24])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 28, 24, 24])

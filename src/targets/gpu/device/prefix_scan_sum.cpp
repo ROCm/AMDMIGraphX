@@ -46,7 +46,6 @@ void prefix_scan_sum(hipStream_t stream,
                                 if(j > 0)
                                     output[compute_idx(j - 1)] = x;
                             }));
-
                     });
             }
             else if(reverse)
@@ -78,40 +77,39 @@ void prefix_scan_sum(hipStream_t stream,
                             k[axis] = j;
                             return k;
                         };
-                        block_scan<max_block_size>(idx,
-                                                   sum{},
-                                                   0,
-                                                   n,
-                                                   [&](auto j) { return input[compute_idx(j)]; },
-                                                   [&](auto j, auto x) {
-                                                       auto k = j + 1;
-                                                       if(j == 0)
-                                                           output[compute_idx(0)] = 0;
-                                                       if(k < n)
-                                                           output[compute_idx(k)] = x;
-                                                   });
-
+                        block_scan<max_block_size>(
+                            idx,
+                            sum{},
+                            0,
+                            n,
+                            [&](auto j) { return input[compute_idx(j)]; },
+                            [&](auto j, auto x) {
+                                auto k = j + 1;
+                                if(j == 0)
+                                    output[compute_idx(0)] = 0;
+                                if(k < n)
+                                    output[compute_idx(k)] = x;
+                            });
                     });
             }
             else
             {
-                gs_launch(stream,
-                          rshape.elements() * block_size,
-                          block_size)([=](auto i, auto idx) __device__ {
-                    const auto ridx  = rshape.multi(i / block_size);
-                    auto compute_idx = [&](auto j) {
-                        auto k  = ridx;
-                        k[axis] = j;
-                        return k;
-                    };
-                    block_scan<max_block_size>(idx,
-                                               sum{},
-                                               0,
-                                               n,
-                                               [&](auto j) { return input[compute_idx(j)]; },
-                                               [&](auto j, auto x) { output[compute_idx(j)] = x; });
-
-                });
+                gs_launch(stream, rshape.elements() * block_size, block_size)(
+                    [=](auto i, auto idx) __device__ {
+                        const auto ridx  = rshape.multi(i / block_size);
+                        auto compute_idx = [&](auto j) {
+                            auto k  = ridx;
+                            k[axis] = j;
+                            return k;
+                        };
+                        block_scan<max_block_size>(
+                            idx,
+                            sum{},
+                            0,
+                            n,
+                            [&](auto j) { return input[compute_idx(j)]; },
+                            [&](auto j, auto x) { output[compute_idx(j)] = x; });
+                    });
             }
         });
 }

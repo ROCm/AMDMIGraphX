@@ -211,12 +211,21 @@ migraphx::shape to_shape(const py::buffer_info& info)
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
-        .def(py::init<>())
+        .def(py::init([](py::kwargs kwargs) {
+            auto v    = migraphx::to_value(kwargs);
+            auto t    = migraphx::shape::parse_type(v.get("type", std::string{"float"}));
+            auto lens = v.get("lens", std::vector<std::size_t>{1});
+            if(v.contains("strides"))
+                return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else
+                return migraphx::shape(t, lens);
+        }))
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)
         .def("strides", &migraphx::shape::strides)
         .def("elements", &migraphx::shape::elements)
         .def("bytes", &migraphx::shape::bytes)
+        .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)

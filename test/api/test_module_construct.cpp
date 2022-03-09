@@ -57,7 +57,7 @@ TEST_CASE(if_then_else_op)
         auto p = create_program();
         p.compile(migraphx::target("ref"));
         migraphx::program_parameters pp;
-        char ccond        = static_cast<char>(cond);
+        char ccond        = cond;
         auto param_shapes = p.get_parameter_shapes();
         pp.add("cond", migraphx::argument(cond_s, &ccond));
         pp.add("x", migraphx::argument(param_shape, x_data.data()));

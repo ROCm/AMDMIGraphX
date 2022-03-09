@@ -25,9 +25,14 @@ struct parse_scatter : op_parser<parse_scatter>
             axis = info.attributes.at("axis").i();
         if(contains(info.attributes, "reduction"))
         {
-            if(info.attributes.at("reduction").s() == "add")
+            std::string reduction_att(info.attributes.at("reduction").s());
+            // check for a valid reduction attribute.  We have an operator for each one.
+            if(not contains({"none", "add", "mul"}, reduction_att)) 
+                MIGRAPHX_THROW("PARSE_SCATTER: unsupported reduction mode " + reduction_att); 
+
+            if(reduction_att == "add")
                 op_name = "scatter_add";
-            else if(info.attributes.at("reduction").s() == "mul")
+            else if(reduction_att == "mul")
                 op_name = "scatter_mul";
             else
                 op_name = "scatter_none";

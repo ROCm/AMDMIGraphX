@@ -13,29 +13,13 @@
 #include <utility>
 #include <migraphx/op/scatter.hpp>
 
-// ScatterElement op. with "add" as the reduction attribute.
+// Scatter op. with "add" function as reduction.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct scatter_add : scatter<scatter_add>
 {
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
-    value attributes() const
-    {
-        value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    std::string name() const { return "scatter_add"; }
-
     // reduction (pointwise operation) is called by the parent struct's compute() method.
     // It works much like a virtual function overload.
     // For the scatter methods, there are three different reduction functions.
@@ -43,6 +27,8 @@ struct scatter_add : scatter<scatter_add>
     {
         return [](auto& x, const auto& y) { x += y; };
     }
+
+    // name of this struct is automatically assigned by the op_name<>
 };
 
 } // namespace op

@@ -13,33 +13,16 @@
 #include <utility>
 #include <migraphx/op/scatter.hpp>
 
-// ScatterElement op. with "multiply" as the reduction attribute.
+// Scatter op. with "multiply" as the reduction function.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct scatter_mul : scatter<scatter_mul>
 {
-
-    // define the attributes that can be found by the parser
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
-    value attributes() const
-    {
-        value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    std::string name() const { return "scatter_mul"; }
-
     // reduction (pointwise operation) is called by the parent struct's compute() method.
     // It works much like a virtual function overload.
-    // For the scatter methods, there are three different reduction functions.
+    // For the scatter operators, there are three different reduction functions.
     auto reduction() const
     {
         return [](auto& x, const auto& y) { x *= y; };

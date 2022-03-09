@@ -13,33 +13,17 @@
 #include <cmath>
 #include <utility>
 
-// ScatterElement op. with "none" as the reduction attribute.  This is identical to the
-// deprecated Scatter op in onnx.
+// Scatter op. with "none" as the reduction function (just copies the value).  This is identical to the
+// previously existing Scatter op.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct scatter_none : scatter<scatter_none>
 {
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
-    value attributes() const
-    {
-        value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    std::string name() const { return "scatter_none"; }
-
     // reduction (pointwise operation) is called by the parent struct's compute() method.
     // It works much like a virtual function overload.
-    // For the scatter methods, there are three different reduction functions.
+    // For the scatter operators, there are three different reduction functions.
     auto reduction() const
     {
         return [](auto& x, const auto& y) { x = y; };

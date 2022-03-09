@@ -22,6 +22,9 @@ namespace op {
 // it as a separate derived struct for each of the three reduction methods.  The related operator
 // scatterND is a generalization that works on a set of 3 tensors of different ranks.  The
 // complementary operations are gather/gatherND.
+//
+// This is a template for deriving child structs from.  Each child needs to define
+// only a reduction() method.  Names are automatically handled by the op_name template.
 
 template <class Derived>
 struct scatter : op_name<Derived>
@@ -41,8 +44,6 @@ struct scatter : op_name<Derived>
         return {{"normalize_axes", normalize}};
     }
 
-    std::string name() const { return "scatter"; }
-
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3).standard();
@@ -55,10 +56,11 @@ struct scatter : op_name<Derived>
         argument result{output_shape};
         auto& self = static_cast<const Derived&>(*this);
 
-        // max dimension in axis
+        // max dimension in each axis
         auto axis_dim_size = output_shape.lens()[axis];
-        // iterate through all elements in output
+        // iterate through all element locations in data/update/output
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
+            // copy all of data to output
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
@@ -66,11 +68,12 @@ struct scatter : op_name<Derived>
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx = idx;
                     auto index   = indices[ind_s.index(idx)];
-                    // normalize negative indexes
+                    // normalize negative indexes (may be redundant after using normalize_compute_shape())
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
 
-                    // call reduction() method of derived struct
+                    // look up the appropriate location in output, using index.
+                    // call reduction() method of derived struct to copy and reduce that element
                     self.reduction()(output[output_shape.index(out_idx)], update[ind_s.index(idx)]);
                 });
             });
@@ -78,9 +81,6 @@ struct scatter : op_name<Derived>
 
         return result;
     }
-    auto init() const {}
-    scatter() {}
-    scatter(int64_t ax) : axis(ax) {}
 };
 
 } // namespace op

@@ -25,11 +25,11 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
         check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1);
         auto s    = inputs.at(0);
         auto lens = s.lens();
-        if (s.broadcasted())
+        if(s.broadcasted())
             s = {s.type(), lens};
-        else 
+        else
             s = s.with_lens(lens);
-        
+
         for(auto axis : axes)
         {
             lens[axis] = 1;

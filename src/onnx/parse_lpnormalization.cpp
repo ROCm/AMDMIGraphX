@@ -20,7 +20,7 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         int p = 2;
         if(contains(info.attributes, "p"))
         {
-            p = get_type(info.attributes.at("p").i());
+            p = info.attributes.at("p").i();
         }
         if(p != 1 and p != 2)
         {
@@ -33,7 +33,7 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         std::ptrdiff_t axis     = -1;
         if(contains(info.attributes, "axis"))
         {
-            axis = get_type(info.attributes.at("axis").i());
+            axis = info.attributes.at("axis").i();
             if(axis < -num_axes or axis >= num_axes)
             { // handled in normalize_attributes but throwing here might be clearer
                 MIGRAPHX_THROW("LPNORMALIZATION: selected axis out of bounds");
@@ -57,7 +57,6 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
             norms = info.add_instruction(migraphx::make_op("sqrt"), norms);
         }
         // broadcast back to initial shape, negative axis option doesn't work with unidirectional
-        // broadcast
         norms = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
         auto zero_mb = info.add_instruction(

@@ -45,6 +45,28 @@ TEST_CASE(averagepool_nt_cip_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(celu_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("celu_verify_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {-5.5, 2.0, 100., 7.0, 0., -1.};
+
+    migraphx::parameter_map pp;
+    pp["x"]     = migraphx::argument(s, data.data());
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> correct(6);
+    float alpha = 0.5;
+    std::transform(data.begin(), data.end(), correct.begin(), [&](auto x) {
+        return std::max(0.0f, x) + std::min(0.0f, alpha * std::expm1(x / alpha));
+    });
+    EXPECT(migraphx::verify_range(result_vector, correct));
+}
+
 TEST_CASE(clip_args_type_mismatch)
 {
     auto p = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
@@ -665,6 +687,21 @@ TEST_CASE(selu_test)
     std::vector<float> gold = {0.55, 1.05, 0, -0.10912, -0.149251, 6};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(size_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("size_verify_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 5, 3}};
+    std::vector<float> data(30, 1.);
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result      = p.eval(pp).back();
+    auto size_result = result.at<int64_t>();
+    EXPECT(size_result == int64_t{30});
 }
 
 TEST_CASE(slice_test)

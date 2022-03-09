@@ -352,6 +352,65 @@ def ceil_test():
 
 
 @onnx_test
+def celu_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.8)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.5)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_wrong_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_zero_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -4494,6 +4553,54 @@ def sinh_test():
         outputs=['y'],
     )
 
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_float_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_int_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [8, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
     return ([node], [x], [y])
 
 

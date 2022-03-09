@@ -61,7 +61,8 @@ TEST_CASE(if_then_else_op)
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
         pp.add("cond", migraphx::argument(cond_s, &cond));
-        auto outputs    = p.eval({{"cond", migraphx::argument(cond_s, &cond)}, {"x", x_arg}, {"y", y_arg}});
+        auto outputs =
+            p.eval({{"cond", migraphx::argument(cond_s, &cond)}, {"x", x_arg}, {"y", y_arg}});
         auto output     = outputs[0];
         float* data_ptr = reinterpret_cast<float*>(output.data());
         std::vector<float> ret(data_ptr, data_ptr + 9);

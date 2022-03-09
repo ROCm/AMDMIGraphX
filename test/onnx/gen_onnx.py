@@ -486,6 +486,22 @@ def clip_test_op11_no_args1():
 
 
 @onnx_test
+def clip_test_args_type_mismatch():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 3])
+
+    min_val = helper.make_tensor('min', TensorProto.FLOAT, [1, 3],
+                                 [1.5, 2.5, 3.5])
+    max_val = helper.make_tensor('max', TensorProto.INT64, [3, 1], [2, 3, 4])
+
+    node = onnx.helper.make_node('Clip',
+                                 inputs=['0', 'min', 'max'],
+                                 outputs=['1'])
+
+    return ([node], [x], [y], [min_val, max_val])
+
+
+@onnx_test
 def concat_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 4, 3])
@@ -4474,6 +4490,54 @@ def sinh_test():
         outputs=['y'],
     )
 
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_float_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_int_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [8, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def size_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 5, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [1])
+    node = onnx.helper.make_node(
+        'Size',
+        inputs=['x'],
+        outputs=['y'],
+    )
     return ([node], [x], [y])
 
 

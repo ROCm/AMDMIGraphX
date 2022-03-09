@@ -529,6 +529,28 @@ TEST_CASE(clip_test_op11_no_args1)
     EXPECT(p == prog);
 }
 
+TEST_CASE(clip_test_args_type_mismatch)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto min_val = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1, 3}}, {1.5, 2.5, 3.5}});
+    auto max_val = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3, 1}}, {2, 3, 4}});
+
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+    min_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), min_val);
+    max_val =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 3}}}), max_val);
+    max_val = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), max_val);
+    auto r = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    mm->add_return({r});
+    auto prog = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(concat_test)
 {
     migraphx::program p;
@@ -4332,6 +4354,40 @@ TEST_CASE(sinh_test)
 
     auto prog = optimize_onnx("sinh_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(size_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+    mm->add_parameter("x", s);
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {s.elements()}});
+
+    auto prog = optimize_onnx("size_float_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(size_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::half_type, {3, 1}};
+    mm->add_parameter("x", s);
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {s.elements()}});
+    auto prog = optimize_onnx("size_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(size_int_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto s   = migraphx::shape{migraphx::shape::int32_type, {8, 2, 3}};
+    mm->add_parameter("x", s);
+    mm->add_literal(migraphx::literal{migraphx::shape::int64_type, {s.elements()}});
+    auto prog = optimize_onnx("size_int_test.onnx");
     EXPECT(p == prog);
 }
 

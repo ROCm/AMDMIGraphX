@@ -134,6 +134,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compile_gathernd.cpp
     compile_roialign.cpp
+    compile_scatternd.cpp
     concat.cpp
     convert.cpp
     convolution.cpp

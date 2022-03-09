@@ -2,6 +2,7 @@
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/onnx/padding.hpp>
 #include <migraphx/op/pad.hpp>
+#include <migraphx/op/pooling.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
@@ -27,10 +28,16 @@ struct parse_pooling : op_parser<parse_pooling>
                           std::vector<instruction_ref> args) const
     {
         std::string mode = opd.op_name;
-        operation op     = make_op("pooling", {{"mode", mode}});
-        value values     = op.to_value();
-        auto l0          = args[0];
-        auto in_lens     = l0->get_shape().lens();
+        if(mode != "max" && mode != "average")
+        {
+            MIGRAPHX_THROW("onnx pooling mode must be \"max\" or \"average\"");
+        }
+        operation op = make_op(
+            "pooling",
+            {{"mode", mode == "average" ? op::pooling_mode::average : op::pooling_mode::max}});
+        value values = op.to_value();
+        auto l0      = args[0];
+        auto in_lens = l0->get_shape().lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
@@ -72,6 +79,7 @@ struct parse_pooling : op_parser<parse_pooling>
 
         std::vector<int64_t> paddings;
         float pad_val = ((mode == "max") ? std::numeric_limits<float>::lowest() : 0.0f);
+
         if(contains(info.attributes, "pads"))
         {
             values["padding"].clear();

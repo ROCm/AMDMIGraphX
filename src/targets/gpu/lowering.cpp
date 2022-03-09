@@ -22,9 +22,11 @@
 #include <migraphx/gpu/batch_norm_inference.hpp>
 #include <migraphx/gpu/compile_gathernd.hpp>
 #include <migraphx/gpu/compile_roialign.hpp>
+#include <migraphx/gpu/compile_scatternd.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/convolution.hpp>
 #include <migraphx/gpu/deconvolution.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/elu.hpp>
 #include <migraphx/gpu/equal.hpp>
 #include <migraphx/gpu/gemm.hpp>
@@ -61,6 +63,7 @@ struct miopen_apply
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy   = false;
     bool int8_x4_format = true;
+    bool compute_fp32   = false;
 
     context& get_context() const
     {
@@ -97,13 +100,22 @@ struct miopen_apply
         }
     }
 
+    const std::unordered_set<std::string>& get_rocblas_fp32_archs()
+    {
+        static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
+        return supported_archs;
+    }
+
     void init()
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
 
 #if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-        auto& ctx = get_context();
+        auto& ctx              = get_context();
+        const auto device_name = trim(split_string(get_device_name(), ':').front());
+        if(contains(get_rocblas_fp32_archs(), device_name))
+            compute_fp32 = true;
         rocblas_gemm_flags flag;
         rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
         int8_x4_format = (flag == rocblas_gemm_flags_pack_int8x4);
@@ -198,6 +210,7 @@ struct miopen_apply
         add_quant_convolution_op();
         add_gathernd();
         add_roialign();
+        add_scatternd();
     }
 
     void copy_params()
@@ -339,7 +352,7 @@ struct miopen_apply
                 }
             }
             return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format}, refs);
+                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
         });
     }
 
@@ -434,7 +447,6 @@ struct miopen_apply
                                             reshapes[2],
                                             reshapes[3],
                                             output);
-
         });
     }
 
@@ -509,7 +521,6 @@ struct miopen_apply
     void add_roialign()
     {
         apply_map.emplace("roialign", [=](instruction_ref ins) {
-
             auto s      = ins->get_shape();
             auto op_val = ins->get_operator().to_value();
             auto output = insert_allocation(ins, s);
@@ -518,6 +529,60 @@ struct miopen_apply
 
             auto io_shapes = to_shapes(args);
             auto co        = compile_roialign(get_context(), io_shapes, op_val);
+            return mod->replace_instruction(ins, co, args);
+        });
+    }
+
+    void add_scatternd()
+    {
+        apply_map.emplace("scatternd_none", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "none";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_add", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "add";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
+            return mod->replace_instruction(ins, co, args);
+        });
+
+        apply_map.emplace("scatternd_mul", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto op_val = ins->get_operator().to_value();
+            auto output = insert_allocation(ins, s);
+            auto args   = ins->inputs();
+            args.push_back(output);
+
+            auto io_shapes = to_shapes(args);
+            io_shapes.erase(io_shapes.begin());
+            const std::string reduction = "mul";
+            auto co                     = compile_scatternd(get_context(), io_shapes, reduction);
+            auto copy   = mod->insert_instruction(ins, make_op("hip::copy"), args.front(), output);
+            args.back() = copy;
+            args.erase(args.begin());
             return mod->replace_instruction(ins, co, args);
         });
     }

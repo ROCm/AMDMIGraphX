@@ -38,6 +38,7 @@ add_library(migraphx
     msgpack.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
+    op_enums.cpp
     operation.cpp
     opt/memory_coloring.cpp
     opt/memory_coloring_impl.cpp
@@ -115,6 +116,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isnan
     leaky_relu
     less
     load
@@ -162,6 +164,9 @@ register_migraphx_ops(
     rsqrt
     scalar
     scatter
+    scatternd_none
+    scatternd_add
+    scatternd_mul
     sigmoid
     sign
     sinh

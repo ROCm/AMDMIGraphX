@@ -27,7 +27,7 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
             MIGRAPHX_THROW("LPNORMALIZATION: only L1 and L2 norm supported");
         }
         auto input_shape        = args.front()->get_shape();
-        auto input_lens         = input_shape.lens();
+        const auto& input_lens  = input_shape.lens();
         auto input_type         = args[0]->get_shape().type();
         std::ptrdiff_t num_axes = input_lens.size();
         std::ptrdiff_t axis     = -1;

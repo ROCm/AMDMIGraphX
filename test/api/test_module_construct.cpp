@@ -53,15 +53,16 @@ TEST_CASE(if_then_else_op)
 
     std::vector<float> x_data(9, 1);
     std::vector<float> y_data(9, -1);
+    auto x_arg = migraphx::argument(param_shape, x_data.data());
+    auto y_arg = migraphx::argument(param_shape, y_data.data());
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::target("ref"));
         migraphx::program_parameters pp;
-        char ccond        = cond;
         auto param_shapes = p.get_parameter_shapes();
-        pp.add("cond", migraphx::argument(cond_s, &ccond));
-        pp.add("x", migraphx::argument(param_shape, x_data.data()));
-        pp.add("y", migraphx::argument(param_shape, y_data.data()));
+        pp.add("cond", migraphx::argument(cond_s, &cond));
+        pp.add("x", x_arg);
+        pp.add("y", y_arg);
         auto outputs    = p.eval(pp);
         auto output     = outputs[0];
         float* data_ptr = reinterpret_cast<float*>(output.data());

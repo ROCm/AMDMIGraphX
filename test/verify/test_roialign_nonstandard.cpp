@@ -10,7 +10,8 @@ struct test_roialign_nonstandard : verify_program<test_roialign_nonstandard>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x_s = migraphx::shape::from_permutation(migraphx::shape::float_type, {5, 4, 10, 10}, {0, 2, 3, 1});
+        auto x_s = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, {5, 4, 10, 10}, {0, 2, 3, 1});
 
         migraphx::shape roi_s{migraphx::shape::float_type, {5, 4}};
 

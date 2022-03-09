@@ -740,8 +740,6 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return context{ctx};
     }
 
-    friend bool operator!=(const program& px, const program& py) { return !(px == py); }
-
     module create_module(const std::string& name)
     {
         migraphx_module_t p_modu;

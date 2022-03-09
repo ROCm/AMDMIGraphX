@@ -3,75 +3,79 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-void run_test_on_gpu(const migraphx::program p)
-{
-    // make a copy of the program
-    migraphx_program_t p_ref_c;
-    migraphx_program_create(&p_ref_c);
-    migraphx_program_assign_to(p_ref_c, p.get_handle_ptr());
-    auto p_ref = migraphx::program(p_ref_c, migraphx::own{});
-    // compile on GPU
-    migraphx::compile_options options;
-    options.set_offload_copy();
-    p.compile(migraphx::target("gpu"), options);
-    // set parameters_map
-    migraphx::program_parameters pp;
-    auto param_shapes = p.get_parameter_shapes();
-    for(auto&& name : param_shapes.names())
-    {
-        pp.add(name, migraphx::argument::generate(param_shapes[name]));
-    }
-    // get results from GPU
-    auto outputs  = p.eval(pp);
-    auto output   = outputs[0];
-    auto lens     = output.get_shape().lengths();
-    auto elem_num = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-    float* output_data_ptr = reinterpret_cast<float*>(output.data());
-    std::vector<float> output_vec(output_data_ptr, output_data_ptr + elem_num);
-    // compile using ref target
-    p_ref.compile(migraphx::target("ref"));
-    // get results from Ref target
-    auto outputs_ref = p_ref.eval(pp);
-    auto output_ref  = outputs_ref[0];
-    lens             = output_ref.get_shape().lengths();
-    elem_num         = std::accumulate(lens.begin(), lens.end(), 1, std::multiplies<std::size_t>());
-    float* output_ref_data_ptr = reinterpret_cast<float*>(output_ref.data());
-    std::vector<float> output_ref_vec(output_ref_data_ptr, output_ref_data_ptr + elem_num);
-    // compare the results;
-    CHECK(output_vec == output_ref_vec);
-}
-
 TEST_CASE(add_op)
 {
     migraphx::program p;
     migraphx::module m = p.get_main_module();
-    auto x             = m.add_parameter("x", migraphx::shape(migraphx_shape_float_type, {3, 3}));
-    auto y             = m.add_parameter("y", migraphx::shape(migraphx_shape_float_type, {3, 3}));
+    migraphx::shape param_shape{migraphx_shape_float_type, {3, 3}};
+    auto x             = m.add_parameter("x", param_shape);
+    auto y             = m.add_parameter("y", param_shape);
     auto add_op        = migraphx::operation("add");
     auto r             = m.add_instruction(add_op, {x, y});
     m.add_return({r});
-    run_test_on_gpu(p);
+    // run on ref target
+    p.compile(migraphx::target("ref"));
+    migraphx::program_parameters pp;
+    std::vector<float> x_data(9, 1);
+    std::vector<float> y_data(9, -1);
+    pp.add("x", migraphx::argument(param_shape, x_data.data())); 
+    pp.add("y", migraphx::argument(param_shape, y_data.data()));
+    auto outputs  = p.eval(pp);
+    auto output   = outputs[0];
+    std::vector<float> expected(9, 0);
+    CHECK(bool(output == migraphx::argument(param_shape, expected.data())));
 }
 
 TEST_CASE(if_then_else_op)
 {
-    migraphx::program p;
-    auto mm = p.get_main_module();
+    migraphx::shape param_shape{migraphx_shape_float_type, {3, 3}};
     migraphx::shape cond_s{migraphx_shape_bool_type};
-    auto cond = mm.add_parameter("cond", cond_s);
+    auto create_program = [&]() {
+        migraphx::program p;
+        auto mm = p.get_main_module();
+        auto cond = mm.add_parameter("cond", cond_s);
+        auto x    = mm.add_parameter("x", param_shape);
+        auto y    = mm.add_parameter("y", param_shape);
+        auto then_mod = p.create_module("If_0_if");
+        auto x_identity = then_mod.add_instruction(migraphx::operation("identity"), {x});
+        then_mod.add_return({x_identity});
 
-    auto then_mod = p.create_module("If_0_if");
-    auto z        = then_mod.add_parameter("x", migraphx::shape(migraphx_shape_float_type, {3, 3}));
-    then_mod.add_return({z});
+        auto else_mod = p.create_module("If_0_else");
+        auto y_identity = else_mod.add_instruction(migraphx::operation("identity"), {y});
+        else_mod.add_return({y_identity});
 
-    auto else_mod = p.create_module("If_0_else");
-    z             = else_mod.add_parameter("y", migraphx::shape(migraphx_shape_float_type, {3, 3}));
-    else_mod.add_return({z});
+        auto if_ins          = mm.add_instruction(migraphx::operation("if"), {cond}, {then_mod, else_mod});
+        auto get_tuple_op = migraphx::operation("get_tuple_elem", "{index: 0}");
+        auto ret = mm.add_instruction(get_tuple_op, {if_ins});
+        mm.add_return({ret});
+        return p;
+    };
 
-    auto ret          = mm.add_instruction(migraphx::operation("if"), {cond}, {then_mod, else_mod});
-    auto get_tuple_op = migraphx::operation("get_tuple_elem", "{index: 0}");
-    mm.add_instruction(get_tuple_op, {ret});
-    run_test_on_gpu(p);
+    std::vector<float> x_data(9, 1);
+    std::vector<float> y_data(9, -1);
+    auto run_prog = [&](bool cond) {
+        auto p = create_program();
+        p.compile(migraphx::target("ref"));
+        migraphx::program_parameters pp;
+        char ccond = cond;
+        auto param_shapes = p.get_parameter_shapes();
+        pp.add("cond", migraphx::argument(cond_s, &ccond));
+        pp.add("x", migraphx::argument(param_shape, x_data.data())); 
+        pp.add("y", migraphx::argument(param_shape, y_data.data()));
+        auto outputs  = p.eval(pp);
+        auto output   = outputs[0];
+        float* data_ptr = reinterpret_cast<float*>(output.data());
+        std::vector<float> ret(data_ptr, data_ptr + 9);
+        return ret;
+    };
+
+    // then branch 
+    auto then_res = run_prog(true);
+    CHECK(then_res == x_data); 
+
+    // else branch
+    auto else_res = run_prog(false);
+    CHECK(else_res == y_data);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

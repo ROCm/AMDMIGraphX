@@ -194,6 +194,8 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::context get_context(const program& p) { return p.get_context(); }
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -377,6 +379,16 @@ struct migraphx_quantize_int8_options
     {
     }
     migraphx::quantize_int8_options object;
+};
+
+extern "C" struct migraphx_context;
+struct migraphx_context
+{
+    template <class... Ts>
+    migraphx_context(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::context object;
 };
 
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
@@ -883,6 +895,17 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_program_get_context(migraphx_context_t* out,
+                                                        const_migraphx_program_t program)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        *out = allocate<migraphx_context_t>(migraphx::get_context((program->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_operation_destroy(migraphx_operation_t operation)
 {
     auto api_error_result = migraphx::try_([&] { destroy((operation)); });
@@ -1321,6 +1344,16 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(context == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
+        (context->object).finish();
     });
     return api_error_result;
 }

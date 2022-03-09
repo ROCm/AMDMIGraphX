@@ -53,8 +53,8 @@ TEST_CASE(if_then_else_op)
 
     std::vector<float> x_data(9, 1);
     std::vector<float> y_data(9, -1);
-    auto x_arg = migraphx::argument(param_shape, x_data.data());
-    auto y_arg = migraphx::argument(param_shape, y_data.data());
+    auto x_arg    = migraphx::argument(param_shape, x_data.data());
+    auto y_arg    = migraphx::argument(param_shape, y_data.data());
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::target("ref"));

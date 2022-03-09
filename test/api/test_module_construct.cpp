@@ -58,7 +58,6 @@ TEST_CASE(if_then_else_op)
     auto run_prog = [&](bool cond) {
         auto p = create_program();
         p.compile(migraphx::target("ref"));
-        auto param_shapes = p.get_parameter_shapes();
         auto outputs =
             p.eval({{"cond", migraphx::argument(cond_s, &cond)}, {"x", x_arg}, {"y", y_arg}});
         auto output     = outputs[0];

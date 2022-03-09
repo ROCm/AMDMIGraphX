@@ -1,18 +1,9 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_GATHERND_HPP
 #define MIGRAPHX_GUARD_OPERATORS_GATHERND_HPP
 
-#include <array>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/streamutils.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
-#include <cmath>
-#include <utility>
-#include <type_traits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

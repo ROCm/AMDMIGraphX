@@ -4,7 +4,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_gathernd_batch_dims_1 : verify_program<test_gathernd_batch_dims_1>
+struct test_gathernd_negative_indices : verify_program<test_gathernd_negative_indices>
 {
     migraphx::program create_program() const
     {

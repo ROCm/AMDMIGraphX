@@ -66,17 +66,17 @@ TEST_CASE(program_print)
     auto in1            = mm->end();
 
     // print end instruction
-    p.debug_print(in1);
+    p.debug_print(in1, {});
 
     // print instruction not in the program
     auto p2   = p;
     auto* mm2 = p2.get_main_module();
     auto in2  = mm2->begin();
-    p.debug_print(in2);
+    p.debug_print(in2, {});
 
     // print last instruction
     auto in3 = std::prev(in1);
-    p.debug_print(in3);
+    p.debug_print(in3, {});
 }
 
 TEST_CASE(program_annotate)

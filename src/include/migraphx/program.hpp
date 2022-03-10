@@ -80,6 +80,8 @@ struct program
     void debug_print(std::ostream& os,
                      instruction_ref ins,
                      const std::unordered_map<instruction_ref, std::string>& names) const;
+    void debug_print(instruction_ref ins,
+                     const std::unordered_map<instruction_ref, std::string>& ins_names) const;
     void print(std::unordered_map<instruction_ref, std::string>& names,
                const std::function<void(instruction_ref,
                                         std::unordered_map<instruction_ref, std::string>)>&

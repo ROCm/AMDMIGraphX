@@ -1,8 +1,11 @@
 
-include(DoxygenDoc)
+project(migraphx-doc)
+find_package(ROCM REQUIRED)
+
+include(ROCMDoxygenDoc)
 
 set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
-add_doxygen_doc(
+rocm_add_doxygen_doc(
     OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
     INPUT 
         ${PROJECT_SOURCE_DIR}/src
@@ -39,8 +42,8 @@ add_doxygen_doc(
     PREDEFINED DOXYGEN
 )
 
-include(SphinxDoc)
-add_sphinx_doc(src 
+include(ROCMSphinxDoc)
+rocm_add_sphinx_doc(src 
     BUILDER html 
     OUTPUT_DIR html 
     VARS 
@@ -51,7 +54,7 @@ add_sphinx_doc(src
 
 find_package(LATEX)
 if(LATEX_FOUND)
-    add_sphinx_doc(src 
+    rocm_add_sphinx_doc(src 
         BUILDER latex
         OUTPUT_DIR pdf
         VARS 

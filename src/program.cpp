@@ -947,9 +947,9 @@ void program::perf_report(std::ostream& os,
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
-void program::debug_print(instruction_ref ins) const
+void program::debug_print(instruction_ref ins,
+                          const std::unordered_map<instruction_ref, std::string>& ins_names) const
 {
-    std::unordered_map<instruction_ref, std::string> names;
     if(std::any_of(this->impl->modules.begin(), this->impl->modules.end(), [&](const auto& pp) {
            return is_end(pp.second.end(), ins);
        }))
@@ -965,14 +965,10 @@ void program::debug_print(instruction_ref ins) const
         return;
     }
 
-    std::stringstream ss;
-    this->print(names, [&](auto x, auto ins_names) {
-        if(x == ins)
-        {
-            instruction::print(std::cout, x, ins_names);
-            std::cout << std::endl;
-        }
-    });
+    if(contains(ins_names, ins))
+    {
+        instruction::print(std::cout, ins, ins_names);
+    }
 }
 
 void program::debug_print(std::ostream& os,
@@ -1078,11 +1074,12 @@ void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputItera
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(),
-                 m.end(),
-                 out,
-                 [&](auto&& pp) { return not contains(used, pp.first); },
-                 [](auto&& pp) { return &pp.second; });
+    transform_if(
+        m.begin(),
+        m.end(),
+        out,
+        [&](auto&& pp) { return not contains(used, pp.first); },
+        [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const

@@ -58,7 +58,7 @@ struct scatter : op_name<Derived>
 
         // max dimension in each axis
         auto axis_dim_size = output_shape.lens()[axis];
-        // iterate through all element locations in data/update/output
+        // cast all arguments as correct type
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
             // copy all of data to output
             std::copy(data.begin(), data.end(), output.begin());

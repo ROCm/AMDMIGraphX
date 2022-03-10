@@ -68,7 +68,8 @@ struct scatter : op_name<Derived>
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx = idx;
                     auto index   = indices[ind_s.index(idx)];
-                    // normalize negative indexes (may be redundant after using normalize_compute_shape())
+                    // normalize negative indexes (may be redundant after using
+                    // normalize_compute_shape())
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
 

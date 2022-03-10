@@ -13,8 +13,8 @@
 #include <cmath>
 #include <utility>
 
-// Scatter op. with "none" as the reduction function (just copies the value).  This is identical to the
-// previously existing Scatter op.
+// Scatter op. with "none" as the reduction function (just copies the value).  This is identical to
+// the previously existing Scatter op.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {

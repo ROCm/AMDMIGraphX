@@ -469,7 +469,7 @@ TEST_CASE(lessorequal_test)
 
 TEST_CASE(lpnormalization_1norm)
 {
-    migraphx::program p = migraphx::parse_onnx("lpnormalization_float_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("lpnormalization_l1_test.onnx");
     p.compile(migraphx::ref::target{});
     migraphx::shape s{migraphx::shape::float_type, {3, 4}};
     std::vector<float> data{0.f, 2.f, -2.f, 1.f, 1.f, -5.f, 3.f, -1.f, -4.f, 3.f, 0.f, 0.f};
@@ -492,6 +492,7 @@ TEST_CASE(lpnormalization_1norm)
                                3.f / 7.f,
                                0.f,
                                0.f};
+    EXPECT(migraphx::verify_range(result_vector, correct));
 }
 
 TEST_CASE(lpnormalization_2norm)
@@ -519,6 +520,7 @@ TEST_CASE(lpnormalization_2norm)
                                3.f / 5.f,
                                0.f,
                                0.f};
+    EXPECT(migraphx::verify_range(result_vector, correct));
 }
 
 TEST_CASE(mean_broadcast_test)

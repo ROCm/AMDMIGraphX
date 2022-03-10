@@ -46,6 +46,29 @@ migraphx::program optimize_onnx(const std::string& name, bool run_passes = false
     return prog;
 }
 
+void add_celu_instruction(migraphx::module* mm, const migraphx::shape& s, float alpha)
+{
+    auto x                 = mm->add_parameter("x", s);
+    const auto& input_lens = s.lens();
+    const auto& input_type = s.type();
+    auto zero_lit =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+    auto one_lit =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto alpha_lit = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {alpha}}));
+    auto linear_part = mm->add_instruction(migraphx::make_op("max"), zero_lit, x);
+    auto divi        = mm->add_instruction(migraphx::make_op("div"), x, alpha_lit);
+    auto expo        = mm->add_instruction(migraphx::make_op("exp"), divi);
+    auto sub         = mm->add_instruction(migraphx::make_op("sub"), expo, one_lit);
+    auto mul         = mm->add_instruction(migraphx::make_op("mul"), alpha_lit, sub);
+    auto exp_part    = mm->add_instruction(migraphx::make_op("min"), zero_lit, mul);
+    mm->add_instruction(migraphx::make_op("add"), linear_part, exp_part);
+}
+
 static std::vector<double> make_r_eyelike(size_t num_rows, size_t num_cols, size_t k)
 {
     std::vector<double> eyelike_mat(num_rows * num_cols, 0);
@@ -378,6 +401,42 @@ TEST_CASE(ceil_test)
     auto prog = optimize_onnx("ceil_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(celu_alpha_test)
+{
+    migraphx::program p;
+    auto* mm                            = p.get_main_module();
+    std::vector<std::size_t> input_lens = {3};
+    auto input_type                     = migraphx::shape::float_type;
+    migraphx::shape s{input_type, input_lens};
+    float alpha = 0.8;
+    add_celu_instruction(mm, s, alpha);
+    auto prog = optimize_onnx("celu_alpha_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(celu_default_test)
+{
+    migraphx::program p;
+    auto* mm                            = p.get_main_module();
+    std::vector<std::size_t> input_lens = {2, 3};
+    auto input_type                     = migraphx::shape::float_type;
+    migraphx::shape s{input_type, input_lens};
+    float alpha = 1.0;
+    add_celu_instruction(mm, s, alpha);
+    auto prog = optimize_onnx("celu_default_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(celu_wrong_type_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("celu_wrong_type_test.onnx"); }));
+}
+
+TEST_CASE(celu_zero_alpha_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("celu_zero_alpha_test.onnx"); }));
 }
 
 TEST_CASE(clip_test)

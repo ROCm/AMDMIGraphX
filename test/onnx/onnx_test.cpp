@@ -2573,11 +2573,12 @@ TEST_CASE(lpnormalization_double_test)
     auto zero_mb =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
-    auto one_mb = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-    auto is_zero            = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
-    auto norms_zeros_to_one = mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    auto norms_zeros_to_one =
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_double_test.onnx");
@@ -2602,11 +2603,12 @@ TEST_CASE(lpnormalization_float_test)
     auto zero_mb =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
-    auto one_mb = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-    auto is_zero            = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
-    auto norms_zeros_to_one = mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    auto norms_zeros_to_one =
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_float_test.onnx");
@@ -2631,11 +2633,12 @@ TEST_CASE(lpnormalization_half_test)
     auto zero_mb =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
                             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
-    auto one_mb = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-    auto is_zero            = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
-    auto norms_zeros_to_one = mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    auto norms_zeros_to_one =
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_half_test.onnx");

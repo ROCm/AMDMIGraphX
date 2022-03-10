@@ -35,7 +35,7 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         {
             axis = info.attributes.at("axis").i();
             if(axis < -num_axes or axis >= num_axes)
-            { 
+            {
                 // handled in normalize_attributes but throwing here might be clearer
                 MIGRAPHX_THROW("LPNORMALIZATION: selected axis out of bounds");
             }
@@ -52,7 +52,8 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
 
         // need to check for zeros from lp norm to prevent division by zero
         // change them to 1 for the element-wise division
-        auto norms = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {axis}}}), p_val);
+        auto norms =
+            info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {axis}}}), p_val);
         if(p == 2)
         {
             norms = info.add_instruction(migraphx::make_op("sqrt"), norms);
@@ -66,8 +67,9 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         auto one_mb = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
-        auto is_zero            = info.add_instruction(migraphx::make_op("equal"), norms, zero_mb);
-        auto norms_zeros_to_one = info.add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+        auto is_zero = info.add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+        auto norms_zeros_to_one =
+            info.add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
         return info.add_instruction(migraphx::make_op("div"), args.front(), norms_zeros_to_one);
     }
 };

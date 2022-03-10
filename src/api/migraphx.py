@@ -207,6 +207,10 @@ def program(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
+    h.method('get_context',
+             invoke='migraphx::get_context($@)',
+             const=True,
+             returns='migraphx::context')
 
 
 @auto_handle()
@@ -353,3 +357,8 @@ api.add_function('migraphx_quantize_int8',
                             target='migraphx::target',
                             options='migraphx::quantize_int8_options'),
                  fname='migraphx::quantize_int8_wrap')
+
+
+@auto_handle(ref=True)
+def context(h):
+    h.method('finish', const=True)

@@ -16,12 +16,13 @@
 #include <utility>
 
 namespace migraphx {
+
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 struct pooling
 {
-    std::string mode                 = "average";
+    pooling_mode mode                = {pooling_mode::average};
     std::vector<std::size_t> padding = {0, 0};
     std::vector<std::size_t> stride  = {1, 1};
     std::vector<std::size_t> lengths = {1, 1};

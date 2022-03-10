@@ -64,7 +64,6 @@ struct unary : op_name<Derived>
                                input.end(),
                                output.begin(),
                                static_cast<const Derived&>(*this).apply());
-
             });
         });
         return result;

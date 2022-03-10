@@ -160,7 +160,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                 auto half2_block_size = compute_block_size(batch_item_num, 1024);
                 int block_num         = batch_shape.elements();
                 int shared_size       = batch_item_num * 2 * result.get_shape().type_size();
-                half2_block_size = half2_block_size / 4;
+                half2_block_size      = half2_block_size / 4;
                 softmax_kernel<<<block_num, half2_block_size, shared_size, stream>>>(
                     arg.data(), batch_item_num, half2_block_size, result.data());
             }

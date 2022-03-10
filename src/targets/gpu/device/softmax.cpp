@@ -157,8 +157,8 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
             auto in_type = result.get_shape().type();
             if(in_type == shape::half_type and batch_item_num <= 1024)
             {
-                int block_num   = batch_shape.elements();
-                int shared_size = batch_item_num * 2 * result.get_shape().type_size();
+                int block_num         = batch_shape.elements();
+                int shared_size       = batch_item_num * 2 * result.get_shape().type_size();
                 auto half2_block_size = block_size / 4;
                 softmax_kernel<<<block_num, half2_block_size, shared_size, stream>>>(
                     arg.data(), batch_item_num, half2_block_size, result.data());

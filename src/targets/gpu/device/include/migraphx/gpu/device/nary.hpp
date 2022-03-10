@@ -24,7 +24,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
     if(enabled(MIGRAPHX_TRACE_NARY{})) \
         std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
-static index_int group_num_global = (1 << 20);
+static index_int group_num_global = (1 << 8);
 
 template <class... Ts>
 constexpr auto pack(Ts... xs)

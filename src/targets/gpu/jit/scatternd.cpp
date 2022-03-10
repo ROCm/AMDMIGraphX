@@ -42,7 +42,10 @@ __global__ void scatternd_kernel(void* in_indices, void* in_updates, void* outpu
 
 struct scatternd_compiler : compiler<scatternd_compiler>
 {
-    std::vector<std::string> names() const { return {"scatternd_none", "scatternd_add", "scatternd_mul"}; }
+    std::vector<std::string> names() const
+    {
+        return {"scatternd_none", "scatternd_add", "scatternd_mul"};
+    }
 
     operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
     {
@@ -54,7 +57,7 @@ struct scatternd_compiler : compiler<scatternd_compiler>
         options.output         = out_s;
         options.kernel_name    = "scatternd_kernel";
         options.virtual_inputs = inputs;
-        auto reduction = "assign_" + v.get("reduction", std::string{"none"});
+        auto reduction         = "assign_" + v.get("reduction", std::string{"none"});
         auto src               = interpolate_string(scatternd_kernel, {{"reduction", reduction}});
         return compile_hip_code_object(src, options);
     }
@@ -63,19 +66,21 @@ struct scatternd_compiler : compiler<scatternd_compiler>
     {
         assert(starts_with(op.name(), "scatternd_"));
         auto reduction = op.name().substr(10);
-        return insert(compile_op(ctx, to_shapes({ins->inputs().begin()+1, ins->inputs().end()}), {{"reduction", reduction}}));
+        return insert(compile_op(ctx,
+                                 to_shapes({ins->inputs().begin() + 1, ins->inputs().end()}),
+                                 {{"reduction", reduction}}));
     }
 
     compiler_replace insert(const operation& op) const
     {
         return [=](module& m, instruction_ref ins) {
-            auto args   = ins->inputs();
-            args.back()   = m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
+            auto args = ins->inputs();
+            args.back() =
+                m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());
             args.erase(args.begin());
             return m.replace_instruction(ins, op, args);
         };
     }
-
 };
 
 } // namespace gpu

@@ -31,10 +31,13 @@ template <class T>
 void register_compiler()
 {
     T c;
+    for(auto&& name:c.names())
+    {
     register_compiler(
-        c.name(),
+        name,
         [=](auto&&... xs) { return c.compile(std::forward<decltype(xs)>(xs)...); },
         [=](auto&&... xs) { return c.compile_op(std::forward<decltype(xs)>(xs)...); });
+}
 }
 
 struct register_compiler_action

@@ -38,7 +38,7 @@ __global__ void kernel(${params})
 
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
-    std::string name() const { return "pointwise"; }
+    std::vector<std::string> names() const { return {"pointwise"}; }
 
     operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
     {

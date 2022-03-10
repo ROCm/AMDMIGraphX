@@ -22,14 +22,9 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
     {
         // Compensate for allocation
         inputs.pop_back();
-        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1);
+        check_shapes{this->trim_post_op_inputs(inputs), *this}.has(1).standard();
         auto s    = inputs.at(0);
         auto lens = s.lens();
-        if(s.broadcasted())
-            s = {s.type(), lens};
-        else
-            s = s.with_lens(lens);
-
         for(auto axis : axes)
         {
             lens[axis] = 1;

@@ -194,6 +194,8 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::context get_context(const program& p) { return p.get_context(); }
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

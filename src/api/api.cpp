@@ -194,6 +194,8 @@ void print_program(const program& p) { std::cout << p << std::endl; }
 
 void print_module(const module& m) { std::cout << m << std::endl; }
 
+migraphx::context get_context(const program& p) { return p.get_context(); }
+
 } // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
@@ -379,9 +381,26 @@ struct migraphx_quantize_int8_options
     migraphx::quantize_int8_options object;
 };
 
+extern "C" struct migraphx_context;
+struct migraphx_context
+{
+    template <class... Ts>
+    migraphx_context(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    {
+    }
+    migraphx::context object;
+};
+
 extern "C" migraphx_status migraphx_shape_destroy(migraphx_shape_t shape)
 {
     auto api_error_result = migraphx::try_([&] { destroy((shape)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shape_assign_to(migraphx_shape_t output,
+                                                    const_migraphx_shape_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -502,6 +521,13 @@ extern "C" migraphx_status migraphx_argument_destroy(migraphx_argument_t argumen
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_argument_assign_to(migraphx_argument_t output,
+                                                       const_migraphx_argument_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_argument_create(migraphx_argument_t* argument, const_migraphx_shape_t shape, void* buffer)
 {
@@ -565,6 +591,13 @@ extern "C" migraphx_status migraphx_target_destroy(migraphx_target_t target)
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_target_assign_to(migraphx_target_t output,
+                                                     const_migraphx_target_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_target_create(migraphx_target_t* target, const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -578,6 +611,14 @@ extern "C" migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program_parameter_shapes)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_program_parameter_shapes_assign_to(migraphx_program_parameter_shapes_t output,
+                                            const_migraphx_program_parameter_shapes_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -632,6 +673,14 @@ migraphx_program_parameters_destroy(migraphx_program_parameters_t program_parame
 }
 
 extern "C" migraphx_status
+migraphx_program_parameters_assign_to(migraphx_program_parameters_t output,
+                                      const_migraphx_program_parameters_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_program_parameters_create(migraphx_program_parameters_t* program_parameters)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -663,6 +712,13 @@ extern "C" migraphx_status migraphx_arguments_destroy(migraphx_arguments_t argum
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_arguments_assign_to(migraphx_arguments_t output,
+                                                        const_migraphx_arguments_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_arguments_size(size_t* out, migraphx_arguments_t arguments)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -687,6 +743,13 @@ migraphx_arguments_get(const_migraphx_argument_t* out, migraphx_arguments_t argu
 extern "C" migraphx_status migraphx_shapes_destroy(migraphx_shapes_t shapes)
 {
     auto api_error_result = migraphx::try_([&] { destroy((shapes)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_shapes_assign_to(migraphx_shapes_t output,
+                                                     const_migraphx_shapes_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -724,6 +787,13 @@ extern "C" migraphx_status migraphx_module_print(const_migraphx_module_t module)
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_assign_to(migraphx_program_t output,
+                                                      const_migraphx_program_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -825,9 +895,27 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_program_get_context(migraphx_context_t* out,
+                                                        const_migraphx_program_t program)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        *out = allocate<migraphx_context_t>(migraphx::get_context((program->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_operation_destroy(migraphx_operation_t operation)
 {
     auto api_error_result = migraphx::try_([&] { destroy((operation)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_operation_assign_to(migraphx_operation_t output,
+                                                        const_migraphx_operation_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -891,6 +979,13 @@ extern "C" migraphx_status migraphx_onnx_options_destroy(migraphx_onnx_options_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_onnx_options_assign_to(migraphx_onnx_options_t output,
+                                                           const_migraphx_onnx_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_onnx_options_create(migraphx_onnx_options_t* onnx_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -942,6 +1037,13 @@ extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_file_options_assign_to(migraphx_file_options_t output,
+                                                           const_migraphx_file_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_create(migraphx_file_options_t* file_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -965,6 +1067,14 @@ extern "C" migraphx_status
 migraphx_compile_options_destroy(migraphx_compile_options_t compile_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((compile_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_compile_options_assign_to(migraphx_compile_options_t output,
+                                   const_migraphx_compile_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -1030,6 +1140,13 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
 extern "C" migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((tf_options)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_tf_options_assign_to(migraphx_tf_options_t output,
+                                                         const_migraphx_tf_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
     return api_error_result;
 }
 
@@ -1111,6 +1228,14 @@ migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_name
 }
 
 extern "C" migraphx_status
+migraphx_quantize_op_names_assign_to(migraphx_quantize_op_names_t output,
+                                     const_migraphx_quantize_op_names_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_quantize_op_names_create(migraphx_quantize_op_names_t* quantize_op_names)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1163,6 +1288,14 @@ migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize
 }
 
 extern "C" migraphx_status
+migraphx_quantize_int8_options_assign_to(migraphx_quantize_int8_options_t output,
+                                         const_migraphx_quantize_int8_options_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_quantize_int8_options_create(migraphx_quantize_int8_options_t* quantize_int8_options)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1211,6 +1344,16 @@ extern "C" migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
         migraphx::quantize_int8_wrap((prog->object), (target->object), (options->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_context_finish(const_migraphx_context_t context)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(context == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter context: Null pointer");
+        (context->object).finish();
     });
     return api_error_result;
 }

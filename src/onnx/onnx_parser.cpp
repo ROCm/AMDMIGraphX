@@ -70,12 +70,14 @@ static literal from_repeated(shape::type_t t, const T& r)
 
 instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
 {
-    if(ins->get_shape().standard())
+    auto attr       = ins->get_operator().to_value();
+    std::string key = "require_std_shape";
+    if((attr.get(key, false)) or (not ins->get_shape().standard()))
     {
-        return ins;
+        return add_instruction(make_op("contiguous"), ins);
     }
 
-    return add_instruction(make_op("contiguous"), ins);
+    return ins;
 }
 
 instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_ref>& args,
@@ -96,7 +98,13 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
                                                                     instruction_ref arg0,
                                                                     instruction_ref arg1) const
 {
-    return add_common_op(*mod, make_op(op_name), {arg0, arg1});
+    return this->add_common_op(op_name, arg0, arg1);
+}
+
+instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
+                                                      std::vector<instruction_ref> inputs) const
+{
+    return migraphx::add_common_op(*mod, make_op(op_name), std::move(inputs));
 }
 
 instruction_ref
@@ -380,8 +388,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::INT64: return create_literal(shape::int64_type, dims, t.int64_data());
     case onnx::TensorProto::UINT64:
         return create_literal(shape::uint64_type, dims, t.uint64_data());
-    case onnx::TensorProto::FLOAT16:
-    {
+    case onnx::TensorProto::FLOAT16: {
         std::vector<uint16_t> data_uint16(t.int32_data().begin(), t.int32_data().end());
         std::vector<half> data_half;
         std::transform(data_uint16.begin(),
@@ -451,7 +458,8 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
-    default: { MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
+    default: {
+        MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }
     }
 }

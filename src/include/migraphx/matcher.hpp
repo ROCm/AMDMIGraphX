@@ -101,17 +101,17 @@ template <class M>
 auto bind_match(M m, std::string name)
 {
     return make_function_matcher(
-        [ =, name = std::move(name) ](matcher_context & ctx, instruction_ref ins)
-            ->optional<instruction_ref> {
-                auto result = m.match(ctx, ins);
-                if(result)
-                {
-                    if(not ctx.has_instruction(ins))
-                        return nullopt;
-                    ctx.instructions[name] = ins;
-                }
-                return result;
-            });
+        [=, name = std::move(name)](matcher_context& ctx,
+                                    instruction_ref ins) -> optional<instruction_ref> {
+            auto result = m.match(ctx, ins);
+            if(result)
+            {
+                if(not ctx.has_instruction(ins))
+                    return nullopt;
+                ctx.instructions[name] = ins;
+            }
+            return result;
+        });
 }
 
 /// Convert a matcher to a bindable matcher
@@ -536,7 +536,7 @@ auto skip_output(Ms... ms)
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(
-        [ =, s = std::move(s) ](instruction_ref ins) { return ins->name() == s; });
+        [=, s = std::move(s)](instruction_ref ins) { return ins->name() == s; });
 }
 
 inline auto name_contains(const std::string& name)
@@ -547,7 +547,7 @@ inline auto name_contains(const std::string& name)
 
 inline auto name(std::unordered_set<std::string> names)
 {
-    return make_basic_pred_matcher([ =, names = std::move(names) ](instruction_ref ins) {
+    return make_basic_pred_matcher([=, names = std::move(names)](instruction_ref ins) {
         return names.count(ins->name()) > 0;
     });
 }

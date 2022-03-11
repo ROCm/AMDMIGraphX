@@ -62,8 +62,8 @@ struct roialign_compiler : compiler<roialign_compiler>
 
         // pooling_mode
         auto mode          = v.at("mode").to<migraphx::op::pooling_mode>();
-        int is_avg_pooling = static_cast<int>(mode == migraphx::op::pooling_mode::average);
-        options.params += " -DIS_AVG_POOLING=" + std::to_string(is_avg_pooling);
+        std::string is_avg_pooling = (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
+        options.params += " -DIS_AVG_POOLING=" + is_avg_pooling;
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();

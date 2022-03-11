@@ -95,7 +95,7 @@ const std::vector<std::string>& compiler_warnings()
 
 void hip_compile_options::set_launch_params(
     const value& v,
-    std::function<std::size_t(std::size_t local)> compute_global,
+    const std::function<std::size_t(std::size_t local)>& compute_global,
     std::size_t default_local)
 {
     local = v.get("local", default_local);

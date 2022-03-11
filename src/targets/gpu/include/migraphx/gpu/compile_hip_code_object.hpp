@@ -29,7 +29,7 @@ struct hip_compile_options
      * @param default_local The defaul local to use if its missing from the v parameter
      */
     void set_launch_params(const value& v,
-                           std::function<std::size_t(std::size_t local)> compute_global,
+                           const std::function<std::size_t(std::size_t local)>& compute_global,
                            std::size_t default_local = 1024);
 };
 

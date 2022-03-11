@@ -48,9 +48,6 @@
 
 /CMakeSettings.json
 
-# Visual studio files
-!/.vscode/extensions.json
-!/.vscode/settings_recommended.json
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).

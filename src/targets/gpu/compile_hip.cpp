@@ -217,7 +217,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     compiler.flags    = params;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
-    if (has_compiler_launcher())
+    if(has_compiler_launcher())
         compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
 #endif
 

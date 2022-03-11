@@ -315,8 +315,7 @@ struct value
     {
         switch(this->get_type())
         {
-        case null_type:
-        {
+        case null_type: {
             std::nullptr_t null{};
             if(this->key.empty())
                 v(null);
@@ -325,8 +324,7 @@ struct value
             return;
         }
 #define MIGRAPHX_VALUE_GENERATE_CASE(vt, cpp_type)                          \
-    case vt##_type:                                                         \
-    {                                                                       \
+    case vt##_type: {                                                       \
         if(this->key.empty())                                               \
             v(this->get_##vt());                                            \
         else                                                                \
@@ -346,15 +344,13 @@ struct value
     {
         switch(this->get_type())
         {
-        case null_type:
-        {
+        case null_type: {
             std::nullptr_t null{};
             v(null);
             return;
         }
 #define MIGRAPHX_VALUE_GENERATE_CASE_VALUE(vt, cpp_type) \
-    case vt##_type:                                      \
-    {                                                    \
+    case vt##_type: {                                    \
         v(this->get_##vt());                             \
         return;                                          \
     }

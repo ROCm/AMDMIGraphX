@@ -55,7 +55,8 @@ TEST_CASE(rewrite_pad)
 
     auto l0 = create_im2col(padded_img, channels, m);
     auto l1 = create_conv(padded_img, channels, m);
-    auto l2 = m.add_instruction(migraphx::make_op("pooling", {{"mode", "max"}}), padded_img);
+    auto l2 = m.add_instruction(
+        migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), padded_img);
     m.add_instruction(migraphx::make_op("identity"), l0, l1, l2);
 
     auto s0 = l0->get_shape();

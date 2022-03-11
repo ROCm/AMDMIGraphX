@@ -211,12 +211,21 @@ migraphx::shape to_shape(const py::buffer_info& info)
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     py::class_<migraphx::shape>(m, "shape")
-        .def(py::init<>())
+        .def(py::init([](py::kwargs kwargs) {
+            auto v    = migraphx::to_value(kwargs);
+            auto t    = migraphx::shape::parse_type(v.get("type", std::string{"float"}));
+            auto lens = v.get<std::size_t>("lens", {1});
+            if(v.contains("strides"))
+                return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
+            else
+                return migraphx::shape(t, lens);
+        }))
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)
         .def("strides", &migraphx::shape::strides)
         .def("elements", &migraphx::shape::elements)
         .def("bytes", &migraphx::shape::bytes)
+        .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
@@ -303,86 +312,90 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
         .def("name", &migraphx::operation::name);
 
-    m.def("parse_tf",
-          [](const std::string& filename,
-             bool is_nhwc,
-             unsigned int batch_size,
-             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
-             std::vector<std::string> output_names) {
-              return migraphx::parse_tf(
-                  filename,
-                  migraphx::tf_options{is_nhwc, batch_size, map_input_dims, output_names});
-          },
-          "Parse tf protobuf (default format is nhwc)",
-          py::arg("filename"),
-          py::arg("is_nhwc")        = true,
-          py::arg("batch_size")     = 1,
-          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
-          py::arg("output_names")   = std::vector<std::string>());
+    m.def(
+        "parse_tf",
+        [](const std::string& filename,
+           bool is_nhwc,
+           unsigned int batch_size,
+           std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+           std::vector<std::string> output_names) {
+            return migraphx::parse_tf(
+                filename, migraphx::tf_options{is_nhwc, batch_size, map_input_dims, output_names});
+        },
+        "Parse tf protobuf (default format is nhwc)",
+        py::arg("filename"),
+        py::arg("is_nhwc")        = true,
+        py::arg("batch_size")     = 1,
+        py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("output_names")   = std::vector<std::string>());
 
-    m.def("parse_onnx",
-          [](const std::string& filename,
-             unsigned int default_dim_value,
-             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
-             bool skip_unknown_operators,
-             bool print_program_on_error,
-             int64_t max_loop_iterations) {
-              migraphx::onnx_options options;
-              options.default_dim_value      = default_dim_value;
-              options.map_input_dims         = map_input_dims;
-              options.skip_unknown_operators = skip_unknown_operators;
-              options.print_program_on_error = print_program_on_error;
-              options.max_loop_iterations    = max_loop_iterations;
-              return migraphx::parse_onnx(filename, options);
-          },
-          "Parse onnx file",
-          py::arg("filename"),
-          py::arg("default_dim_value") = 1,
-          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
-          py::arg("skip_unknown_operators") = false,
-          py::arg("print_program_on_error") = false,
-          py::arg("max_loop_iterations")    = 10);
+    m.def(
+        "parse_onnx",
+        [](const std::string& filename,
+           unsigned int default_dim_value,
+           std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+           bool skip_unknown_operators,
+           bool print_program_on_error,
+           int64_t max_loop_iterations) {
+            migraphx::onnx_options options;
+            options.default_dim_value      = default_dim_value;
+            options.map_input_dims         = map_input_dims;
+            options.skip_unknown_operators = skip_unknown_operators;
+            options.print_program_on_error = print_program_on_error;
+            options.max_loop_iterations    = max_loop_iterations;
+            return migraphx::parse_onnx(filename, options);
+        },
+        "Parse onnx file",
+        py::arg("filename"),
+        py::arg("default_dim_value") = 1,
+        py::arg("map_input_dims")    = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("skip_unknown_operators") = false,
+        py::arg("print_program_on_error") = false,
+        py::arg("max_loop_iterations")    = 10);
 
-    m.def("parse_onnx_buffer",
-          [](const std::string& onnx_buffer,
-             unsigned int default_dim_value,
-             std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
-             bool skip_unknown_operators,
-             bool print_program_on_error) {
-              migraphx::onnx_options options;
-              options.default_dim_value      = default_dim_value;
-              options.map_input_dims         = map_input_dims;
-              options.skip_unknown_operators = skip_unknown_operators;
-              options.print_program_on_error = print_program_on_error;
-              return migraphx::parse_onnx_buffer(onnx_buffer, options);
-          },
-          "Parse onnx file",
-          py::arg("filename"),
-          py::arg("default_dim_value") = 1,
-          py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
-          py::arg("skip_unknown_operators") = false,
-          py::arg("print_program_on_error") = false);
+    m.def(
+        "parse_onnx_buffer",
+        [](const std::string& onnx_buffer,
+           unsigned int default_dim_value,
+           std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+           bool skip_unknown_operators,
+           bool print_program_on_error) {
+            migraphx::onnx_options options;
+            options.default_dim_value      = default_dim_value;
+            options.map_input_dims         = map_input_dims;
+            options.skip_unknown_operators = skip_unknown_operators;
+            options.print_program_on_error = print_program_on_error;
+            return migraphx::parse_onnx_buffer(onnx_buffer, options);
+        },
+        "Parse onnx file",
+        py::arg("filename"),
+        py::arg("default_dim_value") = 1,
+        py::arg("map_input_dims")    = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("skip_unknown_operators") = false,
+        py::arg("print_program_on_error") = false);
 
-    m.def("load",
-          [](const std::string& name, const std::string& format) {
-              migraphx::file_options options;
-              options.format = format;
-              return migraphx::load(name, options);
-          },
-          "Load MIGraphX program",
-          py::arg("filename"),
-          py::arg("format") = "msgpack");
+    m.def(
+        "load",
+        [](const std::string& name, const std::string& format) {
+            migraphx::file_options options;
+            options.format = format;
+            return migraphx::load(name, options);
+        },
+        "Load MIGraphX program",
+        py::arg("filename"),
+        py::arg("format") = "msgpack");
 
-    m.def("save",
-          [](const migraphx::program& p, const std::string& name, const std::string& format) {
-              migraphx::file_options options;
-              options.format = format;
-              return migraphx::save(p, name, options);
-          },
-          "Save MIGraphX program",
-          py::arg("p"),
-          py::arg("filename"),
-          py::arg("format") = "msgpack");
+    m.def(
+        "save",
+        [](const migraphx::program& p, const std::string& name, const std::string& format) {
+            migraphx::file_options options;
+            options.format = format;
+            return migraphx::save(p, name, options);
+        },
+        "Save MIGraphX program",
+        py::arg("p"),
+        py::arg("filename"),
+        py::arg("format") = "msgpack");
 
     m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);

@@ -240,8 +240,9 @@ std::string enum_params(std::size_t count, std::string param)
 
 std::size_t compute_global(std::size_t n, std::size_t local)
 {
-    std::size_t groups  = (n + local - 1) / local;
-    std::size_t nglobal = std::min<std::size_t>(256, groups) * local;
+    std::size_t groups = (n + local - 1) / local;
+    // max possible number of blocks is set to 1B (1,073,741,824)
+    std::size_t nglobal = std::min<std::size_t>(1073741824, groups) * local;
     return nglobal;
 }
 

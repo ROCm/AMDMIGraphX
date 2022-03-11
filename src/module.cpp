@@ -627,8 +627,9 @@ std::unordered_map<instruction_ref, std::string> module::print(
             var_name = this->name();
             var_name.append((this->name().empty() ? "@" : ":@"));
             var_name.append(std::to_string(count));
-            count++;
         }
+        // count every instruction so index matches loc in the printout program
+        count++;
         names.emplace(ins, var_name);
 
         print_func(ins, names);

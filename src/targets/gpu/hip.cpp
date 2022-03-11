@@ -109,10 +109,9 @@ argument register_on_gpu(const argument& arg)
 {
     auto arg_shared = arg.share();
     auto p          = share(register_on_gpu(arg_shared.data(), arg_shared.get_shape().bytes()));
-    return {arg_shared.get_shape(),
-            [ p, a = std::move(arg_shared) ]() mutable {return get_device_ptr(p.get());
-}
-}; // namespace gpu
+    return {arg_shared.get_shape(), [p, a = std::move(arg_shared)]() mutable {
+                return get_device_ptr(p.get());
+            }}; // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 
 argument to_gpu(const argument& arg, bool host)

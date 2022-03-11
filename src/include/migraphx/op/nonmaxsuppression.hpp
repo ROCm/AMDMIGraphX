@@ -181,14 +181,15 @@ struct nonmaxsuppression
                 make_function_output_iterator([&](const auto& x) { sorted_boxes.push(x); });
 
             int64_t box_idx = 0;
-            transform_if(scores.begin() + score_offset,
-                         scores.begin() + score_offset + box_num,
-                         insert_to_sorted_boxes,
-                         [&](auto sc) {
-                             box_idx++;
-                             return sc >= score_threshold;
-                         },
-                         [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
+            transform_if(
+                scores.begin() + score_offset,
+                scores.begin() + score_offset + box_num,
+                insert_to_sorted_boxes,
+                [&](auto sc) {
+                    box_idx++;
+                    return sc >= score_threshold;
+                },
+                [&](auto sc) { return std::make_pair(sc, box_idx - 1); });
 
             selected_boxes_inside_class.clear();
             // Get the next box with top score, filter by iou_threshold

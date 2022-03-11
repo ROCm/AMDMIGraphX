@@ -37,14 +37,27 @@ __global__ void kernel(${params})
 
 )__migraphx__";
 
+
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise"}; }
 
+    static std::size_t vectorize_elements(const std::vector<shape>& inputs)
+    {
+        std::size_t n = inputs.front().elements();
+        if (std::all_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.packed() or s.broadcasted(); }))
+        {
+            if ((n % 4) == 0)
+                return n / 4;
+            else if ((n % 2) == 0)
+                return n / 2;
+        }
+        return n;
+    }
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
+        options.set_launch_params(v, compute_global_for(ctx, vectorize_elements(inputs)));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

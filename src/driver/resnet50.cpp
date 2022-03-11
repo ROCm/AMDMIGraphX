@@ -561,7 +561,7 @@ migraphx::program resnet50(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::relu relu269;
     auto mx269 = mm->add_instruction(relu269, mx268);
     migraphx::op::pooling pooling270;
-    pooling270.mode    = "max";
+    pooling270.mode    = migraphx::op::pooling_mode::max;
     pooling270.padding = {1, 1};
     pooling270.stride  = {2, 2};
     pooling270.lengths = {3, 3};
@@ -1215,7 +1215,7 @@ migraphx::program resnet50(unsigned batch) // NOLINT(readability-function-size)
     migraphx::op::relu relu438;
     auto mx438 = mm->add_instruction(relu438, mx437);
     migraphx::op::pooling pooling439;
-    pooling439.mode    = "average";
+    pooling439.mode    = migraphx::op::pooling_mode::average;
     pooling439.padding = {0, 0};
     pooling439.stride  = {1, 1};
     pooling439.lengths = {7, 7};

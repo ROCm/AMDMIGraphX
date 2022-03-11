@@ -61,8 +61,9 @@ struct roialign_compiler : compiler<roialign_compiler>
         options.params += " -DSAMPLING_RATIO=" + v.at("sampling_ratio").to<std::string>();
 
         // pooling_mode
-        auto mode          = v.at("mode").to<migraphx::op::pooling_mode>();
-        std::string is_avg_pooling = (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
+        auto mode = v.at("mode").to<migraphx::op::pooling_mode>();
+        std::string is_avg_pooling =
+            (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
         options.params += " -DIS_AVG_POOLING=" + is_avg_pooling;
 
         // coord_trans_mode

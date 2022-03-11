@@ -228,6 +228,8 @@ void register_custom_op(const CustomOp& op)
     register_op(custom_operation<CustomOp>{op});
 }
 
+migraphx::context get_context(const program& p) { return p.get_context(); }
+
 } // namespace migraphx
 
 <% generate_c_api_body() %>

@@ -45,6 +45,22 @@ TEST_CASE(averagepool_nt_cip_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+TEST_CASE(clip_args_type_mismatch)
+{
+    auto p = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
+    p.compile(migraphx::ref::target{});
+    migraphx::shape s_0{migraphx::shape::float_type, {3, 3}};
+    migraphx::parameter_map pp;
+    std::vector<float> data_0 = {0.9, 1.2, 1.7, 1.9, 2.2, 2.7, 2.9, 3.2, 3.7};
+    pp["0"]                   = migraphx::argument(s_0, data_0.data());
+    auto result               = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1.5, 2, 2, 1.9, 2.5, 3, 2.9, 3.2, 3.7};
+    EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
 TEST_CASE(depthtospace_simple_test)
 {
     auto p = migraphx::parse_onnx("depthtospace_simple_test.onnx");
@@ -101,6 +117,42 @@ TEST_CASE(spacetodepth_depthtospace_test)
     std::vector<float> result_vector2;
     result2.visit([&](auto output) { result_vector2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(result_vector2, data_in));
+}
+
+TEST_CASE(eyelike_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("eyelike_verify_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> data{12, 0};
+    migraphx::parameter_map pp;
+    pp["T1"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
+    EXPECT(migraphx::verify_range(result_vector, eyelike_mat));
+}
+
+TEST_CASE(eyelike_verify_negk_test)
+{
+    migraphx::program p = migraphx::parse_onnx("eyelike_verify_negk_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> data{12, 0};
+    migraphx::parameter_map pp;
+    pp["T1"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
+    EXPECT(migraphx::verify_range(result_vector, eyelike_mat));
 }
 
 TEST_CASE(gather_elements)
@@ -586,6 +638,21 @@ TEST_CASE(selu_test)
     std::vector<float> gold = {0.55, 1.05, 0, -0.10912, -0.149251, 6};
 
     EXPECT(migraphx::verify_range(result_vector, gold));
+}
+
+TEST_CASE(size_verify_test)
+{
+    migraphx::program p = migraphx::parse_onnx("size_verify_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 5, 3}};
+    std::vector<float> data(30, 1.);
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result      = p.eval(pp).back();
+    auto size_result = result.at<int64_t>();
+    EXPECT(size_result == int64_t{30});
 }
 
 TEST_CASE(slice_test)

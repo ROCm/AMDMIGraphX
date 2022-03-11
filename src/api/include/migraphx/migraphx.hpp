@@ -672,6 +672,13 @@ struct module
     void print() const { call(&migraphx_module_print, mm); }
 };
 
+struct context
+{
+    migraphx_context_t ctx;
+
+    void finish() const { call(&migraphx_context_finish, ctx); }
+};
+
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }
@@ -766,6 +773,13 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         migraphx_module_t p_modu;
         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
         return module{p_modu};
+    }
+
+    context get_context()
+    {
+        migraphx_context_t ctx;
+        call(&migraphx_program_get_context, &ctx, this->get_handle_ptr());
+        return context{ctx};
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }

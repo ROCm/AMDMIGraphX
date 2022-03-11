@@ -207,6 +207,10 @@ def program(h):
              invoke='migraphx::equal($@)',
              returns='bool',
              const=True)
+    h.method('get_context',
+             invoke='migraphx::get_context($@)',
+             const=True,
+             returns='migraphx::context')
 
 
 @auto_handle()
@@ -355,6 +359,10 @@ api.add_function('migraphx_quantize_int8',
                  fname='migraphx::quantize_int8_wrap')
 
 
+@auto_handle(ref=True)
+def context(h):
+    h.method('finish', const=True)
+
 @api.interface('migraphx_experimental_custom_op',
                'migraphx::experimental_custom_op')
 def experimental_custom_op(h):
@@ -363,3 +371,4 @@ def experimental_custom_op(h):
               api.params(inputs='std::vector<migraphx::shape>'),
               returns='migraphx::shape')
     h.method('register', invoke='migraphx::register_custom_op($@)')
+

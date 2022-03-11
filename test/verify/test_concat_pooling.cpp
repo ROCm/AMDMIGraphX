@@ -3,6 +3,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 
 struct test_concat_pooling : verify_program<test_concat_pooling>
 {
@@ -18,12 +19,13 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
         auto concat_t = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), concat);
 
-        auto pooling = mm->add_instruction(migraphx::make_op("pooling",
-                                                             {{"mode", "average"},
-                                                              {"padding", {0, 0}},
-                                                              {"stride", {1, 1}},
-                                                              {"lengths", {8, 8}}}),
-                                           concat_t);
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::average},
+                                                   {"padding", {0, 0}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {8, 8}}}),
+                                concat_t);
         mm->add_instruction(migraphx::make_op("relu"), pooling);
         return p;
     }

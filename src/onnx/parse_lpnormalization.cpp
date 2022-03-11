@@ -8,6 +8,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+//!  Parser for LpNormalization ONNX operator.
+/*!
+  Normalizes a tensor by the L1 or L2 norms along a given axis.
+  Norms that evaluate to 0 are changed to 1 to prevent division by zero.
+*/
 struct parse_lpnormalization : op_parser<parse_lpnormalization>
 {
     std::vector<op_desc> operators() const { return {{"LpNormalization"}}; }

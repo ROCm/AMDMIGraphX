@@ -53,8 +53,8 @@ struct roialign_compiler : compiler<roialign_compiler>
     {
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
-        options.output = inputs.back();
-        options.inputs = inputs;
+        options.output      = inputs.back();
+        options.inputs      = inputs;
         options.kernel_name = "roialign_kernel";
 
         // sampling_ratio

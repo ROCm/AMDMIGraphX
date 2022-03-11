@@ -22,12 +22,15 @@ struct hip_compile_options
 
     /**
      * @brief Set the launch parameters but allow v to override the values
-     * 
-     * @param v A value class which can have a "global" and/or "local" keys to override the default global and local
+     *
+     * @param v A value class which can have a "global" and/or "local" keys to override the default
+     * global and local
      * @param compute_global A function used to compute the global based on the local
      * @param default_local The defaul local to use if its missing from the v parameter
      */
-    void set_launch_params(const value& v, std::function<std::size_t(std::size_t local)> compute_global, std::size_t default_local=1024);
+    void set_launch_params(const value& v,
+                           std::function<std::size_t(std::size_t local)> compute_global,
+                           std::size_t default_local = 1024);
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit

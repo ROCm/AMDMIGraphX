@@ -93,10 +93,13 @@ const std::vector<std::string>& compiler_warnings()
     return warnings;
 }
 
-void hip_compile_options::set_launch_params(const value& v, std::function<std::size_t(std::size_t local)> compute_global, std::size_t default_local)
+void hip_compile_options::set_launch_params(
+    const value& v,
+    std::function<std::size_t(std::size_t local)> compute_global,
+    std::size_t default_local)
 {
     local = v.get("local", default_local);
-    if (v.contains("global"))
+    if(v.contains("global"))
         global = v.at("global").to<std::size_t>();
     else
         global = compute_global(local);
@@ -104,11 +107,12 @@ void hip_compile_options::set_launch_params(const value& v, std::function<std::s
 
 std::function<std::size_t(std::size_t local)> compute_global_for(context& ctx, std::size_t n)
 {
-    std::size_t max_global = ctx.get_current_device().get_cu_count() * ctx.get_current_device().get_max_workitems_per_cu();
+    std::size_t max_global = ctx.get_current_device().get_cu_count() *
+                             ctx.get_current_device().get_max_workitems_per_cu();
     return [n, max_global](std::size_t local) {
-        std::size_t groups = (n + local - 1) / local;
+        std::size_t groups     = (n + local - 1) / local;
         std::size_t max_blocks = max_global / local;
-        std::size_t nglobal = std::min(max_blocks, groups) * local;
+        std::size_t nglobal    = std::min(max_blocks, groups) * local;
         return nglobal;
     };
 }

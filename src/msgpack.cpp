@@ -14,44 +14,36 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
         {
             switch(o.type)
             {
-            case msgpack::type::NIL:
-            {
+            case msgpack::type::NIL: {
                 v = nullptr;
                 break;
             }
-            case msgpack::type::BOOLEAN:
-            {
+            case msgpack::type::BOOLEAN: {
                 v = o.as<bool>();
                 break;
             }
-            case msgpack::type::POSITIVE_INTEGER:
-            {
+            case msgpack::type::POSITIVE_INTEGER: {
                 v = o.as<std::uint64_t>();
                 break;
             }
-            case msgpack::type::NEGATIVE_INTEGER:
-            {
+            case msgpack::type::NEGATIVE_INTEGER: {
                 v = o.as<std::int64_t>();
                 break;
             }
             case msgpack::type::FLOAT32:
-            case msgpack::type::FLOAT64:
-            {
+            case msgpack::type::FLOAT64: {
                 v = o.as<double>();
                 break;
             }
-            case msgpack::type::STR:
-            {
+            case msgpack::type::STR: {
                 v = o.as<std::string>();
                 break;
             }
-            case msgpack::type::BIN:
-            {
+            case msgpack::type::BIN: {
                 v = migraphx::value::binary{o.via.bin.ptr, o.via.bin.size};
                 break;
             }
-            case msgpack::type::ARRAY:
-            {
+            case msgpack::type::ARRAY: {
                 migraphx::value r = migraphx::value::array{};
                 std::for_each(
                     o.via.array.ptr,
@@ -60,8 +52,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = r;
                 break;
             }
-            case msgpack::type::MAP:
-            {
+            case msgpack::type::MAP: {
                 migraphx::value r = migraphx::value::object{};
                 std::for_each(o.via.map.ptr,
                               o.via.map.ptr + o.via.map.size,
@@ -71,7 +62,8 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 v = r;
                 break;
             }
-            case msgpack::type::EXT: { MIGRAPHX_THROW("msgpack EXT type not supported.");
+            case msgpack::type::EXT: {
+                MIGRAPHX_THROW("msgpack EXT type not supported.");
             }
             }
             return o;

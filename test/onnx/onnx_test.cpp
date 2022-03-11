@@ -2571,8 +2571,11 @@ TEST_CASE(lpnormalization_double_test)
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
     auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
     auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
     auto norms_zeros_to_one =
         mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
@@ -2598,8 +2601,11 @@ TEST_CASE(lpnormalization_float_test)
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
     auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
     auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
     auto norms_zeros_to_one =
         mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
@@ -2625,8 +2631,11 @@ TEST_CASE(lpnormalization_half_test)
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
     auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+    auto one_mb =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
     auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
     auto norms_zeros_to_one =
         mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);

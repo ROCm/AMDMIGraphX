@@ -61,10 +61,12 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         // broadcast back to initial shape, negative axis option doesn't work with unidirectional
         norms = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
-        auto zero_mb =
-            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-        auto one_mb =
-            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
+        auto zero_mb = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+            info.add_literal(migraphx::literal{migraphx::shape{input_type}, {0.}}));
+        auto one_mb = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+            info.add_literal(migraphx::literal{migraphx::shape{input_type}, {1.}}));
         auto is_zero = info.add_instruction(migraphx::make_op("equal"), norms, zero_mb);
         auto norms_zeros_to_one =
             info.add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);

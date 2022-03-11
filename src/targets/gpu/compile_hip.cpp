@@ -178,6 +178,12 @@ bool is_hip_clang_compiler()
     return result;
 }
 
+bool has_compiler_launcher()
+{
+    static const auto result = fs::exists(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER));
+    return result;
+}
+
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
@@ -210,6 +216,10 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     src_compiler compiler;
     compiler.flags    = params;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+#ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
+    if (has_compiler_launcher())
+        compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+#endif
 
     if(is_hcc_compiler())
         compiler.process = [&](const fs::path& obj_path) -> fs::path {

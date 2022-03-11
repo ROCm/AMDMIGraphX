@@ -37,7 +37,6 @@ __global__ void kernel(${params})
 
 )__migraphx__";
 
-
 struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise"}; }
@@ -45,11 +44,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     static std::size_t vectorize_elements(const std::vector<shape>& inputs)
     {
         std::size_t n = inputs.front().elements();
-        if (std::all_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.packed() or s.broadcasted(); }))
+        if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
+               return s.packed() or s.broadcasted();
+           }))
         {
-            if ((n % 4) == 0)
+            if((n % 4) == 0)
                 return n / 4;
-            else if ((n % 2) == 0)
+            else if((n % 2) == 0)
                 return n / 2;
         }
         return n;

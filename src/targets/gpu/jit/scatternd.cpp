@@ -62,7 +62,7 @@ struct scatternd_compiler : compiler<scatternd_compiler>
         return compile_hip_code_object(src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, operation op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         assert(starts_with(op.name(), "scatternd_"));
         auto reduction = op.name().substr(10);

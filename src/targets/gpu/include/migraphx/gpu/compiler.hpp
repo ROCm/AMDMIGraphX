@@ -23,7 +23,7 @@ using compiler_compile_op =
 void register_compiler(const std::string& name, compiler_compile c, compiler_compile_op cop);
 
 bool has_compiler_for(const std::string& name);
-compiler_replace compile(context& ctx, instruction_ref ins, operation op);
+compiler_replace compile(context& ctx, instruction_ref ins, const operation& op);
 operation
 compile_op(const std::string& name, context& ctx, const std::vector<shape>& inputs, const value& v);
 
@@ -55,7 +55,7 @@ using auto_register_compiler = auto_register<register_compiler_action, T>;
 template <class Derived>
 struct compiler : auto_register_compiler<Derived>
 {
-    auto replace(operation op) const
+    auto replace(const operation& op) const
     {
         return
             [=](module& m, instruction_ref ins) { m.replace_instruction(ins, op, ins->inputs()); };

@@ -1,4 +1,5 @@
 #include <migraphx/gpu/compiler.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -18,12 +19,12 @@ auto& compiler_op_map()
 
 void register_compiler(const std::string& name, compiler_compile c, compiler_compile_op cop)
 {
-    compiler_map()[name]    = c;
-    compiler_op_map()[name] = cop;
+    compiler_map()[name]    = std::move(c);
+    compiler_op_map()[name] = std::move(cop);
 }
 
 bool has_compiler_for(const std::string& name) { return compiler_map().count(name) > 0; }
-compiler_replace compile(context& ctx, instruction_ref ins, operation op)
+compiler_replace compile(context& ctx, instruction_ref ins, const operation& op)
 {
     return compiler_map().at(op.name())(ctx, ins, op);
 }

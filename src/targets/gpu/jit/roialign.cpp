@@ -62,7 +62,7 @@ struct roialign_compiler : compiler<roialign_compiler>
 
         // pooling_mode
         auto mode          = v.at("mode").to<migraphx::op::pooling_mode>();
-        int is_avg_pooling = (mode == migraphx::op::pooling_mode::average);
+        int is_avg_pooling = static_cast<int>(mode == migraphx::op::pooling_mode::average);
         options.params += " -DIS_AVG_POOLING=" + std::to_string(is_avg_pooling);
 
         // coord_trans_mode
@@ -76,7 +76,7 @@ struct roialign_compiler : compiler<roialign_compiler>
         return compile_hip_code_object(roialign_kernel, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, operation op) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
     }

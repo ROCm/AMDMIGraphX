@@ -71,7 +71,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         return compile_hip_code_object(src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, operation) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
     {
         assert(not ins->module_inputs().empty());
         auto* pm = ins->module_inputs().front();

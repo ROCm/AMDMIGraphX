@@ -508,7 +508,7 @@ struct op : command<op>
     std::string op_name{};
     void parse(argument_parser& ap)
     {
-        ap(op_name, {}, ap.metavar("<operator name>"));
+        ap(op_name, {}, ap.metavar("<MIGraphX operator name>"));
         ap(show_ops,
            {"--list", "-l"},
            ap.help("List all the operators of MIGraphX"),

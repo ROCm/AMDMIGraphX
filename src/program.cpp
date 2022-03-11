@@ -353,13 +353,20 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
+        std::unordered_map<instruction_ref, std::string> ins_out;
+        // get instruction names
+        this->print([&](auto x, auto ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
+        });
+
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
-                                std::cout << "Run instruction: ";
-                                this->debug_print(ins);
+                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
@@ -740,6 +747,14 @@ void program::print(
     {
         names = pp.second.print(print_func, names);
     }
+}
+
+void program::print(
+    const std::function<void(instruction_ref ins,
+                             std::unordered_map<instruction_ref, std::string>)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, print_func);
 }
 
 void program::print_graph(std::ostream& os, bool brief) const

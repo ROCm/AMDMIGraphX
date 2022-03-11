@@ -1,7 +1,8 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/context.hpp>
+
+#include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -48,13 +49,11 @@ struct roialign_compiler : compiler<roialign_compiler>
 {
     std::vector<std::string> names() const { return {"roialign"}; }
 
-    operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
         options.output = inputs.back();
-        options.local  = v.get("local", 128);
-        ;
-        options.global = v.get("global", compute_global(options.output.elements(), options.local));
         options.inputs = inputs;
         options.kernel_name = "roialign_kernel";
 

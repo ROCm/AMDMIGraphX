@@ -154,6 +154,10 @@ struct hip_device
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 
+    std::size_t get_max_workitems_per_cu() const { return device_props.maxThreadsPerMultiProcessor; }
+    
+    std::size_t get_max_workitems_per_block() const { return device_props.maxThreadsPerBlock; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;

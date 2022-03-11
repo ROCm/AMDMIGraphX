@@ -1,7 +1,8 @@
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/context.hpp>
+
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -40,11 +41,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise"}; }
 
-    operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.global         = v.get("global", compute_global(inputs.front().elements()));
-        options.local          = v.get("local", 1024);
+        options.set_launch_params(v, compute_global_for(ctx, inputs.front().elements()));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

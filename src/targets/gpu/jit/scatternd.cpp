@@ -1,8 +1,9 @@
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/gpu/context.hpp>
+
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
@@ -47,12 +48,11 @@ struct scatternd_compiler : compiler<scatternd_compiler>
         return {"scatternd_none", "scatternd_add", "scatternd_mul"};
     }
 
-    operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
+        options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
         auto out_s             = inputs.back();
-        options.local          = 1024;
-        options.global         = compute_global(inputs.at(1).elements(), options.local);
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "scatternd_kernel";

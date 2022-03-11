@@ -2570,12 +2570,15 @@ TEST_CASE(lpnormalization_double_test)
     auto norms = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {axis}}}), p_val);
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
-    auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
-    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    std::vector<float> zeros(s.elements(), 0.);
+    auto zero_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, zeros});
+    std::vector<float> ones(s.elements(), 1.);
+    auto one_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, ones});
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_lit);
     auto norms_zeros_to_one =
-        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_lit, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_double_test.onnx");
@@ -2597,12 +2600,15 @@ TEST_CASE(lpnormalization_float_test)
     norms      = mm->add_instruction(migraphx::make_op("sqrt"), norms);
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
-    auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
-    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    std::vector<float> zeros(s.elements(), 0.);
+    auto zero_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, zeros});
+    std::vector<float> ones(s.elements(), 1.);
+    auto one_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, ones});
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_lit);
     auto norms_zeros_to_one =
-        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_lit, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_float_test.onnx");
@@ -2624,12 +2630,15 @@ TEST_CASE(lpnormalization_half_test)
     norms      = mm->add_instruction(migraphx::make_op("sqrt"), norms);
     norms =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
-    auto zero_mb =
-        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-    auto one_mb = mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
-    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+    std::vector<float> zeros(s.elements(), 0.);
+    auto zero_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, zeros});
+    std::vector<float> ones(s.elements(), 1.);
+    auto one_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, ones});
+    auto is_zero = mm->add_instruction(migraphx::make_op("equal"), norms, zero_lit);
     auto norms_zeros_to_one =
-        mm->add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+        mm->add_instruction(migraphx::make_op("where"), is_zero, one_lit, norms);
     mm->add_instruction(migraphx::make_op("div"), x, norms_zeros_to_one);
 
     auto prog = optimize_onnx("lpnormalization_half_test.onnx");

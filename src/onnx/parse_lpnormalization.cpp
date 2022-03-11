@@ -8,6 +8,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+//!  Parser for LpNormalization ONNX operator.
+/*!
+  Normalizes a tensor by the L1 or L2 norms along a given axis.
+  Norms that evaluate to 0 are changed to 1 to prevent division by zero.
+*/
 struct parse_lpnormalization : op_parser<parse_lpnormalization>
 {
     std::vector<op_desc> operators() const { return {{"LpNormalization"}}; }
@@ -61,13 +66,15 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         // broadcast back to initial shape, negative axis option doesn't work with unidirectional
         norms = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), norms);
-        auto zero_mb =
-            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {0.}});
-        auto one_mb =
-            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, {1.}});
-        auto is_zero = info.add_instruction(migraphx::make_op("equal"), norms, zero_mb);
+        std::vector<float> zeros(input_shape.elements(), 0.);
+        auto zero_lit =
+            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, zeros});
+        std::vector<float> ones(input_shape.elements(), 1.);
+        auto one_lit =
+            info.add_literal(migraphx::literal{migraphx::shape{input_type, input_lens}, ones});
+        auto is_zero = info.add_instruction(migraphx::make_op("equal"), norms, zero_lit);
         auto norms_zeros_to_one =
-            info.add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
+            info.add_instruction(migraphx::make_op("where"), is_zero, one_lit, norms);
         return info.add_instruction(migraphx::make_op("div"), args.front(), norms_zeros_to_one);
     }
 };

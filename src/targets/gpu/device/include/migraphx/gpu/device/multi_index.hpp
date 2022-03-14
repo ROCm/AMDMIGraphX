@@ -57,9 +57,10 @@ inline auto mi_nglobal(const hip_shape<N>& s, index_int nlocal)
 {
     assert(s.standard);
     assert(s.elements() > 0);
-    index_int n       = s.elements();
-    index_int groups  = (n + nlocal - 1) / nlocal;
-    index_int nglobal = std::min<index_int>(128, groups) * nlocal;
+    index_int n      = s.elements();
+    index_int groups = (n + nlocal - 1) / nlocal;
+    // max possible number of blocks is set to 1B (1,073,741,824)
+    index_int nglobal = std::min<index_int>(1073741824, groups) * nlocal;
 
     assert(groups > 0);
     assert(nglobal > 0);

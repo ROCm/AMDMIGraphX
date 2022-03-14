@@ -52,25 +52,24 @@ struct prefix_scan_op : op_name<Derived>
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        auto s          = args[0].get_shape();
-        if (s == output_shape)
+        auto s = args[0].get_shape();
+        if(s == output_shape)
         {
             result = args[0].copy();
         }
         else
         {
             visit_all(result, args[0])([&](auto output, auto input) {
-                par_for(output_shape.elements(), [&](auto i) {
-                    output[output_shape.index(i)] = input[s.index(i)];
-                });
+                par_for(output_shape.elements(),
+                        [&](auto i) { output[output_shape.index(i)] = input[s.index(i)]; });
             });
             s = output_shape;
         }
-        auto slice      = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
-        auto lens       = s.lens();
-        lens[axis]      = 1;
-        auto batch      = shape{s.type(), lens, s.strides()};
-        auto& self      = static_cast<const Derived&>(*this);
+        auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
+        auto lens  = s.lens();
+        lens[axis] = 1;
+        auto batch = shape{s.type(), lens, s.strides()};
+        auto& self = static_cast<const Derived&>(*this);
         result.visit([&](auto output) {
             using type = decltype(output);
             par_for(batch.elements(), [&](auto i) {

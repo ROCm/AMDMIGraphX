@@ -133,6 +133,12 @@ std::string to_json_string(const value& val)
     return j.dump();
 }
 
+std::string to_pretty_json_string(const value& val, std::size_t indent)
+{
+    json j = val;
+    return j.dump(indent);
+}
+
 migraphx::value from_json_string(const char* str, std::size_t size)
 {
     json j = json::parse(str, str + size);

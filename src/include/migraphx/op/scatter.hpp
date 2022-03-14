@@ -67,9 +67,9 @@ struct scatter : op_name<Derived>
                 // iterate through items in index
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx = idx;
-                    // Overloaded tensor_view::() invokes indexing logic of  std::size_t shape::index(std::size_t i) const
-                    // which handles nonstandard shapes correctly 
-                    auto index   = indices(idx.begin(), idx.end());
+                    // Overloaded tensor_view::() invokes indexing logic of  std::size_t
+                    // shape::index(std::size_t i) const which handles nonstandard shapes correctly
+                    auto index = indices(idx.begin(), idx.end());
 
                     // normalize negative indexes (may be redundant after using
                     // normalize_compute_shape())

@@ -40,7 +40,7 @@ namespace cpu {
 std::string target::name() const { return "cpu"; }
 
 // cppcheck-suppress constParameter
-std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
@@ -60,7 +60,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             eliminate_common_subexpression{},
             dead_code_elimination{},
-            simplify_algebra{},
+            simplify_algebra{options.fast_math},
             simplify_reshapes{},
             simplify_algebra{},
             auto_contiguous{},

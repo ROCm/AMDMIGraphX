@@ -14,6 +14,8 @@ struct module;
  */
 struct simplify_algebra
 {
+    // flag to use shortcuts for some math functions
+    bool fast_math = true;
     std::string name() const { return "simplify_algebra"; }
     void apply(module& p) const;
 };

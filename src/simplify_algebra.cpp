@@ -8,6 +8,7 @@
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/match/gelu_tanh.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
@@ -182,6 +183,35 @@ struct find_mul_add
         auto ax_ins = p.insert_instruction(ins, make_op("mul"), a_ins, x_ins);
         auto ab_ins = p.insert_instruction(ins, make_op("mul"), a_ins, b_ins);
         p.replace_instruction(ins, make_op("add"), ax_ins, ab_ins);
+    }
+};
+
+struct find_gelu //find gelu, using the tanh implementation. Replace it with the gelu_erf formula
+{
+    // compile option fast_math controls whether to use math shortcuts like this
+    bool fast_math = true;
+
+    auto matcher() const
+    {
+        return match::gelu_tanh();
+    }
+
+    // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
+    void apply(module& p, match::matcher_result r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto sq12inst = p.add_literal(M_SQRT1_2); 
+        auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), sq12inst);
+        auto xsq_ins = p.insert_instruction(ins, make_op("mul"), x_ins, sq12inst_mbcast);
+        auto erf_ins = p.insert_instruction(ins, make_op("erf"), xsq_ins);
+        auto one = p.add_literal(1);
+        auto one_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), one);
+        auto one_ins = p.insert_instruction(ins, make_op("add"), one_mbcast, erf_ins);
+        auto point_5 = p.add_literal(0.5);
+        auto point_5_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), point_5);
+        auto p5_ins = p.insert_instruction(ins, make_op("mul"), one_ins, point_5_mbcast);
+        p.replace_instruction(ins, make_op("mul"), p5_ins, x_ins);
     }
 };
 
@@ -1025,6 +1055,8 @@ void simplify_algebra::apply(module& p) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_add{},
+                            // gelu replacement only if fast_math flag is set
+                            find_gelu{fast_math},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

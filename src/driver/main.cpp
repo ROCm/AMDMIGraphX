@@ -505,8 +505,10 @@ struct roctx : command<roctx>
 struct op : command<op>
 {
     bool show_ops = false;
+    std::string op_name{};
     void parse(argument_parser& ap)
     {
+        ap(op_name, {}, ap.metavar("<MIGraphX operator name>"));
         ap(show_ops,
            {"--list", "-l"},
            ap.help("List all the operators of MIGraphX"),
@@ -518,6 +520,12 @@ struct op : command<op>
         {
             for(const auto& name : get_operators())
                 std::cout << name << std::endl;
+        }
+        else
+        {
+            auto op = load_op(op_name);
+            std::cout << op_name << ": " << std::endl;
+            std::cout << to_pretty_json_string(op.to_value()) << std::endl;
         }
     }
 };

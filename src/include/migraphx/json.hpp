@@ -8,6 +8,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+std::string to_pretty_json_string(const value& val, std::size_t indent = 4);
 std::string to_json_string(const value& val);
 value from_json_string(const std::string& str);
 value from_json_string(const char* str, std::size_t size);

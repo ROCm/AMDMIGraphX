@@ -161,5 +161,66 @@ constexpr auto convert(U v)
     return vec_transform(v)([](auto x) -> T { return x; });
 }
 
+
+// vec_type trait
+template<typename T>
+struct vec_type {
+    static const bool value = false;
+
+    constexpr operator vec_type() const noexcept {return value;}
+    constexpr operator value_type() const noexcept { return value; }
+    constexpr value_type operator()() const noexcept { return value; }
+};
+
+template<> 
+struct vec_type< vec<> >{  //   <=== what other vec types have to be supported?
+  static const bool value = true; 
+};
+
+// Return a vector type of N from index i in another larger vector
+// N will be 2 for half2 packing
+template <index_int N, class T, class I>
+constexpr auto vec_packed_at(T x, I i)
+{
+    if constexpr(vec_size<T>() == 0)
+        return vec<T, N>{x};
+    else
+    {
+        MIGRAPHX_ASSERT((i+N) < vec_size<T>());
+        // TODO: vec_type type trait needs to be implemented
+        vec<vec_type<T>, N> result;
+        for(int j = 0; j < N; j++) {
+            result[j] = x[i+j];
+        }
+        return result;
+    }
+}
+
+template <index_int N, class... Ts>
+constexpr auto vec_packed_transform(Ts... xs)
+{
+    return [=](auto f) {
+        if constexpr(is_any_vec<Ts...>())
+        {
+            using type                  = decltype(f(vec_packed_at(xs, 0)...));
+            constexpr auto size         = common_vec_size<Ts...>();
+            safe_vec<type, size> result = {0};
+            for(int i = 0; i < size / N; i++)
+            {
+                // Call the function with packed vectors
+                safe_vec<type, N> r = f(vec_packed_at(xs, i)...);
+                // Copy the packed vectors to the result
+                for(int j = 0; j < N; j++)
+                    result[i * N + j] = r[j];
+            }
+            return result;
+        }
+        else
+        {
+            return f(xs...);
+        }
+    };
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_MATH_HPP

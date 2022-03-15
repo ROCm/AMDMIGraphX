@@ -64,11 +64,13 @@ struct scatter : op_name<Derived>
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
-                // iterate through items in index
+                // iterate through items in shape
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto out_idx = idx;
-                    // Overloaded tensor_view::() invokes indexing logic of  std::size_t
-                    // shape::index(std::size_t i) const which handles nonstandard shapes correctly
+
+                    // Overloaded tensor_view::() invokes indexing logic of
+                    // std::size_t shape::index(std::size_t i) const
+                    // which handles nonstandard shapes correctly
                     auto index = indices(idx.begin(), idx.end());
 
                     // normalize negative indexes (may be redundant after using
@@ -76,9 +78,10 @@ struct scatter : op_name<Derived>
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
 
-                    // look up the appropriate location in output, using index.
+                    // look up the appropriate locations in output, using idx and out_idx.
                     // call reduction() method of derived struct to copy and reduce that element
-                    self.reduction()(output[output_shape.index(out_idx)], update[ind_s.index(idx)]);
+                    self.reduction()(output(out_idx.begin(), out_idx.end()),
+                                     update(idx.begin(), idx.end()));
                 });
             });
         });

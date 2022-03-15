@@ -161,20 +161,21 @@ constexpr auto convert(U v)
     return vec_transform(v)([](auto x) -> T { return x; });
 }
 
-
 // vec_type trait
-template<typename T>
-struct vec_type {
+template <typename T>
+struct vec_type
+{
     static const bool value = false;
 
-    constexpr operator vec_type() const noexcept {return value;}
+    constexpr operator vec_type() const noexcept { return value; }
     constexpr operator value_type() const noexcept { return value; }
     constexpr value_type operator()() const noexcept { return value; }
 };
 
-template<> 
-struct vec_type< vec<> >{  //   <=== what other vec types have to be supported?
-  static const bool value = true; 
+template <>
+struct vec_type<vec<>>
+{ //   <=== what other vec types have to be supported?
+    static const bool value = true;
 };
 
 // Return a vector type of N from index i in another larger vector
@@ -186,11 +187,12 @@ constexpr auto vec_packed_at(T x, I i)
         return vec<T, N>{x};
     else
     {
-        MIGRAPHX_ASSERT((i+N) < vec_size<T>());
+        MIGRAPHX_ASSERT((i + N) < vec_size<T>());
         // TODO: vec_type type trait needs to be implemented
         vec<vec_type<T>, N> result;
-        for(int j = 0; j < N; j++) {
-            result[j] = x[i+j];
+        for(int j = 0; j < N; j++)
+        {
+            result[j] = x[i + j];
         }
         return result;
     }

@@ -60,19 +60,16 @@ TEST_CASE(if_then_else_op)
         p.compile(migraphx::target("ref"));
         auto outputs =
             p.eval({{"cond", migraphx::argument(cond_s, &cond)}, {"x", x_arg}, {"y", y_arg}});
-        auto output     = outputs[0];
-        float* data_ptr = reinterpret_cast<float*>(output.data());
-        std::vector<float> ret(data_ptr, data_ptr + 9);
-        return ret;
+        return outputs;
     };
 
     // then branch
     auto then_res = run_prog(true);
-    CHECK(then_res == x_data);
+    CHECK(bool{then_res[0] == x_arg});
 
     // else branch
     auto else_res = run_prog(false);
-    CHECK(else_res == y_data);
+    CHECK(bool{else_res[0] == y_arg});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

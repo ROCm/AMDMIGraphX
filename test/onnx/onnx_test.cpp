@@ -5125,25 +5125,50 @@ TEST_CASE(where_test)
 }
 
 
-TEST_CASE(gelu_test)
+// TEST_CASE(gelu_test)
+// {
+//     migraphx::program p;
+//     auto* mm = p.get_main_module();
+//     auto lc  = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
+//     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
+//     auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
+
+//     auto lccm =
+//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
+//     auto lxm =
+//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lx);
+//     auto lym =
+//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), ly);
+
+//     auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
+//     mm->add_return({r});
+
+//     // this test doesn't work; contains a reference to op Gelu that isn't defined in parser
+//     auto prog = migraphx::parse_onnx("gelu_test.onnx");
+
+//     EXPECT(p == prog);
+// }
+
+TEST_CASE(gelu_tanh_test)
 {
+    // todo: change placeholder instructions to gelu_tanh op
+    // My first question:  Is this supposed to contain a rehash of the simplify_algebra transformation, 
+    // or just a gelu operator, or something else?
+    //
+    // second question: what are the input values?
+    //
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto lc  = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
+std::cout << "   !!!!! \n";
 
-    auto lccm =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
     auto lxm =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lx);
-    auto lym =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), ly);
+        mm->add_instruction(migraphx::make_op("gelu", {{"out_lens", {2, 2, 2, 2}}}), lx);  <===this op doesn't exist
 
-    auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
-    mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("gelu_test.onnx");
+    mm->add_return({lxm});
+
+    auto prog = migraphx::parse_onnx("gelu_tanh_test.onnx");
 
     EXPECT(p == prog);
 }

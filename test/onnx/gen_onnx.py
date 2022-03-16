@@ -1608,6 +1608,107 @@ def gather_elements_axis1_test():
 
 
 @onnx_test
+def gelu_tanh_test():
+    # 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
+    # x * (0.5* tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))) + 0.5)
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+    three_val = np.array([3])
+    const_val = np.array([0.044715])
+    m_2_pi_val = np.array([2/np.pi])
+    half_val = np.array([0.5])
+    three = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['three'],
+        value=onnx.helper.make_tensor(
+            name='const_tensor1',
+            data_type=TensorProto.FLOAT,
+            dims=three_val.shape,
+            vals=three_val.flatten().astype(float),
+        ),
+    )
+    const = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['const'],
+        value=onnx.helper.make_tensor(
+            name='const_tensor2',
+            data_type=TensorProto.FLOAT,
+            dims=const_val.shape,
+            vals=const_val.flatten().astype(float),
+        ),
+    )
+    m_2_pi = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['m_2_pi'],
+        value=onnx.helper.make_tensor(
+            name='const_tensor3',
+            data_type=TensorProto.FLOAT,
+            dims=m_2_pi_val.shape,
+            vals=m_2_pi_val.flatten().astype(float),
+        ),
+    )
+    half = onnx.helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['half'],
+        value=onnx.helper.make_tensor(
+            name='const_tensor4',
+            data_type=TensorProto.FLOAT,
+            dims=half_val.shape,
+            vals=half_val.flatten().astype(float),
+        ),
+    )   
+    pow_op = onnx.helper.make_node(
+        'Pow',
+        inputs=['x', 'three'],
+        outputs=['pow_out']
+    )
+    mul1 = onnx.helper.make_node(
+        'Mul',
+        inputs=['const', 'pow_out'],
+        outputs=['mul1_out']
+    )
+    add1 = onnx.helper.make_node(
+        'Add',
+        inputs=['x', 'mul1_out'],
+        outputs=['add1_out']
+    )
+    sqrt_op = onnx.helper.make_node(
+        'Sqrt',
+        inputs=['m_2_pi'],
+        outputs=['sqrt_out']
+    )
+    tanh_op = onnx.helper.make_node(
+        'Tanh',
+        inputs=['sqrt_out'],
+        outputs=['tanh_out']
+    )
+    mul2 = onnx.helper.make_node(
+        'Mul',
+        inputs=['tanh_out', 'add1_out'],
+        outputs=['mul2_out']
+    )
+    mul3 = onnx.helper.make_node(
+        'Mul',
+        inputs=['half', 'mul2_out'],
+        outputs=['mul3_out']
+    )
+    add2 = onnx.helper.make_node(
+        'Add',
+        inputs=['half', 'mul3_out'],
+        outputs=['add2_out']
+    )
+    mul4 = onnx.helper.make_node(
+        'Mul',
+        inputs=['x', 'add2_out'],
+        outputs=['mul4_out']
+    )
+    return ([three, const, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3, add2, mul4], [x], [y])    
+
+@onnx_test
 def gemm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5, 7])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [11, 5])

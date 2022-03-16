@@ -15,15 +15,15 @@
 
 void add_two_literals()
 {
-	migraphx::program p;
-	auto* mm = p.get_main_module();
-	auto one = mm->add_literal(1);
-	auto two = mm->add_literal(2);
-	mm->add_instruction(migraphx::make_op("add"), one, two);
-	p.compile(migraphx::ref::target{});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(migraphx::ref::target{});
 
-	auto result = p.eval({}).back();
-	std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
+    auto result = p.eval({}).back();
+    std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 3);
 }
 
@@ -32,18 +32,18 @@ void add_parameters()
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {1}};
-    auto x = mm->add_parameter("x", s);
+    auto x   = mm->add_parameter("x", s);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), x, two);
-	p.compile(migraphx::ref::target{});
+    p.compile(migraphx::ref::target{});
 
-    std::vector<int> data = {1};
+    std::vector<int> data = {4};
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s, data.data());
 
-	auto result = p.eval(pp).back();
-	std::cout << "add_parameters: 1 + 2 = " << result << "\n";
-    EXPECT(result.at<int>() == 3);
+    auto result = p.eval(pp).back();
+    std::cout << "add_parameters: 4 + 2 = " << result << "\n";
+    EXPECT(result.at<int>() == 6);
 }
 
 void handling_tensors()
@@ -52,10 +52,11 @@ void handling_tensors()
     auto* mm = p.get_main_module();
     migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
-    auto input = mm->add_parameter("X", input_shape);
+    auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
-    mm->add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}), input, weights);
+    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
+                        input,
+                        weights);
     p.compile(migraphx::ref::target{});
 
     std::vector<float> a = {
@@ -84,32 +85,32 @@ void handling_tensors()
         -0.06269585, 0.18658121,  -0.03944227, 0.0111798,   -0.17731084, 0.11789055,  -0.09982193,
         0.08142821,  0.0729029,   0.11303909,  0.12735154,  0.03885292};
 
-    std::vector<float> s = {-0.20817225,
-                            0.87965256,
-                            0.14958936,
-                            -1.24887264,
-                            -0.06540672,
-                            0.20778663,
-                            0.40456355,
-                            -0.99900877,
-                            0.4917807,
-                            0.1994698,
-                            0.64205718,
-                            0.37798831,
-                            -0.25315839,
-                            0.44276932,
-                            -0.16138598,
-                            0.79344082};
+    std::vector<float> sol = {-0.20817225,
+                              0.87965256,
+                              0.14958936,
+                              -1.24887264,
+                              -0.06540672,
+                              0.20778663,
+                              0.40456355,
+                              -0.99900877,
+                              0.4917807,
+                              0.1994698,
+                              0.64205718,
+                              0.37798831,
+                              -0.25315839,
+                              0.44276932,
+                              -0.16138598,
+                              0.79344082};
 
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(input_shape, a.data());
     pp["W"] = migraphx::argument(weights_shape, c.data());
 
-	auto result = p.eval(pp).back();
+    auto result = p.eval(pp).back();
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify_range(results_vector, s));
+    EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
 int main()

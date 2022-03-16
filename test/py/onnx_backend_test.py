@@ -96,6 +96,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_AvgPool.*')
         backend_test.include(r'.*test_BatchNorm.*eval.*')
         backend_test.include(r'.*test_ceil.*')
+        backend_test.include(r'.*test_celu.*')
         backend_test.include(r'.*test_clip.*')
         backend_test.include(r'.*test_concat.*')
         backend_test.include(r'.*test_constant.*')

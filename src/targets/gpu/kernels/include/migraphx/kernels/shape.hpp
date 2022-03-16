@@ -17,35 +17,38 @@ struct shape
 
     constexpr shape(Lens l, Strides s) : lens(l), strides(s) {}
 
-    constexpr index_int elements() const { return lens.product(); }
+    constexpr auto elements() const { return _c<Lens{}.product()>; }
 
-    constexpr index_int element_space() const { return strides.dot(lens - 1) + 1; }
+    constexpr auto element_space() const { return _c<Strides{}.dot(Lens{} - 1) + 1>; }
 
-    constexpr bool packed() const { return elements() == element_space(); }
-    constexpr bool broadcasted() const { return strides.product() == 0; }
-    constexpr bool transposed() const
+    constexpr auto packed() const { return elements() == element_space(); }
+    constexpr auto broadcasted() const { return _c<Strides{}.product() == 0>; }
+    constexpr auto transposed() const
     {
-        if(broadcasted())
-        {
-            index_array s;
-            index_int j = 0;
-            for(index_int i = 0; i < s.size(); i++)
+        return return_c([] {
+            auto lstrides = Strides{};
+            if(shape{}.broadcasted())
             {
-                if(strides[i] != 0)
+                index_array s{};
+                index_int j = 0;
+                for(index_int i = 0; i < s.size(); i++)
                 {
-                    s[j] = strides[i];
-                    j++;
+                    if(lstrides[i] != 0)
+                    {
+                        s[j] = lstrides[i];
+                        j++;
+                    }
                 }
+                return not is_sorted(s.begin(), s.begin() + j, greater{});
             }
-            return not is_sorted(s.begin(), s.begin() + j, greater{});
-        }
-        else
-        {
-            return not is_sorted(strides.begin(), strides.end(), greater{});
-        }
+            else
+            {
+                return not is_sorted(lstrides.begin(), lstrides.end(), greater{});
+            }
+        });
     }
 
-    constexpr bool standard() const { return packed() and not transposed(); }
+    constexpr auto standard() const { return packed() and not transposed(); }
 
     constexpr index_int index(index_array x) const { return x.dot(strides); }
 
@@ -63,10 +66,10 @@ struct shape
             return i;
         else
         {
-            const index_int rank = this->lens.size();
-            index_int s          = 1;
-            index_int result     = 0;
-            for(index_int j = 0; j < this->lens.size(); j++)
+            const auto rank  = this->lens.size();
+            index_int s      = 1;
+            index_int result = 0;
+            for(index_int j = 0; j < rank; j++)
             {
                 const index_int k      = rank - j - 1;
                 const index_int stride = this->strides[k];

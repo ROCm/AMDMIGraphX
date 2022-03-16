@@ -16,7 +16,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
 // NOLINTNEXTLINE
 static const char* const gathernd_kernel = R"__migraphx__(
 #include <migraphx/kernels/gathernd.hpp>
@@ -45,21 +44,18 @@ __global__ void gathernd_kernel(void* in_data, void* in_indices, void* output)
 
 struct gathernd_compiler : compiler<gathernd_compiler>
 {
-    std::vector<std::string> names() const
-    {
-        return {"gathernd"};
-    }
+    std::vector<std::string> names() const { return {"gathernd"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto out_s             = inputs.back();
+        auto out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "gathernd_kernel";
         options.virtual_inputs = inputs;
-        
+
         // batch_dims
         assert(v.contains("batch_dims"));
         auto batch_dims = v.at("batch_dims").to<int64_t>();
@@ -72,7 +68,6 @@ struct gathernd_compiler : compiler<gathernd_compiler>
     {
         return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
-
 };
 
 } // namespace gpu

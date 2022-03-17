@@ -480,7 +480,7 @@ TEST_CASE(lpnormalization_1norm)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> correct{0.f,
+    std::vector<float> gold{0.f,
                                2.f / 5.f,
                                -2.f / 5.f,
                                1.f / 5.f,
@@ -492,7 +492,7 @@ TEST_CASE(lpnormalization_1norm)
                                3.f / 7.f,
                                0.f,
                                0.f};
-    EXPECT(migraphx::verify_range(result_vector, correct));
+    EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
 TEST_CASE(lpnormalization_2norm)

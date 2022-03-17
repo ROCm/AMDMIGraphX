@@ -113,3 +113,5 @@ CheckOptions:
     value:           UPPER_CASE
   - key:             readability-identifier-naming.MacroDefinitionPrefix
     value:           MIGRAPHX_
+  - key:             readability-identifier-length.MinimumVariableNameLength
+    value:           1

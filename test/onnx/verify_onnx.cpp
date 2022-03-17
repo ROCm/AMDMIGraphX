@@ -481,17 +481,17 @@ TEST_CASE(lpnormalization_1norm)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold{0.f,
-                               2.f / 5.f,
-                               -2.f / 5.f,
-                               1.f / 5.f,
-                               1.f / 10.f,
-                               -5.f / 10.f,
-                               3.f / 10.f,
-                               -1.f / 10.f,
-                               -4.f / 7.f,
-                               3.f / 7.f,
-                               0.f,
-                               0.f};
+                            2.f / 5.f,
+                            -2.f / 5.f,
+                            1.f / 5.f,
+                            1.f / 10.f,
+                            -5.f / 10.f,
+                            3.f / 10.f,
+                            -1.f / 10.f,
+                            -4.f / 7.f,
+                            3.f / 7.f,
+                            0.f,
+                            0.f};
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 

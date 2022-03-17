@@ -1,24 +1,24 @@
 MIGraphX Fundamentals
-========
+======================
 
 MIGraphX provides an optimized execution engine for deep learning neural networks.
 In this introduction for developers of MIGraphX, we will cover some simple operations in the MIGraphX framework.
 
 
 Location of the Examples
-------------------
+-------------------------
 
-The `ref_dev_examples.cpp` can be found in the test directory (`/test`).
-The executable file `test_ref_dev_examples` based on this file will be created in the `bin/` of the build directory after running `make -j$(nproc) check`.
+The ``ref_dev_examples.cpp`` can be found in the test directory (``/test``).
+The executable file ``test_ref_dev_examples`` based on this file will be created in the ``bin/`` of the build directory after running ``make -j$(nproc) check``.
 
 
 Adding Two Literals
-------------------
+--------------------
 
 A program consists of a set of instructions to be executed when calling `eval <migraphx::program::eval>`.
 Each instruction has an associated `operation <migraphx::operation>` which represents the computation to be performed by the instruction.
 
-We start a snippet of the simple `add_two_literals()` function::
+We start a snippet of the simple ``add_two_literals()`` function::
 
     // create the program and get a pointer to the main module
     migraphx::program p;
@@ -38,7 +38,7 @@ We start a snippet of the simple `add_two_literals()` function::
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
 
-We start by creating a simple `migraphx::program` object and then getting a pointer to the main module of it.
+We start by creating a simple ``migraphx::program`` object and then getting a pointer to the main module of it.
 The program is split into ``modules``, so instructions are added to the modules rather than directly onto the program object.
 We then use the `add_literal <migraphx::program::add_literal>` function to add an instruction that stores the literal number ``1`` while returning an `instruction_ref <migraphx::instruction_ref>`.
 The returned `instruction_ref <migraphx::instruction_ref>` can be used in another instruction as an input.
@@ -48,7 +48,7 @@ This is done by using the `add_instruction <migraphx::program::add_instruction>`
 Finally, we can run this `program <migraphx::program>` by compiling it for the reference target (CPU) and then running it with `eval <migraphx::program::eval>`
 The result is then retreived and printed to the console.
 
-We can compile the program for the gpu as well, but the file will have to be moved to the `test/gpu/` directory and the correct target must be included::
+We can compile the program for the gpu as well, but the file will have to be moved to the ``test/gpu/`` directory and the correct target must be included::
 
     #include <migraphx/gpu/target.hpp
 
@@ -71,8 +71,8 @@ We can modify the program to take an input parameter ``x``, as seen in the ``add
     p.compile(migraphx::ref::target{});
 
 This adds a parameter of type ``int32``, and compiles it for the CPU.
-To run the program, we need to pass the parameter as a `parameter_map` when we call `eval <migraphx::program::eval>`.
-We create the `parameter_map` by setting the ``x`` key to an `argument <migraphx::argument>` object with an ``int`` data type::
+To run the program, we need to pass the parameter as a ``parameter_map`` when we call `eval <migraphx::program::eval>`.
+We create the ``parameter_map`` by setting the ``x`` key to an `argument <migraphx::argument>` object with an ``int`` data type::
 
     std::vector<int> data = {4};
     migraphx::parameter_map pp;
@@ -84,7 +84,7 @@ We create the `parameter_map` by setting the ``x`` key to an `argument <migraphx
 
 
 Handling Tensor Data
------------
+---------------------
 
 In the previous examples we have only been dealing with scalars, but the `shape <migraphx::shape>` class can describe multi-dimensional tensors.
 For example, we can compute a simple convolution::
@@ -127,7 +127,7 @@ That is, when compiling for the CPU, the buffers should be allocated on the CPU,
 
 
 Importing From ONNX
--------------------
+--------------------
 
 A `program <migraphx::program>` can be built directly from an onnx file using the MIGraphX ONNX parser.
 This makes it easier to use neural networks directly from other frameworks.

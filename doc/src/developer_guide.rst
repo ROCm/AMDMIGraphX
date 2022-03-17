@@ -5,7 +5,7 @@ Developer Guide
    :maxdepth: 2
    :caption: Contents:
 
-   overview
+   dev_intro
    dev/data
    dev/operators
    dev/program

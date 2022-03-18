@@ -15,6 +15,8 @@ namespace migraphx {
 inline namespace api { // NOLINT
 #endif
 
+#define MIGRAPHX_DEPRECATED(...) [[deprecated(__VA_ARGS__)]]
+
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
@@ -285,6 +287,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
     shape() {}
 
+    MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(shape);
@@ -366,6 +369,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 
     MIGRAPHX_HANDLE_CONSTRUCTOR(argument);
 
+    MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
 
     argument(shape pshape, void* pbuffer)
@@ -377,7 +381,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_argument_shape, &pout, this->get_handle_ptr());
-        return {pout};
+        return {pout, this->borrow_handle()};
     }
 
     char* data() const
@@ -409,9 +413,7 @@ struct target : MIGRAPHX_HANDLE_BASE(target)
 {
     target() {}
 
-    target(migraphx_target* p, own) { this->set_handle(p, own{}); }
-
-    target(migraphx_target* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(target);
 
     /// Construct a target from its name
     target(const char* name) { this->make_handle(&migraphx_target_create, name); }
@@ -434,7 +436,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_program_parameter_shapes_get, &pout, this->get_handle_ptr(), pname);
-        return {pout};
+        return {pout, this->borrow_handle()};
     }
 
     std::vector<const char*> names() const
@@ -453,6 +455,7 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 {
     MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameters);
 
+    MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
 
     program_parameters() { this->make_handle(&migraphx_program_parameters_create); }
@@ -589,6 +592,7 @@ struct module
 {
     migraphx_module_t mm;
 
+    MIGRAPHX_DEPRECATED("Constructor without lifetime annotation is deprecated.")
     module(const migraphx_module_t& m) : mm(m) {}
 
     void print() const { call(&migraphx_module_print, mm); }

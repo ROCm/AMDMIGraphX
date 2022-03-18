@@ -125,11 +125,27 @@ struct array_base
 {
     const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-    template <class T>
-    using value_type_t = decltype(std::declval<T>()[0]);
 
     template <class T>
-    using iterator_t = iota_iterator<typename T::iterator_read>;
+    using value_type_t = decltype(std::declval<T>()[0]);
+    
+    struct iterator_read
+    {
+        Derived* self;
+        template <class D = Derived>
+        value_type_t<D> operator()(size_t pidx) const
+        {
+            return (*self)[pidx];
+        }
+    };
+
+    template <class T>
+    using iterator_t = iota_iterator<iterator_read>;
+
+    bool empty() const
+    {
+        return derived().size() == 0;
+    }
 
     template <class D = Derived>
     value_type_t<D> front() const
@@ -501,18 +517,6 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
         call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
         return {pout, this->share_handle()};
     }
-
-    struct iterator_read
-    {
-        migraphx_arguments* self;
-        argument operator()(size_t pidx) const
-        {
-            const_migraphx_argument_t pout;
-            call(&migraphx_arguments_get, &pout, self, pidx);
-
-            return {pout, borrow{}};
-        }
-    };
 };
 
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
@@ -532,17 +536,6 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
         call(&migraphx_shapes_get, &pout, this->get_handle_ptr(), pidx);
         return {pout, this->share_handle()};
     }
-
-    struct iterator_read
-    {
-        migraphx_shapes* self;
-        shape operator()(size_t pidx) const
-        {
-            const_migraphx_shape_t pout;
-            call(&migraphx_shapes_get, &pout, self, pidx);
-            return {pout, borrow{}};
-        }
-    };
 };
 
 struct operation : MIGRAPHX_HANDLE_BASE(operation)

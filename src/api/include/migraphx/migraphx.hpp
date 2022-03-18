@@ -91,34 +91,31 @@ struct iota_iterator
         return it;
     }
     // TODO: operator->
-    reference operator*() const { return (*f)(index); }
+    reference operator*() const { return f(index); }
+    
+    friend iota_iterator operator+(iota_iterator x,
+                                                iota_iterator y)
+    {
+        return iota_iterator(x.index + y.index, x.f);
+    }
+
+    friend iota_iterator operator-(iota_iterator x,
+                                                iota_iterator y)
+    {
+        return iota_iterator(x.index - y.index, x.f);
+    }
+
+    friend bool operator==(iota_iterator x, iota_iterator y)
+    {
+        return x.index == y.index;
+    }
+
+    friend bool operator!=(iota_iterator x, iota_iterator y)
+    {
+        return x.index != y.index;
+    }
 };
 
-template <class F, class Iterator>
-inline iota_iterator<F, Iterator> operator+(iota_iterator<F, Iterator> x,
-                                            iota_iterator<F, Iterator> y)
-{
-    return iota_iterator<F, Iterator>(x.index + y.index, x.f);
-}
-
-template <class F, class Iterator>
-inline iota_iterator<F, Iterator> operator-(iota_iterator<F, Iterator> x,
-                                            iota_iterator<F, Iterator> y)
-{
-    return iota_iterator<F, Iterator>(x.index - y.index, x.f);
-}
-
-template <class F, class Iterator>
-inline bool operator==(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
-{
-    return x.index == y.index;
-}
-
-template <class F, class Iterator>
-inline bool operator!=(iota_iterator<F, Iterator> x, iota_iterator<F, Iterator> y)
-{
-    return x.index != y.index;
-}
 
 template <class Derived>
 struct array_base
@@ -130,7 +127,7 @@ struct array_base
 
     struct iterator_read
     {
-        Derived* self;
+        const Derived* self;
         template <class D = Derived>
         value_type_t<D> operator()(size_t pidx) const
         {
@@ -158,13 +155,13 @@ struct array_base
     template <class D = Derived>
     iterator_t<D> begin() const
     {
-        return {0, {derived().get_handle_ptr()}};
+        return {0, {&derived()}};
     }
 
     template <class D = Derived>
     iterator_t<D> end() const
     {
-        return {derived().size(), {derived().get_handle_ptr()}};
+        return {derived().size(), {&derived()}};
     }
 };
 

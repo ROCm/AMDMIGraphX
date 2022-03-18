@@ -733,10 +733,10 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
         return module{p_modu};
     }
 
-    context get_context()
+    context experimental_get_context()
     {
         migraphx_context_t ctx;
-        call(&migraphx_program_get_context, &ctx, this->get_handle_ptr());
+        call(&migraphx_program_experimental_get_context, &ctx, this->get_handle_ptr());
         return context{ctx};
     }
 

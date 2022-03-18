@@ -1102,8 +1102,8 @@ migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migrap
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_program_get_context(migraphx_context_t* out,
-                                                        const_migraphx_program_t program)
+extern "C" migraphx_status
+migraphx_program_experimental_get_context(migraphx_context_t* out, const_migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] {
         if(program == nullptr)

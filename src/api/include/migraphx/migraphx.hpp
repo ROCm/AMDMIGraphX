@@ -197,7 +197,7 @@ struct borrow_from
 {
     borrow_from(std::shared_ptr<T> p) : ptr(std::move(p)) {}
 
-    template<class U>
+    template <class U>
     std::shared_ptr<U> alias(U* p) const
     {
         return std::shared_ptr<U>{ptr, p};
@@ -598,11 +598,13 @@ struct module
 {
     MIGRAPHX_DEPRECATED("Constructor without lifetime annotation is deprecated.")
     module(migraphx_module* m) : mm(std::shared_ptr<migraphx_module*>(), m) {}
-    
+
     module(migraphx_module* m, borrow) : mm(std::shared_ptr<migraphx_module*>(), m) {}
-    
-    template<class T>
-    module(migraphx_module* m, borrow_from<T> b) : mm(b.alias(m)) {}
+
+    template <class T>
+    module(migraphx_module* m, borrow_from<T> b) : mm(b.alias(m))
+    {
+    }
 
     void print() const { call(&migraphx_module_print, mm.get()); }
 
@@ -634,7 +636,8 @@ struct module
     instruction add_parameter(const std::string& name, shape s)
     {
         migraphx_instruction_t param_ins;
-        call(&migraphx_module_add_parameter, &param_ins, mm.get(), name.c_str(), s.get_handle_ptr());
+        call(
+            &migraphx_module_add_parameter, &param_ins, mm.get(), name.c_str(), s.get_handle_ptr());
         return instruction(param_ins, own{});
     }
 
@@ -645,11 +648,9 @@ struct module
         return instruction(ret_ins, own{});
     }
 
-    migraphx_module_t get_handle_ptr() const
-    {
-        return mm.get();
-    }
-private:
+    migraphx_module_t get_handle_ptr() const { return mm.get(); }
+
+    private:
     std::shared_ptr<migraphx_module> mm;
 };
 

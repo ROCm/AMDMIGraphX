@@ -125,10 +125,9 @@ struct array_base
 {
     const Derived& derived() const { return static_cast<const Derived&>(*this); }
 
-
     template <class T>
     using value_type_t = decltype(std::declval<T>()[0]);
-    
+
     struct iterator_read
     {
         Derived* self;
@@ -142,10 +141,7 @@ struct array_base
     template <class T>
     using iterator_t = iota_iterator<iterator_read>;
 
-    bool empty() const
-    {
-        return derived().size() == 0;
-    }
+    bool empty() const { return derived().size() == 0; }
 
     template <class D = Derived>
     value_type_t<D> front() const

@@ -197,6 +197,12 @@ struct borrow_from
 {
     borrow_from(std::shared_ptr<T> p) : ptr(std::move(p)) {}
 
+    template<class U>
+    std::shared_ptr<U> alias(U* p) const
+    {
+        return std::shared_ptr<U>{ptr, p};
+    }
+
     private:
     std::shared_ptr<T> ptr;
 };
@@ -493,7 +499,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
     {
         const_migraphx_argument_t pout;
         call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
-        return {pout};
+        return {pout, this->borrow_handle()};
     }
 
     struct iterator_read
@@ -504,7 +510,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
             const_migraphx_argument_t pout;
             call(&migraphx_arguments_get, &pout, self, pidx);
 
-            return {pout};
+            return {pout, borrow{}};
         }
     };
 };
@@ -524,7 +530,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     {
         const_migraphx_shape_t pout;
         call(&migraphx_shapes_get, &pout, this->get_handle_ptr(), pidx);
-        return {pout};
+        return {pout, this->borrow_handle()};
     }
 
     struct iterator_read
@@ -534,7 +540,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
         {
             const_migraphx_shape_t pout;
             call(&migraphx_shapes_get, &pout, self, pidx);
-            return {pout};
+            return {pout, borrow{}};
         }
     };
 };
@@ -583,26 +589,29 @@ struct modules : MIGRAPHX_HANDLE_BASE(modules)
     template <class... Ts>
     modules(Ts... xs)
     {
-        std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.mm...};
+        std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.get_handle_ptr()...};
         this->make_handle(&migraphx_modules_create, a.data(), a.size());
     }
 };
 
 struct module
 {
-    migraphx_module_t mm;
-
     MIGRAPHX_DEPRECATED("Constructor without lifetime annotation is deprecated.")
-    module(const migraphx_module_t& m) : mm(m) {}
+    module(migraphx_module* m) : mm(std::shared_ptr<migraphx_module*>(), m) {}
+    
+    module(migraphx_module* m, borrow) : mm(std::shared_ptr<migraphx_module*>(), m) {}
+    
+    template<class T>
+    module(migraphx_module* m, borrow_from<T> b) : mm(b.alias(m)) {}
 
-    void print() const { call(&migraphx_module_print, mm); }
+    void print() const { call(&migraphx_module_print, mm.get()); }
 
     instruction add_instruction(const migraphx::operation& op, const migraphx::instructions& args)
     {
         migraphx_instruction_t op_ins;
         call(&migraphx_module_add_instruction,
              &op_ins,
-             mm,
+             mm.get(),
              op.get_handle_ptr(),
              args.get_handle_ptr());
         return instruction(op_ins, own{});
@@ -615,7 +624,7 @@ struct module
         migraphx_instruction_t op_ins;
         call(&migraphx_module_add_instruction_with_mod_args,
              &op_ins,
-             mm,
+             mm.get(),
              op.get_handle_ptr(),
              args.get_handle_ptr(),
              module_args.get_handle_ptr());
@@ -625,16 +634,23 @@ struct module
     instruction add_parameter(const std::string& name, shape s)
     {
         migraphx_instruction_t param_ins;
-        call(&migraphx_module_add_parameter, &param_ins, mm, name.c_str(), s.get_handle_ptr());
+        call(&migraphx_module_add_parameter, &param_ins, mm.get(), name.c_str(), s.get_handle_ptr());
         return instruction(param_ins, own{});
     }
 
     instruction add_return(const migraphx::instructions& args)
     {
         migraphx_instruction_t ret_ins;
-        call(&migraphx_module_add_return, &ret_ins, mm, args.get_handle_ptr());
+        call(&migraphx_module_add_return, &ret_ins, mm.get(), args.get_handle_ptr());
         return instruction(ret_ins, own{});
     }
+
+    migraphx_module_t get_handle_ptr() const
+    {
+        return mm.get();
+    }
+private:
+    std::shared_ptr<migraphx_module> mm;
 };
 
 struct context
@@ -735,7 +751,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
-        return module{p_modu};
+        return module{p_modu, this->borrow_handle()};
     }
 
     context get_context()
@@ -749,7 +765,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_create_module, &p_modu, this->get_handle_ptr(), name.data());
-        return module{p_modu};
+        return module{p_modu, this->borrow_handle()};
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }

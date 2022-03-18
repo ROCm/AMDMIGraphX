@@ -663,9 +663,9 @@ struct context
     {
     }
 
-
     void finish() const { call(&migraphx_context_finish, ctx.get()); }
-private:
+
+    private:
     std::shared_ptr<migraphx_context> ctx;
 };
 

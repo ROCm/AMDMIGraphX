@@ -353,6 +353,7 @@ def generate_form(name, members):
     virtual_members = []
     comment_members = []
     default_members = []
+    decl_members = []
     for member in members:
         m = convert_member(member, name)
         nonvirtual_members.append(nonvirtual_member.substitute(m))

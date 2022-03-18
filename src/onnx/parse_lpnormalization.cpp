@@ -31,7 +31,8 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         {
             MIGRAPHX_THROW("LPNORMALIZATION: only L1 and L2 norm supported");
         }
-        auto input_shape        = args.front()->get_shape();
+        auto input              = args.front();
+        auto input_shape        = input->get_shape();
         const auto& input_lens  = input_shape.lens();
         auto input_type         = input_shape.type();
         std::ptrdiff_t num_axes = input_lens.size();
@@ -48,11 +49,11 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         migraphx::instruction_ref p_val;
         if(p == 1)
         {
-            p_val = info.add_instruction(migraphx::make_op("abs"), args.front());
+            p_val = info.add_instruction(migraphx::make_op("abs"), input);
         }
         else
         {
-            p_val = info.add_instruction(migraphx::make_op("mul"), args.front(), args.front());
+            p_val = info.add_instruction(migraphx::make_op("mul"), input, input);
         }
 
         // need to check for zeros from lp norm to prevent division by zero
@@ -75,7 +76,7 @@ struct parse_lpnormalization : op_parser<parse_lpnormalization>
         auto is_zero = info.add_instruction(migraphx::make_op("equal"), norms, zero_mb);
         auto norms_zeros_to_one =
             info.add_instruction(migraphx::make_op("where"), is_zero, one_mb, norms);
-        return info.add_instruction(migraphx::make_op("div"), args.front(), norms_zeros_to_one);
+        return info.add_instruction(migraphx::make_op("div"), input, norms_zeros_to_one);
     }
 };
 

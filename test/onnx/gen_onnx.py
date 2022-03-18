@@ -2817,20 +2817,7 @@ def lpnormalization_axis_error_test():
 
 
 @onnx_test
-def lpnormalization_double_test():
-    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3, 4, 2])
-    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3, 4, 2])
-
-    node = onnx.helper.make_node('LpNormalization',
-                                 inputs=['x'],
-                                 outputs=['y'],
-                                 axis=0,
-                                 p=1)
-    return ([node], [x], [y])
-
-
-@onnx_test
-def lpnormalization_float_test():
+def lpnormalization_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
 
@@ -2838,19 +2825,7 @@ def lpnormalization_float_test():
         'LpNormalization',
         inputs=['x'],
         outputs=['y'],
-    )
-    return ([node], [x], [y])
-
-
-@onnx_test
-def lpnormalization_half_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3, 4])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3, 4])
-
-    node = onnx.helper.make_node(
-        'LpNormalization',
-        inputs=['x'],
-        outputs=['y'],
+        axis=0,
     )
     return ([node], [x], [y])
 
@@ -2866,6 +2841,18 @@ def lpnormalization_l1_test():
         outputs=['y'],
         p=1,
     )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_l2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=2)
     return ([node], [x], [y])
 
 

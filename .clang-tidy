@@ -23,12 +23,6 @@ CheckOptions:
     value:           '10'
   - key:             readability-function-size.StatementThreshold
     value:           '150'
-  - key:             readability-identifier-length.MinimumLoopCounterNameLength
-    value:           0
-  - key:             readability-identifier-length.MinimumParameterNameLength
-    value:           0
-  - key:             readability-identifier-length.MinimumVariableNameLength
-    value:           0
   - key:             readability-identifier-naming.NamespaceCase
     value:           lower_case
   - key:             readability-identifier-naming.InlineNamespaceCase

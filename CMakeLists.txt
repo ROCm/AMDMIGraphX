@@ -144,6 +144,7 @@ rocm_enable_clang_tidy(
         -readability-convert-member-functions-to-static
         -readability-else-after-return
         -readability-function-cognitive-complexity
+        -readability-identifier-length
         -readability-named-parameter
         -readability-redundant-string-init
         -readability-uppercase-literal-suffix
@@ -178,7 +179,7 @@ rocm_enable_cppcheck(
         style
         performance
         portability
-    SUPPRESS 
+    SUPPRESS
         ConfigurationNotChecked
         unmatchedSuppression
         unusedFunction

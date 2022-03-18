@@ -656,9 +656,17 @@ struct module
 
 struct context
 {
-    migraphx_context_t ctx;
+    context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
-    void finish() const { call(&migraphx_context_finish, ctx); }
+    template <class T>
+    context(migraphx_context* p, share<T> b) : ctx(b.alias(p))
+    {
+    }
+
+
+    void finish() const { call(&migraphx_context_finish, ctx.get()); }
+private:
+    std::shared_ptr<migraphx_context> ctx;
 };
 
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
@@ -759,7 +767,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_context_t ctx;
         call(&migraphx_program_experimental_get_context, &ctx, this->get_handle_ptr());
-        return context{ctx};
+        return context{ctx, this->share_handle()};
     }
 
     module create_module(const std::string& name)

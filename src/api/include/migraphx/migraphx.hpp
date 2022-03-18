@@ -249,6 +249,7 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     std::shared_ptr<T> m_handle;
 };
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_HANDLE_CONSTRUCTOR(name)                                                          \
     template <class HandleType,                                                                    \
               class Lifetime,                                                                      \

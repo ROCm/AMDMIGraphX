@@ -26,6 +26,7 @@ struct gelu_tanh_matcher
 
     auto matcher() const
     {
+        // todo:  this isn't matching the gelu function
         return f("mul")(used_once(),
                         either_arg(0, 1)(any().bind("x"),
                                          f("add")(any_arg(0, 1)(f("mul")(

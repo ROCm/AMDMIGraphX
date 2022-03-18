@@ -837,4 +837,47 @@ TEST_CASE(where_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
+
+TEST_CASE(gelu_tanh_test)
+{
+    migraphx::program p = migraphx::parse_onnx("gelu_tanh_test.onnx");
+    p.compile(migraphx::ref::target{});
+
+    std::cout << p << std::endl;
+
+    // construct another program mstep-by-step
+    migraphx::program p2;
+
+    // add parameters and instructions as in test/onnx/onnx_test.cpp
+    // and simplify_algebra.cpp
+    // apply the gelu_erf formula: return 
+
+    migraphx::shape s{migraphx::shape::float_type, {1, 1}};
+    std::vector<float> data = {-10.0};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();  the program produced by gen_onnx fails here
+     // see hardsigmoid_verify_test
+
+    // copy output to result_vector
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold(10);
+    std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
+        // the erf approximation of the gelu function
+        return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
+    });
+
+    EXPECT(migraphx::verify_range(result_vector, gold));
+    // the tanh version should get substituted to match the erf version
+    p2.compile(migraphx::ref::target{});
+    EXPECT(p==p2);
+
+
+}
+
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

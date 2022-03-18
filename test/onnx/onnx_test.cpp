@@ -1,3 +1,27 @@
+/**
+ * @file onnx_test.cpp*
+ * 
+ * @author 
+ * @brief Onnx parsing tests
+ * 
+ * To create a test contents:  Create a program migraphx::program p; and add operators, parameters 
+ * and instructions.  Compare
+ * with a program loaded from a *.onnx file.  This verifies that the *.onnx file was
+ * parsed correctly.  
+ * 
+ * Tests are declared with TEST_CASE(myname_test).  You can specify a case name to run on the command line, e.g.
+ * 
+ *        ../../build/bin/test_onnx_test myname_test
+ * 
+ * Only use ref-defined operators in the program.  The *onnx load will use onnx operators, which 
+ * should be mapped by the onnx parser but aren't identical.  We normally use Python code located in
+ * gen_onnx.py to create the *.onnx files.  Do not try to compile the program in the test body, since the compiler
+ * is not exposed in this program.  Tests involving compiling belong in verify_onnx.cpp
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -5120,55 +5144,6 @@ TEST_CASE(where_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("where_test.onnx");
-
-    EXPECT(p == prog);
-}
-
-
-// TEST_CASE(gelu_test)
-// {
-//     migraphx::program p;
-//     auto* mm = p.get_main_module();
-//     auto lc  = mm->add_parameter("c", migraphx::shape{migraphx::shape::bool_type, {2}});
-//     auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-//     auto ly  = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {2, 1, 2, 2}});
-
-//     auto lccm =
-//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lc);
-//     auto lxm =
-//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), lx);
-//     auto lym =
-//         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 2}}}), ly);
-
-//     auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
-//     mm->add_return({r});
-
-//     // this test doesn't work; contains a reference to op Gelu that isn't defined in parser
-//     auto prog = migraphx::parse_onnx("gelu_test.onnx");
-
-//     EXPECT(p == prog);
-// }
-
-TEST_CASE(gelu_tanh_test)
-{
-    // todo: change placeholder instructions to gelu_tanh op
-    // My first question:  Is this supposed to contain a rehash of the simplify_algebra transformation, 
-    // or just a gelu operator, or something else?
-    //
-    // second question: what are the input values?
-    //
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto lx  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-std::cout << "   !!!!! \n";
-
-    auto lxm =
-        mm->add_instruction(migraphx::make_op("gelu", {{"out_lens", {2, 2, 2, 2}}}), lx);  <===this op doesn't exist
-
-
-    mm->add_return({lxm});
-
-    auto prog = migraphx::parse_onnx("gelu_tanh_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -1628,7 +1628,7 @@ def gelu_tanh_test():
             vals=three_val.flatten().astype(float),
         ),
     )
-    const = onnx.helper.make_node(
+    consta = onnx.helper.make_node(
         'Constant',
         inputs=[],
         outputs=['const'],
@@ -1706,7 +1706,9 @@ def gelu_tanh_test():
         inputs=['x', 'add2_out'],
         outputs=['mul4_out']
     )
-    return ([three, const, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3, add2, mul4], [x], [y])    
+    # return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3, add2, mul4], [x], [y])     complete
+    # return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2], [x], [y])    bad <==> good
+    return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3], [x], [y])    
 
 @onnx_test
 def gemm_test():

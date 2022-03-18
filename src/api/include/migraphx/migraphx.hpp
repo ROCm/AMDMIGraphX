@@ -92,30 +92,21 @@ struct iota_iterator
     }
     // TODO: operator->
     reference operator*() const { return f(index); }
-    
-    friend iota_iterator operator+(iota_iterator x,
-                                                iota_iterator y)
+
+    friend iota_iterator operator+(iota_iterator x, iota_iterator y)
     {
         return iota_iterator(x.index + y.index, x.f);
     }
 
-    friend iota_iterator operator-(iota_iterator x,
-                                                iota_iterator y)
+    friend iota_iterator operator-(iota_iterator x, iota_iterator y)
     {
         return iota_iterator(x.index - y.index, x.f);
     }
 
-    friend bool operator==(iota_iterator x, iota_iterator y)
-    {
-        return x.index == y.index;
-    }
+    friend bool operator==(iota_iterator x, iota_iterator y) { return x.index == y.index; }
 
-    friend bool operator!=(iota_iterator x, iota_iterator y)
-    {
-        return x.index != y.index;
-    }
+    friend bool operator!=(iota_iterator x, iota_iterator y) { return x.index != y.index; }
 };
-
 
 template <class Derived>
 struct array_base

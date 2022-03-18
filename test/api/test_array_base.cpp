@@ -5,16 +5,9 @@ struct array2 : migraphx::array_base<array2>
 {
     std::vector<int> v;
     array2() = default;
-    array2(std::initializer_list<int> x) : v(x)
-    {}
-    std::size_t size() const
-    {
-        return v.size();
-    }
-    int operator[](std::size_t i) const
-    {
-        return v[i];
-    }
+    array2(std::initializer_list<int> x) : v(x) {}
+    std::size_t size() const { return v.size(); }
+    int operator[](std::size_t i) const { return v[i]; }
 };
 
 TEST_CASE(iterators)

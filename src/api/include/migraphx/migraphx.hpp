@@ -193,9 +193,9 @@ struct borrow
 };
 
 template <class T>
-struct borrow_from
+struct share
 {
-    borrow_from(std::shared_ptr<T> p) : ptr(std::move(p)) {}
+    share(std::shared_ptr<T> p) : ptr(std::move(p)) {}
 
     template <class U>
     std::shared_ptr<U> alias(U* p) const
@@ -240,12 +240,12 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     }
 
     template <class U, class V>
-    void set_handle(U* ptr, borrow_from<V> b)
+    void set_handle(U* ptr, share<V> b)
     {
         m_handle = std::shared_ptr<T>{ptr, [b](U*) {}};
     }
 
-    borrow_from<T> borrow_handle() const { return {m_handle}; }
+    share<T> share_handle() const { return {m_handle}; }
 
     template <class U>
     void assign_to_handle(U* x)
@@ -387,7 +387,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_argument_shape, &pout, this->get_handle_ptr());
-        return {pout, this->borrow_handle()};
+        return {pout, this->share_handle()};
     }
 
     char* data() const
@@ -442,7 +442,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
     {
         const_migraphx_shape_t pout;
         call(&migraphx_program_parameter_shapes_get, &pout, this->get_handle_ptr(), pname);
-        return {pout, this->borrow_handle()};
+        return {pout, this->share_handle()};
     }
 
     std::vector<const char*> names() const
@@ -499,7 +499,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
     {
         const_migraphx_argument_t pout;
         call(&migraphx_arguments_get, &pout, this->get_handle_ptr(), pidx);
-        return {pout, this->borrow_handle()};
+        return {pout, this->share_handle()};
     }
 
     struct iterator_read
@@ -530,7 +530,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
     {
         const_migraphx_shape_t pout;
         call(&migraphx_shapes_get, &pout, this->get_handle_ptr(), pidx);
-        return {pout, this->borrow_handle()};
+        return {pout, this->share_handle()};
     }
 
     struct iterator_read
@@ -602,7 +602,7 @@ struct module
     module(migraphx_module* m, borrow) : mm(std::shared_ptr<migraphx_module*>(), m) {}
 
     template <class T>
-    module(migraphx_module* m, borrow_from<T> b) : mm(b.alias(m))
+    module(migraphx_module* m, share<T> b) : mm(b.alias(m))
     {
     }
 
@@ -752,7 +752,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
-        return module{p_modu, this->borrow_handle()};
+        return module{p_modu, this->share_handle()};
     }
 
     context get_context()
@@ -766,7 +766,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_module_t p_modu;
         call(&migraphx_program_create_module, &p_modu, this->get_handle_ptr(), name.data());
-        return module{p_modu, this->borrow_handle()};
+        return module{p_modu, this->share_handle()};
     }
 
     friend bool operator!=(const program& px, const program& py) { return !(px == py); }

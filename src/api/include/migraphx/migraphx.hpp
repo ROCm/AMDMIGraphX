@@ -190,12 +190,12 @@ struct borrow
 {
 };
 
-template<class T>
+template <class T>
 struct borrow_from
 {
-    borrow_from(std::shared_ptr<T> p) : ptr(std::move(p))
-    {}
-private:
+    borrow_from(std::shared_ptr<T> p) : ptr(std::move(p)) {}
+
+    private:
     std::shared_ptr<T> ptr;
 };
 
@@ -237,10 +237,7 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
         m_handle = std::shared_ptr<T>{ptr, [b](U*) {}};
     }
 
-    borrow_from<T> borrow_handle() const
-    {
-        return {m_handle};
-    }
+    borrow_from<T> borrow_handle() const { return {m_handle}; }
 
     template <class U>
     void assign_to_handle(U* x)
@@ -252,11 +249,14 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     std::shared_ptr<T> m_handle;
 };
 
-#define MIGRAPHX_HANDLE_CONSTRUCTOR(name) \
-    template<class HandleType, class Lifetime, class=typename std::enable_if<std::is_convertible<HandleType*, handle_type*>{}>::type> \
-    name(HandleType* p, Lifetime lifetime) \
-    { \
-        this->set_handle(p, std::move(lifetime));\
+#define MIGRAPHX_HANDLE_CONSTRUCTOR(name)                                                          \
+    template <class HandleType,                                                                    \
+              class Lifetime,                                                                      \
+              class =                                                                              \
+                  typename std::enable_if<std::is_convertible<HandleType*, handle_type*>{}>::type> \
+    name(HandleType* p, Lifetime lifetime)                                                         \
+    {                                                                                              \
+        this->set_handle(p, std::move(lifetime));                                                  \
     }
 
 #ifdef DOXYGEN

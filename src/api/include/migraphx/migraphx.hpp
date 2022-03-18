@@ -190,9 +190,19 @@ struct borrow
 {
 };
 
+template<class T>
+struct borrow_from
+{
+    borrow_from(std::shared_ptr<T> p) : ptr(std::move(p))
+    {}
+private:
+    std::shared_ptr<T> ptr;
+};
+
 template <class Derived, class T, class D, D Deleter, class A, A Assigner>
 struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
 {
+    using handle_type = T;
     handle_base() : m_handle(nullptr) {}
     template <class F, class... Ts>
     void make_handle(F f, Ts&&... xs)
@@ -221,6 +231,17 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
         m_handle = std::shared_ptr<U>{ptr, [](U*) {}};
     }
 
+    template <class U, class V>
+    void set_handle(U* ptr, borrow_from<V> b)
+    {
+        m_handle = std::shared_ptr<T>{ptr, [b](U*) {}};
+    }
+
+    borrow_from<T> borrow_handle() const
+    {
+        return {m_handle};
+    }
+
     template <class U>
     void assign_to_handle(U* x)
     {
@@ -230,6 +251,13 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     protected:
     std::shared_ptr<T> m_handle;
 };
+
+#define MIGRAPHX_HANDLE_CONSTRUCTOR(name) \
+    template<class HandleType, class Lifetime, class=typename std::enable_if<std::is_convertible<HandleType*, handle_type*>{}>::type> \
+    name(HandleType* p, Lifetime lifetime) \
+    { \
+        this->set_handle(p, std::move(lifetime));\
+    }
 
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
@@ -258,9 +286,7 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 
     shape(const migraphx_shape* p) { this->set_handle(p, borrow{}); }
 
-    shape(migraphx_shape* p, own) { this->set_handle(p, own{}); }
-
-    shape(migraphx_shape* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(shape);
 
     /// Construct a scalar shape
     shape(migraphx_shape_datatype_t type)
@@ -337,9 +363,7 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 {
     argument() {}
 
-    argument(migraphx_argument* p, borrow) { this->set_handle(p, borrow{}); }
-
-    argument(migraphx_argument* p, own) { this->set_handle(p, own{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(argument);
 
     argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
 
@@ -396,15 +420,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 {
     program_parameter_shapes() {}
 
-    program_parameter_shapes(migraphx_program_parameter_shapes* p, own)
-    {
-        this->set_handle(p, own{});
-    }
-
-    program_parameter_shapes(migraphx_program_parameter_shapes* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameter_shapes);
 
     size_t size() const
     {
@@ -434,9 +450,7 @@ struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
 /// A class to construct the inputs parameters for a program
 struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 {
-    program_parameters(migraphx_program_parameters* p, own) { this->set_handle(p, own{}); }
-
-    program_parameters(migraphx_program_parameters* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program_parameters);
 
     program_parameters(migraphx_program_parameters* p) { this->set_handle(p, borrow{}); }
 
@@ -462,9 +476,7 @@ struct program_parameters : MIGRAPHX_HANDLE_BASE(program_parameters)
 
 struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 {
-    arguments(migraphx_arguments* p, own) { this->set_handle(p, own{}); }
-
-    arguments(migraphx_arguments* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(arguments);
 
     size_t size() const
     {
@@ -495,9 +507,7 @@ struct arguments : MIGRAPHX_HANDLE_BASE(arguments), array_base<arguments>
 
 struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 {
-    shapes(migraphx_shapes* p, own) { this->set_handle(p, own{}); }
-
-    shapes(migraphx_shapes* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(shapes);
 
     size_t size() const
     {
@@ -527,9 +537,7 @@ struct shapes : MIGRAPHX_HANDLE_BASE(shapes), array_base<shapes>
 
 struct operation : MIGRAPHX_HANDLE_BASE(operation)
 {
-    operation(migraphx_operation* p, own) { this->set_handle(p, own{}); }
-
-    operation(migraphx_operation* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(operation);
 
     template <class... Ts>
     operation(const char* name, const char* attributes = nullptr, Ts... xs)
@@ -547,15 +555,12 @@ struct operation : MIGRAPHX_HANDLE_BASE(operation)
 
 struct instruction : MIGRAPHX_CONST_HANDLE_BASE(instruction)
 {
-    instruction(migraphx_instruction* p, own) { this->set_handle(p, own{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(instruction);
 };
 
 struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
 {
-
-    instructions(migraphx_instructions* p, own) { this->set_handle(p, own{}); }
-
-    instructions(migraphx_instructions* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(instructions);
 
     template <class... Ts>
     instructions(Ts... xs)
@@ -569,10 +574,7 @@ struct module;
 
 struct modules : MIGRAPHX_HANDLE_BASE(modules)
 {
-
-    modules(migraphx_modules* p, own) { this->set_handle(p, own{}); }
-
-    modules(migraphx_modules* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(modules);
 
     template <class... Ts>
     modules(Ts... xs)
@@ -641,7 +643,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }
 
-    compile_options(migraphx_compile_options* p, own) { this->set_handle(p, own()); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(compile_options);
 
     /// For targets with offloaded memory(such as the gpu), this will insert
     /// instructions during compilation to copy the input parameters to the
@@ -665,9 +667,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 {
     program() { this->make_handle(&migraphx_program_create); }
 
-    program(migraphx_program* p, own) { this->set_handle(p, own{}); }
-
-    program(migraphx_program* p, borrow) { this->set_handle(p, borrow{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(program);
 
     /// Compile the program for a specific target to be ran on
     void compile(const target& ptarget, const compile_options& poptions) const
@@ -753,9 +753,8 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 // options for migraphx file format options
 struct file_options : MIGRAPHX_HANDLE_BASE(file_options)
 {
+    MIGRAPHX_HANDLE_CONSTRUCTOR(file_options);
     file_options() { this->make_handle(&migraphx_file_options_create); }
-
-    file_options(migraphx_file_options* p, own) { this->set_handle(p, own()); }
 
     // set file format
     void set_file_format(const char* format)
@@ -796,7 +795,7 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 {
     onnx_options() { this->make_handle(&migraphx_onnx_options_create); }
 
-    onnx_options(migraphx_onnx_options* p, own) { this->set_handle(p, own{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(onnx_options);
 
     /// Make onnx parser treat an inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
@@ -878,7 +877,7 @@ struct tf_options : MIGRAPHX_HANDLE_BASE(tf_options)
 {
     tf_options() { this->make_handle(&migraphx_tf_options_create); }
 
-    tf_options(migraphx_tf_options* p, own) { this->set_handle(p, own{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(tf_options);
 
     /// Make tf parser treat an inputs with a certain dimensions
     void set_input_parameter_shape(const std::string& name, std::vector<std::size_t> dim)
@@ -931,7 +930,7 @@ struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {
     quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
 
-    quantize_op_names(migraphx_quantize_op_names* p, own) { this->set_handle(p, own{}); }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_op_names);
 
     void add(const std::string& name)
     {
@@ -956,12 +955,7 @@ struct quantize_int8_options : MIGRAPHX_HANDLE_BASE(quantize_int8_options)
 {
     quantize_int8_options() { this->make_handle(&migraphx_quantize_int8_options_create); }
 
-    quantize_int8_options(migraphx_quantize_int8_options* p, own) { this->set_handle(p, own{}); }
-
-    quantize_int8_options(migraphx_quantize_int8_options* p, borrow)
-    {
-        this->set_handle(p, borrow{});
-    }
+    MIGRAPHX_HANDLE_CONSTRUCTOR(quantize_int8_options);
 
     /// Add an operator that should be quantized
     void add_op_name(const std::string& name)

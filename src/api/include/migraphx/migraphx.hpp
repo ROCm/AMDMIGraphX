@@ -15,7 +15,15 @@ namespace migraphx {
 inline namespace api { // NOLINT
 #endif
 
+#ifdef __has_cpp_attribute
+#if __has_cpp_attribute(deprecated)
 #define MIGRAPHX_DEPRECATED(...) [[deprecated(__VA_ARGS__)]]
+#endif
+#endif
+
+#ifndef MIGRAPHX_DEPRECATED
+#define MIGRAPHX_DEPRECATED(...)
+#endif
 
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)

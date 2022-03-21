@@ -461,8 +461,8 @@ lifetime get_lifetime_op(const T&)
  *      shape compute_shape(const std::vector<shape>& input) const;
  *      shape compute_shape(const std::vector<shape>& inputs,const std::vector<module_ref>&
  * mod_args) const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
- * input) const; argument compute(const shape& output,const std::vector<argument>& input)
- * const; argument compute(const shape& output,const std::vector<argument>& input,const
+ * input) const; argument compute(const shape& output,const std::vector<argument>& input) const;
+ *      argument compute(const shape& output,const std::vector<argument>& input,const
  * std::vector<module_ref>& module_args,std::function<std::vector<argument>(module_ref&, const
  * std::unordered_map<std::string, argument>&)> run) const; argument compute(context& ctx,const
  * shape& output,const std::vector<argument>& input,const std::vector<module_ref>&

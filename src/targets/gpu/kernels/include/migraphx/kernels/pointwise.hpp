@@ -39,10 +39,8 @@ template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
     preload<typename T::type>(idx, xs...)([&](auto... ps) {
-        idx.global_stride(out.get_shape().elements(), [&](auto i) {
-            auto multi_idx = out.get_shape().multi(i);
-            out[multi_idx] = implicit_conversion(f(ps[multi_idx]...));
-        });
+        idx.global_stride(out.get_shape().elements(),
+                          [&](auto i) { out[i] = implicit_conversion(f(ps[i]...)); });
     });
 }
 

@@ -56,7 +56,9 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = inputs.front().elements() - inputs.back().elements();
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), compute_block_size(reduce_elements));
+        options.set_launch_params(v,
+                                  compute_global_for(ctx, inputs.back().elements()),
+                                  compute_block_size(reduce_elements));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

@@ -23,6 +23,7 @@ struct tensor_view
 {
     using type       = T;
     using shape_type = Shape;
+    using index_array = typename Shape::index_array;
     using iterator   = basic_iota_iterator<tensor_view_iterator_read<const tensor_view>, index_int>;
 
     constexpr Shape get_shape() const { return Shape{}; }
@@ -40,6 +41,12 @@ struct tensor_view
     constexpr auto begin() const { return iterator{0, {this}}; }
     constexpr auto end() const { return iterator{this->size(), {this}}; }
 
+    constexpr auto begin_at(index_array i) const 
+    {
+        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().element_space());
+        return iterator{get_shape().single(i), {this}}; 
+    }
+
     template <class U>
     constexpr tensor_view<U, Shape> with(U* y) const
     {
@@ -49,6 +56,9 @@ struct tensor_view
 
     T* x;
 };
+
+template<class T>
+using get_shape_c = typename T::shape_type;
 
 template <class T, class Shape>
 constexpr tensor_view<T, Shape> make_tensor_view(T* x, Shape)

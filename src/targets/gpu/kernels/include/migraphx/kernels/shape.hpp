@@ -99,9 +99,9 @@ struct shape
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {
-        if (idx.empty())
+        if(idx.empty())
             return 0;
-        return inner_product(lens.begin()+1, lens.end(), idx.begin(), idx.back());
+        return inner_product(lens.begin() + 1, lens.end(), idx.begin(), idx.back());
     }
 
     constexpr shape get_shape() const { return *this; }

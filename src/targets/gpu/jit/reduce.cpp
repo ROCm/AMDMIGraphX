@@ -52,7 +52,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
-        std::string identity = "[](auto x) { return x; }";
+        std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
                                        {"init", v.get("init", std::string{"0"})},

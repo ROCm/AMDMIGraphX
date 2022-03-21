@@ -11,9 +11,7 @@ namespace migraphx {
 #if 0
 
 #else
-template <class Op,
-          class T,
-          class F>
+template <class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {
 
@@ -37,28 +35,27 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 #endif
 
-template<class T, class U>
+template <class T, class U>
 constexpr auto get_reduce_lens(T input_lens, U ouput_lens)
 {
     transform(input_lens, ouput_lens, [](auto x, auto y) {
-        if (x == y)
+        if(x == y)
             return 1;
         return y;
     });
 }
 
-template<class Op, class T, class Input, class Output, class ReadInput, class WriteOuput>
-__device__ void simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
+template <class Op, class T, class Input, class Output, class ReadInput, class WriteOuput>
+__device__ void
+simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     auto idx = make_index();
-    constexpr auto reduce_elements = get_shape_c<Input>{}.elements() - get_shape_c<Output>{}.elements();
+    constexpr auto reduce_elements =
+        get_shape_c<Input>{}.elements() - get_shape_c<Output>{}.elements();
     idx.global_stride(output.get_shape().elements(), [&](auto i) {
         auto out_idx = output.get_shape().multi(i);
-        auto it = input.begin_at(out_idx);
-        auto r =
-            block_reduce(idx, op, init, reduce_elements, [&](auto j) {
-                return read(it[j]);
-            });
+        auto it      = input.begin_at(out_idx);
+        auto r = block_reduce(idx, op, init, reduce_elements, [&](auto j) { return read(it[j]); });
         if(idx.local == 0)
             output[out_idx] = write(r);
     });

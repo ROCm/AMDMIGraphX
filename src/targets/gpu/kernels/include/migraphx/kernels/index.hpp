@@ -13,12 +13,8 @@ struct index
     index_int local  = 0;
     index_int group  = 0;
 
-
 #ifdef MIGRAPHX_NGLOBAL
-    constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const
-    {
-        return {};
-    }
+    constexpr index_constant<MIGRAPHX_NGLOBAL> nglobal() const { return {}; }
 #else
     __device__ index_int nglobal() const
     {
@@ -27,14 +23,11 @@ struct index
 #endif
 
 #ifdef MIGRAPHX_NLOCAL
-    constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const
-    {
-        return {};
-    }
+    constexpr index_constant<MIGRAPHX_NLOCAL> nlocal() const { return {}; }
 #else
     __device__ index_int nlocal() const
     {
-        return blockDim.x;             // NOLINT
+        return blockDim.x; // NOLINT
     }
 #endif
 

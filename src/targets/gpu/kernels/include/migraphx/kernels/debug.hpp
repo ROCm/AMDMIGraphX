@@ -73,7 +73,7 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
     abort();
 }
 
-#define MIGRAPHX_CHECK(cond)                               \
+#define MIGRAPHX_CHECK(cond)                                \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
         assert_fail(private_migraphx_xs...);                \
     }(#cond, __FILE__, MIGRAPHX_STRINGIZE(__LINE__), __PRETTY_FUNCTION__))
@@ -87,7 +87,6 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 #define MIGRAPHX_UNREACHABLE __builtin_unreachable
 #define MIGRAPHX_ASSERT(cond)
 #endif
-
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_DEBUG_HPP

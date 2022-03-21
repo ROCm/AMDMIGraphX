@@ -36,14 +36,16 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 #endif
 
-template<class Input, class T, class Output>
+template <class Input, class T, class Output>
 constexpr auto reduce_slice(Input input, T i, Output output)
 {
-    auto lens = transform(input.get_shape().lens, output.get_shape().lens, [](index_int x, index_int y) -> index_int {
-        if(x == y)
-            return 1;
-        return y;
-    });;
+    auto lens = transform(
+        input.get_shape().lens, output.get_shape().lens, [](index_int x, index_int y) -> index_int {
+            if(x == y)
+                return 1;
+            return y;
+        });
+    ;
     auto s = make_shape(lens, input.get_shape().strides);
     return make_tensor_view(&input[i], s);
 }
@@ -55,7 +57,8 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     auto idx = make_index();
     idx.global_stride(output.get_shape().elements(), [&](auto i) {
         auto rs = reduce_slice(input, i, output);
-        auto r = block_reduce(idx, op, init, rs.get_shape().elements(), [&](auto j) { return read(rs[j]); });
+        auto r  = block_reduce(
+            idx, op, init, rs.get_shape().elements(), [&](auto j) { return read(rs[j]); });
         if(idx.local == 0)
             output[i] = write(r);
     });

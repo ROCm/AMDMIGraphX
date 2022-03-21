@@ -1,25 +1,24 @@
-
 project(migraphx-doc)
 find_package(ROCM REQUIRED)
 
 include(ROCMDoxygenDoc)
 
-set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen/)
+set(DOXYGEN_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen)
 rocm_add_doxygen_doc(
     OUTPUT_DIRECTORY ${DOXYGEN_OUTPUT}
     INPUT 
-        ${PROJECT_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src
     INCLUDE_PATH
-        ${PROJECT_SOURCE_DIR}/src/include
-        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/src/targets/cpu/include
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/include
     STRIP_FROM_INC_PATH
-        ${PROJECT_SOURCE_DIR}/src/include
-        ${PROJECT_SOURCE_DIR}/src/targets/cpu/include
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/include
+        ${CMAKE_SOURCE_DIR}/src/include
+        ${CMAKE_SOURCE_DIR}/src/targets/cpu/include
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/include
     EXCLUDE_PATTERNS
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/kernels
-        ${PROJECT_SOURCE_DIR}/src/targets/gpu/device
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/kernels
+        ${CMAKE_SOURCE_DIR}/src/targets/gpu/device
     SEARCH_INCLUDES YES
     MACRO_EXPANSION YES
     RECURSIVE YES
@@ -39,13 +38,14 @@ rocm_add_doxygen_doc(
     EXTRACT_ALL YES
     ENUM_VALUES_PER_LINE 1
     FULL_PATH_NAMES YES
+    WARN_LOGFILE "${DOXYGEN_OUTPUT}/DoxygenWarningLog.txt"
     PREDEFINED DOXYGEN
 )
 
 include(ROCMSphinxDoc)
 rocm_add_sphinx_doc(src 
     BUILDER html 
-    OUTPUT_DIR html 
+    OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/html"
     VARS 
         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
         breathe_default_project=proj
@@ -56,7 +56,7 @@ find_package(LATEX)
 if(LATEX_FOUND)
     rocm_add_sphinx_doc(src 
         BUILDER latex
-        OUTPUT_DIR pdf
+        OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/pdf"
         VARS 
             breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
             breathe_default_project=proj

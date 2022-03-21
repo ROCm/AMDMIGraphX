@@ -36,14 +36,16 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 #endif
 
-template <class T, class U>
-constexpr auto get_reduce_lens(T input_lens, U ouput_lens)
+template<class Input, class T, class Output>
+constexpr auto reduce_slice(Input input, T i, Output output)
 {
-    transform(input_lens, ouput_lens, [](auto x, auto y) {
+    auto lens = transform(input.get_shape().lens, output.get_shape().lens, [](index_int x, index_int y) -> index_int {
         if(x == y)
             return 1;
         return y;
-    });
+    });;
+    auto s = make_shape(lens, input.get_shape().strides);
+    return make_tensor_view(&input[i], s);
 }
 
 template <class Op, class T, class Input, class Output, class ReadInput, class WriteOuput>
@@ -51,19 +53,11 @@ __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     auto idx = make_index();
-    static_assert(get_shape_c<Output>{}.elements() > 0, "Output elements empty");
-    static_assert(get_shape_c<Input>{}.elements() > get_shape_c<Output>{}.elements(),
-                  "Output outputs is less than input elements");
-    static_assert((get_shape_c<Input>{}.elements() % get_shape_c<Output>{}.elements()) == 0,
-                  "Input elements is not divisble by output elements");
-    constexpr auto reduce_elements =
-        get_shape_c<Input>{}.elements() / get_shape_c<Output>{}.elements();
     idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto out_idx = output.get_shape().multi(i);
-        auto it      = input.begin_at(out_idx);
-        auto r = block_reduce(idx, op, init, reduce_elements, [&](auto j) { return read(it[j]); });
+        auto rs = reduce_slice(input, i, output);
+        auto r = block_reduce(idx, op, init, rs.get_shape().elements(), [&](auto j) { return read(rs[j]); });
         if(idx.local == 0)
-            output[out_idx] = write(r);
+            output[i] = write(r);
     });
 }
 

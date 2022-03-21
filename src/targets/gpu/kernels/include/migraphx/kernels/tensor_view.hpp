@@ -43,6 +43,7 @@ struct tensor_view
 
     constexpr auto begin_at(index_array i) const
     {
+        MIGRAPHX_ASSERT(get_shape().single(i) < get_shape().elements());
         MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().element_space());
         return iterator{get_shape().single(i), {this}};
     }

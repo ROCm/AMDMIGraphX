@@ -4,6 +4,7 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/print.hpp>
 
 namespace migraphx {
 
@@ -50,8 +51,11 @@ __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     auto idx = make_index();
+    static_assert(get_shape_c<Output>{}.elements() > 0, "Output elements empty");
+    static_assert(get_shape_c<Input>{}.elements() > get_shape_c<Output>{}.elements(), "Output outputs is less than input elements");
+    static_assert((get_shape_c<Input>{}.elements() % get_shape_c<Output>{}.elements()) == 0, "Input elements is not divisble by output elements");
     constexpr auto reduce_elements =
-        get_shape_c<Input>{}.elements() - get_shape_c<Output>{}.elements();
+        get_shape_c<Input>{}.elements() / get_shape_c<Output>{}.elements();
     idx.global_stride(output.get_shape().elements(), [&](auto i) {
         auto out_idx = output.get_shape().multi(i);
         auto it      = input.begin_at(out_idx);

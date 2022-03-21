@@ -40,6 +40,14 @@ __global__ void kernel(void* input_p, void* output_p)
 
 )__migraphx__";
 
+constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024)
+{
+    size_t block_size = 64;
+    while(block_size < max_block_size and block_size < n)
+        block_size *= 2;
+    return block_size;
+}
+
 struct reduce_compiler : compiler<reduce_compiler>
 {
     std::vector<std::string> names() const { return {"reduce"}; }
@@ -47,7 +55,8 @@ struct reduce_compiler : compiler<reduce_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()));
+        auto reduce_elements = inputs.front().elements() - inputs.back().elements();
+        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), compute_block_size(reduce_elements));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

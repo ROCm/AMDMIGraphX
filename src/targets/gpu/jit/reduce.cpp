@@ -43,9 +43,9 @@ __global__ void kernel(void* input_p, void* output_p)
 constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_size = 1024)
 {
     size_t block_size = 64;
-    while(block_size < max_block_size and block_size < n)
+    while(block_size <= max_block_size and block_size <= n)
         block_size *= 2;
-    return block_size;
+    return block_size / 2;
 }
 
 struct reduce_compiler : compiler<reduce_compiler>
@@ -56,7 +56,7 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = inputs.front().elements() / inputs.back().elements();
-        auto block_size      = compute_block_size(reduce_elements);
+        auto block_size      = compute_block_size(reduce_elements, 256);
         options.set_launch_params(
             v, compute_global_for(ctx, inputs.back().elements() * block_size), block_size);
         options.inputs         = inputs;
@@ -79,7 +79,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         {
             return replace(compile_op(ctx,
                                       to_shapes(ins->inputs()),
-                                      {{"reduction", "[](auto x, auto y) { return x+y; }"}}));
+                                      {{"reduction", "op::sum{}"}}));
         }
         return {};
     }

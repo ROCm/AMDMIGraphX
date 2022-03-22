@@ -4,12 +4,11 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/print.hpp>
+#include <migraphx/kernels/ops.hpp>
 
 namespace migraphx {
 
-// #if MIGRAPHX_HAS_DPP
-#if 0
+#if MIGRAPHX_HAS_DPP
 
 template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)
@@ -28,6 +27,31 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
     in  = op(in, out);
+#endif
+}
+
+__device__ inline void dpp_reduce(float& x, op::sum)
+{
+#if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
+    x = 1;
+#else
+    __asm__ volatile("s_nop 4\n"
+                     "v_add_f32 %0 %0 %0 row_shr:1\n"
+                     "s_nop 1\n"
+                     "v_add_f32 %0 %0 %0 row_shr:2\n"
+                     "s_nop 1\n"
+                     "v_add_f32 %0 %0 %0 row_shr:4 bank_mask:0xe\n"
+                     "s_nop 1\n"
+                     "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
+                     "s_nop 1\n"
+#if __AMDGCN_WAVEFRONT_SIZE == 64
+                     "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
+                     "s_nop 1\n"
+                     "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
+#endif
+                     "s_nop 1\n"
+                     : "=v"(x)
+                     : "0"(x));
 #endif
 }
 

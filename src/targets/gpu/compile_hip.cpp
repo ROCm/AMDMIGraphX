@@ -188,7 +188,7 @@ bool has_compiler_launcher()
 src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
-    compiler.flags = replace_string(compiler.flags, " -c", " -S");
+    compiler.flags   = replace_string(compiler.flags, " -c", " -S");
     return compiler;
 }
 
@@ -246,7 +246,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             MIGRAPHX_THROW("Missing hsaco");
         };
 
-    if (enabled(MIGRAPHX_GPU_DUMP_ASM{}))
+    if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
     {
 
         std::cout << assemble(compiler).compile(srcs).data() << std::endl;

@@ -48,17 +48,26 @@ constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_si
     return block_size / 2;
 }
 
+static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
+{
+    return inputs.front().elements() / inputs.back().elements();
+}
+static std::size_t get_reduce_elements(const std::vector<instruction_ref>& inputs)
+{
+    return get_reduce_elements(to_shapes(inputs));
+}
+
 struct reduce_compiler : compiler<reduce_compiler>
 {
-    std::vector<std::string> names() const { return {"reduce", "reduce_sum"}; }
+    std::vector<std::string> names() const { return {"reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto reduce_elements = inputs.front().elements() / inputs.back().elements();
+        auto reduce_elements = get_reduce_elements(inputs);
         auto block_size      = compute_block_size(reduce_elements, 256);
         options.set_launch_params(
-            v, compute_global_for(ctx, inputs.back().elements() * block_size), block_size);
+            v, inputs.back().elements() * block_size, block_size);
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
@@ -75,11 +84,37 @@ struct reduce_compiler : compiler<reduce_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
+        value v = value::object{};
+        auto reduce_elements = get_reduce_elements(ins->inputs());
         if(op.name() == "reduce_sum")
         {
-            return replace(compile_op(ctx, to_shapes(ins->inputs()), {{"reduction", "op::sum{}"}}));
+            v["reduction"] = "op::sum{}";
         }
-        return {};
+        else if (op.name() == "reduce_mean")
+        {
+            v["reduction"] = "op::sum{}";
+            v["write"] = "op::mean{" + std::to_string(reduce_elements) + "}";
+        }
+        else if (op.name() == "reduce_max")
+        {
+            v["reduction"] = "op::max{}";
+            v["init"] = "lowest{}";
+        }
+        else if (op.name() == "reduce_min")
+        {
+            v["reduction"] = "op::min{}";
+            v["init"] = "highest{}";
+        }
+        else if (op.name() == "reduce_prod")
+        {
+            v["reduction"] = "op::product{}";
+            v["init"] = "1";
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unsupported reduce");
+        }
+        return replace(compile_op(ctx, to_shapes(ins->inputs()), v));
     }
 };
 } // namespace gpu

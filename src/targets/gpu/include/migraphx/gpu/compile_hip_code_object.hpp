@@ -32,11 +32,11 @@ struct hip_compile_options
                            const std::function<std::size_t(std::size_t local)>& compute_global,
                            std::size_t default_local = 1024);
 
-    void set_launch_params(const value& v,
-                           std::size_t default_global,
-                           std::size_t default_local = 1024)
+    void
+    set_launch_params(const value& v, std::size_t default_global, std::size_t default_local = 1024)
     {
-        set_launch_params(v, [=](auto) { return default_global; }, default_local);
+        set_launch_params(
+            v, [=](auto) { return default_global; }, default_local);
     }
 };
 

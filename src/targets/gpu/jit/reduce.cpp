@@ -59,15 +59,17 @@ static std::size_t get_reduce_elements(const std::vector<instruction_ref>& input
 
 struct reduce_compiler : compiler<reduce_compiler>
 {
-    std::vector<std::string> names() const { return {"reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"}; }
+    std::vector<std::string> names() const
+    {
+        return {"reduce", "reduce_sum", "reduce_mean", "reduce_max", "reduce_min", "reduce_prod"};
+    }
 
     operation compile_op(context&, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         auto reduce_elements = get_reduce_elements(inputs);
         auto block_size      = compute_block_size(reduce_elements, 256);
-        options.set_launch_params(
-            v, inputs.back().elements() * block_size, block_size);
+        options.set_launch_params(v, inputs.back().elements() * block_size, block_size);
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
@@ -84,31 +86,31 @@ struct reduce_compiler : compiler<reduce_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        value v = value::object{};
+        value v              = value::object{};
         auto reduce_elements = get_reduce_elements(ins->inputs());
         if(op.name() == "reduce_sum")
         {
             v["reduction"] = "op::sum{}";
         }
-        else if (op.name() == "reduce_mean")
+        else if(op.name() == "reduce_mean")
         {
             v["reduction"] = "op::sum{}";
-            v["write"] = "op::mean{" + std::to_string(reduce_elements) + "}";
+            v["write"]     = "op::mean{" + std::to_string(reduce_elements) + "}";
         }
-        else if (op.name() == "reduce_max")
+        else if(op.name() == "reduce_max")
         {
             v["reduction"] = "op::max{}";
-            v["init"] = "lowest{}";
+            v["init"]      = "lowest{}";
         }
-        else if (op.name() == "reduce_min")
+        else if(op.name() == "reduce_min")
         {
             v["reduction"] = "op::min{}";
-            v["init"] = "highest{}";
+            v["init"]      = "highest{}";
         }
-        else if (op.name() == "reduce_prod")
+        else if(op.name() == "reduce_prod")
         {
             v["reduction"] = "op::product{}";
-            v["init"] = "1";
+            v["init"]      = "1";
         }
         else
         {

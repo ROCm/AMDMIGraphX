@@ -109,16 +109,16 @@ __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 #endif
 
 template <class Input, class T, class Output>
-constexpr auto reduce_slice(Input input, T i, Output output)
+constexpr auto reduce_slice(Input input, T i, Output)
 {
-    auto lens = transform(
-        input.get_shape().lens, output.get_shape().lens, [](index_int x, index_int y) -> index_int {
+    constexpr auto lens = transform(
+        get_shape_c<Input>{}.lens, get_shape_c<Output>{}.lens, [](index_int x, index_int y) -> index_int {
             if(x == y)
                 return 1;
             return x;
         });
     ;
-    auto s = make_shape(lens, input.get_shape().strides);
+    constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
     return make_tensor_view(&input[i], s);
 }
 

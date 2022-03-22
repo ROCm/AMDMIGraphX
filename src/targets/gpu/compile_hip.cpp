@@ -21,6 +21,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DEBUG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_OPTIMIZE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_ASM);
 
 #if MIGRAPHX_USE_HIPRTC
 
@@ -184,6 +185,13 @@ bool has_compiler_launcher()
     return result;
 }
 
+src_compiler assemble(src_compiler compiler)
+{
+    compiler.out_ext = ".S";
+    compiler.flags = replace_string(compiler.flags, " -c", " -S");
+    return compiler;
+}
+
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
@@ -237,6 +245,12 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             }
             MIGRAPHX_THROW("Missing hsaco");
         };
+
+    if (enabled(MIGRAPHX_GPU_DUMP_ASM{}))
+    {
+
+        std::cout << assemble(compiler).compile(srcs).data() << std::endl;
+    }
 
     return {compiler.compile(srcs)};
 }

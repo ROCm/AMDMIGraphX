@@ -88,7 +88,7 @@ struct shape
     {
         index_array result;
         index_int tidx = idx;
-        for(std::ptrdiff_t is = result.size() - 1; is > 0; is--)
+        for(diff_int is = result.size() - 1; is > 0; is--)
         {
             result[is] = tidx % lens[is];
             tidx       = tidx / lens[is];

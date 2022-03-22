@@ -178,6 +178,7 @@ struct value
     value(std::nullptr_t);
 
     value(const char* i);
+    value(const std::string& pkey, const char* i);
 
 #define MIGRAPHX_VALUE_GENERATE_DECL_METHODS(vt, cpp_type) \
     value(cpp_type i);                                     \
@@ -246,6 +247,7 @@ struct value
         return *this = from_values(rhs); // NOLINT
     }
 
+    value& operator=(const char* c);
     value& operator=(std::nullptr_t);
     value& operator=(const std::initializer_list<value>& i);
 

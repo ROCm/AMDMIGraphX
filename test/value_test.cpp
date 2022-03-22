@@ -57,6 +57,15 @@ TEST_CASE(value_construct_string)
     EXPECT(v.get_key().empty());
 }
 
+TEST_CASE(value_construct_key_string_literal_pair)
+{
+    // Use parens instead {} to construct to test the key-pair constructor
+    migraphx::value v("key", "one");
+    EXPECT(v.is_string());
+    EXPECT(v.get_string() == "one");
+    EXPECT(v.get_key() == "key");
+}
+
 TEST_CASE(value_construct_float)
 {
     migraphx::value v = 1.0;
@@ -165,6 +174,15 @@ TEST_CASE(value_copy_assign_keyless)
     EXPECT(v2.get_key() == "key");
     EXPECT(v1 != v2);
     EXPECT(v1.without_key() == v2.without_key());
+}
+
+TEST_CASE(value_assign_key_string_literal_pair)
+{
+    migraphx::value v = migraphx::value::object{};
+    v["key"] = "one";
+    EXPECT(v["key"].is_string());
+    EXPECT(v["key"].get_string() == "one");
+    EXPECT(v["key"].get_key() == "key");
 }
 
 TEST_CASE(value_construct_array)

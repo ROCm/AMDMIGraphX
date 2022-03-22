@@ -92,7 +92,7 @@ constexpr auto reduce_slice(Input input, T i, Output output)
         input.get_shape().lens, output.get_shape().lens, [](index_int x, index_int y) -> index_int {
             if(x == y)
                 return 1;
-            return y;
+            return x;
         });
     ;
     auto s = make_shape(lens, input.get_shape().strides);
@@ -109,6 +109,7 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
         const auto out_idx = output.get_shape().multi(i / idx.nlocal());
         auto rs            = reduce_slice(input, out_idx, output);
+        MIGRAPHX_ASSERT(relements == rs.get_shape().elements());
         auto r = block_reduce(idx, op, init, relements, [&](auto j) { return read(rs[j]); });
         if(idx.local == 0)
             output[out_idx] = write(r);

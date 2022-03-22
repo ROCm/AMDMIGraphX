@@ -56,10 +56,9 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = inputs.front().elements() / inputs.back().elements();
-        auto block_size = compute_block_size(reduce_elements);
-        options.set_launch_params(v,
-                                  compute_global_for(ctx, inputs.back().elements() * block_size),
-                                  block_size);
+        auto block_size      = compute_block_size(reduce_elements);
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements() * block_size), block_size);
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
@@ -76,10 +75,11 @@ struct reduce_compiler : compiler<reduce_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        if (op.name() == "reduce_sum")
+        if(op.name() == "reduce_sum")
         {
-            return replace(
-            compile_op(ctx, to_shapes(ins->inputs()), {{"reduction", "[](auto x, auto y) { return x+y; }"}}));
+            return replace(compile_op(ctx,
+                                      to_shapes(ins->inputs()),
+                                      {{"reduction", "[](auto x, auto y) { return x+y; }"}}));
         }
         return {};
     }

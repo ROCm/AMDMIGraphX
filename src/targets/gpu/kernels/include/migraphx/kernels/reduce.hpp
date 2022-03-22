@@ -103,15 +103,13 @@ template <class Op, class T, class Input, class Output, class ReadInput, class W
 __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
-    auto idx = make_index();
+    auto idx                 = make_index();
     constexpr auto nelements = get_shape_c<Output>{}.elements();
-    constexpr auto relements =
-        get_shape_c<Input>{}.elements() / get_shape_c<Output>{}.elements();
+    constexpr auto relements = get_shape_c<Input>{}.elements() / get_shape_c<Output>{}.elements();
     idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
-        const auto out_idx  = output.get_shape().multi(i / idx.nlocal());
-        auto rs = reduce_slice(input, out_idx, output);
-        auto r  = block_reduce(
-            idx, op, init, relements, [&](auto j) { return read(rs[j]); });
+        const auto out_idx = output.get_shape().multi(i / idx.nlocal());
+        auto rs            = reduce_slice(input, out_idx, output);
+        auto r = block_reduce(idx, op, init, relements, [&](auto j) { return read(rs[j]); });
         if(idx.local == 0)
             output[out_idx] = write(r);
     });

@@ -179,7 +179,7 @@ TEST_CASE(value_copy_assign_keyless)
 TEST_CASE(value_assign_key_string_literal_pair)
 {
     migraphx::value v = migraphx::value::object{};
-    v["key"] = "one";
+    v["key"]          = "one";
     EXPECT(v["key"].is_string());
     EXPECT(v["key"].get_string() == "one");
     EXPECT(v["key"].get_key() == "key");

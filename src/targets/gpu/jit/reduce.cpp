@@ -77,9 +77,7 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         if(op.name() == "reduce_sum")
         {
-            return replace(compile_op(ctx,
-                                      to_shapes(ins->inputs()),
-                                      {{"reduction", "op::sum{}"}}));
+            return replace(compile_op(ctx, to_shapes(ins->inputs()), {{"reduction", "op::sum{}"}}));
         }
         return {};
     }

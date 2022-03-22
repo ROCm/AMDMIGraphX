@@ -55,7 +55,6 @@ __device__ inline void dpp_reduce(float& x, op::sum)
 #endif
 }
 
-
 template <class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
 {

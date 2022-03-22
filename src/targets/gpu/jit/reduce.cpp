@@ -50,15 +50,16 @@ constexpr std::size_t compute_block_size(std::size_t n, std::size_t max_block_si
 
 struct reduce_compiler : compiler<reduce_compiler>
 {
-    std::vector<std::string> names() const { return {"reduce"}; }
+    std::vector<std::string> names() const { return {"reduce", "reduce_sum"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        auto reduce_elements = inputs.front().elements() - inputs.back().elements();
+        auto reduce_elements = inputs.front().elements() / inputs.back().elements();
+        auto block_size = compute_block_size(reduce_elements);
         options.set_launch_params(v,
-                                  compute_global_for(ctx, inputs.back().elements()),
-                                  compute_block_size(reduce_elements));
+                                  compute_global_for(ctx, inputs.back().elements() * block_size),
+                                  block_size);
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
@@ -73,8 +74,13 @@ struct reduce_compiler : compiler<reduce_compiler>
         return compile_hip_code_object(src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation&) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
+        if (op.name() == "reduce_sum")
+        {
+            return replace(
+            compile_op(ctx, to_shapes(ins->inputs()), {{"reduction", "[](auto x, auto y) { return x+y; }"}}));
+        }
         return {};
     }
 };

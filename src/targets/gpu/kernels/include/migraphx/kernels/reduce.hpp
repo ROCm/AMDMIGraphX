@@ -11,6 +11,55 @@ namespace migraphx {
 // #if MIGRAPHX_HAS_DPP
 #if 0
 
+template <class T, class Op>
+__device__ void dpp_reduce(T& in, Op op)
+{
+    T out{};
+    out = dpp_mov<dpp_row_shr(1)>(in);
+    in  = op(in, out);
+    out = dpp_mov<dpp_row_shr(2)>(in);
+    in  = op(in, out);
+    out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
+    in  = op(in, out);
+    out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
+    in  = op(in, out);
+#if __AMDGCN_WAVEFRONT_SIZE == 64
+    out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
+    in  = op(in, out);
+    out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
+    in  = op(in, out);
+#endif
+}
+
+
+template <class Op, class T, class F>
+__device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
+{
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+    constexpr index_int lanes_per_thread = 16;
+#else
+    constexpr index_int lanes_per_thread = 64;
+#endif
+    using type = decltype(f(0));
+    __shared__ type buffer[idx.nlocal() / lanes_per_thread];
+    type x = init;
+    idx.local_stride(n, [&](auto i) { x = op(x, f(i)); });
+    dpp_reduce(x, op);
+
+    const auto ldsidx = idx.local / lanes_per_thread;
+    if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
+    {
+        buffer[ldsidx] = x;
+    }
+    __syncthreads();
+
+    type y = init;
+    for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
+    {
+        y = op(y, buffer[i]);
+    }
+    return y;
+}
 #else
 template <class Op, class T, class F>
 __device__ auto block_reduce(index idx, Op op, T init, index_int n, F f)
@@ -55,12 +104,16 @@ __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     auto idx = make_index();
-    idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto rs = reduce_slice(input, i, output);
+    constexpr auto nelements = get_shape_c<Output>{}.elements();
+    constexpr auto relements =
+        get_shape_c<Input>{}.elements() / get_shape_c<Output>{}.elements();
+    idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+        const auto out_idx  = output.get_shape().multi(i / idx.nlocal());
+        auto rs = reduce_slice(input, out_idx, output);
         auto r  = block_reduce(
-            idx, op, init, rs.get_shape().elements(), [&](auto j) { return read(rs[j]); });
+            idx, op, init, relements, [&](auto j) { return read(rs[j]); });
         if(idx.local == 0)
-            output[i] = write(r);
+            output[out_idx] = write(r);
     });
 }
 

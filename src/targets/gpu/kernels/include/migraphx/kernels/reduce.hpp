@@ -29,30 +29,59 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
 #endif
 }
+#if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins) x = 1
+#elif __AMDGCN_WAVEFRONT_SIZE == 64
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins) \
+    __asm__ volatile("s_nop 4\n" \
+                     #ins " %0 %0 %0 row_shr:1\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:2\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_bcast:15 row_mask:0xa\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n" \
+                     "s_nop 1\n" \
+                     : "=v"(x) \
+                     : "0"(x))
+#else
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins) \
+    __asm__ volatile("s_nop 4\n" \
+                     #ins " %0 %0 %0 row_shr:1\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:2\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n" \
+                     "s_nop 1\n" \
+                     #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n" \
+                     "s_nop 1\n" \
+                     "s_nop 1\n" \
+                     : "=v"(x) \
+                     : "0"(x))
+#endif
 
 __device__ inline void dpp_reduce(float& x, op::sum)
 {
-#if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
-    x = 1;
-#else
-    __asm__ volatile("s_nop 4\n"
-                     "v_add_f32 %0 %0 %0 row_shr:1\n"
-                     "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_shr:2\n"
-                     "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_shr:4 bank_mask:0xe\n"
-                     "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_shr:8 bank_mask:0xc\n"
-                     "s_nop 1\n"
-#if __AMDGCN_WAVEFRONT_SIZE == 64
-                     "v_add_f32 %0 %0 %0 row_bcast:15 row_mask:0xa\n"
-                     "s_nop 1\n"
-                     "v_add_f32 %0 %0 %0 row_bcast:31 row_mask:0xc\n"
-#endif
-                     "s_nop 1\n"
-                     : "=v"(x)
-                     : "0"(x));
-#endif
+    MIGRAPHX_DPP_REDUCE_ASM(x, v_add_f32);
+}
+
+__device__ inline void dpp_reduce(migraphx::half& x, op::sum)
+{
+    MIGRAPHX_DPP_REDUCE_ASM(x, v_add_f16);
+}
+
+__device__ inline void dpp_reduce(int32_t& x, op::sum)
+{
+    MIGRAPHX_DPP_REDUCE_ASM(x, v_add_u32);
+}
+
+__device__ inline void dpp_reduce(uint32_t& x, op::sum)
+{
+    MIGRAPHX_DPP_REDUCE_ASM(x, v_add_u32);
 }
 
 template <class Op, class T, class F>

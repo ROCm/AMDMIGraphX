@@ -26,17 +26,23 @@ struct enable_if<true, T>
 template <bool B, class T = void>
 using enable_if_t = typename enable_if<B, T>::type;
 
-#define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name) \
-template <class T> \
-struct name : bool_constant<__ ## name(T)> {}
+#define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name)   \
+    template <class T>                       \
+    struct name : bool_constant<__##name(T)> \
+    {                                        \
+    }
 
-#define MIGRAPHX_BUILTIN_TYPE_TRAIT2(name) \
-template <class T, class U> \
-struct name : bool_constant<__ ## name(T, U)> {}
+#define MIGRAPHX_BUILTIN_TYPE_TRAIT2(name)      \
+    template <class T, class U>                 \
+    struct name : bool_constant<__##name(T, U)> \
+    {                                           \
+    }
 
-#define MIGRAPHX_BUILTIN_TYPE_TRAITN(name) \
-template <class... Ts> \
-struct name : bool_constant<__ ## name(Ts...)> {}
+#define MIGRAPHX_BUILTIN_TYPE_TRAITN(name)       \
+    template <class... Ts>                       \
+    struct name : bool_constant<__##name(Ts...)> \
+    {                                            \
+    }
 
 // MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_arithmetic);
 // MIGRAPHX_BUILTIN_TYPE_TRAIT1(is_destructible);
@@ -112,12 +118,9 @@ struct add_pointer : type_identity<typename remove_reference<T>::type*>
 template <class T>
 using add_pointer_t = typename add_pointer<T>::type;
 
-constexpr unsigned long int_max(unsigned long n)
-{
-    return (1 << (n*8)) - 1;
-}
+constexpr unsigned long int_max(unsigned long n) { return (1 << (n * 8)) - 1; }
 
-template<class T>
+template <class T>
 constexpr T numeric_max()
 {
     if constexpr(is_integral<T>{})
@@ -137,7 +140,7 @@ constexpr T numeric_max()
         return 0;
 }
 
-template<class T>
+template <class T>
 constexpr T numeric_lowest()
 {
     if constexpr(is_integral<T>{})

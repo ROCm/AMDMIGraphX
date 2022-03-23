@@ -3,11 +3,14 @@
 #include <migraphx/gpu/device/types.hpp>
 #include <cmath>
 
+// GELU (Gaussian Error Linear Unit) activation function
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// A heuristic approximation of the GELU function:
 // x * 0.5 * (1.0 + erf(x / sqrt(2.0)))
 template <class T>
 auto gelu_fn(T x) __device__
@@ -15,6 +18,9 @@ auto gelu_fn(T x) __device__
     return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
 }
 
+// the magic number 0.044715 appears to originate with the BERT model paper by Jacob Devlin, Ming-Wei Chang, 
+//     Kenton Lee, Kristina Toutanova
+// The formula is a heuristic approximation of the GELU function:
 // 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
 template <class T>
 auto gelu_fn_new(T x) __device__

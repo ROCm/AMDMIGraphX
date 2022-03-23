@@ -1,6 +1,7 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -197,21 +198,33 @@ struct find_gelu //find gelu, using the tanh implementation. Replace it with the
     }
 
     // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
+    //  = x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2)) after match/transform
     void apply(module& p, match::matcher_result r) const
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto sq12inst = p.add_literal(M_SQRT1_2); 
-        auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), sq12inst);
-        auto xsq_ins = p.insert_instruction(ins, make_op("mul"), x_ins, sq12inst_mbcast);
+            
+        auto x_type = x_ins->get_shape().type();
+        // auto x_lens = x_ins->get_shape().lens();  used for multibroadcast (example)
+        migraphx::shape scalar_shape{x_type};
+
+        // create a scalar literal that casts the constant M_SQRT1_2 to the type of x
+        auto sq12inst = p.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2})); 
+        // recast to the shape (lens) of x.  Defaults to 0 strides since it's a constant.
+
+        // multibroadcast not needed now.
+        // auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", x_lens}} ), sq12inst);
+
+        // use insert_common_op() instead of insert_instruction() to automatically match sizes (broadcast)
+        // between tensor x and the literal scalar v2
+        auto xsq_ins = insert_common_op(p, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
         auto erf_ins = p.insert_instruction(ins, make_op("erf"), xsq_ins);
-        auto one = p.add_literal(1);
-        auto one_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), one);
-        auto one_ins = p.insert_instruction(ins, make_op("add"), one_mbcast, erf_ins);
-        auto point_5 = p.add_literal(0.5);
-        auto point_5_mbcast = p.insert_instruction(ins, make_op("multibroadcast"), point_5);
-        auto p5_ins = p.insert_instruction(ins, make_op("mul"), one_ins, point_5_mbcast);
-        p.replace_instruction(ins, make_op("mul"), p5_ins, x_ins);
+
+        auto point_5 = p.add_literal(migraphx::literal(scalar_shape, {0.5}));
+        auto mul_p5_ins = insert_common_op(p, ins,  migraphx::make_op("mul"), {point_5, erf_ins} );
+        auto add_p5_ins = insert_common_op(p, ins,  migraphx::make_op("add"), {point_5, mul_p5_ins} );
+
+        p.replace_instruction(ins, make_op("mul"), add_p5_ins, x_ins);
     }
 };
 

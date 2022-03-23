@@ -12,7 +12,7 @@ namespace detail {
 template <class F>
 struct gelu_tanh_matcher
 {
-    F f;
+    F f; // currently a function that matches name with gpu:: or cpu::prepended see simplify_algebra.cpp
     auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0f))); }
 
     auto tanh_fn() const
@@ -26,11 +26,21 @@ struct gelu_tanh_matcher
 
     auto matcher() const
     {
+        // debug only
+
+        // used_once() means only match an instruction whose output is used only once
+        // bind("x") makes an instruction "x" findable by substitution code such as x_ins = r.instructions["x"];
+        // any() matches anything; the only purpose is to get a handle for another instruction such as bind()
+        // any_arg() finds a match in any argument position
+        // either_arg() must match both arguments but in either order is OK
+        // name() and name_contains() match if name matches
+
+        return f("mul")(used_once(), either_arg(0, 1)(any().bind("x"), has_value(0.7f)));
         // todo:  this isn't matching the gelu function
-        return f("mul")(used_once(),
-                        either_arg(0, 1)(any().bind("x"),
-                                         f("add")(any_arg(0, 1)(f("mul")(
-                                             either_arg(0, 1)(has_value(0.5f), tanh_fn()))))));
+        // return f("mul")(used_once(),
+        //                 either_arg(0, 1)(any().bind("x"),
+        //                                  f("add")(any_arg(0, 1)(f("mul")(
+        //                                      either_arg(0, 1)(has_value(0.5f), tanh_fn()))))));
     }
 };
 } // namespace detail

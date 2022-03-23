@@ -858,7 +858,7 @@ TEST_CASE(gelu_tanh_test)
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(s, data.data());
 
-    auto result = p.eval(pp).back();  the program produced by gen_onnx fails here
+    auto result = p.eval(pp).back();
      // see hardsigmoid_verify_test
 
     // copy output to result_vector

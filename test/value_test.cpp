@@ -862,9 +862,9 @@ TEST_CASE(value_get_default)
 
 TEST_CASE(value_get_default_vector)
 {
-    std::vector<int> ints = {1, 2, 3};
+    std::vector<int> ints     = {1, 2, 3};
     std::vector<int> fallback = {-1};
-    migraphx::value v = {{"key", ints}};
+    migraphx::value v         = {{"key", ints}};
     EXPECT(v.get("key", fallback) == ints);
     EXPECT(v.get("missing", fallback) == fallback);
     EXPECT(v.get("missing", {-1}) == fallback);
@@ -879,9 +879,9 @@ TEST_CASE(value_get_default_string_literal)
 
 TEST_CASE(value_get_default_string_literal_vector)
 {
-    std::vector<std::string> strings = {"1", "2", "3"};
+    std::vector<std::string> strings  = {"1", "2", "3"};
     std::vector<std::string> fallback = {"none"};
-    migraphx::value v = {{"key", strings}};
+    migraphx::value v                 = {{"key", strings}};
     EXPECT(v.get("key", fallback) == strings);
     EXPECT(v.get("missing", fallback) == fallback);
     EXPECT(v.get("missing", {"none"}) == fallback);

@@ -189,8 +189,11 @@ struct value
     const cpp_type* if_##vt() const;
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
-    template<class T>
-    using literal_to_string = std::conditional_t<(std::is_convertible<T, const char*>{} and std::is_convertible<T, std::string>{}), std::string, T>;
+    template <class T>
+    using literal_to_string = std::conditional_t<(std::is_convertible<T, const char*>{} and
+                                                  std::is_convertible<T, std::string>{}),
+                                                 std::string,
+                                                 T>;
 
     template <class T>
     using pick_numeric = std::conditional_t<
@@ -414,9 +417,10 @@ struct value
 
     template <class To>
     std::vector<literal_to_string<To>> get(const std::string& pkey,
-                        const std::initializer_list<To>& default_value) const
+                                           const std::initializer_list<To>& default_value) const
     {
-        return get(pkey, std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
+        return get(pkey,
+                   std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
     }
 
     friend bool operator==(const value& x, const value& y);

@@ -26,11 +26,11 @@ struct schedule_model
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
     /// Schedule a concurrent instruction
-    void sched(module& p, instruction_ref ins, std::size_t n) const;
+    void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
-    void wait(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     // Insert necessary records after an instruction
-    void record(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
     std::size_t weight(const operation& op) const;
 };
@@ -45,11 +45,11 @@ struct schedule_model
     //
     std::size_t concurrency() const;
     //
-    void sched(module& p, instruction_ref ins, std::size_t n) const;
+    void sched(module& m, instruction_ref ins, std::size_t n) const;
     //
-    void wait(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     //
-    void record(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     //
     std::size_t weight(const operation& op) const;
 };
@@ -125,22 +125,22 @@ struct schedule_model
         return (*this).private_detail_te_get_handle().concurrency();
     }
 
-    void sched(module& p, instruction_ref ins, std::size_t n) const
+    void sched(module& m, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().sched(p, ins, n);
+        (*this).private_detail_te_get_handle().sched(m, ins, n);
     }
 
-    void wait(module& p, instruction_ref ins, std::size_t wait_id) const
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().wait(p, ins, wait_id);
+        (*this).private_detail_te_get_handle().wait(m, ins, wait_id);
     }
 
-    void record(module& p, instruction_ref ins, std::size_t wait_id) const
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().record(p, ins, wait_id);
+        (*this).private_detail_te_get_handle().record(m, ins, wait_id);
     }
 
     std::size_t weight(const operation& op) const
@@ -164,9 +164,9 @@ struct schedule_model
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::size_t concurrency() const                                        = 0;
-        virtual void sched(module& p, instruction_ref ins, std::size_t n) const        = 0;
-        virtual void wait(module& p, instruction_ref ins, std::size_t wait_id) const   = 0;
-        virtual void record(module& p, instruction_ref ins, std::size_t wait_id) const = 0;
+        virtual void sched(module& m, instruction_ref ins, std::size_t n) const        = 0;
+        virtual void wait(module& m, instruction_ref ins, std::size_t wait_id) const   = 0;
+        virtual void record(module& m, instruction_ref ins, std::size_t wait_id) const = 0;
         virtual std::size_t weight(const operation& op) const                          = 0;
     };
 
@@ -200,22 +200,22 @@ struct schedule_model
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
-        void sched(module& p, instruction_ref ins, std::size_t n) const override
+        void sched(module& m, instruction_ref ins, std::size_t n) const override
         {
 
-            private_detail_te_value.sched(p, ins, n);
+            private_detail_te_value.sched(m, ins, n);
         }
 
-        void wait(module& p, instruction_ref ins, std::size_t wait_id) const override
+        void wait(module& m, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.wait(p, ins, wait_id);
+            private_detail_te_value.wait(m, ins, wait_id);
         }
 
-        void record(module& p, instruction_ref ins, std::size_t wait_id) const override
+        void record(module& m, instruction_ref ins, std::size_t wait_id) const override
         {
 
-            private_detail_te_value.record(p, ins, wait_id);
+            private_detail_te_value.record(m, ins, wait_id);
         }
 
         std::size_t weight(const operation& op) const override

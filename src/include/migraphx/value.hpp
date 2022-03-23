@@ -189,6 +189,9 @@ struct value
     const cpp_type* if_##vt() const;
     MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DECL_METHODS)
 
+    template<class T>
+    using literal_to_string = std::conditional_t<(std::is_convertible<T, const char*>{} and std::is_convertible<T, std::string>{}), std::string, T>;
+
     template <class T>
     using pick_numeric = std::conditional_t<
         std::is_floating_point<T>{},
@@ -372,11 +375,11 @@ struct value
     }
 
     template <class To>
-    To value_or(const To& default_value) const
+    literal_to_string<To> value_or(const To& default_value) const
     {
         if(this->is_null())
             return default_value;
-        return to<To>();
+        return to<literal_to_string<To>>();
     }
 
     template <class To>
@@ -392,12 +395,12 @@ struct value
     }
 
     template <class To>
-    To get(const std::string& pkey, const To& default_value) const
+    literal_to_string<To> get(const std::string& pkey, const To& default_value) const
     {
         const auto* v = find(pkey);
         if(v == this->end())
             return default_value;
-        return v->to<To>();
+        return v->to<literal_to_string<To>>();
     }
 
     template <class To>
@@ -410,10 +413,10 @@ struct value
     }
 
     template <class To>
-    std::vector<To> get(const std::string& pkey,
+    std::vector<literal_to_string<To>> get(const std::string& pkey,
                         const std::initializer_list<To>& default_value) const
     {
-        return get<std::vector<To>>(pkey, default_value);
+        return get(pkey, std::vector<literal_to_string<To>>{default_value.begin(), default_value.end()});
     }
 
     friend bool operator==(const value& x, const value& y);

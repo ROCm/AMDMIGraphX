@@ -352,6 +352,65 @@ def ceil_test():
 
 
 @onnx_test
+def celu_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.8)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.5)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_wrong_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 3])
+
+    node = onnx.helper.make_node('Celu', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test
+def celu_zero_alpha_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('Celu',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 alpha=0.0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test
 def clip_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -2743,6 +2802,70 @@ def loop_test():
                                          TensorProto.FLOAT, [2, 1])
 
     return ([node], [iter, cond, a, b], [b_loop, uout])
+
+
+@onnx_test
+def lpnormalization_axis_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+        axis=0,
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_l1_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node(
+        'LpNormalization',
+        inputs=['x'],
+        outputs=['y'],
+        p=1,
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_l2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=2)
+    return ([node], [x], [y])
+
+
+@onnx_test
+def lpnormalization_p_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
+
+    node = onnx.helper.make_node('LpNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 p=3)
+    return ([node], [x], [y])
 
 
 @onnx_test

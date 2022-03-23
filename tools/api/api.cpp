@@ -4,6 +4,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -71,6 +72,23 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
 #undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
+}
+
+template <class T>
+auto to_obj_vector(const T* x, std::size_t n)
+{
+    std::vector<decltype((*x)->object)> result;
+    std::transform(x, x + n, std::back_inserter(result), [&](auto&& y) { return y->object; });
+    return result;
+}
+
+template <class T, class U>
+auto to_objptr_vector(const U* x, std::size_t n)
+{
+    std::vector<T> result;
+    std::transform(
+        x, x + n, std::back_inserter(result), [&](auto&& y) { return std::addressof(y->object); });
+    return result;
 }
 
 target get_target(const std::string& name) { return make_target(name); }

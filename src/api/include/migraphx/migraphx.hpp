@@ -283,6 +283,7 @@ struct interface_base : Base
     void set_fp(Setter setter, F pf)
     {
         static F f = pf;
+        (void)f; // avoid warning on gcc
         call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
             return try_([&] { call_cast_arg<T>(rank<1>{}, f, xs...); });
         });

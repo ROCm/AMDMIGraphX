@@ -41,11 +41,8 @@ constexpr T as_float(T x)
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname)                    \
-    auto __device__ name(type x, type y) -> type                       \
-    {                                                                  \
-        return fname(x, y);                                        \
-    }
+#define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
+    auto __device__ name(type x, type y)->type { return fname(x, y); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \
@@ -125,7 +122,6 @@ constexpr auto where(bool cond, const T& a, const U& b)
     return cond ? a : b;
 }
 
-
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
@@ -140,13 +136,13 @@ constexpr auto max(const T& a, const T& b)
     return where(a < b, b, a);
 }
 
-template<class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
 constexpr auto max(const T& a, const U& b)
 {
     return max<common_type_t<T, U>>(a, b);
 }
 
-template<class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
 constexpr auto min(const T& a, const U& b)
 {
     return min<common_type_t<T, U>>(a, b);
@@ -178,7 +174,6 @@ MIGRAPHX_DEVICE_MATH_VEC(sqrt)
 MIGRAPHX_DEVICE_MATH_VEC(tan)
 MIGRAPHX_DEVICE_MATH_VEC(tanh)
 MIGRAPHX_DEVICE_MATH_VEC(where)
-
 
 template <class T, class U>
 constexpr auto convert(U v)

@@ -6,13 +6,13 @@
 
 namespace migraphx {
 
-template<class T, class U = T&&>
+template <class T, class U = T&&>
 U private_declval(int);
 
-template<class T>
+template <class T>
 T private_declval(long);
 
-template<class T>
+template <class T>
 auto declval() noexcept -> decltype(private_declval<T>(0));
 
 template <class T>
@@ -127,25 +127,28 @@ struct add_pointer : type_identity<typename remove_reference<T>::type*>
 template <class T>
 using add_pointer_t = typename add_pointer<T>::type;
 
-template<class... Ts>
-    struct common_type;
+template <class... Ts>
+struct common_type;
 
-template<class T>
-    struct common_type<T>
-    { using type = T; };
+template <class T>
+struct common_type<T>
+{
+    using type = T;
+};
 
-template<class T, class U>
-    struct common_type<T, U>
-    { using type = decltype(true ? declval<T>() : declval<U>()); };
+template <class T, class U>
+struct common_type<T, U>
+{
+    using type = decltype(true ? declval<T>() : declval<U>());
+};
 
-template<class T, class U, class... Us>
-    struct common_type<T, U, Us...>
-    {
-        using type = typename
-        common_type<typename common_type<T, U>::type, Us...>::type;
-    };
+template <class T, class U, class... Us>
+struct common_type<T, U, Us...>
+{
+    using type = typename common_type<typename common_type<T, U>::type, Us...>::type;
+};
 
-template< class... Ts >
+template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
 constexpr unsigned long int_max(unsigned long n) { return (1 << (n * 8)) - 1; }

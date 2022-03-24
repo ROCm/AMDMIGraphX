@@ -1071,10 +1071,11 @@ class Interface(Handle):
     def mname(self, name: str) -> str:
         return name + "_f"
 
-    def constructor(self, # type: ignore
-                    name: str,
-                    params: Optional[List[Parameter]] = None,
-                    **kwargs) -> 'Interface':
+    def constructor(
+            self,  # type: ignore
+            name: str,
+            params: Optional[List[Parameter]] = None,
+            **kwargs) -> 'Interface':
         create = self.substitute('allocate<${opaque_type}>($@)')
 
         initial_params = gparams(obj='void*',

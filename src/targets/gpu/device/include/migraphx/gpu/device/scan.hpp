@@ -53,6 +53,12 @@ __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, O
         output);
 }
 
+template <class F>
+constexpr auto reverse_scan(index_int n, F f)
+{
+    return [=](auto i, auto&&... xs) { return f(n - i - 1, xs...); };
+}
+
 } // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

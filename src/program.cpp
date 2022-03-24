@@ -556,8 +556,14 @@ std::vector<argument> program::eval(parameter_map params) const
     if(trace_level > 0)
     {
         auto max_ins_len = max_ins_length();
-        std::unordered_map<instruction_ref, std::string> ins_names;
-        this->print(ins_names, [&](auto, auto) {});
+        std::unordered_map<instruction_ref, std::string> ins_out;
+        // get instruction names
+        this->print([&](auto x, auto ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
+        });
+
         if(trace_level == 3)
         {
             std::string prefix = "Run instruction: ";
@@ -571,9 +577,7 @@ std::vector<argument> program::eval(parameter_map params) const
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
                                 std::stringstream ss;
-                                ss << "Run instruction: ";
-                                this->debug_print(ss, ins, ins_names);
-
+                                ss << "Run instruction: " << ins_out.at(ins);
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
@@ -583,7 +587,7 @@ std::vector<argument> program::eval(parameter_map params) const
                                 {
                                     std::cout << ss.str() << std::endl;
                                     std::cout << "Time: " << t1 << "ms, " << t2
-                                              << "ms, execution time:\t";
+                                              << "ms" << std::endl;
                                     if(trace_level == 2 and ins->name().front() != '@' and
                                        ins->name() != "load" and not result.empty())
                                     {
@@ -1005,6 +1009,14 @@ void program::print(
     {
         names = pp.second.print(print_func, names);
     }
+}
+
+void program::print(
+    const std::function<void(instruction_ref ins,
+                             std::unordered_map<instruction_ref, std::string>)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, print_func);
 }
 
 void program::print_graph(std::ostream& os, bool brief) const

@@ -1426,14 +1426,5 @@ instruction_ref rewrite_rnn::pad_hidden_states(module& prog,
     return hs_padded;
 }
 
-namespace op {
-std::ostream& operator<<(std::ostream& os, rnn_direction v)
-{
-    std::vector<std::string> rnn_direction_str = {"forward", "reverse", "bidirectional"};
-    os << rnn_direction_str[static_cast<std::underlying_type<rnn_direction>::type>(v)];
-    return os;
-}
-} // namespace op
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

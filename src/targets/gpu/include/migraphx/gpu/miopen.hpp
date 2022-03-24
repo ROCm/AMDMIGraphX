@@ -9,6 +9,8 @@
 #include <miopen/miopen.h>
 #include <migraphx/config.hpp>
 
+#include <sstream>
+
 #ifdef HAS_FIND_MODE_API
 extern "C" miopenStatus_t miopenHiddenSetConvolutionFindMode(miopenConvolutionDescriptor_t convDesc,
                                                              int findMode);
@@ -132,12 +134,16 @@ inline convolution_descriptor make_deconv(const T& op)
 inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
 {
     miopenPoolingMode_t mode;
-    if(op.mode == "max")
+    if(op.mode == op::pooling_mode::max)
         mode = miopenPoolingMax;
-    else if(op.mode == "average")
+    else if(op.mode == op::pooling_mode::average)
         mode = miopenPoolingAverage;
     else
-        MIGRAPHX_THROW("Unknown mode for pooling: " + op.mode);
+    {
+        std::stringstream ss("Unknown mode for pooling: ");
+        ss << op.mode;
+        MIGRAPHX_THROW(ss.str());
+    }
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
 
     int kdims = op.kdims();

@@ -213,7 +213,6 @@ template <std::size_t N, class... Xs>
 bool is_vectorizable(const Xs&... xs)
 {
     return all_of({xs...}, [](const auto& s) {
-
         if(s.standard() and (s.lens().back() % N) == 0)
             return true;
         if(s.broadcasted())

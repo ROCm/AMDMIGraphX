@@ -34,12 +34,12 @@ TEST_CASE(basic_graph_test)
     EXPECT(migraphx::contains(test, "\"main:@0\"[label=\"@literal\"]"));
     EXPECT(migraphx::contains(test, "\"y\"[label=\"@param:y\"]"));
     EXPECT(migraphx::contains(test, "\"x\"[label=\"@param:x\"]"));
-    EXPECT(migraphx::contains(test, "\"main:@1\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"main:@2\"[label=\"sum\"]"));
-    EXPECT(migraphx::contains(test, "\"x\" -> \"main:@1\""));
-    EXPECT(migraphx::contains(test, "\"y\" -> \"main:@1\""));
-    EXPECT(migraphx::contains(test, "\"main:@1\" -> \"main:@2\""));
-    EXPECT(migraphx::contains(test, "\"main:@0\" -> \"main:@2\""));
+    EXPECT(migraphx::contains(test, "\"main:@3\"[label=\"sum\"]"));
+    EXPECT(migraphx::contains(test, "\"main:@4\"[label=\"sum\"]"));
+    EXPECT(migraphx::contains(test, "\"x\" -> \"main:@3\""));
+    EXPECT(migraphx::contains(test, "\"y\" -> \"main:@3\""));
+    EXPECT(migraphx::contains(test, "\"main:@3\" -> \"main:@4\""));
+    EXPECT(migraphx::contains(test, "\"main:@0\" -> \"main:@4\""));
     EXPECT(migraphx::contains(test, "[label=\"int64_type, {1}, {0}\"]"));
 }
 

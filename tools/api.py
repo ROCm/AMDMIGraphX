@@ -1071,7 +1071,7 @@ class Interface(Handle):
     def mname(self, name: str) -> str:
         return name + "_f"
 
-    def constructor( # type: ignore
+    def constructor(  # type: ignore
             self,
             name: str,
             params: Optional[List[Parameter]] = None,

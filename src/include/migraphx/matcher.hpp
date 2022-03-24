@@ -253,7 +253,6 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     matcher_result result;
     if(m.match(ctx, ins))
     {
-    std::cout << "match!!!!!\n";
         result.result       = ins;
         result.instructions = ctx.instructions;
     }

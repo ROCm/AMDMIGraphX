@@ -187,15 +187,12 @@ struct find_mul_add
     }
 };
 
-struct find_gelu //find gelu, using the tanh implementation. Replace it with the gelu_erf formula
+struct find_gelu // find gelu, using the tanh implementation. Replace it with the gelu_erf formula
 {
     // compile option fast_math controls whether to use math shortcuts like this
     bool fast_math = true;
 
-    auto matcher() const
-    {
-        return match::gelu_tanh();
-    }
+    auto matcher() const { return match::gelu_tanh(); }
 
     // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
     //  = x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2)) after match/transform
@@ -203,26 +200,27 @@ struct find_gelu //find gelu, using the tanh implementation. Replace it with the
     {
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-            
+
         auto x_type = x_ins->get_shape().type();
         // auto x_lens = x_ins->get_shape().lens();  used for multibroadcast (example)
         migraphx::shape scalar_shape{x_type};
 
         // create a scalar literal that casts the constant M_SQRT1_2 to the type of x
-        auto sq12inst = p.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2})); 
+        auto sq12inst = p.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2}));
         // recast to the shape (lens) of x.  Defaults to 0 strides since it's a constant.
 
         // multibroadcast not needed now.
-        // auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", x_lens}} ), sq12inst);
+        // auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast", {{"out_lens",
+        // x_lens}} ), sq12inst);
 
-        // use insert_common_op() instead of insert_instruction() to automatically match sizes (broadcast)
-        // between tensor x and the literal scalar v2
+        // use insert_common_op() instead of insert_instruction() to automatically match sizes
+        // (broadcast) between tensor x and the literal scalar v2
         auto xsq_ins = insert_common_op(p, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
         auto erf_ins = p.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        auto point_5 = p.add_literal(migraphx::literal(scalar_shape, {0.5}));
-        auto mul_p5_ins = insert_common_op(p, ins,  migraphx::make_op("mul"), {point_5, erf_ins} );
-        auto add_p5_ins = insert_common_op(p, ins,  migraphx::make_op("add"), {point_5, mul_p5_ins} );
+        auto point_5    = p.add_literal(migraphx::literal(scalar_shape, {0.5}));
+        auto mul_p5_ins = insert_common_op(p, ins, migraphx::make_op("mul"), {point_5, erf_ins});
+        auto add_p5_ins = insert_common_op(p, ins, migraphx::make_op("add"), {point_5, mul_p5_ins});
 
         p.replace_instruction(ins, make_op("mul"), add_p5_ins, x_ins);
     }
@@ -1057,31 +1055,28 @@ struct find_split_transpose
 void simplify_algebra::apply(module& p) const
 {
     // Run simplifications multiple times
-    // for(int i = 0; i < 8; i++)
-    for(int i = 0; i < 1; i++)
+    for(int i = 0; i < 8; i++)
     {
         match::find_matches(p,
-                            // find_inner_broadcast{},
-                            // find_double_add_lit_broadcast{},
-                            // find_add_lit_broadcast{},
-                            // find_add_convs{},
-                            // find_conv_dot_horiz_fusion{},
-                            // find_mul_conv{},
-                            // find_mul_slice_conv{},
-                            // find_mul_add{},
+                            find_inner_broadcast{},
+                            find_double_add_lit_broadcast{},
+                            find_add_lit_broadcast{},
+                            find_add_convs{},
+                            find_conv_dot_horiz_fusion{},
+                            find_mul_conv{},
+                            find_mul_slice_conv{},
+                            find_mul_add{},
                             // gelu replacement only if fast_math flag is set
-                            find_gelu{fast_math}
-                            // ,
-                            // find_div_const{},
-                            // find_sub_const{},
-                            // find_rsqrt{},
-                            // find_concat_op{},
-                            // find_split_concat{},
-                            // find_splits{},
-                            // find_split_reshape{},
-                            // find_split_transpose{}
-                            );
-        // dead_code_elimination{}.apply(p);
+                            find_gelu{fast_math},
+                            find_div_const{},
+                            find_sub_const{},
+                            find_rsqrt{},
+                            find_concat_op{},
+                            find_split_concat{},
+                            find_splits{},
+                            find_split_reshape{},
+                            find_split_transpose{});
+        dead_code_elimination{}.apply(p);
     }
 }
 

@@ -754,14 +754,13 @@ TEST_CASE(simplify_gelu_fast_math)
 {
     migraphx::module m1;
     {
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
-        //   the actual formula has 0.5 factored out, etc.
+        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
+        // 3))))
         std::vector<size_t> input_lens = {1};
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
 
-        // A stub function in place of gelu.  This matches the stub matcher.
-        auto v2 = m1.add_literal(0.044715F);
-        auto three = m1.add_literal(3.F);
+        auto v2      = m1.add_literal(0.044715F);
+        auto three   = m1.add_literal(3.F);
         auto pow_ins = migraphx::add_common_op(m1, migraphx::make_op("pow"), {x, three});
 
         auto mul1_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {pow_ins, v2});
@@ -769,8 +768,9 @@ TEST_CASE(simplify_gelu_fast_math)
         auto addx_ins = m1.add_instruction(migraphx::make_op("add"), x, mul1_ins);
 
         // multiply 1.77245385
-        auto sqrt_2_ov_pi = m1.add_literal (static_cast<float>( sqrt(M_2_PI)));
-        auto mul2_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {addx_ins, sqrt_2_ov_pi});
+        auto sqrt_2_ov_pi = m1.add_literal(static_cast<float>(sqrt(M_2_PI)));
+        auto mul2_ins =
+            migraphx::add_common_op(m1, migraphx::make_op("mul"), {addx_ins, sqrt_2_ov_pi});
 
         // tanh
         auto tanh_ins = m1.add_instruction(migraphx::make_op("tanh"), mul2_ins);
@@ -780,12 +780,11 @@ TEST_CASE(simplify_gelu_fast_math)
         auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
 
         // multiply x
-        auto mulx_ins =  m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
+        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
 
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
-        auto mul3_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
-
+        migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
         run_pass(m1);
     }
     migraphx::module m2;
@@ -795,18 +794,20 @@ TEST_CASE(simplify_gelu_fast_math)
         // refactored as:
         // x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2))
         std::vector<size_t> input_lens = {1};
-        auto x_ins    = m2.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto sq12inst = m2.add_literal(static_cast<float>(M_SQRT1_2));       
-        auto xsq_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x_ins, sq12inst});       
-        auto erf_ins = m2.add_instruction( migraphx::make_op("erf"), xsq_ins);
-        auto point_5 = m2.add_literal(0.5F);
-        auto p5_erf_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"),  {point_5, erf_ins});
-        auto p5_add_ins =  migraphx::add_common_op(m2, migraphx::make_op("add"), {point_5, p5_erf_ins});
-        auto x2_mul_ins = m2.add_instruction(migraphx::make_op("mul"), p5_add_ins, x_ins);
+        auto x_ins      = m2.add_parameter("x", {migraphx::shape::float_type, input_lens});
+        auto sq12inst   = m2.add_literal(static_cast<float>(M_SQRT1_2));
+        auto xsq_ins    = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x_ins, sq12inst});
+        auto erf_ins    = m2.add_instruction(migraphx::make_op("erf"), xsq_ins);
+        auto point_5    = m2.add_literal(0.5F);
+        auto p5_erf_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"), {point_5, erf_ins});
+        auto p5_add_ins =
+            migraphx::add_common_op(m2, migraphx::make_op("add"), {point_5, p5_erf_ins});
+        m2.add_instruction(migraphx::make_op("mul"), p5_add_ins, x_ins);
     }
-    // TODO:  This only succeeds if the arguments in binary ops such as add and mul come in identical order;
-    // in addition, the result after run_pass is the result of multiple passes, not of find_gelu
-    // alone.  Result is that test cases are very fragile if you change anything in simplify_algebra at all.
+    // TODO:  This only succeeds if the arguments in binary ops such as add and mul come in
+    // identical order; in addition, the result after run_pass is the result of multiple passes, not
+    // of find_gelu alone.  Result is that test cases are very fragile if you change anything in
+    // simplify_algebra at all.
     EXPECT(m1 == m2);
 }
 
@@ -2226,6 +2227,5 @@ TEST_CASE(reorder_slice_ins_deps)
     run_pass(m);
     EXPECT(m == create_module());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

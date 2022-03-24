@@ -1,7 +1,7 @@
 #include <migraphx/ref/gemm.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/requires.hpp>
-#include <migraphx/shape_for_each.hpp>
+#include <migraphx/par_for.hpp>
 #include <blaze/math/CustomMatrix.h>
 
 namespace migraphx {
@@ -74,8 +74,10 @@ void migemm_impl(
     assert(amat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_0]);
     assert(cmat.get_shape().lens()[dim_0] == amat.get_shape().lens()[dim_0]);
     assert(cmat.get_shape().lens()[dim_1] == bmat.get_shape().lens()[dim_1]);
+    auto cs = cmat.get_shape();
 
-    shape_for_each(cmat.get_shape(), [&](const auto& c_idx) {
+    par_for(cs.elements(), [&](auto i) {
+        auto c_idx = cs.multi(i);
         auto a_idx = c_idx;
         auto b_idx = c_idx;
         double s   = 0.0;

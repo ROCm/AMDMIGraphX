@@ -122,7 +122,6 @@ struct value
 // clang-format off
 #define MIGRAPHX_VISIT_VALUE_TYPES(m) \
     m(int64, std::int64_t) \
-    m(uint8, std::uint8_t) \
     m(uint64, std::uint64_t) \
     m(float, double) \
     m(string, std::string) \

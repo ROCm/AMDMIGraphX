@@ -750,130 +750,64 @@ TEST_CASE(simplify_rsqrt)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(xyzzy)
+TEST_CASE(simplify_gelu_fast_math)
 {
-    // debug:  to force a test of the matcher in struct find_gelu, I changed the gelu_tanh matcher 
-    // to match whenever you multiply an argument of 0.5
     migraphx::module m1;
-       // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
-       //   the actual formula has 0.5 factored out, etc.
+    {
+        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
+        //   the actual formula has 0.5 factored out, etc.
         std::vector<size_t> input_lens = {1};
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
 
-        auto v2 = m1.add_literal(0.7F);
+        // A stub function in place of gelu.  This matches the stub matcher.
+        auto v2 = m1.add_literal(0.044715F);
+        auto three = m1.add_literal(3.F);
+        auto pow_ins = migraphx::add_common_op(m1, migraphx::make_op("pow"), {x, three});
 
-        // use add_common_op() instead of add_instruction() to automatically match sizes (broadcast)
-        // between tensor x and the literal scalar v2
-        auto mul1_inst = migraphx::add_common_op(m1, migraphx::make_op("mul"), {x, v2});
- std::cout << " asdf @@@@@@@@@@ m1 before   pass: \n" << m1 << std::endl;
-     run_pass(m1);
- std::cout << " asdf ^^^^^^^^^^ m1 after  pass: \n" << m1 << std::endl;
+        auto mul1_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {pow_ins, v2});
 
-   migraphx::module m2;
+        auto addx_ins = m1.add_instruction(migraphx::make_op("add"), x, mul1_ins);
+
+        // multiply 1.77245385
+        auto sqrt_2_ov_pi = m1.add_literal (static_cast<float>( sqrt(M_2_PI)));
+        auto mul2_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {addx_ins, sqrt_2_ov_pi});
+
+        // tanh
+        auto tanh_ins = m1.add_instruction(migraphx::make_op("tanh"), mul2_ins);
+
+        auto one = m1.add_literal(1.F);
+        // second addition
+        auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
+
+        // multiply x
+        auto mulx_ins =  m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
+
+        // multiply 0.5
+        auto point_5 = m1.add_literal(0.5F);
+        auto mul3_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
+
+        run_pass(m1);
+    }
+    migraphx::module m2;
     {
-
         // This module replicates the substitution in simplify_algebra
         // original formula:  x * 0.5 * (1 + ::erf(x * M_SQRT1_2))
         // refactored as:
         // x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2))
         std::vector<size_t> input_lens = {1};
         auto x_ins    = m2.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto sq12inst = m2.add_literal(static_cast<float>(M_SQRT1_2)); 
-        
+        auto sq12inst = m2.add_literal(static_cast<float>(M_SQRT1_2));       
         auto xsq_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x_ins, sq12inst});       
         auto erf_ins = m2.add_instruction( migraphx::make_op("erf"), xsq_ins);
         auto point_5 = m2.add_literal(0.5F);
         auto p5_erf_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"),  {point_5, erf_ins});
-
-        // auto one = m2.add_literal(1.0F);
-        // auto one_mbcast = m2.add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one);
-        // auto one_mbcast = one;
-        // auto one_ins = m2.add_instruction( migraphx::make_op("add"), one_mbcast, erf_ins);
-        // 
         auto p5_add_ins =  migraphx::add_common_op(m2, migraphx::make_op("add"), {point_5, p5_erf_ins});
         auto x2_mul_ins = m2.add_instruction(migraphx::make_op("mul"), p5_add_ins, x_ins);
-
-        std::cout << " asdf ############################## m2 no pass \n" << m2 << std::endl;
-   }
-
-    EXPECT(m1 == m2);
-
-}
-
-TEST_CASE(simplify_gelu_fast_math)
-{
-    migraphx::module m1;
-    {
-        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
-        std::vector<size_t> input_lens = {1};
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
-
-    // would this work?
-        // auto three = m1.add_literal   (migraphx::literal{{migraphx::shape::float_type, input_lens}, 3.0F});
-
-
-
-        auto three_inst = m1.add_literal(3.0F);
-        auto three_mbcast =  m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), three_inst);
-        auto pow_inst = m1.add_instruction(migraphx::make_op("pow"), x, three_mbcast);
-
-        // first multiply op, by magic number
-        auto magic_inst = m1.add_literal(0.044715F);
-        auto magic_mbcast =  m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), magic_inst);
-        auto mul1_inst = m1.add_instruction(migraphx::make_op("mul"), pow_inst, magic_mbcast);
-
-        // x + ...
-        auto add1_inst = m1.add_instruction(migraphx::make_op("add"), x, mul1_inst);
-        auto sqrt_2_pi = m1.add_literal(static_cast<float>(sqrt(M_2_PI)));
-        auto s2p_mbcast = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), sqrt_2_pi);
-        // 2nd multiply op
-        auto mul2_inst = m1.add_instruction(migraphx::make_op("mul"), add1_inst, s2p_mbcast );
-        // tanh
-        auto tanh_inst = m1.add_instruction(migraphx::make_op("tanh"), mul2_inst);
-        // add literal 1 to tanh result
-        auto one = m1.add_literal(1.0F);
-        auto one_mbcast = m1.add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one);
-        auto add2_inst = m1.add_instruction(migraphx::make_op("add"), one_mbcast, tanh_inst);
-        // multiply x
-        auto mul3_inst = m1.add_instruction(migraphx::make_op("mul"), add2_inst, x);
-        // multiply literal 0.5
-        auto point_5 = m1.add_literal(0.5F);
-        auto point_5_mbcast = m1.add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), point_5);
-        auto p5_ins = m1.add_instruction( migraphx::make_op("mul"), mul3_inst, point_5_mbcast);       
-
-        std::cout << " asdf ---------------------------- m1 before pass \n" << m1 << std::endl;
     }
-    
-    run_pass(m1);
-        std::cout << " asdf @@@@@@@@@@@@@@@@@@@@@@@@@@@@ m1 after pass \n" << m1 << std::endl;
-
-    run_pass(m1);
-         std::cout << " asdf %%%%%%%%%%%%%%%%%%% m1 after 2 passes \n" << m1 << std::endl;
-   migraphx::module m2;
-    {
-
-        // This module replicates the substitution in simplify_algebra
-        // x * 0.5 * (1 + ::erf(x * M_SQRT1_2))
-        std::vector<size_t> input_lens = {1};
-        auto x_ins    = m2.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto sq12inst = m2.add_literal(static_cast<float>(M_SQRT1_2)); 
-        auto sq12inst_mbcast = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), sq12inst);
-        
-        auto xsq_ins = m2.add_instruction(migraphx::make_op("mul"), x_ins, sq12inst_mbcast);
-        auto erf_ins = m2.add_instruction( migraphx::make_op("erf"), xsq_ins);
-        auto one = m2.add_literal(1.0F);
-        auto one_mbcast = m2.add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), one);
-        // auto one_mbcast = one;
-        auto one_ins = m2.add_instruction( migraphx::make_op("add"), one_mbcast, erf_ins);
-        auto point_5 = m2.add_literal(0.5F);
-        auto point_5_mbcast = m2.add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), point_5);
-        // auto point_5_mbcast = point_5;
-        auto p5_ins = m2.add_instruction( migraphx::make_op("mul"), one_ins, point_5_mbcast);
-        std::cout << " asdf ############################## m2 no pass \n" << m2 << std::endl;
-   }
-
+    // TODO:  This only succeeds if the arguments in binary ops such as add and mul come in identical order;
+    // in addition, the result after run_pass is the result of multiple passes, not of find_gelu
+    // alone.  Result is that test cases are very fragile if you change anything in simplify_algebra at all.
     EXPECT(m1 == m2);
-
 }
 
 TEST_CASE(simplify_rsqrt_multi_use)

@@ -1057,28 +1057,31 @@ struct find_split_transpose
 void simplify_algebra::apply(module& p) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 8; i++)
+    // for(int i = 0; i < 8; i++)
+    for(int i = 0; i < 1; i++)
     {
         match::find_matches(p,
-                            find_inner_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
-                            find_add_convs{},
-                            find_conv_dot_horiz_fusion{},
-                            find_mul_conv{},
-                            find_mul_slice_conv{},
-                            find_mul_add{},
+                            // find_inner_broadcast{},
+                            // find_double_add_lit_broadcast{},
+                            // find_add_lit_broadcast{},
+                            // find_add_convs{},
+                            // find_conv_dot_horiz_fusion{},
+                            // find_mul_conv{},
+                            // find_mul_slice_conv{},
+                            // find_mul_add{},
                             // gelu replacement only if fast_math flag is set
-                            find_gelu{fast_math},
-                            find_div_const{},
-                            find_sub_const{},
-                            find_rsqrt{},
-                            find_concat_op{},
-                            find_split_concat{},
-                            find_splits{},
-                            find_split_reshape{},
-                            find_split_transpose{});
-        dead_code_elimination{}.apply(p);
+                            find_gelu{fast_math}
+                            // ,
+                            // find_div_const{},
+                            // find_sub_const{},
+                            // find_rsqrt{},
+                            // find_concat_op{},
+                            // find_split_concat{},
+                            // find_splits{},
+                            // find_split_reshape{},
+                            // find_split_transpose{}
+                            );
+        // dead_code_elimination{}.apply(p);
     }
 }
 

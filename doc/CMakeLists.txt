@@ -45,7 +45,7 @@ rocm_add_doxygen_doc(
 include(ROCMSphinxDoc)
 rocm_add_sphinx_doc(src 
     BUILDER html 
-    OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/html"
+    OUTPUT_DIR html
     VARS 
         breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
         breathe_default_project=proj
@@ -56,7 +56,7 @@ find_package(LATEX)
 if(LATEX_FOUND)
     rocm_add_sphinx_doc(src 
         BUILDER latex
-        OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/pdf"
+        OUTPUT_DIR pdf
         VARS 
             breathe_projects.proj=${DOXYGEN_OUTPUT}/xml
             breathe_default_project=proj

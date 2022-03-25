@@ -45,15 +45,15 @@ operation compile_pointwise(context&,
                             const std::vector<std::string>& op_names)
 {
     hip_compile_options options;
-    options.global         = compute_global(inputs.front().elements());
+    options.global             = compute_global(inputs.front().elements());
     std::string op_name_string = join_strings(op_names, "_");
-    options.kernel_name = op_name_string + "_kernel";
-    options.local          = 1024;
-    options.inputs         = inputs;
-    options.output         = inputs.back();
-    options.virtual_inputs = reduce_dims(inputs);
-    options.params         = "-Wno-float-equal";
-    auto src               = interpolate_string(pointwise_kernel,
+    options.kernel_name        = op_name_string + "_kernel";
+    options.local              = 1024;
+    options.inputs             = inputs;
+    options.output             = inputs.back();
+    options.virtual_inputs     = reduce_dims(inputs);
+    options.params             = "-Wno-float-equal";
+    auto src                   = interpolate_string(pointwise_kernel,
                                   {{"op_names", op_name_string},
                                    {"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},

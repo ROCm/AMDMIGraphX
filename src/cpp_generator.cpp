@@ -160,10 +160,7 @@ std::string cpp_generator::generate_point_op(const operation& op,
     });
 }
 
-std::vector<std::string> cpp_generator::op_names() const
-{
-    return impl->op_names;
-}
+std::vector<std::string> cpp_generator::op_names() const { return impl->op_names; }
 
 std::string cpp_generator::str() const { return impl->fs.str(); }
 

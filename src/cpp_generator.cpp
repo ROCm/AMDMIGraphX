@@ -90,6 +90,7 @@ struct cpp_generator_impl
     std::function<std::string(std::string)> fmap              = nullptr;
     std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
+    std::vector<std::string> op_names                         = {};
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
@@ -117,17 +118,19 @@ std::string cpp_generator::generate_point_op(const operation& op,
 {
     auto v = op.to_value();
     std::string code;
-    if(contains(impl->point_op_map, op.name()))
+    std::string op_name = op.name();
+    if(contains(impl->point_op_map, op_name))
     {
-        code = impl->point_op_map.at(op.name());
+        code = impl->point_op_map.at(op_name);
     }
     else
     {
         auto attributes = op.attributes();
         if(not attributes.contains("point_op"))
-            MIGRAPHX_THROW("op is missing point_op attribute: " + op.name());
+            MIGRAPHX_THROW("op is missing point_op attribute: " + op_name);
         code = attributes["point_op"].to<std::string>();
     }
+    impl->op_names.push_back(op_name);
     return interpolate_string(code, [&](auto start, auto last) -> std::string {
         auto key = trim({start, last});
         if(key.empty())
@@ -155,6 +158,11 @@ std::string cpp_generator::generate_point_op(const operation& op,
             return key;
         }
     });
+}
+
+std::vector<std::string> cpp_generator::op_names() const
+{
+    return impl->op_names;
 }
 
 std::string cpp_generator::str() const { return impl->fs.str(); }

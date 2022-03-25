@@ -25,7 +25,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void kernel(${params}) 
+__global__ void ${op_names}_kernel(${params}) 
 {
     pointwise(${lambda}, ${args});
 }
@@ -41,20 +41,25 @@ int main() {}
 operation compile_pointwise(context&,
                             const std::vector<shape>& inputs,
                             const std::string& lambda,
-                            const std::string& preamble)
+                            const std::string& preamble,
+                            const std::vector<std::string>& op_names)
 {
     hip_compile_options options;
     options.global         = compute_global(inputs.front().elements());
+    std::string op_name_string = join_strings(op_names, "_");
+    options.kernel_name = op_name_string + "_kernel";
     options.local          = 1024;
     options.inputs         = inputs;
     options.output         = inputs.back();
     options.virtual_inputs = reduce_dims(inputs);
     options.params         = "-Wno-float-equal";
     auto src               = interpolate_string(pointwise_kernel,
-                                  {{"params", enum_params(inputs.size(), "void * private_p")},
+                                  {{"op_names", op_name_string},
+                                   {"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda},
                                    {"preamble", preamble}});
+    // std::cout << src << std::endl;
     return compile_hip_code_object(src, options);
 }
 
@@ -75,7 +80,7 @@ operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, modu
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     auto name =
         g.create_function(g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m));
-    return compile_pointwise((ctx), inputs, "MIGRAPHX_LIFT(" + name + ")", g.str());
+    return compile_pointwise((ctx), inputs, "MIGRAPHX_LIFT(" + name + ")", g.str(), g.op_names());
 }
 
 } // namespace gpu

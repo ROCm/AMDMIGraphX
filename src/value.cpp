@@ -138,6 +138,7 @@ value::value(const std::string& pkey, const value& rhs)
 {
 }
 
+value::value(const std::string& pkey, const char* i) : value(pkey, std::string(i)) {}
 value::value(const char* i) : value(std::string(i)) {}
 
 #define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                           \
@@ -160,6 +161,12 @@ value::value(const char* i) : value(std::string(i)) {}
     }                                                                                  \
     const cpp_type* value::if_##vt() const { return x ? x->if_##vt() : nullptr; }
 MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+
+value& value::operator=(const char* c)
+{
+    *this = std::string{c};
+    return *this;
+}
 
 value& value::operator=(std::nullptr_t)
 {

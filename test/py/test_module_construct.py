@@ -8,11 +8,10 @@ def test_add_op():
     x = mm.add_parameter("x", param_shape)
     y = mm.add_parameter("y", param_shape)
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])
-    r = mm.add_return([add_op])
+    mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    x_arg = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
-    params["x"] =     params["y"] = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
+    params["x"] = params["y"] = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
     output = p.run(params)[-1]
     assert(np.array_equal(output, params["x"] + params["y"]))
     

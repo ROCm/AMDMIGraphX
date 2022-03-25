@@ -56,7 +56,7 @@ jobs:
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           ..
-        make -j2 -k onnx-proto tf-proto tidy
+        make -j$(nproc) -k onnx-proto tf-proto tidy
 
   cppcheck:
     runs-on: ubuntu-18.04

@@ -1,6 +1,7 @@
 import migraphx
 import numpy as np
 
+
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
@@ -15,10 +16,12 @@ def test_add_op():
         param_shape.lens()).astype(np.float32)
     output = p.run(params)[-1]
     assert (np.array_equal(output, params["x"] + params["y"]))
-    
+
+
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")
     cond_shape = migraphx.shape(type="bool", lens=[1], strides=[0])
+
     def create_program():
         p = migraphx.program()
         mm = p.get_main_module()
@@ -33,10 +36,12 @@ def test_if_then_else():
         y_identity = else_mod.add_instruction(migraphx.op("identity"), [y])
         else_mod.add_return([y_identity])
 
-        if_ins = mm.add_instruction(migraphx.op("if"), [cond], 
-                                    [then_mod, else_mod])
-        ret = mm.add_instruction(migraphx.op("get_tuple_elem", **{"index": 0}), 
-                                 [if_ins])
+        if_ins = mm.add_instruction(
+            migraphx.op("if"), [cond], [then_mod, else_mod])
+        ret = mm.add_instruction(
+            migraphx.op("get_tuple_elem", **{
+                "index": 0
+            }), [if_ins])
         mm.add_return([ret])
         return p
 
@@ -50,7 +55,7 @@ def test_if_then_else():
         p.compile(migraphx.get_target("ref"))
         params["cond"] = np.array([cond]).reshape(()).astype(np.bool)
         output = p.run(params)[-1]
-        return output  
+        return output
 
     assert (np.array_equal(run_prog(1), params["x"]))
     assert (np.array_equal(run_prog(0), params["y"]))

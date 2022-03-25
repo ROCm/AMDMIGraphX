@@ -1,0 +1,10 @@
+{
+    settings: {
+        lens: [2050],
+        type: "half"
+    },
+    compile_pointwise: {
+        lambda: "[](vec<half, 2> x) { return migraphx::sqrt(x); }",
+        inputs: [{}, {}]
+    }
+}

@@ -14,6 +14,8 @@ template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));
 
 using half = _Float16;
+using half2 = migraphx::vec<half, 2>;
+// using half2 = __half2;
 
 } // namespace migraphx
 

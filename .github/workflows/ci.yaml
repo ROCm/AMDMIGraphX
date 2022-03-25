@@ -148,13 +148,15 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.8
     - name: Install pyflakes
-      run: pip install pyflakes==2.3.1 mypy==0.931
+      run: pip install pyflakes==2.4.0 mypy==0.931
 
     - name: Run pyflakes
       run: |
+        pyflakes --version
         pyflakes examples/ tools/ src/ test/ doc/
+        mypy --version
         mypy tools/api.py
 
   linux:

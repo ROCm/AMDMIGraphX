@@ -46,27 +46,25 @@ constexpr T as_float(T x)
     auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
-// Template with two overloads for math functions, one for half2 type and one for more generic <half, N>
-// vectorization where N is 4 or another even number.
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF_2(name, fname)                       \
-    template <class... Ts>                                             \
-    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs) \
-        MIGRAPHX_RETURNS(fname(x, xs...)) \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N%2 == 0 && (N > 2))>                                             \
-    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs) \
-    {                                                                        \
-        return vec_packed_transform<2>(x, xs...)([](auto... ys)->migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
+// Template with two overloads for math functions, one for half2 type and one for more generic
+// <half, N> vectorization where N is 4 or another even number. NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF_2(name, fname)                                                 \
+    template <class... Ts>                                                                       \
+    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs) MIGRAPHX_RETURNS(fname(   \
+        x, xs...)) template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))> \
+    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                           \
+    {                                                                                            \
+        return vec_packed_transform<2>(x, xs...)(                                                \
+            [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); });        \
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF_VEC(name)                                       \
+#define MIGRAPHX_DEVICE_MATH_HALF_VEC(name)                                  \
     template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>           \
     auto __device__ name(Ts... xs)                                           \
     {                                                                        \
         return vec_transform(xs...)([](auto... ys) { return name(ys...); }); \
-    }                                                                        \
-
+    }
 
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
 MIGRAPHX_DEVICE_MATH(acos, ::acos)

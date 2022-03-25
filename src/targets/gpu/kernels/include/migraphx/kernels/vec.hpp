@@ -46,8 +46,8 @@ constexpr auto vec_at(T x, I i)
     }
 }
 
-template<class T>
-using vec_type = decltype(vec_at(T{}, 0)); 
+template <class T>
+using vec_type = decltype(vec_at(T{}, 0));
 
 template <class... Ts>
 constexpr auto common_vec_size()

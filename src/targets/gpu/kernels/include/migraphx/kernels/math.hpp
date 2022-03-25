@@ -12,75 +12,10 @@ namespace migraphx {
 
 namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
-// constexpr float as_float(half2 x) { return vec<float, 2>(x[0], x[1]); }
 template <class T>
 constexpr T as_float(T x)
 {
     return x;
-}
-
-    // vec_type trait
-    // template <typename T>
-    // struct vec_type
-    // {
-    //     static const bool value = false;
-
-    //     constexpr operator vec_type() const noexcept { return value; }
-    //     // constexpr operator value_type() const noexcept { return value; }
-    //     constexpr value_type operator()() const noexcept { return value; }
-    // };
-
-    // template <>
-    // struct vec_type<vec<>>
-    // { //   <=== what other vec types have to be supported?
-    //     static const bool value = true;
-    // };
-
-    // Return a vector type of N from index i in another larger vector
-    // N will be 2 for half2 packing
-    template <index_int N, class T, class I>
-    constexpr auto vec_packed_at(T x, I i)
-    {
-        if constexpr(vec_size<T>() == 0)
-            return vec<T, N>{x};
-        else
-        {
-            MIGRAPHX_ASSERT((i + N) < vec_size<T>());
-            // TODO: vec_type type trait needs to be implemented
-            // vec<vec_type<T>, N> result;
-            vec<T, N> result;
-            for(int j = 0; j < N; j++)
-            {
-                result[j] = x[i + j];
-            }
-            return result;
-        }
-    }
-
-    template <index_int N, class... Ts>
-    constexpr auto vec_packed_transform(Ts... xs)
-    {
-        return [=](auto f) {
-            if constexpr(is_any_vec<Ts...>())
-            {
-                using type                  = decltype(f(vec_packed_at(xs, 0)...));
-                constexpr auto size         = common_vec_size<Ts...>();
-                safe_vec<type, size> result = {0};
-                for(int i = 0; i < size / N; i++)
-                {
-                    // Call the function with packed vectors
-                    safe_vec<type, N> r = f(vec_packed_at(xs, i)...);
-                    // Copy the packed vectors to the result
-                    for(int j = 0; j < N; j++)
-                        result[i * N + j] = r[j];
-                }
-                return result;
-            }
-            else
-            {
-                return f(xs...);
-            }
-        };
 }
 } // namespace math
 
@@ -111,17 +46,27 @@ constexpr T as_float(T x)
     auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
-    
+// Template with two overloads for math functions, one for half2 type and one for more generic <half, N>
+// vectorization where N is 4 or another even number.
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF_2(name, fname)                         \
-    template <class... Ts> \
-    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)   \
-        MIGRAPHX_RETURNS( fname(math::vec_packed_transform<half, 2> (x, xs...)))
-          // transform the two arguments and call function fname on them
-             // but what's the correct transform type?  as_float or something else? Need to transform half2 => vec<float,2>  ??
-             // as_float(half) is a trait-type action at the top of this file--no overload exists for other types
+#define MIGRAPHX_DEVICE_MATH_HALF_2(name, fname)                       \
+    template <class... Ts>                                             \
+    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs) \
+        MIGRAPHX_RETURNS(fname(x, xs...)) \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N%2 == 0 && (N > 2))>                                             \
+    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs) \
+    {                                                                        \
+        return vec_packed_transform<2>(x, xs...)([](auto... ys)->migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
+    }
 
-             // write a new function that takes half2 as inputs
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF_VEC(name)                                       \
+    template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>           \
+    auto __device__ name(Ts... xs)                                           \
+    {                                                                        \
+        return vec_transform(xs...)([](auto... ys) { return name(ys...); }); \
+    }                                                                        \
+
 
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
 MIGRAPHX_DEVICE_MATH(acos, ::acos)
@@ -189,12 +134,36 @@ MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 
-// Use float to compute half2 overload
-// The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats 
+// Map math functions to hip half2 functions
+// The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
 // packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
 MIGRAPHX_DEVICE_MATH_HALF_2(sqrt, ::h2sqrt)
-// todo: add all the other h2 functions in /opt/rocm/hip/include/hip/amd_detail/amd_hip_fp16.h
-// that look like they map to a cpu math function
+// __half __low2half(__half2 x)
+// __half __high2half(__half2 x)
+// __half2 __low2half2(__half2 x)
+// __half2 __high2half2(__half2 x)
+// __half2 __lowhigh2highlow(__half2 x)
+// float __low2float(__half2 x)
+// float __high2float(__half2 x)
+// float2 __half22float2(__half2 x)
+// __half2 __habs2(__half2 x)
+// __half2 h2trunc(__half2 x)
+MIGRAPHX_DEVICE_MATH_HALF_2(ceil, ::h2ceil)
+MIGRAPHX_DEVICE_MATH_HALF_2(floor, ::h2floor)
+// __half2 h2rint(__half2 x)
+MIGRAPHX_DEVICE_MATH_HALF_2(sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_HALF_2(cos, ::h2cos)
+MIGRAPHX_DEVICE_MATH_HALF_2(exp, ::h2exp)
+MIGRAPHX_DEVICE_MATH_HALF_2(exp2, ::h2exp2)
+// __half2 h2exp10(__half2 x)
+MIGRAPHX_DEVICE_MATH_HALF_2(log2, ::h2log2)
+MIGRAPHX_DEVICE_MATH_HALF_2(log, ::h2log)
+MIGRAPHX_DEVICE_MATH_HALF_2(log10, ::h2log10)
+// __half2 h2rcp(__half2 x) { return __llvm_amdgcn_rcp_2f16(x); }
+// __half2 h2rsqrt(__half2 x) { return __ocml_rsqrt_2f16(x); }
+MIGRAPHX_DEVICE_MATH_HALF_2(isinf, ::__hisinf2)
+MIGRAPHX_DEVICE_MATH_HALF_2(isnan, ::__hisnan2)
+// __half2 __hneg2(__half2 x)
 
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)
@@ -244,7 +213,6 @@ constexpr auto convert(U v)
 {
     return vec_transform(v)([](auto x) -> T { return x; });
 }
-
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_MATH_HPP

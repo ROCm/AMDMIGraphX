@@ -46,6 +46,9 @@ constexpr auto vec_at(T x, I i)
     }
 }
 
+template<class T>
+using vec_type = decltype(vec_at(T{}, 0)); 
+
 template <class... Ts>
 constexpr auto common_vec_size()
 {
@@ -80,6 +83,51 @@ constexpr auto vec_transform(Ts... xs)
             safe_vec<type, size> result = {0};
             for(int i = 0; i < size; i++)
                 result[i] = f(vec_at(xs, i)...);
+            return result;
+        }
+        else
+        {
+            return f(xs...);
+        }
+    };
+}
+
+// Return a vector type of N from index i in another larger vector
+// N will be 2 for half2 packing
+template <index_int N, class T, class I>
+constexpr vec<vec_type<T>, N> vec_packed_at(T x, I i)
+{
+    if constexpr(vec_size<T>() == 0)
+        return vec<T, N>{x};
+    else
+    {
+        MIGRAPHX_ASSERT((i + N) < vec_size<T>());
+        vec<vec_type<T>, N> result = {0};
+        for(int j = 0; j < N; j++)
+        {
+            result[j] = x[i + j];
+        }
+        return result;
+    }
+}
+
+template <index_int N, class... Ts>
+constexpr auto vec_packed_transform(Ts... xs)
+{
+    return [=](auto f) {
+        if constexpr(is_any_vec<Ts...>())
+        {
+            using type                  = vec_type<decltype(f(vec_packed_at<N>(xs, 0)...))>;
+            constexpr auto size         = common_vec_size<Ts...>();
+            safe_vec<type, size> result = {0};
+            for(int i = 0; i < size / N; i++)
+            {
+                // Call the function with packed vectors
+                safe_vec<type, N> r = f(vec_packed_at<N>(xs, i)...);
+                // Copy the packed vectors to the result
+                for(int j = 0; j < N; j++)
+                    result[i * N + j] = r[j];
+            }
             return result;
         }
         else

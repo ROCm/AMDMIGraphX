@@ -1,5 +1,4 @@
 #include <migraphx/migraphx.hpp>
-#include <migraphx/rank.hpp>
 #include "test.hpp"
 
 template <class T>

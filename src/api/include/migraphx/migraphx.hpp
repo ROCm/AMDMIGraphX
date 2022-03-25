@@ -15,6 +15,16 @@ namespace migraphx {
 inline namespace api { // NOLINT
 #endif
 
+template <int N>
+struct rank : rank<N - 1>
+{
+};
+
+template <>
+struct rank<0>
+{
+};
+
 template <class T, class F, class... Ts>
 T* make(F f, Ts&&... xs)
 {
@@ -230,6 +240,138 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     protected:
     std::shared_ptr<T> m_handle;
 };
+
+template <class Base>
+struct interface_base : Base
+{
+    interface_base() : Base() {}
+
+    protected:
+    template <class F>
+    static migraphx_status try_(F f) // NOLINT
+    {
+        try
+        {
+            f();
+            return migraphx_status_success;
+        }
+        catch(...)
+        {
+            return migraphx_status_unknown_error;
+        }
+    }
+
+    template <class F, class T, class... Ts>
+    void make_interface(F f, T& obj, Ts&&... xs)
+    {
+        auto copy = [](void** out, void* input) {
+            return try_([&] {
+                T** y = reinterpret_cast<T**>(out);
+                T* x  = reinterpret_cast<T*>(input);
+                assert(x != nullptr and y != nullptr and *y == nullptr);
+                *y = new T(*x); // NOLINT
+            });
+        };
+        auto del = [](void* input) {
+            return try_([&] {
+                T* x = reinterpret_cast<T*>(input);
+                delete x; // NOLINT
+            });
+        };
+        this->make_handle(f, &obj, copy, del, std::forward<Ts>(xs)...);
+    }
+
+    template <class T, class Setter, class F>
+    void set_fp(Setter setter, F pf)
+    {
+        static F f = pf;
+        (void)f; // avoid warning on gcc
+        call(setter, this->get_handle_ptr(), [](auto... xs) -> migraphx_status {
+            return try_([&] { call_cast_arg<T>(rank<1>{}, f, xs...); });
+        });
+    }
+
+    template <class T, class Setter, class F>
+    void set_auto_fp(Setter setter, F f)
+    {
+        return set_fp<T>(setter, [=](T& obj, auto out, auto... xs) {
+            auto_invoke(f, out, obj, auto_convert_param(rank<2>{}, xs)...);
+        });
+    }
+
+    struct no_out_arg
+    {
+    };
+
+    template <class T, class F, class X, class... Xs, class = std::enable_if_t<std::is_void<X>{}>>
+    static void call_cast_arg(rank<0>, F f, X* obj, Xs... xs)
+    {
+        f(reinterpret_cast<T*>(obj), no_out_arg{}, xs...);
+    }
+
+    template <class T,
+              class F,
+              class R,
+              class X,
+              class... Xs,
+              class = std::enable_if_t<std::is_void<X>{}>>
+    static void call_cast_arg(rank<1>, F f, R result, X* obj, Xs... xs)
+    {
+        f(*reinterpret_cast<T*>(obj), result, xs...);
+    }
+
+    template <class F, class T, class... Ts>
+    void auto_invoke(F f, T* out, Ts&&... xs)
+    {
+        auto_assign(rank<2>{}, out, f(std::forward<Ts>(xs)...));
+    }
+
+    template <class F, class T, class... Ts>
+    void auto_invoke(F f, no_out_arg, Ts&&... xs)
+    {
+        f(std::forward<Ts>(xs)...);
+    }
+
+    template <class T, class = std::enable_if_t<std::is_fundamental<T>{} or std::is_enum<T>{}>>
+    T auto_convert_param(rank<0>, T x)
+    {
+        return x;
+    }
+
+    template <class T>
+    auto auto_convert_param(rank<1>, T x) -> decltype(as_handle<T>{x})
+    {
+        return as_handle<T>{x};
+    }
+
+    template <class T>
+    auto auto_convert_param(rank<2>, T x) -> decltype(as_handle<T>{x, borrow{}})
+    {
+        return as_handle<T>{x, borrow{}};
+    }
+
+    template <class T, class U>
+    void auto_assign(rank<0>, T* out, U x)
+    {
+        return *out = x;
+    }
+
+    template <class T, class U>
+    auto auto_assign(rank<1>, T* out, U x) -> decltype(x.assign_to_handle(out))
+    {
+        x.assign_to_handle(out);
+    }
+};
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_INTERFACE_LIFT(T, prefix, name)          \
+    this->set_auto_fp<T>(&migraphx_##prefix##_set_##name, \
+                         [](T& x, auto... xs) { return x.name(xs...); })
+
+template <class Base, class T>
+using require_interface =
+    std::enable_if_t<std::is_base_of<Base, T>{} and not std::is_same<T, Base>{} and
+                     std::is_copy_constructible<T>{} and std::is_final<T>{}>;
 
 #ifdef DOXYGEN
 #define MIGRAPHX_DETAIL_HANDLE_BASE(name, const_) handle_base<>
@@ -986,6 +1128,32 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
          prog.get_handle_ptr(),
          ptarget.get_handle_ptr(),
          options.get_handle_ptr());
+}
+
+struct experimental_custom_op_base
+{
+    virtual std::string name() const                 = 0;
+    virtual shape compute_shape(shapes inputs) const = 0;
+    virtual ~experimental_custom_op_base()           = default;
+};
+
+struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>
+{
+    template <class T>
+    experimental_custom_op(T& obj)
+    {
+        this->make_interface(&migraphx_experimental_custom_op_create, obj, obj.name().c_str());
+        MIGRAPHX_INTERFACE_LIFT(T, experimental_custom_op, compute_shape);
+    }
+
+    void register_op() { call(&migraphx_experimental_custom_op_register, this->get_handle_ptr()); }
+};
+
+template <class T, class = require_interface<experimental_custom_op_base, T>>
+void register_experimental_custom_op(T& obj)
+{
+    experimental_custom_op op{obj};
+    op.register_op();
 }
 
 #ifndef DOXYGEN

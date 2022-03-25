@@ -11,9 +11,10 @@ def test_add_op():
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    params["x"] = params["y"] = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
+    params["x"] = params["y"] = np.arange(9).reshape(
+        param_shape.lens()).astype(np.float32)
     output = p.run(params)[-1]
-    assert(np.array_equal(output, params["x"] + params["y"]))
+    assert (np.array_equal(output, params["x"] + params["y"]))
     
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")
@@ -32,14 +33,17 @@ def test_if_then_else():
         y_identity = else_mod.add_instruction(migraphx.op("identity"), [y])
         else_mod.add_return([y_identity])
 
-        if_ins = mm.add_instruction(migraphx.op("if"), [cond], [then_mod, else_mod])
-        ret = mm.add_instruction(migraphx.op("get_tuple_elem", **{"index": 0}), [if_ins])
+        if_ins = mm.add_instruction(migraphx.op("if"), [cond], 
+                                    [then_mod, else_mod])
+        ret = mm.add_instruction(migraphx.op("get_tuple_elem", **{"index": 0}), 
+                                 [if_ins])
         mm.add_return([ret])
         return p
 
     params = {}
     params["x"] = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
-    params["y"] = 2 * np.arange(9).reshape(param_shape.lens()).astype(np.float32)
+    params["y"] = 2 * np.arange(9).reshape(param_shape.lens()).astype(
+        np.float32)
 
     def run_prog(cond):
         p = create_program()
@@ -48,8 +52,8 @@ def test_if_then_else():
         output = p.run(params)[-1]
         return output  
 
-    assert(np.array_equal(run_prog(1), params["x"]))
-    assert(np.array_equal(run_prog(0), params["y"]))
+    assert (np.array_equal(run_prog(1), params["x"]))
+    assert (np.array_equal(run_prog(0), params["y"]))
 
 
 if __name__ == "__main__":

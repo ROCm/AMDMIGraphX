@@ -46,6 +46,7 @@ df = pandas.DataFrame(result,
                           'local_workitems_per_CU', 'time'
                       ])
 
+
 # Given three dataframe columns (column labels), plot one as a function of the other two.
 #
 # the_df  pandas.DataFrame
@@ -104,7 +105,7 @@ plt.savefig(os.path.join(output_dir, 'local_vs_global.png'))
 #     amin =  np.argmin(filt_tens['time'])
 #     filt_tens.iloc[[amin]]
 
-#     # Append the row at the index given in amin.  Note the double [[]] and also that the "index" value is 
+#     # Append the row at the index given in amin.  Note the double [[]] and also that the "index" value is
 #     # a position in the original df, not filt_tens
 #     results = results.append(filt_tens.iloc[[amin]])
 # print('Optimal global/local values are:\n',results.iloc[:, [ True, True, True, False]],'-------\n')

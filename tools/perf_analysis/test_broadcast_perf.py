@@ -1,3 +1,7 @@
+#                 test_broadcast_perf.py
+#                 Author:  Brian Pickrell, AMD
+
+import argparse
 from matplotlib import pyplot as plt
 import json
 import os
@@ -6,9 +10,6 @@ import numpy as np
 import math
 from datetime import datetime
 
-#                 test_broadcast_perf.py
-#                 Author:  Brian Pickrell, AMD copyright 2022
-
 #
 # this script runs the test program gpu-driver while iterating over
 # ranges of
@@ -16,7 +17,6 @@ from datetime import datetime
 # It saves output to a JSON File as well, so that it can be re-plotted by
 # other tools.
 
-# this script is simlar to test_pointwise_perf.py, except that its
 # Json arguments include "strides".  Setting one element in a stride to 0
 # cause a tensor to have one axis broadcast in gpu-driver.
 #
@@ -26,6 +26,9 @@ from datetime import datetime
 # Engineers using this script should expect to modify it frequently in the course of testing.
 # The script is backed up each time a plot is made, to allow recreating the exact parameters/conditoins
 # used in that test run.
+
+# argument parser is placeholder for engineers to add command-line args
+parser = argparse.ArgumentParser()
 
 datatype = 'float'
 iterations = 10

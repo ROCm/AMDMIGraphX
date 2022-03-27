@@ -15,7 +15,7 @@ def rocmtestnode(Map conf) {
         def cmd = """
             env
             ls -l /opt
-            /opt/rocm-5.0.2/bin/rocminfo
+            /opt/rocm/bin/rocminfo
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"

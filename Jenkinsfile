@@ -14,6 +14,7 @@ def rocmtestnode(Map conf) {
     def cmake_build = { compiler, flags ->
         def cmd = """
             env
+            rocm-info
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
@@ -80,6 +81,9 @@ def rocmnodename(name) {
     } else if(name == "nogpu") {
         return rocmtest_name;
     }
+
+    print("CHRIS: NODE_NAME: >>",node_name,"<<")
+
     return node_name
 }
 
@@ -95,7 +99,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, clang_release: rocmnode('navi21') { cmake_build ->
+}, clang_release: rocmnode('vega20') { cmake_build ->
     stage('Hip Clang Release') {
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'

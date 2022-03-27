@@ -3,6 +3,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 struct test_roialign_nondefault : verify_program<test_roialign_nondefault>
 {
@@ -23,7 +24,7 @@ struct test_roialign_nondefault : verify_program<test_roialign_nondefault>
         auto r   = mm->add_instruction(
             migraphx::make_op("roialign",
                               {{"coordinate_transformation_mode", "output_half_pixel"},
-                               {"mode", "max"},
+                               {"mode", migraphx::op::pooling_mode::max},
                                {"spatial_scale", 1.0},
                                {"output_height", 5},
                                {"output_width", 5},

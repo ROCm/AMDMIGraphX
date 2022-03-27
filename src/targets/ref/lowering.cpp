@@ -819,9 +819,9 @@ struct ref_apply
     void apply_pooling(instruction_ref ins) const
     {
         auto&& op = any_cast<op::pooling>(ins->get_operator());
-        if(op.mode == "max")
+        if(op.mode == op::pooling_mode::max)
             mod->replace_instruction(ins, ref_pooling<max_pool>{op}, ins->inputs());
-        else if(op.mode == "average")
+        else if(op.mode == op::pooling_mode::average)
             mod->replace_instruction(ins, ref_pooling<avg_pool>{op}, ins->inputs());
     }
 };

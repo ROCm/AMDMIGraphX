@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
@@ -60,6 +62,8 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
@@ -103,6 +107,8 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
 
     # In this step, this action saves a list of existing images,
@@ -127,7 +133,7 @@ jobs:
               -o -iname '*.cpp.in' \
               -o -iname '*.cl' \
           | grep -v 'build/' \
-          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-5.0 -style=file {} | diff - {}'
+          | xargs -n 1 -P 1 -I{} -t sh -c 'clang-format-10 -style=file {} | diff - {}'
           find . -iname '*.py' \
           | grep -v 'build/'  \
           | xargs -n 1 -P 1 -I{} -t sh -c 'yapf {} | diff - {}'
@@ -136,17 +142,21 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.6
+        python-version: 3.8
     - name: Install pyflakes
-      run: pip install pyflakes==2.3.1 mypy==0.931
+      run: pip install pyflakes==2.4.0 mypy==0.931
 
     - name: Run pyflakes
       run: |
+        pyflakes --version
         pyflakes examples/ tools/ src/ test/ doc/
+        mypy --version
         mypy tools/api.py
 
   linux:
@@ -171,6 +181,8 @@ jobs:
           - codecov
 
     steps:
+    - name: Free space
+      run: sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2

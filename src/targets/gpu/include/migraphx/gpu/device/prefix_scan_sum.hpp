@@ -10,7 +10,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void prefix_scan_sum(hipStream_t stream, const argument& result, const argument& arg, int32_t axis);
+void prefix_scan_sum(hipStream_t stream,
+                     const argument& result,
+                     const argument& arg,
+                     int32_t axis,
+                     bool exclusive,
+                     bool reverse);
 
 } // namespace device
 } // namespace gpu

@@ -1,3 +1,4 @@
+#include <migraphx/op/common.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
@@ -28,10 +29,14 @@ struct parse_roialign : op_parser<parse_roialign>
                            "\": invalid value!");
         }
 
-        std::string mode = "avg";
+        migraphx::op::pooling_mode rmode(migraphx::op::pooling_mode::average);
         if(contains(info.attributes, "mode"))
         {
-            mode = info.attributes.at("mode").s();
+            // read mode; default is "avg"
+            if(info.attributes.at("mode").s() == "max")
+            {
+                rmode = migraphx::op::pooling_mode::max;
+            }
         }
 
         int64_t output_height = 1;
@@ -57,10 +62,9 @@ struct parse_roialign : op_parser<parse_roialign>
         {
             spatial_scale = info.attributes.at("spatial_scale").f();
         }
-
         return info.add_instruction(make_op("roialign",
                                             {{"coordinate_transformation_mode", coord_trans_mode},
-                                             {"mode", mode},
+                                             {"mode", rmode},
                                              {"output_height", output_height},
                                              {"output_width", output_width},
                                              {"sampling_ratio", sampling_ratio},

@@ -29,7 +29,7 @@ constexpr auto traverse_preload(Shapes... ss)
         auto each        = [&](auto x) {
             using type          = remove_vec<typename decltype(x)::type>;
             constexpr auto s    = decltype(x.get_shape()){};
-            constexpr auto size = _c<s.element_space()>;
+            constexpr auto size = s.element_space();
             if constexpr(not s.broadcasted() or (s.elements() - size) < 64 or
                          not is_same<T, type>{})
                 return f(x, offset, false_type{});

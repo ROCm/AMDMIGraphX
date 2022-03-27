@@ -197,7 +197,7 @@ struct lhs_expression
     TEST_LHS_REOPERATOR(%)
     TEST_LHS_REOPERATOR(&)
     TEST_LHS_REOPERATOR(|)
-    TEST_LHS_REOPERATOR (^)
+    TEST_LHS_REOPERATOR(^)
 };
 
 template <class F>

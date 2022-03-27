@@ -96,6 +96,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_AvgPool.*')
         backend_test.include(r'.*test_BatchNorm.*eval.*')
         backend_test.include(r'.*test_ceil.*')
+        backend_test.include(r'.*test_celu.*')
         backend_test.include(r'.*test_clip.*')
         backend_test.include(r'.*test_concat.*')
         backend_test.include(r'.*test_constant.*')
@@ -111,6 +112,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_equal.*')
         backend_test.include(r'.*test_Embedding*')
         backend_test.include(r'.*test_exp.*')
+        backend_test.include(r'.*test_eyelike.*')
         backend_test.include(r'.*test_flatten.*')
         backend_test.include(r'.*test_floor.*')
         backend_test.include(r'.*test_gather.*')
@@ -122,6 +124,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_hardswish.*')
         backend_test.include(r'.*test_identity.*')
         backend_test.include(r'.*test_if.*')
+        backend_test.include(r'.*test_isnan.*')
         backend_test.include(r'.*test_LeakyReLU*')
         backend_test.include(r'.*test_leakyrelu.*')
         backend_test.include(r'.*test_less.*')
@@ -270,11 +273,8 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.exclude(r'test_identity_sequence_cpu')
         backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
         backend_test.exclude(r'test_negative_log_likelihood_loss_*')
-        backend_test.exclude(r'test_scatternd_*')
 
         # all reduce ops have dynamic axes inputs
-        backend_test.exclude(r'test_size_cpu')
-        backend_test.exclude(r'test_size_example_cpu')
         backend_test.exclude(r'test_softmax_cross_entropy_*')
         backend_test.exclude(r'test_Embedding_cpu')
 

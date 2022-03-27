@@ -83,8 +83,6 @@ def rocmnodename(name) {
         return rocmtest_name;
     }
 
-    print("CHRIS: NODE_NAME: >>",node_name,"<<")
-
     return node_name
 }
 

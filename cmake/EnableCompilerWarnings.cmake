@@ -103,6 +103,7 @@ else()
                 -Wno-weak-vtables
                 -Wno-c99-extensions
                 -Wno-reserved-macro-identifier
+                -Wno-reserved-identifier
                 # -Wno-c++2a-designator
             )
         else()

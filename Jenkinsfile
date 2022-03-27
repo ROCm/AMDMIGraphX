@@ -15,14 +15,14 @@ def rocmtestnode(Map conf) {
         def cmd = """
             env
             ls -l /opt
-            /opt/rocm/bin/rocminfo
+            /opt/rocm/bin/rocminfo ||true
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             rm -rf build
             mkdir build
             cd build
-            CXX=${compiler} CXXFLAGS='-Werror' cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} .. 
+            CXX=${compiler} CXXFLAGS='-Werror' cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ${flags} ..
             make -j\$(nproc) generate all doc package check VERBOSE=1
         """
         echo cmd
@@ -127,7 +127,7 @@ def onnxnode(name, body) {
     return { label ->
         rocmtestnode(variant: label, node: rocmnodename(name), docker_args: '-u root', body: body, pre: {
             sh 'rm -rf ./build/*.deb'
-            unstash 'migraphx-package' 
+            unstash 'migraphx-package'
         })
     }
 }

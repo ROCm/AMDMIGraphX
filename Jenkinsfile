@@ -14,7 +14,8 @@ def rocmtestnode(Map conf) {
     def cmake_build = { compiler, flags ->
         def cmd = """
             env
-            rocminfo
+            ls -l /opt
+            /opt/rocm-5.0.2/bin/rocminfo
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"

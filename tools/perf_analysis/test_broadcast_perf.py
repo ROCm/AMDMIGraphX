@@ -151,7 +151,8 @@ for myshape in [[1024, 240], [1024, 64]]:
             c_op["name"] = "pointwise"
 
             # lambda to be executed by the operator.  This lambda contains enough looping to make operator time detectable
-            c_op["lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
+            c_op[
+                "lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
 
             # inputs is a list of dict
             inputs = []

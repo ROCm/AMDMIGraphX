@@ -100,8 +100,16 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
-}, clang_release: rocmnode('ixt-rack-55') { cmake_build ->
+}, clang_release: rocmnode('vega') { cmake_build ->
     stage('Hip Clang Release') {
+
+    def cmd = """
+        ls -l /opt
+        /opt/rocm/bin/rocminfo ||true
+    """
+    echo cmd
+    sh cmd
+
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
@@ -109,6 +117,7 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     stage('MLIR Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'")
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
@@ -119,6 +128,14 @@ rocmtest clang_debug: rocmnode('vega') { cmake_build ->
     }
 }, clang_release_navi: rocmnode('navi21') { cmake_build ->
     stage('HIP Clang Release Navi') {
+
+    def cmd = """
+        ls -l /opt
+        /opt/rocm/bin/rocminfo ||true
+    """
+    echo cmd
+    sh cmd
+    
         cmake_build("/opt/rocm/llvm/bin/clang++", "-DCMAKE_BUILD_TYPE=release")
     }
 }

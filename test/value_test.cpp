@@ -569,20 +569,18 @@ TEST_CASE(value_compare)
 #define MIGRAPHX_VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
 
 // NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED_IMPL(_, x, y)                                                \
-    EXPECT(_(x <= y) or _(x >= y));  \
-    EXPECT(_(x < y) or _(x > y) or   \
-           _(x == y));                                         \
-    EXPECT((_(x < y) or _(x > y)) == \
-           _(x != y));                                         \
-    EXPECT(_(x < y) == _(y > x));    \
-    EXPECT(_(x <= y) == _(y >= x));  \
-    EXPECT(_(x < y) != _(x >= y));   \
-    EXPECT(_(x > y) != _(x <= y));   \
+#define EXPECT_TOTALLY_ORDERED_IMPL(_, x, y)     \
+    EXPECT(_(x <= y) or _(x >= y));              \
+    EXPECT(_(x < y) or _(x > y) or _(x == y));   \
+    EXPECT((_(x < y) or _(x > y)) == _(x != y)); \
+    EXPECT(_(x < y) == _(y > x));                \
+    EXPECT(_(x <= y) == _(y >= x));              \
+    EXPECT(_(x < y) != _(x >= y));               \
+    EXPECT(_(x > y) != _(x <= y));               \
     EXPECT(_(x == y) != _(x != y))
 
 // NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED(x, y)   \
+#define EXPECT_TOTALLY_ORDERED(x, y)                                \
     EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, x, y); \
     EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, y, x)
 

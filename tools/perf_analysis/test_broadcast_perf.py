@@ -50,12 +50,13 @@ save_python_dir = os.path.join(base_dir, 'tools/perf_analysis/pointwise/')
 os.popen('mkdir ' + save_python_dir)
 
 # location of the application gpu-driver, by default in <base_dir>/build/bin
+# allows engineers to experiment with alternate builds
 app_path = os.path.join(base_dir, 'build/bin/gpu-driver')
 if len(sys.argv) > 1:
+    # Get the path from command line arg, but app name must be gpu-driver
     app_path = os.path.abspath(os.path.dirname(sys.argv[1]) + '/gpu-driver')
-print(app_path)
 if not os.path.exists(app_path):
-    print('syntax: python3 ' + __file__ + "<path to gpu-driver>")
+    print('syntax: python3 ' + __file__ + " <directory path to gpu-driver>")
     exit(-1)
 print(' running application ', app_path)
 

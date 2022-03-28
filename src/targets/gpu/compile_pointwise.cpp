@@ -41,13 +41,11 @@ int main() {}
 operation compile_pointwise(context&,
                             const std::vector<shape>& inputs,
                             const std::string& lambda,
-                            size_t global_workitems,
-                            size_t local_workitems,
                             const std::string& preamble)
 {
     hip_compile_options options;
-    options.global         = global_workitems;
-    options.local          = local_workitems;
+    options.global         = compute_global(inputs.front().elements());
+    options.local          = 1024;
     options.inputs         = inputs;
     options.output         = inputs.back();
     options.virtual_inputs = reduce_dims(inputs);
@@ -59,18 +57,7 @@ operation compile_pointwise(context&,
                                    {"preamble", preamble}});
     return compile_hip_code_object(src, options);
 }
-// Overload of compile_pointwise without global, local calculates global value at runtime
-operation compile_pointwise(context& ctx,
-                            const std::vector<shape>& inputs,
-                            const std::string& lambda,
-                            const std::string& preamble)
-{
-    assert(!inputs.empty());
-    size_t local(1024);
-    size_t n      = inputs.front().elements();
-    size_t global = compute_global(n, local);
-    return compile_pointwise(ctx, inputs, lambda, global, local, preamble);
-}
+
 operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m)
 {
     run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});

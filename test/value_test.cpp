@@ -548,23 +548,6 @@ auto compare_predicate(const Expression& e)
                                 [=] { return result; });
 }
 
-#define VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
-
-#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                         \
-    EXPECT(VALUE_TEST_COMPARE(x <= y) or VALUE_TEST_COMPARE(x >= y));                             \
-    EXPECT(VALUE_TEST_COMPARE(x < y) or VALUE_TEST_COMPARE(x > y) or VALUE_TEST_COMPARE(x == y)); \
-    EXPECT((VALUE_TEST_COMPARE(x < y) or VALUE_TEST_COMPARE(x > y)) ==                            \
-           VALUE_TEST_COMPARE(x != y));                                                           \
-    EXPECT(VALUE_TEST_COMPARE(x < y) == VALUE_TEST_COMPARE(y > x));                               \
-    EXPECT(VALUE_TEST_COMPARE(x <= y) == VALUE_TEST_COMPARE(y >= x));                             \
-    EXPECT(VALUE_TEST_COMPARE(x < y) != VALUE_TEST_COMPARE(x >= y));                              \
-    EXPECT(VALUE_TEST_COMPARE(x > y) != VALUE_TEST_COMPARE(x <= y));                              \
-    EXPECT(VALUE_TEST_COMPARE(x == y) != VALUE_TEST_COMPARE(x != y))
-
-#define EXPECT_TOTALLY_ORDERED(x, y)   \
-    EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
-    EXPECT_TOTALLY_ORDERED_IMPL(y, x)
-
 TEST_CASE(value_compare)
 {
     EXPECT(migraphx::value(1) == migraphx::value(1));
@@ -580,8 +563,31 @@ TEST_CASE(value_compare)
     EXPECT(migraphx::value(1) >= migraphx::value(1));
     EXPECT(migraphx::value(1) != migraphx::value("1"));
     EXPECT(migraphx::value(1) != migraphx::value());
+}
 
-    // Check if ordered
+// NOLINTNEXTLINE
+#define MIGRAPHX_VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
+
+// NOLINTNEXTLINE
+#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                         \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) or MIGRAPHX_VALUE_TEST_COMPARE(x >= y));                             \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y) or MIGRAPHX_VALUE_TEST_COMPARE(x == y)); \
+    EXPECT((MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y)) ==                            \
+           MIGRAPHX_VALUE_TEST_COMPARE(x != y));                                                           \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) == MIGRAPHX_VALUE_TEST_COMPARE(y > x));                               \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) == MIGRAPHX_VALUE_TEST_COMPARE(y >= x));                             \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) != MIGRAPHX_VALUE_TEST_COMPARE(x >= y));                              \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x > y) != MIGRAPHX_VALUE_TEST_COMPARE(x <= y));                              \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x == y) != MIGRAPHX_VALUE_TEST_COMPARE(x != y))
+
+// NOLINTNEXTLINE
+#define EXPECT_TOTALLY_ORDERED(x, y)   \
+    EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
+    EXPECT_TOTALLY_ORDERED_IMPL(y, x)
+
+// NOLINTNEXTLINE(readability-function-size)
+TEST_CASE(value_compare_ordered)
+{
     EXPECT_TOTALLY_ORDERED(migraphx::value(), migraphx::value());
     EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value(1));
     EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value(2));

@@ -435,7 +435,7 @@ bool compare(const value& x, const value& y, F f)
                 result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)),
                            std::forward_as_tuple(y.get_key(), compare_decay(b)));
             else
-                assert(false);
+                assert(false); // NOLINT
         });
     });
     return result;

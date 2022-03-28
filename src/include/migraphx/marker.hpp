@@ -20,18 +20,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct marker
- * {
- *      void mark_start(instruction_ref ins_ref) ;
- *      void mark_start(const program& prog) ;
- *      void mark_stop(instruction_ref ins) ;
- *      void mark_stop(const program& prog) ;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct marker
+{
+    //
+    void mark_start(instruction_ref ins_ref);
+    //
+    void mark_start(const program& prog);
+    //
+    void mark_stop(instruction_ref ins);
+    //
+    void mark_stop(const program& prog);
+};
+
+#else
 
 struct marker
 {
@@ -243,6 +247,7 @@ inline const ValueType& any_cast(const marker& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

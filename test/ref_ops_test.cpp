@@ -4180,7 +4180,7 @@ TEST_CASE(rsqrt_test)
 }
 
 // reduction_mode: "scatter_none", "scatter_add", "scatter_mul"
-migraphx::program create_scatter_program(std::string reduction_mode, int axis)
+migraphx::program create_scatter_program(const std::string& reduction_mode, int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

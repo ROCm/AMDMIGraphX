@@ -27,7 +27,7 @@ struct reshape
         return pack(f(self.dims, "dims"));
     }
 
-    value attributes() const { return {{"std_shape", true}}; }
+    value attributes() const { return {{"require_std_shape", true}}; }
 
     std::string name() const { return "reshape"; }
     shape compute_shape(std::vector<shape> inputs) const
@@ -75,7 +75,6 @@ struct reshape
         return args[0].reshape(output_shape);
     }
 
-    lifetime get_lifetime() const { return lifetime::borrow; }
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

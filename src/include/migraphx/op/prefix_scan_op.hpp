@@ -38,18 +38,38 @@ struct prefix_scan_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1);
-        return inputs.at(0);
+        auto s = inputs.front();
+        if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
+        }
+        else
+        {
+            return s.with_lens(s.lens());
+        }
     }
 
-    argument compute(const shape&, std::vector<argument> args) const
+    argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        argument result = args[0].copy();
-        auto s          = result.get_shape();
-        auto slice      = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
-        auto lens       = s.lens();
-        lens[axis]      = 1;
-        auto batch      = shape{s.type(), lens, s.strides()};
-        auto& self      = static_cast<const Derived&>(*this);
+        argument result{output_shape};
+        auto s = args[0].get_shape();
+        if(s == output_shape)
+        {
+            result = args[0].copy();
+        }
+        else
+        {
+            visit_all(result, args[0])([&](auto output, auto input) {
+                par_for(output_shape.elements(),
+                        [&](auto i) { output[output_shape.index(i)] = input[s.index(i)]; });
+            });
+            s = output_shape;
+        }
+        auto slice = shape{s.type(), {s.lens()[axis]}, {s.strides()[axis]}};
+        auto lens  = s.lens();
+        lens[axis] = 1;
+        auto batch = shape{s.type(), lens, s.strides()};
+        auto& self = static_cast<const Derived&>(*this);
         result.visit([&](auto output) {
             using type = decltype(output);
             par_for(batch.elements(), [&](auto i) {

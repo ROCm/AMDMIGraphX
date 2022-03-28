@@ -435,6 +435,7 @@ struct value
     void debug_print(bool show_type = false) const;
 
     type_t get_type() const;
+
     private:
     template <class T>
     std::vector<value> from_values(const T& r)

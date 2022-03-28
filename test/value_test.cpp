@@ -540,26 +540,28 @@ TEST_CASE(value_construct_object_string_mixed_value)
     EXPECT(v.at("two").get_int64() == 2);
 }
 
-template<class Expression>
+template <class Expression>
 auto compare_predicate(const Expression& e)
 {
     bool result = e.value();
-    return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),[=] { return result; });
+    return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),
+                                [=] { return result; });
 }
 
 #define VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
 
-#define EXPECT_TOTALLY_ORDERED_IMPL(x, y) \
-    EXPECT(VALUE_TEST_COMPARE(x <= y) or VALUE_TEST_COMPARE(x >= y)); \
+#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                         \
+    EXPECT(VALUE_TEST_COMPARE(x <= y) or VALUE_TEST_COMPARE(x >= y));                             \
     EXPECT(VALUE_TEST_COMPARE(x < y) or VALUE_TEST_COMPARE(x > y) or VALUE_TEST_COMPARE(x == y)); \
-    EXPECT((VALUE_TEST_COMPARE(x < y) or VALUE_TEST_COMPARE(x > y)) == VALUE_TEST_COMPARE(x != y)); \
-    EXPECT(VALUE_TEST_COMPARE(x < y) == VALUE_TEST_COMPARE(y > x)); \
-    EXPECT(VALUE_TEST_COMPARE(x <= y) == VALUE_TEST_COMPARE(y >= x)); \
-    EXPECT(VALUE_TEST_COMPARE(x < y) != VALUE_TEST_COMPARE(x >= y)); \
-    EXPECT(VALUE_TEST_COMPARE(x > y) != VALUE_TEST_COMPARE(x <= y)); \
+    EXPECT((VALUE_TEST_COMPARE(x < y) or VALUE_TEST_COMPARE(x > y)) ==                            \
+           VALUE_TEST_COMPARE(x != y));                                                           \
+    EXPECT(VALUE_TEST_COMPARE(x < y) == VALUE_TEST_COMPARE(y > x));                               \
+    EXPECT(VALUE_TEST_COMPARE(x <= y) == VALUE_TEST_COMPARE(y >= x));                             \
+    EXPECT(VALUE_TEST_COMPARE(x < y) != VALUE_TEST_COMPARE(x >= y));                              \
+    EXPECT(VALUE_TEST_COMPARE(x > y) != VALUE_TEST_COMPARE(x <= y));                              \
     EXPECT(VALUE_TEST_COMPARE(x == y) != VALUE_TEST_COMPARE(x != y))
 
-#define EXPECT_TOTALLY_ORDERED(x, y) \
+#define EXPECT_TOTALLY_ORDERED(x, y)   \
     EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
     EXPECT_TOTALLY_ORDERED_IMPL(y, x)
 

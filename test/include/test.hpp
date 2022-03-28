@@ -113,7 +113,7 @@ inline auto operator<<(Stream& s, const Range& v) -> decltype(stream_range(s, v.
     return s;
 }
 
-template<class T>
+template <class T>
 const T& get_value(const T& x)
 {
     return x;
@@ -129,10 +129,10 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                     \
-    template <class V>                                         \
-    auto operator op(const V& rhs2) const                       \
-    {                                                          \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                       \
+    template <class V>                                            \
+    auto operator op(const V& rhs2) const                         \
+    {                                                             \
         return make_expression(*this, rhs2, name{}); /* NOLINT */ \
     }
 
@@ -152,10 +152,7 @@ struct expression
         return s;
     }
 
-    friend decltype(auto) get_value(const expression& e)
-    {
-        return e.value();
-    }
+    friend decltype(auto) get_value(const expression& e) { return e.value(); }
 
     decltype(auto) value() const { return Operator::call(get_value(lhs), get_value(rhs)); };
 
@@ -198,10 +195,7 @@ struct lhs_expression
         return s;
     }
 
-    friend decltype(auto) get_value(const lhs_expression& e)
-    {
-        return e.value();
-    }
+    friend decltype(auto) get_value(const lhs_expression& e) { return e.value(); }
 
     decltype(auto) value() const { return Operator::call(get_value(lhs)); }
 
@@ -250,7 +244,7 @@ auto make_predicate(const std::string& msg, F f)
 
 inline std::string as_string(bool x)
 {
-    if (x)
+    if(x)
         return "true";
     return "false";
 }
@@ -668,12 +662,12 @@ inline void run(int argc, const char* argv[])
         test::capture{}->*__VA_ARGS__, #__VA_ARGS__, __PRETTY_FUNCTION__, __FILE__, __LINE__, [] { \
         })
 // NOLINTNEXTLINE
-#define EXPECT(...)                             \
+#define EXPECT(...)                         \
     test::failed(TEST_CAPTURE(__VA_ARGS__), \
-                 #__VA_ARGS__,                  \
-                 __PRETTY_FUNCTION__,           \
-                 __FILE__,                      \
-                 __LINE__,                      \
+                 #__VA_ARGS__,              \
+                 __PRETTY_FUNCTION__,       \
+                 __FILE__,                  \
+                 __LINE__,                  \
                  &test::fail)
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)

@@ -418,15 +418,12 @@ value value::with_key(const std::string& pkey) const
     return result;
 }
 
-template<class T>
+template <class T>
 const T& compare_decay(const T& x)
 {
     return x;
 }
-int compare_decay(std::nullptr_t)
-{
-    return 0;
-}
+int compare_decay(std::nullptr_t) { return 0; }
 
 template <class F>
 bool compare(const value& x, const value& y, F f)
@@ -435,7 +432,8 @@ bool compare(const value& x, const value& y, F f)
     x.visit_value([&](auto&& a) {
         y.visit_value([&](auto&& b) {
             if constexpr(std::is_same<decltype(a), decltype(b)>{})
-                result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)), std::forward_as_tuple(y.get_key(), compare_decay(b)));
+                result = f(std::forward_as_tuple(x.get_key(), compare_decay(a)),
+                           std::forward_as_tuple(y.get_key(), compare_decay(b)));
             else
                 assert(false);
         });
@@ -456,15 +454,16 @@ bool operator==(const value& x, const value& y)
         return false;
     return compare(x, y, std::equal_to<>{});
 }
-bool operator!=(const value& x, const value& y) { return not (x == y); }
-bool operator<(const value& x, const value& y) {
+bool operator!=(const value& x, const value& y) { return not(x == y); }
+bool operator<(const value& x, const value& y)
+{
     if(x.get_type() != y.get_type())
         return x.get_type() < y.get_type();
-    return compare(x, y, std::less<>{}); 
+    return compare(x, y, std::less<>{});
 }
-bool operator<=(const value& x, const value& y) { return not (x > y); }
+bool operator<=(const value& x, const value& y) { return not(x > y); }
 bool operator>(const value& x, const value& y) { return y < x; }
-bool operator>=(const value& x, const value& y) { return not (x < y); }
+bool operator>=(const value& x, const value& y) { return not(x < y); }
 
 void print_value(std::ostream& os, std::nullptr_t) { os << "null"; }
 

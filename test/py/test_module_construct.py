@@ -36,12 +36,10 @@ def test_if_then_else():
         y_identity = else_mod.add_instruction(migraphx.op("identity"), [y])
         else_mod.add_return([y_identity])
 
-        if_ins = mm.add_instruction(
-            migraphx.op("if"), [cond], [then_mod, else_mod])
-        ret = mm.add_instruction(
-            migraphx.op("get_tuple_elem", **{
-                "index": 0
-            }), [if_ins])
+        if_ins = mm.add_instruction(migraphx.op("if"), [cond],
+                                    [then_mod, else_mod])
+        ret = mm.add_instruction(migraphx.op("get_tuple_elem", **{"index": 0}),
+                                 [if_ins])
         mm.add_return([ret])
         return p
 

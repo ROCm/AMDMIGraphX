@@ -57,6 +57,15 @@ TEST_CASE(value_construct_string)
     EXPECT(v.get_key().empty());
 }
 
+TEST_CASE(value_construct_key_string_literal_pair)
+{
+    // Use parens instead {} to construct to test the key-pair constructor
+    migraphx::value v("key", "one");
+    EXPECT(v.is_string());
+    EXPECT(v.get_string() == "one");
+    EXPECT(v.get_key() == "key");
+}
+
 TEST_CASE(value_construct_float)
 {
     migraphx::value v = 1.0;
@@ -165,6 +174,15 @@ TEST_CASE(value_copy_assign_keyless)
     EXPECT(v2.get_key() == "key");
     EXPECT(v1 != v2);
     EXPECT(v1.without_key() == v2.without_key());
+}
+
+TEST_CASE(value_assign_key_string_literal_pair)
+{
+    migraphx::value v = migraphx::value::object{};
+    v["key"]          = "one";
+    EXPECT(v["key"].is_string());
+    EXPECT(v["key"].get_string() == "one");
+    EXPECT(v["key"].get_key() == "key");
 }
 
 TEST_CASE(value_construct_array)
@@ -833,6 +851,40 @@ TEST_CASE(value_or_null)
     migraphx::value v;
     EXPECT(v.is_null());
     EXPECT(v.value_or(3) == 3);
+}
+
+TEST_CASE(value_get_default)
+{
+    migraphx::value v = {{"key", 1}};
+    EXPECT(v.get("key", 3) == 1);
+    EXPECT(v.get("missing", 3) == 3);
+}
+
+TEST_CASE(value_get_default_vector)
+{
+    std::vector<int> ints     = {1, 2, 3};
+    std::vector<int> fallback = {-1};
+    migraphx::value v         = {{"key", ints}};
+    EXPECT(v.get("key", fallback) == ints);
+    EXPECT(v.get("missing", fallback) == fallback);
+    EXPECT(v.get("missing", {-1}) == fallback);
+}
+
+TEST_CASE(value_get_default_string_literal)
+{
+    migraphx::value v = {{"key", "hello"}};
+    EXPECT(v.get("key", "none") == "hello");
+    EXPECT(v.get("missing", "none") == "none");
+}
+
+TEST_CASE(value_get_default_string_literal_vector)
+{
+    std::vector<std::string> strings  = {"1", "2", "3"};
+    std::vector<std::string> fallback = {"none"};
+    migraphx::value v                 = {{"key", strings}};
+    EXPECT(v.get("key", fallback) == strings);
+    EXPECT(v.get("missing", fallback) == fallback);
+    EXPECT(v.get("missing", {"none"}) == fallback);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

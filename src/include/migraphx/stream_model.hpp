@@ -36,20 +36,26 @@ struct stream_model
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct stream_model
- * {
- *      std::size_t get_nstream() const;
- *      std::size_t get_stream(instruction_ref ins) const;
- *      std::size_t get_event_id(instruction_ref ins) const;
- *      bool has_stream(instruction_ref ins) const;
- *      bool is_record(instruction_ref ins) const;
- *      bool is_wait(instruction_ref ins) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct stream_model
+{
+    //
+    std::size_t get_nstream() const;
+    //
+    std::size_t get_stream(instruction_ref ins) const;
+    //
+    std::size_t get_event_id(instruction_ref ins) const;
+    //
+    bool has_stream(instruction_ref ins) const;
+    //
+    bool is_record(instruction_ref ins) const;
+    //
+    bool is_wait(instruction_ref ins) const;
+};
+
+#else
 
 struct stream_model
 {
@@ -296,6 +302,7 @@ inline const ValueType& any_cast(const stream_model& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

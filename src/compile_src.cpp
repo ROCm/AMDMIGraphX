@@ -34,7 +34,14 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 
     params += " -o " + out;
 
-    td.execute(compiler, params);
+    if(not launcher.empty())
+    {
+        td.execute(launcher, compiler + " " + params);
+    }
+    else
+    {
+        td.execute(compiler, params);
+    }
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))

@@ -147,10 +147,11 @@ for myshape in [[1024, 240], [1024, 64]]:
             #  Generate a temporary JSON file for the gpu-driver
             #############################################
 
-            cp = {}  # compile_pointwise key
+            c_op = {}  # compile_op key
+            c_op["name"] = "pointwise"
 
             # lambda to be executed by the operator.  This lambda contains enough looping to make operator time detectable
-            cp["lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
+            c_op["lambda"] = "[](auto x, auto y, auto z) {for (int i = 1; i < 200; i++){ z = sqrt(abs(z+y));} return x+y+z; }"
 
             # inputs is a list of dict
             inputs = []
@@ -168,14 +169,14 @@ for myshape in [[1024, 240], [1024, 64]]:
             item = {"type": datatype, "lens": myshape, "strides": {}}
             inputs.append(item)
 
-            cp["inputs"] = inputs
+            c_op["inputs"] = inputs
 
-            cp["global"] = global_workitems
-            cp["local"] = local_workitems_per_CU
-            cp["iterations"] = iterations
+            c_op["global"] = global_workitems
+            c_op["local"] = local_workitems_per_CU
+            c_op["iterations"] = iterations
 
             # top level JSON node
-            top_node = {"compile_pointwise": cp}
+            top_node = {"compile_op": c_op}
 
             # Format as JSON and write to file
             with open(os.path.join(save_python_dir, 'temp_file.json'),

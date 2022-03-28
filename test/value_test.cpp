@@ -569,15 +569,16 @@ TEST_CASE(value_compare)
 #define MIGRAPHX_VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
 
 // NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                         \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) or MIGRAPHX_VALUE_TEST_COMPARE(x >= y));                             \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y) or MIGRAPHX_VALUE_TEST_COMPARE(x == y)); \
-    EXPECT((MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y)) ==                            \
-           MIGRAPHX_VALUE_TEST_COMPARE(x != y));                                                           \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) == MIGRAPHX_VALUE_TEST_COMPARE(y > x));                               \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) == MIGRAPHX_VALUE_TEST_COMPARE(y >= x));                             \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) != MIGRAPHX_VALUE_TEST_COMPARE(x >= y));                              \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x > y) != MIGRAPHX_VALUE_TEST_COMPARE(x <= y));                              \
+#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) or MIGRAPHX_VALUE_TEST_COMPARE(x >= y));  \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y) or   \
+           MIGRAPHX_VALUE_TEST_COMPARE(x == y));                                         \
+    EXPECT((MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y)) == \
+           MIGRAPHX_VALUE_TEST_COMPARE(x != y));                                         \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) == MIGRAPHX_VALUE_TEST_COMPARE(y > x));    \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) == MIGRAPHX_VALUE_TEST_COMPARE(y >= x));  \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) != MIGRAPHX_VALUE_TEST_COMPARE(x >= y));   \
+    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x > y) != MIGRAPHX_VALUE_TEST_COMPARE(x <= y));   \
     EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x == y) != MIGRAPHX_VALUE_TEST_COMPARE(x != y))
 
 // NOLINTNEXTLINE

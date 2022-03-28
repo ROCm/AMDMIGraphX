@@ -25,7 +25,7 @@ namespace migraphx {
 ${preamble}
 
 extern "C" {
-__global__ void ${op_names}_kernel(${params}) 
+__global__ void ${op_names}(${params}) 
 {
     pointwise(${lambda}, ${args});
 }
@@ -47,7 +47,11 @@ operation compile_pointwise(context&,
     hip_compile_options options;
     options.global             = compute_global(inputs.front().elements());
     std::string op_name_string = join_strings(op_names, "_");
-    options.kernel_name        = op_name_string + "_kernel";
+    if(op_name_string.empty())
+        op_name_string = "kernel";
+    else
+        op_name_string += "_kernel";
+    options.kernel_name        = op_name_string;
     options.local              = 1024;
     options.inputs             = inputs;
     options.output             = inputs.back();
@@ -59,7 +63,6 @@ operation compile_pointwise(context&,
                                    {"args", enum_params(inputs.size(), "private_p")},
                                    {"lambda", lambda},
                                    {"preamble", preamble}});
-    // std::cout << src << std::endl;
     return compile_hip_code_object(src, options);
 }
 

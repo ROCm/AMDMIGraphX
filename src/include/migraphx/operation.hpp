@@ -445,35 +445,62 @@ lifetime get_lifetime_op(const T&)
 
 } // namespace detail
 
-/*
- * Type-erased interface for:
- *
- * struct operation
- * {
- *      std::string name() const;
- *      bool is_context_free() const;
- *      bool need_normalization() const;
- *      bool has_finalize() const;
- *      lifetime get_lifetime() const;
- *      std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
- *      value compile(context& ctx,const shape& output,const std::vector<shape>& input) ;
- *      void finalize(context& ctx,const shape& output,const std::vector<shape>& input) ;
- *      shape compute_shape(const std::vector<shape>& input) const;
- *      shape compute_shape(const std::vector<shape>& inputs,const std::vector<module_ref>&
- * mod_args) const; argument compute(context& ctx,const shape& output,const std::vector<argument>&
- * input) const; argument compute(const shape& output,const std::vector<argument>& input) const;
- *      argument compute(const shape& output,const std::vector<argument>& input,const
- * std::vector<module_ref>& module_args,std::function<std::vector<argument>(module_ref&, const
- * std::unordered_map<std::string, argument>&)> run) const; argument compute(context& ctx,const
- * shape& output,const std::vector<argument>& input,const std::vector<module_ref>&
- * module_args,std::function<std::vector<argument>(module_ref&, const
- * std::unordered_map<std::string, argument>&)> run) const; value to_value() const; void
- * from_value(const value& v) ; value attributes() const; friend std::ostream &
- * operator<<(std::ostream & os,const operation & op) ; friend bool operator==(const operation &
- * x,const operation & y) ;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct operation
+{
+    //
+    std::string name() const;
+    // (optional)
+    bool is_context_free() const;
+    // (optional)
+    bool need_normalization() const;
+    // (optional)
+    bool has_finalize() const;
+    // (optional)
+    lifetime get_lifetime() const;
+    // (optional)
+    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    // (optional)
+    value compile(context& ctx, const shape& output, const std::vector<shape>& input);
+    // (optional)
+    void finalize(context& ctx, const shape& output, const std::vector<shape>& input);
+    // (optional)
+    shape compute_shape(const std::vector<shape>& input) const;
+    // (optional)
+    shape compute_shape(const std::vector<shape>& inputs,
+                        const std::vector<module_ref>& mod_args) const;
+    // (optional)
+    argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
+    // (optional)
+    argument compute(const shape& output, const std::vector<argument>& input) const;
+    // (optional)
+    argument compute(const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const;
+    // (optional)
+    argument compute(context& ctx,
+                     const shape& output,
+                     const std::vector<argument>& input,
+                     const std::vector<module_ref>& module_args,
+                     std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)> run) const;
+    // (optional)
+    value to_value() const;
+    // (optional)
+    void from_value(const value& v);
+    // (optional)
+    value attributes() const;
+    //
+    friend std::ostream& operator<<(std::ostream& os, const operation& op);
+    //
+    friend bool operator==(const operation& x, const operation& y);
+};
+
+#else
 
 struct operation
 {
@@ -1222,6 +1249,7 @@ inline const ValueType& any_cast(const operation& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 inline bool operator!=(const operation& x, const operation& y) { return !(x == y); }
 

@@ -237,7 +237,7 @@ __global__ void triadd_layernorm_kernel_half2(
     __half2* input2 = reinterpret_cast<__half2*>(in2);
     __half2* input3 = reinterpret_cast<__half2*>(in3);
     __half2* output = reinterpret_cast<__half2*>(data_out);
-    auto rnum = __float2half2_rn(1.0f / batch_item_num);
+    auto rnum       = __float2half2_rn(1.0f / batch_item_num);
     batch_item_num /= 2;
     extern MIGRAPHX_DEVICE_SHARED __half2 buffer2[];
     __half2* in_data_reduce = buffer2;
@@ -410,8 +410,7 @@ void triadd_layernorm(hipStream_t stream,
         int shared_size       = batch_item_num * 2 * in_s.type_size();
         half2_block_size      = half2_block_size / 4;
         triadd_layernorm_kernel_half2<<<block_num, half2_block_size, shared_size, stream>>>(
-            arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num,
-            half2_block_size);
+            arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num, half2_block_size);
     }
     // if(type == shape::half_type)
     // {

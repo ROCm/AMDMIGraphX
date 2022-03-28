@@ -569,22 +569,22 @@ TEST_CASE(value_compare)
 #define MIGRAPHX_VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
 
 // NOLINTNEXTLINE
-#define EXPECT_TOTALLY_ORDERED_IMPL(x, y)                                                \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) or MIGRAPHX_VALUE_TEST_COMPARE(x >= y));  \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y) or   \
-           MIGRAPHX_VALUE_TEST_COMPARE(x == y));                                         \
-    EXPECT((MIGRAPHX_VALUE_TEST_COMPARE(x < y) or MIGRAPHX_VALUE_TEST_COMPARE(x > y)) == \
-           MIGRAPHX_VALUE_TEST_COMPARE(x != y));                                         \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) == MIGRAPHX_VALUE_TEST_COMPARE(y > x));    \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x <= y) == MIGRAPHX_VALUE_TEST_COMPARE(y >= x));  \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x < y) != MIGRAPHX_VALUE_TEST_COMPARE(x >= y));   \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x > y) != MIGRAPHX_VALUE_TEST_COMPARE(x <= y));   \
-    EXPECT(MIGRAPHX_VALUE_TEST_COMPARE(x == y) != MIGRAPHX_VALUE_TEST_COMPARE(x != y))
+#define EXPECT_TOTALLY_ORDERED_IMPL(_, x, y)                                                \
+    EXPECT(_(x <= y) or _(x >= y));  \
+    EXPECT(_(x < y) or _(x > y) or   \
+           _(x == y));                                         \
+    EXPECT((_(x < y) or _(x > y)) == \
+           _(x != y));                                         \
+    EXPECT(_(x < y) == _(y > x));    \
+    EXPECT(_(x <= y) == _(y >= x));  \
+    EXPECT(_(x < y) != _(x >= y));   \
+    EXPECT(_(x > y) != _(x <= y));   \
+    EXPECT(_(x == y) != _(x != y))
 
 // NOLINTNEXTLINE
 #define EXPECT_TOTALLY_ORDERED(x, y)   \
-    EXPECT_TOTALLY_ORDERED_IMPL(x, y); \
-    EXPECT_TOTALLY_ORDERED_IMPL(y, x)
+    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, x, y); \
+    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, y, x)
 
 // NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(value_compare_ordered)

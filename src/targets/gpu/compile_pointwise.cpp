@@ -51,13 +51,13 @@ operation compile_pointwise(context&,
         op_name_string = "kernel";
     else
         op_name_string += "_kernel";
-    options.kernel_name        = op_name_string;
-    options.local              = 1024;
-    options.inputs             = inputs;
-    options.output             = inputs.back();
-    options.virtual_inputs     = reduce_dims(inputs);
-    options.params             = "-Wno-float-equal";
-    auto src                   = interpolate_string(pointwise_kernel,
+    options.kernel_name    = op_name_string;
+    options.local          = 1024;
+    options.inputs         = inputs;
+    options.output         = inputs.back();
+    options.virtual_inputs = reduce_dims(inputs);
+    options.params         = "-Wno-float-equal";
+    auto src               = interpolate_string(pointwise_kernel,
                                   {{"op_names", op_name_string},
                                    {"params", enum_params(inputs.size(), "void * private_p")},
                                    {"args", enum_params(inputs.size(), "private_p")},

@@ -14,7 +14,7 @@ struct context;
 operation compile_pointwise(context& ctx,
                             const std::vector<shape>& inputs,
                             const std::string& lambda,
-                            const std::string& preamble = "",
+                            const std::string& preamble              = "",
                             const std::vector<std::string>& op_names = {});
 
 operation compile_pointwise(context& ctx, const std::vector<shape>& inputs, module m);

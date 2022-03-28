@@ -213,7 +213,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     py::class_<migraphx::shape>(m, "shape")
         .def(py::init([](py::kwargs kwargs) {
             auto v    = migraphx::to_value(kwargs);
-            auto t    = migraphx::shape::parse_type(v.get("type", std::string{"float"}));
+            auto t    = migraphx::shape::parse_type(v.get("type", "float"));
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());

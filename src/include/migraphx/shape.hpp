@@ -226,8 +226,6 @@ struct shape
     const std::vector<shape>& sub_shapes() const;
     std::size_t element_space() const;
 
-    std::size_t element_space() const;
-
     private:
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;

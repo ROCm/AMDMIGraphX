@@ -4246,7 +4246,7 @@ TEST_CASE(scatter_ax1_test)
 
 // similar to create_scatter_program but with different tensor values
 // reduction_mode: "scatter_none", "scatter_add", "scatter_mul"
-migraphx::program create_scatter_program2(std::string reduction_mode, int axis)
+migraphx::program create_scatter_program2(const std::string& reduction_mode, int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -4339,7 +4339,7 @@ TEST_CASE(scatter_reduction_3x3_test)
 
 // create a test scatter program with a 3x3 tensor;
 //  su and si are transposed from previous case
-migraphx::program create_scatter_program_3x3(std::string reduction_mode, int axis)
+migraphx::program create_scatter_program_3x3(const std::string& reduction_mode, int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

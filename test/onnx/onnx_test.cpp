@@ -4234,7 +4234,7 @@ TEST_CASE(round_test)
 }
 
 // the ScatterElements op has 3 reduction modes, which map to separate reference ops
-migraphx::program create_scatter_program(std::string scatter_mode, int axis)
+migraphx::program create_scatter_program(const std::string& scatter_mode, int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

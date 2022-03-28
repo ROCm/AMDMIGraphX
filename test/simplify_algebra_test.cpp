@@ -11,9 +11,9 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+void run_pass(migraphx::module& m, bool fast_math = false)
 {
-    migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::simplify_algebra{fast_math}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simplify_add1)
@@ -785,7 +785,7 @@ TEST_CASE(simplify_gelu_fast_math)
         // multiply 0.5
         auto point_5 = m1.add_literal(0.5F);
         migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
-        run_pass(m1);
+        run_pass(m1, true);
     }
     migraphx::module m2;
     {

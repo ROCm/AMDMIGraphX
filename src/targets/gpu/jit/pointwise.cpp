@@ -41,6 +41,14 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise"}; }
 
+    static std::size_t oversubscribe(const std::vector<shape>& inputs)
+    {
+        if (std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); }))
+            return 1;
+        else
+            return 4;
+
+    }
     static std::size_t vectorize_elements(const std::vector<shape>& inputs)
     {
         std::size_t n = inputs.front().elements();
@@ -58,7 +66,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, vectorize_elements(inputs)));
+        options.set_launch_params(v, compute_global_for(ctx, vectorize_elements(inputs), oversubscribe(inputs)));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

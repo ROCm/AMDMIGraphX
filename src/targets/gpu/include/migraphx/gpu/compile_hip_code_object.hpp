@@ -34,7 +34,7 @@ struct hip_compile_options
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit
-std::function<std::size_t(std::size_t local)> compute_global_for(context& ctx, std::size_t n);
+std::function<std::size_t(std::size_t local)> compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 
 operation compile_hip_code_object(const std::string& content, hip_compile_options options);
 

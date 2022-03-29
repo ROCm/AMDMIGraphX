@@ -81,10 +81,7 @@ __device__ auto auto_block_reduce(index idx, Op op, T init, index_int n, F f)
 }
 
 template <index_int MaxBlockSize, class Input, class Output>
-__device__ void layernorm(index idx,
-                          index_int relements,
-                          Input input,
-                          Output output)
+__device__ void layernorm(index idx, index_int relements, Input input, Output output)
 {
     using value_type       = decltype(input(idx.local));
     const auto relements_v = relements / vector_size<value_type>{};

@@ -26,11 +26,11 @@ struct schedule_model
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
     /// Schedule a concurrent instruction
-    void sched(module& p, instruction_ref ins, std::size_t n) const;
+    void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
-    void wait(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     // Insert necessary records after an instruction
-    void record(module& p, instruction_ref ins, std::size_t wait_id) const;
+    void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
     std::size_t weight(const operation& op) const;
 };
@@ -40,9 +40,9 @@ struct schedule_model
 <%
 interface('schedule_model',
     virtual('concurrency', returns='std::size_t', const=True),
-    virtual('sched', p='module&', ins='instruction_ref', n='std::size_t', const=True),
-    virtual('wait', p='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
-    virtual('record', p='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
+    virtual('sched', m='module&', ins='instruction_ref', n='std::size_t', const=True),
+    virtual('wait', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
+    virtual('record', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
     virtual('weight', returns='std::size_t', op='const operation&', const=True)
 )
 %>

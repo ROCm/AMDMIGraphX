@@ -44,18 +44,22 @@ any_ptr get_queue_context(T&)
     return {};
 }
 
-/*
- * Type-erased interface for:
- *
- * struct context
- * {
- *      value to_value() const;
- *      void from_value(const value& v) ;
- *      any_ptr get_queue() ;
- *      void finish() const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct context
+{
+    // (optional)
+    value to_value() const;
+    // (optional)
+    void from_value(const value& v);
+    // (optional)
+    any_ptr get_queue();
+    //
+    void finish() const;
+};
+
+#else
 
 struct context
 {
@@ -316,6 +320,7 @@ inline const ValueType& any_cast(const context& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }

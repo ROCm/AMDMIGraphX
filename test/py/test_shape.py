@@ -16,6 +16,17 @@ def test_create_shape_broadcast():
 
 
 def test_create_shape_type():
-    s = migraphx.shape(type='uint8')
-    assert s.type_string() == 'uint8_type'
+    s = migraphx.shape(type='int64_t')
+    assert s.type_string() == 'int64_type'
+    assert s.type_size() == 8
+    s = migraphx.shape(type='uint8_t')
+    assert s.type_string() == "uint8_type"
     assert s.type_size() == 1
+    s = migraphx.shape(type='float')
+    assert s.type_size() == 4
+
+
+if __name__ == "__main__":
+    test_create_shape()
+    test_create_shape_broadcast()
+    test_create_shape_type()

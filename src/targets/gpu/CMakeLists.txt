@@ -119,6 +119,7 @@ target_link_libraries(kernel_file_check compile_for_gpu)
 
 rocm_clang_tidy_check(kernel_file_check)
 
+file(GLOB JIT_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -131,9 +132,7 @@ add_library(migraphx_gpu
     compile_ops.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
-    compile_pointwise.cpp
-    compile_roialign.cpp
-    compile_scatternd.cpp
+    compiler.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -171,6 +170,7 @@ add_library(migraphx_gpu
     target.cpp
     topk.cpp
     write_literals.cpp
+    ${JIT_GPU_SRCS}
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 

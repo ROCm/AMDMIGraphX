@@ -123,7 +123,7 @@ constexpr auto vec_packed_transform(Ts... xs)
             for(int i = 0; i < size / N; i++)
             {
                 // Call the function with packed vectors
-                safe_vec<type, N> r = f(vec_packed_at<N>(xs, i)...);
+                safe_vec<type, N> r = f(vec_packed_at<N>(xs, i*N)...);
                 // Copy the packed vectors to the result
                 for(int j = 0; j < N; j++)
                     result[i * N + j] = r[j];

@@ -373,24 +373,27 @@ __global__ void triadd_layernorm_kernel(
     {
         int idx           = i + start;
         in_data[i]        = input1[idx] + input2[idx] + input3[idx];
-        in_data_reduce[i] = __half2float(in_data[i]) * rnum;
+        in_data_reduce[i] = in_data[i];
+        // in_data_reduce[i] = __half2float(in_data[i]) * rnum;
     }
 
     auto m = block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size);
+    m = m * rnum;
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         in_data[i]        = in_data[i] - m;
-        in_data_reduce[i] = __half2float(in_data[i] * in_data[i]) * rnum;
+        in_data_reduce[i] = in_data[i] * in_data[i];
+        // in_data_reduce[i] = __half2float(in_data[i] * in_data[i]) * rnum;
     }
-
-    m = __half2float(block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size)) +
-        1.0e-12f;
+    m = block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size);
+    m = m * rnum + 1.0e-12f;
     auto r = rsqrt(m);
 
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         int idx     = i + start;
-        output[idx] = __half2float(in_data[i]) * r;
+        // output[idx] = __half2float(in_data[i]) * r;
+        output[idx] = in_data[i] * r;
     }
 }
 
@@ -412,20 +415,6 @@ void triadd_layernorm(hipStream_t stream,
         triadd_layernorm_kernel_half2<<<block_num, half2_block_size, shared_size, stream>>>(
             arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num, half2_block_size);
     }
-    // if(type == shape::half_type)
-    // {
-    //     auto reduce_block_size = compute_block_size(batch_item_num, 1024);
-    //     int block_num          = in_s.elements() / batch_item_num;
-    //     int shared_size        = batch_item_num * 2 * in_s.type_size();
-    //     reduce_block_size      = reduce_block_size / 2;
-    //     triadd_layernorm_kernel<__half>
-    //         <<<block_num, reduce_block_size, shared_size, stream>>>(arg1.data(),
-    //                                                                 arg2.data(),
-    //                                                                 arg3.data(),
-    //                                                                 result.data(),
-    //                                                                 batch_item_num,
-    //                                                                 reduce_block_size);
-    // }
     else
     {
         layernorm_fusion(stream, result, arg1, arg2, arg3)(
@@ -434,10 +423,68 @@ void triadd_layernorm(hipStream_t stream,
     }
 }
 
+__global__ void layernorm_kernel_half2(
+    void* in1, void* data_out, index_int batch_item_num, index_int block_size)
+{
+    __half2* input1 = reinterpret_cast<__half2*>(in1);
+    __half2* output = reinterpret_cast<__half2*>(data_out);
+    auto rnum       = __float2half2_rn(1.0f / batch_item_num);
+    batch_item_num /= 2;
+    extern MIGRAPHX_DEVICE_SHARED __half2 buffer2[];
+    __half2* in_data_reduce = buffer2;
+    __half2* in_data        = buffer2 + batch_item_num;
+
+    int start = blockIdx.x * batch_item_num;
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
+    {
+        int idx           = i + start;
+        in_data[i]        = input1[idx];
+        in_data_reduce[i] = in_data[i];
+    }
+
+    auto m =
+        block_reduce_half2(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
+    m = __hmul2(m, rnum);
+
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
+    {
+        in_data[i] = __hsub2(in_data[i], m);
+        in_data_reduce[i] = __hmul2(in_data[i], in_data[i]);
+    }
+
+    m = block_reduce_half2(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
+    m = __hmul2(m, rnum);
+
+    auto eps = __float2half2_rn(1.0e-12f);
+    auto r   = __hadd2(m, eps);
+    r        = h2rsqrt(r);
+
+    for(int i = threadIdx.x; i < batch_item_num; i += block_size)
+    {
+        int idx     = i + start;
+        output[idx] = __hmul2(in_data[i], r);
+    }
+}
+
 void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
 {
-    layernorm_fusion(stream, result, arg1)([](auto x) { return x; },
-                                           [](auto x, auto& y, auto) { y = x; });
+    auto in_s           = arg1.get_shape();
+    auto type           = in_s.type();
+    auto batch_item_num = in_s.lens().back();
+    if(type == shape::half_type and (batch_item_num % 2) == 0)
+    {
+        auto half2_block_size = compute_block_size(batch_item_num, 1024);
+        int block_num         = in_s.elements() / batch_item_num;
+        int shared_size       = batch_item_num * 2 * in_s.type_size();
+        half2_block_size      = half2_block_size / 4;
+        layernorm_kernel_half2<<<block_num, half2_block_size, shared_size, stream>>>(
+            arg1.data(), result.data(), batch_item_num, half2_block_size);
+    }
+    else
+    {
+        layernorm_fusion(stream, result, arg1)([](auto x) { return x; },
+                                            [](auto x, auto& y, auto) { y = x; });
+    }
 }
 
 } // namespace device

@@ -1,3 +1,4 @@
+import sys
 import migraphx
 try:
     import numpy as np

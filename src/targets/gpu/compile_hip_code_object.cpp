@@ -108,6 +108,7 @@ void hip_compile_options::set_launch_params(
 std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over)
 {
+    assert(over > 0);
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {

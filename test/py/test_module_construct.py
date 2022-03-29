@@ -1,5 +1,8 @@
 import migraphx
-import numpy as np
+try:
+    import numpy as np
+except:
+    sys.exit()
 
 
 def test_add_op():

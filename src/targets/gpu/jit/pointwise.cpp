@@ -46,7 +46,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         if(std::any_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.broadcasted(); }))
             return 1;
         else
-            return 4;
+            return 256;
     }
     static std::size_t vectorize_elements(const std::vector<shape>& inputs)
     {

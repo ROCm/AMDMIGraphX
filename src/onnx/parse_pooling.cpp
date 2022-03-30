@@ -35,9 +35,11 @@ struct parse_pooling : op_parser<parse_pooling>
         {
             MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
         }
-        operation op = make_op(
-            "pooling",
-            {{"mode", mode == "average" ? op::pooling_mode::average : op::pooling_mode::max}});
+        const std::unordered_map<std::string, op::pooling_mode> mode_map = {
+            {"max", op::pooling_mode::max},
+            {"average", op::pooling_mode::average},
+            {"lpnorm", op::pooling_mode::lpnorm}};
+        operation op = make_op("pooling", {{"mode", mode_map.at(mode)}});
         value values = op.to_value();
         auto l0      = args[0];
         auto in_lens = l0->get_shape().lens();
@@ -77,10 +79,10 @@ struct parse_pooling : op_parser<parse_pooling>
                 kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
         }
 
-        // lpnorm attribute
+        // lp_order attribute
         if(contains(info.attributes, "p"))
         {
-            values["lp_order"] = static_cast<int>(info.attributes.at("p").i());
+            values["lp_order"] = info.attributes.at("p").i();
         }
 
         // ensure pads availabe only when auto_pad is "NOT_SET"

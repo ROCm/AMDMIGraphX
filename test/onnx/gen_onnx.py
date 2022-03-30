@@ -1751,7 +1751,16 @@ def globalavgpool_test():
 
 @onnx_test
 def globallppool_test():
-    TODO
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
+
+    node = onnx.helper.make_node(
+        'GlobalLpPool',
+        inputs=['0'],
+        outputs=['1'],
+    )
+
+    return ([node], [x], [y])
 
 
 @onnx_test
@@ -2811,12 +2820,30 @@ def loop_test():
 
 @onnx_test
 def lppool_l1_test():
-    TODO
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 3])
+
+    node = onnx.helper.make_node('LpPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[3],
+                                 p=1)
+
+    return ([node], [x], [y])
 
 
 @onnx_test
 def lppool_l2_test():
-    TODO
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 3])
+
+    node = onnx.helper.make_node('LpPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[3],
+                                 p=2)
+
+    return ([node], [x], [y])
 
 
 @onnx_test

@@ -37,7 +37,8 @@ struct pooling
                     f(self.padding, "padding"),
                     f(self.stride, "stride"),
                     f(self.lengths, "lengths"),
-                    f(self.ceil_mode, "ceil_mode"));
+                    f(self.ceil_mode, "ceil_mode"),
+                    f(self.lp_order, "lp_order"));
     }
 
     std::string name() const { return "pooling"; }

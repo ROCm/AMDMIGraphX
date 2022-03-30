@@ -30,15 +30,9 @@ struct parse_scatter : op_parser<parse_scatter>
             if(not contains({"none", "add", "mul"}, reduction_att))
                 MIGRAPHX_THROW("PARSE_SCATTER: unsupported reduction mode " + reduction_att);
 
-            if(reduction_att == "add")
-                op_name = "scatter_add";
-            else if(reduction_att == "mul")
-                op_name = "scatter_mul";
-            else
-                op_name = "scatter_none";
         }
-
-        op = migraphx::make_op(op_name, {{"axis", axis}});
+        // merge scatter with reduction attribute to specify which scatter operation
+        op = migraphx::make_op(join_strings({op_name, reduction_att}, "_"), op_name, {{"axis", axis}});
         return info.add_instruction(op, args);
     }
 };

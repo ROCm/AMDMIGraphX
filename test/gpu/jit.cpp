@@ -10,7 +10,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
-#include <migraphx/gpu/compile_pointwise.hpp>
+#include <migraphx/gpu/compiler.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -230,7 +230,8 @@ TEST_CASE(compile_pointwise)
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
 
     migraphx::gpu::context ctx;
-    auto co = migraphx::gpu::compile_pointwise(ctx, {input, input}, "[](auto x) { return x + 1; }");
+    auto co = migraphx::gpu::compile_op(
+        "pointwise", ctx, {input, input}, {{"lambda", "[](auto x) { return x + 1; }"}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

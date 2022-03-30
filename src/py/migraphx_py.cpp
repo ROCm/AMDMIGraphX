@@ -1,5 +1,4 @@
 
-#include <pybind11/detail/common.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
@@ -284,11 +283,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("mod_args"))
         .def(
             "add_parameter",
-            [](migraphx::module& mm, const std::string& name, const migraphx::shape s) {
-                return mm.add_parameter(name, s);
+            [](migraphx::module& mm, const std::string& name, const migraphx::shape shape) {
+                return mm.add_parameter(name, shape);
             },
             py::arg("name"),
-            py::arg("s"))
+            py::arg("shape"))
         .def(
             "add_return",
             [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
@@ -315,14 +314,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("fast_math")    = true)
         .def("get_main_module",
              [](const migraphx::program& p) {
-                 auto* mm = p.get_main_module();
-                 return mm;
+                 return p.get_main_module();
              })
         .def(
             "create_module",
             [](migraphx::program& p, const std::string& name) {
-                auto* mm = p.create_module(name);
-                return mm;
+                return p.create_module(name);
             },
             py::arg("name"))
         .def("run",

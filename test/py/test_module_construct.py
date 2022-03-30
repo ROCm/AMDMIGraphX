@@ -16,8 +16,8 @@ def test_add_op():
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    params["x"] = params["y"] = np.arange(9).reshape(
-        param_shape.lens()).astype(np.float32)
+    params["x"] = np.random.rand(3, 3).astype(np.float32)
+    params["y"] = np.random.rand(3, 3).astype(np.float32)
     output = p.run(params)[-1]
     assert (np.array_equal(output, params["x"] + params["y"]))
 

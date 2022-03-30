@@ -13,7 +13,8 @@
 
 void run_pass(migraphx::module& m, bool fast_math = false)
 {
-    migraphx::run_passes(m, {migraphx::simplify_algebra{fast_math}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m, {migraphx::simplify_algebra{fast_math}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simplify_add1)

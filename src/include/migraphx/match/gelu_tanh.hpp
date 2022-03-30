@@ -12,8 +12,7 @@ namespace detail {
 template <class F>
 struct gelu_tanh_matcher
 {
-    F f; // currently a function that matches name with gpu:: or cpu::prepended see
-         // simplify_algebra.cpp
+    F f;
 
     // helper function matches "pow" operator and 3.0
     auto pow_fn() const { return f("pow")(used_once(), arg(0).bind("x"), arg(1)(has_value(3.0f))); }
@@ -27,15 +26,16 @@ struct gelu_tanh_matcher
     // Also binds the name "x" to the first appearance of the x argument.
     // Note that there is no checking that the "x" here matches the two other appearances
     // of x in the gelu formula.
-    auto tanh_sub_fn() const{
-
+    auto tanh_sub_fn() const
+    {
         // magic number * x**3
         auto const_times_pow_fn = f("mul")(either_arg(0, 1)(has_value(0.044715f), pow_fn()));
         // add x to result of const_times_pow_fn
         auto add_x_fn = f("add")(either_arg(0, 1)(any().bind("x"), const_times_pow_fn));
 
         // multiply by sqrt(2 / pi)
-        auto mul_sqrt_2_over_pi = f("mul")(either_arg(0, 1)(add_x_fn, has_value(sqrt(M_2_PI), 1e-3)));
+        auto mul_sqrt_2_over_pi =
+            f("mul")(either_arg(0, 1)(add_x_fn, has_value(sqrt(M_2_PI), 1e-3)));
 
         // tanh
         auto tanh_fn = f("tanh")(used_once(), arg(0)(mul_sqrt_2_over_pi));
@@ -60,7 +60,7 @@ struct gelu_tanh_matcher
 
         // Each of these calls returns a matcher predicate function which we compose
         // with each other.  They could alternatively have been declared as helper
-        // member functions of this struct.  
+        // member functions of this struct.
         //
         // Each function matches a step in the algebraic gelu formula.
 

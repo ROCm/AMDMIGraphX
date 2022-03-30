@@ -837,7 +837,6 @@ TEST_CASE(where_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
 }
 
-
 TEST_CASE(gelu_tanh_test)
 {
     migraphx::program p = migraphx::parse_onnx("gelu_tanh_test.onnx");
@@ -850,7 +849,7 @@ TEST_CASE(gelu_tanh_test)
 
     // add parameters and instructions as in test/onnx/onnx_test.cpp
     // and simplify_algebra.cpp
-    // apply the gelu_erf formula: return 
+    // apply the gelu_erf formula: return
 
     migraphx::shape s{migraphx::shape::float_type, {1, 1}};
     std::vector<float> data = {-10.0};
@@ -859,7 +858,7 @@ TEST_CASE(gelu_tanh_test)
     pp["x"] = migraphx::argument(s, data.data());
 
     auto result = p.eval(pp).back();
-     // see hardsigmoid_verify_test
+    // see hardsigmoid_verify_test
 
     // copy output to result_vector
     std::vector<float> result_vector;
@@ -874,10 +873,7 @@ TEST_CASE(gelu_tanh_test)
     EXPECT(migraphx::verify_range(result_vector, gold));
     // the tanh version should get substituted to match the erf version
     p2.compile(migraphx::ref::target{});
-    EXPECT(p==p2);
-
-
+    EXPECT(p == p2);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

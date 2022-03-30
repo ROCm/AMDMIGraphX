@@ -18,8 +18,8 @@ auto gelu_fn(T x) __device__
     return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
 }
 
-// the magic number 0.044715 appears to originate with the BERT model paper by Jacob Devlin, Ming-Wei Chang, 
-//     Kenton Lee, Kristina Toutanova
+// the magic number 0.044715 appears to originate with the BERT model paper by Jacob Devlin,
+// Ming-Wei Chang, Kenton Lee, Kristina Toutanova
 // The formula is a heuristic approximation of the GELU function:
 // 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x, 3))))
 template <class T>

@@ -1,25 +1,27 @@
 /**
  * @file onnx_test.cpp*
- * 
- * @author 
+ *
+ * @author
  * @brief Onnx parsing tests
- * 
- * To create a test contents:  Create a program migraphx::program p; and add operators, parameters 
+ *
+ * To create a test contents:  Create a program migraphx::program p; and add operators, parameters
  * and instructions.  Compare
  * with a program loaded from a *.onnx file.  This verifies that the *.onnx file was
- * parsed correctly.  
- * 
- * Tests are declared with TEST_CASE(myname_test).  You can specify a case name to run on the command line, e.g.
- * 
+ * parsed correctly.
+ *
+ * Tests are declared with TEST_CASE(myname_test).  You can specify a case name to run on the
+ * command line, e.g.
+ *
  *        ../../build/bin/test_onnx_test myname_test
- * 
- * Only use ref-defined operators in the program.  The *onnx load will use onnx operators, which 
+ *
+ * Only use ref-defined operators in the program.  The *onnx load will use onnx operators, which
  * should be mapped by the onnx parser but aren't identical.  We normally use Python code located in
- * gen_onnx.py to create the *.onnx files.  Do not try to compile the program in the test body, since the compiler
- * is not exposed in this program.  Tests involving compiling belong in verify_onnx.cpp
- * 
+ * gen_onnx.py to create the *.onnx files.  Do not try to compile the program in the test body,
+ * since the compiler is not exposed in this program.  Tests involving compiling belong in
+ * verify_onnx.cpp
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include <iostream>

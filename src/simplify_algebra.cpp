@@ -187,7 +187,8 @@ struct find_mul_add
     }
 };
 
-struct find_gelu // find gelu, using the tanh implementation. Replace it with the gelu_erf formula
+// find gelu (a multi-step formula), using the tanh implementation. Replace it with the gelu_erf formula
+struct find_gelu
 {
     // compile option fast_math controls whether to use math shortcuts like this
     bool fast_math = true;
@@ -202,16 +203,10 @@ struct find_gelu // find gelu, using the tanh implementation. Replace it with th
         auto x_ins = r.instructions["x"];
 
         auto x_type = x_ins->get_shape().type();
-        // auto x_lens = x_ins->get_shape().lens();  used for multibroadcast (example)
         migraphx::shape scalar_shape{x_type};
 
         // create a scalar literal that casts the constant M_SQRT1_2 to the type of x
         auto sq12inst = p.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2}));
-        // recast to the shape (lens) of x.  Defaults to 0 strides since it's a constant.
-
-        // multibroadcast not needed now.
-        // auto sq12inst_mbcast = p.insert_instruction(ins, make_op("multibroadcast", {{"out_lens",
-        // x_lens}} ), sq12inst);
 
         // use insert_common_op() instead of insert_instruction() to automatically match sizes
         // (broadcast) between tensor x and the literal scalar v2

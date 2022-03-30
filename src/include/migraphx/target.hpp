@@ -82,20 +82,26 @@ argument copy_from_target(T&, const argument& arg)
     return arg;
 }
 
-/*
- * Type-erased interface for:
- *
- * struct target
- * {
- *      std::string name() const;
- *      std::vector<pass> get_passes(context& ctx,const compile_options& options) const;
- *      context get_context() const;
- *      argument copy_to(const argument& input) const;
- *      argument copy_from(const argument& input) const;
- *      argument allocate(const shape& s) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct target
+{
+    //
+    std::string name() const;
+    //
+    std::vector<pass> get_passes(context& ctx, const compile_options& options) const;
+    //
+    context get_context() const;
+    // (optional)
+    argument copy_to(const argument& input) const;
+    // (optional)
+    argument copy_from(const argument& input) const;
+    // (optional)
+    argument allocate(const shape& s) const;
+};
+
+#else
 
 struct target
 {
@@ -382,6 +388,7 @@ inline const ValueType& any_cast(const target& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

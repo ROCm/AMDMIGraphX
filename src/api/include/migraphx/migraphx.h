@@ -103,6 +103,17 @@ typedef const struct migraphx_quantize_int8_options* const_migraphx_quantize_int
 typedef struct migraphx_context* migraphx_context_t;
 typedef const struct migraphx_context* const_migraphx_context_t;
 
+typedef struct migraphx_experimental_custom_op* migraphx_experimental_custom_op_t;
+typedef const struct migraphx_experimental_custom_op* const_migraphx_experimental_custom_op_t;
+
+typedef migraphx_status (*migraphx_experimental_custom_op_compute_shape)(migraphx_shape_t out,
+                                                                         void* obj,
+                                                                         migraphx_shapes_t inputs);
+
+typedef migraphx_status (*migraphx_experimental_custom_op_copy)(void** out, void* input);
+
+typedef migraphx_status (*migraphx_experimental_custom_op_delete)(void* input);
+
 migraphx_status migraphx_shape_destroy(migraphx_shape_t shape);
 
 migraphx_status migraphx_shape_assign_to(migraphx_shape_t output, const_migraphx_shape_t input);
@@ -421,6 +432,26 @@ migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
                                        migraphx_quantize_int8_options_t options);
 
 migraphx_status migraphx_context_finish(const_migraphx_context_t context);
+
+migraphx_status
+migraphx_experimental_custom_op_destroy(migraphx_experimental_custom_op_t experimental_custom_op);
+
+migraphx_status
+migraphx_experimental_custom_op_assign_to(migraphx_experimental_custom_op_t output,
+                                          const_migraphx_experimental_custom_op_t input);
+
+migraphx_status
+migraphx_experimental_custom_op_create(migraphx_experimental_custom_op_t* experimental_custom_op,
+                                       void* obj,
+                                       migraphx_experimental_custom_op_copy c,
+                                       migraphx_experimental_custom_op_delete d,
+                                       const char* name);
+
+migraphx_status migraphx_experimental_custom_op_set_compute_shape(
+    migraphx_experimental_custom_op_t obj, migraphx_experimental_custom_op_compute_shape input);
+
+migraphx_status
+migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);
 
 #ifdef __cplusplus
 }

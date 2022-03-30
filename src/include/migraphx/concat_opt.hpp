@@ -30,17 +30,20 @@ struct concat_optimization
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct concat_optimization
- * {
- *      std::string name() const;
- *      std::string allocate() const;
- *      op::concat get_concat(const operation& op) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct concat_optimization
+{
+    //
+    std::string name() const;
+    //
+    std::string allocate() const;
+    //
+    op::concat get_concat(const operation& op) const;
+};
+
+#else
 
 struct concat_optimization
 {
@@ -244,6 +247,7 @@ inline const ValueType& any_cast(const concat_optimization& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

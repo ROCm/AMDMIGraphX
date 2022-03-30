@@ -70,7 +70,7 @@ struct reduce_compiler : compiler<reduce_compiler>
         auto reduce_elements = get_reduce_elements(inputs);
         auto block_size      = compute_block_size(reduce_elements, 256);
         options.set_launch_params(
-            v, compute_global_for(ctx, inputs.back().elements() * block_size, 4), block_size);
+            v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);

@@ -2818,6 +2818,7 @@ def loop_test():
     return ([node], [iter, cond, a, b], [b_loop, uout])
 
 
+@onnx_test
 def lpnormalization_axis_error_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3])
@@ -2843,6 +2844,7 @@ def lpnormalization_default_test():
     return ([node], [x], [y])
 
 
+@onnx_test
 def lpnormalization_l1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])

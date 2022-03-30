@@ -2890,6 +2890,7 @@ def lppool_l1_test():
                                  outputs=['y'],
                                  kernel_shape=[3],
                                  p=1)
+    return ([node], [x], [y])
 
 
 @onnx_test
@@ -2902,6 +2903,7 @@ def lppool_l2_test():
                                  outputs=['y'],
                                  kernel_shape=[3],
                                  p=2)
+    return ([node], [x], [y])
 
 
 @onnx_test

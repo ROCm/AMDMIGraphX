@@ -312,15 +312,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
-        .def("get_main_module",
-             [](const migraphx::program& p) {
-                 return p.get_main_module();
-             })
+        .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
-            [](migraphx::program& p, const std::string& name) {
-                return p.create_module(name);
-            },
+            [](migraphx::program& p, const std::string& name) { return p.create_module(name); },
             py::arg("name"))
         .def("run",
              [](migraphx::program& p, py::dict params) {

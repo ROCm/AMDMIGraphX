@@ -1,5 +1,6 @@
 
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <migraphx/program.hpp>
@@ -265,22 +266,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             "add_instruction",
             [](migraphx::module& mm,
                const migraphx::operation& op,
-               std::vector<migraphx::instruction_ref>& args) {
-                return mm.add_instruction(op, args);
-            },
-            py::arg("op"),
-            py::arg("args"))
-        .def(
-            "add_instruction",
-            [](migraphx::module& mm,
-               const migraphx::operation& op,
                std::vector<migraphx::instruction_ref>& args,
                std::vector<migraphx::module*>& mod_args) {
                 return mm.add_instruction(op, args, mod_args);
             },
             py::arg("op"),
             py::arg("args"),
-            py::arg("mod_args"))
+            py::arg("mod_args") = std::vector<migraphx::module*>{})
         .def(
             "add_parameter",
             [](migraphx::module& mm, const std::string& name, const migraphx::shape shape) {

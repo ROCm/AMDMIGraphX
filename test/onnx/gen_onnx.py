@@ -1750,6 +1750,11 @@ def globalavgpool_test():
 
 
 @onnx_test
+def globallppool_test():
+    TODO
+
+
+@onnx_test
 def globalmaxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 16, 16])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 1, 1])
@@ -2802,6 +2807,16 @@ def loop_test():
                                          TensorProto.FLOAT, [2, 1])
 
     return ([node], [iter, cond, a, b], [b_loop, uout])
+
+
+@onnx_test
+def lppool_l1_test():
+    TODO
+
+
+@onnx_test
+def lppool_l2_test():
+    TODO
 
 
 @onnx_test

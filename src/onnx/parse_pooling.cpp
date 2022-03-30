@@ -19,7 +19,9 @@ struct parse_pooling : op_parser<parse_pooling>
         return {{"AveragePool", "average"},
                 {"GlobalAveragePool", "average"},
                 {"GlobalMaxPool", "max"},
-                {"MaxPool", "max"}};
+                {"MaxPool", "max"},
+                {"LpPool", "lpnorm"},
+                {"GlobalLpPool", "lpnorm"}};
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -27,10 +29,11 @@ struct parse_pooling : op_parser<parse_pooling>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        std::string mode = opd.op_name;
-        if(mode != "max" && mode != "average")
+        std::vector<std::string> valid_modes = {"max", "average", "lpnorm"};
+        std::string mode                     = opd.op_name;
+        if(std::find(valid_modes.begin(), valid_modes.end(), mode) == valid_modes.end())
         {
-            MIGRAPHX_THROW("onnx pooling mode must be \"max\" or \"average\"");
+            MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
         }
         operation op = make_op(
             "pooling",
@@ -72,6 +75,12 @@ struct parse_pooling : op_parser<parse_pooling>
             copy(info.attributes["kernel_shape"].ints(), std::back_inserter(values["lengths"]));
             check_attr_sizes(
                 kdims, values["lengths"].size(), "PARSE_POOLING: inconsistent lengths");
+        }
+
+        // lpnorm attribute
+        if(contains(info.attributes, "p"))
+        {
+            values["lp_order"] = static_cast<int>(info.attributes.at("p").i());
         }
 
         // ensure pads availabe only when auto_pad is "NOT_SET"

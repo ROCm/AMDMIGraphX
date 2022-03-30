@@ -139,7 +139,7 @@ struct pooling
     };
 
     template <typename TOut, typename TIn, typename Op>
-    double calc_pooling(const TIn& data,
+    double calc_pooling(const TIn& input,
                         const std::vector<std::size_t>& in_lens,
                         const shape& in_s,
                         const shape& win_shape,
@@ -159,7 +159,7 @@ struct pooling
             if(std::all_of(idx.begin() + 2, idx.end(), [&](auto ii) { return ii >= 0; }) and
                idx < in_lens)
             {
-                output_val = op(output_val, data[in_s.index(idx)]);
+                output_val = op(output_val, input[in_s.index(idx)]);
             }
         });
         return op.final(output_val, pool_size);
@@ -218,7 +218,7 @@ struct pooling
             });
         });
 
-        return args.back();
+        return result;
     }
 };
 

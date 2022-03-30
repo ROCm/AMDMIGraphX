@@ -107,9 +107,9 @@ struct pooling
             return 0.0;
         }
 
-        double operator()(double x, double y) { return x + std::pow(std::abs(y), p); }
+        double operator()(double x, double y) const { return x + std::pow(std::abs(y), p); }
 
-        double final(double x, std::size_t) { return std::pow(x, 1. / p); }
+        double final(double x, std::size_t) const { return std::pow(x, 1. / p); }
     };
 
     struct avg_pool

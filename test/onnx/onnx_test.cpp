@@ -2643,7 +2643,7 @@ TEST_CASE(lppool_l2_test)
                         l0);
     auto prog = optimize_onnx("lppool_l2_test.onnx");
     EXPECT(p == prog);
-
+}
 
 TEST_CASE(lrn_test)
 {

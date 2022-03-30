@@ -16,8 +16,9 @@ using action_function = std::function<void(const parser&, const value&)>;
 action_function get_action(const std::string& name);
 void register_action(const std::string& name, const action_function& a);
 
-// register an action by adding it to the action_map.  Each action is a struct derived from the auto_register<>
-// template (redefined as action with a using statement, below), and must have a name and an apply() method.
+// register an action by adding it to the action_map.  Each action is a struct derived from the
+// auto_register<> template (redefined as action with a using statement, below), and must have a
+// name and an apply() method.
 struct auto_register_action
 {
     template <class T>

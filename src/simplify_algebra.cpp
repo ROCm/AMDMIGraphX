@@ -187,7 +187,8 @@ struct find_mul_add
     }
 };
 
-// find gelu (a multi-step formula), using the tanh implementation. Replace it with the gelu_erf formula
+// find gelu (a multi-step formula), using the tanh implementation. Replace it with the gelu_erf
+// formula
 struct find_gelu
 {
     // compile option fast_math controls whether to use math shortcuts like this

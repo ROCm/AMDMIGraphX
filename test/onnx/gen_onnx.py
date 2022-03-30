@@ -1615,7 +1615,7 @@ def gelu_tanh_test():
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
     three_val = np.array([3])
     const_val = np.array([0.044715])
-    m_2_pi_val = np.array([2/np.pi])
+    m_2_pi_val = np.array([2 / np.pi])
     half_val = np.array([0.5])
     three = onnx.helper.make_node(
         'Constant',
@@ -1660,55 +1660,41 @@ def gelu_tanh_test():
             dims=half_val.shape,
             vals=half_val.flatten().astype(float),
         ),
-    )   
-    pow_op = onnx.helper.make_node(
-        'Pow',
-        inputs=['x', 'three'],
-        outputs=['pow_out']
     )
-    mul1 = onnx.helper.make_node(
-        'Mul',
-        inputs=['const', 'pow_out'],
-        outputs=['mul1_out']
-    )
-    add1 = onnx.helper.make_node(
-        'Add',
-        inputs=['x', 'mul1_out'],
-        outputs=['add1_out']
-    )
-    sqrt_op = onnx.helper.make_node(
-        'Sqrt',
-        inputs=['m_2_pi'],
-        outputs=['sqrt_out']
-    )
-    tanh_op = onnx.helper.make_node(
-        'Tanh',
-        inputs=['sqrt_out'],
-        outputs=['tanh_out']
-    )
-    mul2 = onnx.helper.make_node(
-        'Mul',
-        inputs=['tanh_out', 'add1_out'],
-        outputs=['mul2_out']
-    )
-    mul3 = onnx.helper.make_node(
-        'Mul',
-        inputs=['half', 'mul2_out'],
-        outputs=['mul3_out']
-    )
-    add2 = onnx.helper.make_node(
-        'Add',
-        inputs=['half', 'mul3_out'],
-        outputs=['add2_out']
-    )
-    mul4 = onnx.helper.make_node(
-        'Mul',
-        inputs=['x', 'add2_out'],
-        outputs=['mul4_out']
-    )
-    return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3, add2, mul4], [x], [y])     
+    pow_op = onnx.helper.make_node('Pow',
+                                   inputs=['x', 'three'],
+                                   outputs=['pow_out'])
+    mul1 = onnx.helper.make_node('Mul',
+                                 inputs=['const', 'pow_out'],
+                                 outputs=['mul1_out'])
+    add1 = onnx.helper.make_node('Add',
+                                 inputs=['x', 'mul1_out'],
+                                 outputs=['add1_out'])
+    sqrt_op = onnx.helper.make_node('Sqrt',
+                                    inputs=['m_2_pi'],
+                                    outputs=['sqrt_out'])
+    tanh_op = onnx.helper.make_node('Tanh',
+                                    inputs=['sqrt_out'],
+                                    outputs=['tanh_out'])
+    mul2 = onnx.helper.make_node('Mul',
+                                 inputs=['tanh_out', 'add1_out'],
+                                 outputs=['mul2_out'])
+    mul3 = onnx.helper.make_node('Mul',
+                                 inputs=['half', 'mul2_out'],
+                                 outputs=['mul3_out'])
+    add2 = onnx.helper.make_node('Add',
+                                 inputs=['half', 'mul3_out'],
+                                 outputs=['add2_out'])
+    mul4 = onnx.helper.make_node('Mul',
+                                 inputs=['x', 'add2_out'],
+                                 outputs=['mul4_out'])
+    return ([
+        three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op,
+        mul2, mul3, add2, mul4
+    ], [x], [y])
     # return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2], [x], [y])    bad <==> good
-    # return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3], [x], [y])    
+    # return ([three, consta, m_2_pi, half, pow_op, mul1, add1, sqrt_op, tanh_op, mul2, mul3], [x], [y])
+
 
 @onnx_test
 def gemm_test():

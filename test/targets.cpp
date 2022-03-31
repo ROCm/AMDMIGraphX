@@ -9,9 +9,12 @@ TEST_CASE(make_target)
     {
         auto t = migraphx::make_target(name);
         CHECK(t.name() == name);
-        // make invalid target
-        EXPECT(test::throws([&] { migraphx::make_target(name + name); }));
     }
+}
+
+TEST_CASE(make_invalid_target) {
+    EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
+    EXPECT(test::throws([&] { migraphx::make_target("epyc"); }));
 }
 
 TEST_CASE(targets)

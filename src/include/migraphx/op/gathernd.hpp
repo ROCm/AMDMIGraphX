@@ -37,6 +37,10 @@ struct gathernd
             std::copy(
                 data_lens.begin() + batch_dims + k, data_lens.end(), output_lens.begin() + q - 1);
         }
+        else if (k > r - batch_dims)
+        {
+            MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) + " cannot be used to access data of rank " + std::to_string(r - batch_dims));
+        }
         shape output_shape{inputs.front().type(), output_lens};
         return output_shape;
     }

@@ -1779,6 +1779,26 @@ TEST_CASE(gathernd_test)
 
         EXPECT(migraphx::verify_range(res_data, gold));
     }
+
+    {
+        // k > r - batch_dims
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape ds{migraphx::shape::float_type, {2, 3, 1, 3}};
+        migraphx::shape is{migraphx::shape::int64_type, {2, 3, 3}};
+
+        std::vector<float> data_vec(2 * 3 * 1 * 3);
+        std::iota(data_vec.begin(), data_vec.end(), 0);
+        std::vector<int64_t> indices_vec(2 * 3 * 3, 0);
+        const int batch_dims = 2;
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
+
+        EXPECT(test::throws([&] { mm->add_instruction(
+            migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices); }));
+    }
 }
 
 TEST_CASE(gathernd_negative_index_test)

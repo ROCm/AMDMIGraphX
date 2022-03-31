@@ -10,7 +10,7 @@ TEST_CASE(make_target)
         auto t = migraphx::make_target(name);
         CHECK(t.name() == name);
         // make invalid target
-        EXPECT(test::throws([&] {migraphx::make_target(name+name);}));
+        EXPECT(test::throws([&] { migraphx::make_target(name + name); }));
     }
 }
 

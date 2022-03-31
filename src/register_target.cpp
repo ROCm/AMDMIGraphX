@@ -1,8 +1,6 @@
-#include "migraphx/instruction_ref.hpp"
-#include "migraphx/pass_config.hpp"
 #include <algorithm>
-#include <migraphx/register_target.hpp>
 #include <unordered_map>
+#include <migraphx/register_target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -1,5 +1,5 @@
-#include <migraphx/register_target.hpp>
 #include <unordered_map>
+#include <migraphx/register_target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -11,7 +11,17 @@ std::unordered_map<std::string, target>& target_map()
 }
 
 void register_target(const target& t) { target_map()[t.name()] = t; }
-target make_target(const std::string& name) { return target_map().at(name); }
+
+target make_target(const std::string& name)
+{
+    const auto it = target_map().find(name);
+    if(it == target_map().end())
+    {
+        MIGRAPHX_THROW("Requested target '" + name + "' is not enabled or not supported");
+    }
+    return it->second;
+}
+
 std::vector<std::string> get_targets()
 {
     std::vector<std::string> result;

@@ -17,7 +17,7 @@ target make_target(const std::string& name)
 {
     if(target_map().find(name) == target_map().end())
     {
-        MIGRAPHX_THROW("Requested target " + name + " is not enabled");
+        MIGRAPHX_THROW("Requested target " + name + " is not enabled or not supported");
     }
     return target_map().at(name);
 }

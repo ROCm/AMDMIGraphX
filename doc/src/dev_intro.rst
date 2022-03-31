@@ -81,10 +81,10 @@ We create the ``parameter_map`` by setting the ``x`` key to an `argument <migrap
 
     // create a parameter_map object for passing a value to the "x" parameter
     std::vector<int> data = {4};
-    migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(s, data.data());
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(s, data.data());
 
-    auto result = p.eval(pp).back();
+    auto result = p.eval(params).back();
     std::cout << "add_parameters: 4 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 6);
 
@@ -122,12 +122,12 @@ In this case, we can create `argument <migraphx::argument>` objects directly fro
     std::vector<float> sol = ...;
 
     // Create the arguments in a parameter_map
-    migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(input_shape, a.data());
-    pp["W"] = migraphx::argument(weights_shape, c.data());
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_shape, a.data());
+    params["W"] = migraphx::argument(weights_shape, c.data());
 
     // Evaluate and confirm the result
-    auto result = p.eval(pp).back();
+    auto result = p.eval(params).back();
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 

@@ -10,6 +10,11 @@ namespace device {
 
 static bool is_bert(const std::vector<shape>& ss)
 {
+    auto last_dim = ss.front().lens().back();
+    if (last_dim % 2 != 0)
+    {
+        return false;
+    }
     auto n_dim = ss.front().lens().size();
     if(n_dim == 2)
     {

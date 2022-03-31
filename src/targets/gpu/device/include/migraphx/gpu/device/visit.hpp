@@ -176,11 +176,12 @@ template <index_int N, class T, class... Ts>
 auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
-        hip_visit_all_impl(get_shape(x),
-                           make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }),
-                           f,
-                           x,
-                           xs...);
+        auto sx   = get_shape(x);
+        auto lens = sx.lens();
+        lens.back() /= N;
+        shape ssx{sx.type(), lens};
+        hip_visit_all_impl(
+            ssx, make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }), f, x, xs...);
     };
 }
 

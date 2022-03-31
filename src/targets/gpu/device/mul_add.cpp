@@ -40,7 +40,13 @@ __global__ void mul_add_kernel_dim4(void* a, void* x, void* b, int factor, int d
 }
 
 static bool is_bert(const std::vector<shape>& ss)
-{
+{    
+    auto last_dim = ss.front().lens().back();
+    if (last_dim % 2 != 0)
+    {
+        return false;
+    }
+
     auto n_dim = ss.front().lens().size();
     if(n_dim == 3)
     {

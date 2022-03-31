@@ -121,10 +121,7 @@ target
 
     Constructs the target.
 
-    :param str name: The name of the target to construct. MIGraphx supports `cpu`, `gpu` and `ref` as targets. `ref` provides referecnce 
-    implementation to compare results for correctness against `cpu` or `gpu` targets.  By default `MIGraphX` that ships with `ROCm`, `cpu` target is disabled. 
-    So, If you are using `MIGraphX` from `ROCm`, then parameter `name` can only be either `gpu` or `ref`. 
-    In order to use `cpu` target, you can build `MIGraphX` from source with flag -DMIGRAPHX_ENABLE_CPU=On`.
+    :param str name: The name of the target to construct. By default this can either be `ref` or `gpu`.
 
     :rtype: target
 

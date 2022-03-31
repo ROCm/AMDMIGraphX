@@ -1,3 +1,6 @@
+#include "migraphx/instruction_ref.hpp"
+#include "migraphx/pass_config.hpp"
+#include <algorithm>
 #include <migraphx/register_target.hpp>
 #include <unordered_map>
 
@@ -16,7 +19,7 @@ target make_target(const std::string& name)
 {
     if(target_map().find(name) == target_map().end())
     {
-        MIGRAPHX_THROW("Requested target " + name + " is not supported");
+        MIGRAPHX_THROW("Requested target " + name + " is not enabled");
     }
     return target_map().at(name);
 }

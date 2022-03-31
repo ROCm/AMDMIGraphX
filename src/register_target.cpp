@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
 
@@ -15,11 +14,12 @@ void register_target(const target& t) { target_map()[t.name()] = t; }
 
 target make_target(const std::string& name)
 {
-    if(target_map().find(name) == target_map().end())
+    const auto it = target_map().find(name);
+    if(it == target_map().end())
     {
         MIGRAPHX_THROW("Requested target " + name + " is not enabled or not supported");
     }
-    return target_map().at(name);
+    return it->second;
 }
 
 std::vector<std::string> get_targets()

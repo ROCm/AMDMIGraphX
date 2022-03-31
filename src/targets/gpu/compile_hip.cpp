@@ -178,6 +178,12 @@ bool is_hip_clang_compiler()
     return result;
 }
 
+bool has_compiler_launcher()
+{
+    static const auto result = fs::exists(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER));
+    return result;
+}
+
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
@@ -210,6 +216,10 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     src_compiler compiler;
     compiler.flags    = params;
     compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+#ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
+    if(has_compiler_launcher())
+        compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+#endif
 
     if(is_hcc_compiler())
         compiler.process = [&](const fs::path& obj_path) -> fs::path {
@@ -236,14 +246,6 @@ std::string enum_params(std::size_t count, std::string param)
     std::vector<std::string> items(count);
     transform(range(count), items.begin(), [&](auto i) { return param + std::to_string(i); });
     return join_strings(items, ",");
-}
-
-std::size_t compute_global(std::size_t n, std::size_t local)
-{
-    std::size_t groups = (n + local - 1) / local;
-    // max possible number of blocks is set to 1B (1,073,741,824)
-    std::size_t nglobal = std::min<std::size_t>(1073741824, groups) * local;
-    return nglobal;
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

@@ -10,18 +10,30 @@
 #include "test.hpp"
 
 /*!
- * Example MIGraphX programs following the Developer's Guide.
+ * Example MIGraphX programs for following the Contributor's Guide.
  */
 
 void add_two_literals()
 {
+    /*!
+     * Simple MIGraphX program to add two literal values.
+     * Equivalent to adding two constant scalar values together.
+     */
+    // create the program a get a pointer to the main module
     migraphx::program p;
     auto* mm = p.get_main_module();
+
+    // add two literals to the program
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
+
+    // make the "add" operation between the two literals and add it to the program
     mm->add_instruction(migraphx::make_op("add"), one, two);
+
+    // compile the program on the reference device
     p.compile(migraphx::ref::target{});
 
+    // evaulate the program and retreive the result
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 3);
@@ -29,36 +41,56 @@ void add_two_literals()
 
 void add_parameters()
 {
+    /*!
+     * Modified version of MIGraphX program seen in add_two_literals to accept a parameter.
+     * Equivalent to adding a constant scalar value with another scalar input.
+     */
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::int32_type, {1}};
+
+    // add a "x" parameter with the shape s
     auto x   = mm->add_parameter("x", s);
     auto two = mm->add_literal(2);
+
+    // add the "add" instruction between the "x" parameter and "two" to the module
     mm->add_instruction(migraphx::make_op("add"), x, two);
     p.compile(migraphx::ref::target{});
 
+    // create a parameter_map object for passing a value to the "x" parameter
     std::vector<int> data = {4};
-    migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(s, data.data());
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(s, data.data());
 
-    auto result = p.eval(pp).back();
+    auto result = p.eval(params).back();
     std::cout << "add_parameters: 4 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 6);
 }
 
 void handling_tensors()
 {
+    /*!
+     * This example does a convolution operation over an input tensor using the given weighting
+     * tensor. This is meant to show an example of working with tensors in MIGraphX. The output
+     * tensor is compared against a precomputed solution tensor at the end of the program.
+     */
     migraphx::program p;
     auto* mm = p.get_main_module();
+
+    // create shape objects for the input tensor and weights
     migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
     migraphx::shape weights_shape{migraphx::shape::float_type, {2, 3, 3, 3}};
+
+    // create the parameters and add the "convolution" operation to the module
     auto input   = mm->add_parameter("X", input_shape);
     auto weights = mm->add_parameter("W", weights_shape);
     mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}),
                         input,
                         weights);
+
     p.compile(migraphx::ref::target{});
 
+    // Allocated buffers by the user
     std::vector<float> a = {
         2.71567607,  -0.9960829,  0.91671127,  0.28140706,  0.63235772,  0.08077253,  0.80927712,
         -0.59108931, -1.05421555, -2.76622486, -0.85044265, -0.52049929, 0.67726439,  -0.65290606,
@@ -85,6 +117,7 @@ void handling_tensors()
         -0.06269585, 0.18658121,  -0.03944227, 0.0111798,   -0.17731084, 0.11789055,  -0.09982193,
         0.08142821,  0.0729029,   0.11303909,  0.12735154,  0.03885292};
 
+    // Solution vector
     std::vector<float> sol = {-0.20817225,
                               0.87965256,
                               0.14958936,
@@ -102,11 +135,13 @@ void handling_tensors()
                               -0.16138598,
                               0.79344082};
 
-    migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(input_shape, a.data());
-    pp["W"] = migraphx::argument(weights_shape, c.data());
+    // Create the arguments in a parameter_map
+    migraphx::parameter_map params;
+    params["X"] = migraphx::argument(input_shape, a.data());
+    params["W"] = migraphx::argument(weights_shape, c.data());
 
-    auto result = p.eval(pp).back();
+    // Evaluate and confirm the result
+    auto result = p.eval(params).back();
     std::vector<float> results_vector(64);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 

@@ -11,12 +11,13 @@ std::unordered_map<std::string, target>& target_map()
 }
 
 void register_target(const target& t) { target_map()[t.name()] = t; }
-target make_target(const std::string& name) { 
-    if(target_map().find(name) == target_map().end()) {
-        MIGRAPHX_THROW("Requested target " + name+" is not supported");
+target make_target(const std::string& name)
+{
+    if(target_map().find(name) == target_map().end())
+    {
+        MIGRAPHX_THROW("Requested target " + name + " is not supported");
     }
-    return target_map().at(name); 
-    
+    return target_map().at(name);
 }
 std::vector<std::string> get_targets()
 {

@@ -1796,8 +1796,10 @@ TEST_CASE(gathernd_test)
         auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
         auto indices = mm->add_literal(migraphx::literal{is, indices_vec});
 
-        EXPECT(test::throws([&] { mm->add_instruction(
-            migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices); }));
+        EXPECT(test::throws([&] {
+            mm->add_instruction(
+                migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), data, indices);
+        }));
     }
 }
 

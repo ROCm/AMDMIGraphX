@@ -121,7 +121,7 @@ target
 
     Constructs the target.
 
-    :param str name: The name of the target to construct. This can either be 'cpu' or 'gpu'.
+    :param str name: The name of the target to construct. This can either be 'gpu' or 'ref'.
 
     :rtype: target
 

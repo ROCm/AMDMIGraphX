@@ -3,8 +3,7 @@ MIGraphX Fundamentals
 
 MIGraphX provides an optimized execution engine for deep learning neural networks.
 We will cover some simple operations in the MIGraphX framework here.
-We created this documentation for contributors to the MIGraphX codebase.
-This documentation is not intended for users of the MIGraphX library.
+For a quick start guide to using MIGraphX, look in the examples directory: ``https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx``.
 
 
 Location of the Examples
@@ -13,6 +12,7 @@ Location of the Examples
 The ``ref_dev_examples.cpp`` can be found in the test directory (``/test``).
 The executable file ``test_ref_dev_examples`` based on this file will be created in the ``bin/`` of the build directory after running ``make -j$(nproc) test_ref_dev_examples``.
 The executable will also be created when running ``make -j$(nproc) check``, alongside with all the other tests.
+Directions for building MIGraphX from source can be found in the main README file: ``https://github.com/ROCmSoftwarePlatform/AMDMIGraphX#readme``.
 
 
 Adding Two Literals

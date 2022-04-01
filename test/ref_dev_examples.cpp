@@ -13,7 +13,7 @@
  * Example MIGraphX programs for following the Contributor's Guide.
  */
 
-void add_two_literals()
+TEST_CASE(add_two_literals)
 {
     /*!
      * Simple MIGraphX program to add two literal values.
@@ -39,7 +39,7 @@ void add_two_literals()
     EXPECT(result.at<int>() == 3);
 }
 
-void add_parameters()
+TEST_CASE(add_parameters)
 {
     /*!
      * Modified version of MIGraphX program seen in add_two_literals to accept a parameter.
@@ -67,7 +67,7 @@ void add_parameters()
     EXPECT(result.at<int>() == 6);
 }
 
-void handling_tensors()
+TEST_CASE(handling_tensors)
 {
     /*!
      * This example does a convolution operation over an input tensor using the given weighting
@@ -148,9 +148,4 @@ void handling_tensors()
     EXPECT(migraphx::verify_range(results_vector, sol));
 }
 
-int main()
-{
-    add_two_literals();
-    add_parameters();
-    handling_tensors();
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

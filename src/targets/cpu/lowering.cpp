@@ -495,7 +495,7 @@ struct cpu_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
     {
-        return modl->insert_instruction(ins, make_op("cpu::allocate", {{"shape", to_value(s)}}));
+        return modl->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 };
 

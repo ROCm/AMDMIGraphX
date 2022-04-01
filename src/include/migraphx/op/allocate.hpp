@@ -10,6 +10,7 @@
 #include <migraphx/config.hpp>
 #include <cmath>
 #include <utility>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -17,9 +18,17 @@ namespace op {
 
 struct allocate
 {
+    shape s;
+    std::string tag = "";
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.s, "shape"),
+                    f(self.tag, "tag"));
+    }
     std::string name() const { return "allocate"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    shape compute_shape(std::vector<shape>) const { return s; }
+    argument compute(const shape& output_shape, std::vector<argument>) const
     {
         return {output_shape};
     }

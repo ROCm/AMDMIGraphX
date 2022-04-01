@@ -17,6 +17,7 @@
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_batchnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -109,6 +110,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         pack_int8_args{},
+        dead_code_elimination{},
+        replace_allocate{gpu_allocation_model{}},
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},
         dead_code_elimination{},

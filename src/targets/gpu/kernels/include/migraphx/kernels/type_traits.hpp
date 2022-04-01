@@ -35,18 +35,21 @@ struct enable_if<true, T>
 template <bool B, class T = void>
 using enable_if_t = typename enable_if<B, T>::type;
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name)   \
     template <class T>                       \
     struct name : bool_constant<__##name(T)> \
     {                                        \
     }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_BUILTIN_TYPE_TRAIT2(name)      \
     template <class T, class U>                 \
     struct name : bool_constant<__##name(T, U)> \
     {                                           \
     }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_BUILTIN_TYPE_TRAITN(name)       \
     template <class... Ts>                       \
     struct name : bool_constant<__##name(Ts...)> \
@@ -151,7 +154,7 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
-constexpr unsigned long int_max(unsigned long n) { return (1 << (n * 8)) - 1; }
+constexpr unsigned long int_max(unsigned long n) { return (1u << (n * 8)) - 1; }
 
 template <class T>
 constexpr T numeric_max()

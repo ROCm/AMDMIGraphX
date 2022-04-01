@@ -30,6 +30,7 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 }
 #if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
+// NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE_ASM(x, ins) x = 1
 #elif __AMDGCN_WAVEFRONT_SIZE == 64
 #define MIGRAPHX_DPP_REDUCE_ASM(x, ins)                                       \
@@ -54,6 +55,7 @@ __device__ void dpp_reduce(T& in, Op op)
                      : "0"(x))
 #endif
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix)                                                            \
     __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
     __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \

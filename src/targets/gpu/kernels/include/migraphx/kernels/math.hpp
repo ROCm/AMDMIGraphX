@@ -42,7 +42,7 @@ constexpr T as_float(T x)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
-    auto __device__ name(type x, type y)->type { return fname(x, y); }
+    inline auto __device__ name(type x, type y)->type { return fname(x, y); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \

@@ -73,6 +73,7 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
     abort();
 }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_CHECK(cond)                                \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
         assert_fail(private_migraphx_xs...);                \

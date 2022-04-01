@@ -24,9 +24,9 @@ struct gathernd
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(2);
-        auto r                 = inputs.front().lens().size();
-        auto q                 = inputs.back().lens().size();
-        auto k                 = inputs.back().lens().back();
+        auto r = inputs.front().lens().size();
+        auto q = inputs.back().lens().size();
+        auto k = inputs.back().lens().back();
         if(k > r - batch_dims)
         {
             MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +

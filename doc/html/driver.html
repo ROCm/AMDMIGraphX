@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MIGraphX Driver &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Contributor Guide" href="contributor_guide.html" />
+    <link rel="prev" title="C++ Reference" href="reference/cpp.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">MIGraphX Driver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#read">read</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compile">compile</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run">run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#perf">perf</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verify">verify</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#roctx">roctx</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributor_guide.html">Contributor Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>MIGraphX Driver</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/driver.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="migraphx-driver">
+<h1>MIGraphX Driver<a class="headerlink" href="#migraphx-driver" title="Permalink to this headline"></a></h1>
+<section id="read">
+<h2>read<a class="headerlink" href="#read" title="Permalink to this headline"></a></h2>
+<p>Loads and prints input graph.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-trim">
+<span id="cmdoption-migraphx-driver-read-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-optimize">
+<span id="cmdoption-migraphx-driver-read-O"></span><span id="cmdoption-migraphx-driver-read-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-graphviz">
+<span id="cmdoption-migraphx-driver-read-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-read-output">
+<span id="cmdoption-migraphx-driver-read-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-read-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+</section>
+<section id="compile">
+<h2>compile<a class="headerlink" href="#compile" title="Permalink to this headline"></a></h2>
+<p>Compiles and prints input graph.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-trim">
+<span id="cmdoption-migraphx-driver-compile-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-optimize">
+<span id="cmdoption-migraphx-driver-compile-O"></span><span id="cmdoption-migraphx-driver-compile-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-graphviz">
+<span id="cmdoption-migraphx-driver-compile-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-output">
+<span id="cmdoption-migraphx-driver-compile-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-compile-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-compile-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+</section>
+<section id="run">
+<h2>run<a class="headerlink" href="#run" title="Permalink to this headline"></a></h2>
+<p>Loads and prints input graph.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-trim">
+<span id="cmdoption-migraphx-driver-run-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-optimize">
+<span id="cmdoption-migraphx-driver-run-O"></span><span id="cmdoption-migraphx-driver-run-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-graphviz">
+<span id="cmdoption-migraphx-driver-run-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-output">
+<span id="cmdoption-migraphx-driver-run-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-run-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-run-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+</section>
+<section id="perf">
+<h2>perf<a class="headerlink" href="#perf" title="Permalink to this headline"></a></h2>
+<p>Compiles and runs input graph then prints performance report.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-trim">
+<span id="cmdoption-migraphx-driver-perf-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-optimize">
+<span id="cmdoption-migraphx-driver-perf-O"></span><span id="cmdoption-migraphx-driver-perf-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-graphviz">
+<span id="cmdoption-migraphx-driver-perf-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-output">
+<span id="cmdoption-migraphx-driver-perf-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-perf-iterations">
+<span id="cmdoption-migraphx-driver-perf-n"></span><span class="sig-name descname"><span class="pre">--iterations</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-perf-iterations" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Number of iterations to run for perf report (Default: 100)</p>
+</section>
+<section id="verify">
+<h2>verify<a class="headerlink" href="#verify" title="Permalink to this headline"></a></h2>
+<p>Runs reference and CPU or GPU implementations and checks outputs for consistency.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-trim">
+<span id="cmdoption-migraphx-driver-verify-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-optimize">
+<span id="cmdoption-migraphx-driver-verify-O"></span><span id="cmdoption-migraphx-driver-verify-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-graphviz">
+<span id="cmdoption-migraphx-driver-verify-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-output">
+<span id="cmdoption-migraphx-driver-verify-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-tolerance">
+<span class="sig-name descname"><span class="pre">--tolerance</span></span><span class="sig-prename descclassname"> <span class="pre">[double]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-tolerance" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Tolerance for errors (Default: 80)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-i">
+<span id="cmdoption-migraphx-driver-verify-per-instruction"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--per-instruction</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-i" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Verify each instruction</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-verify-r">
+<span id="cmdoption-migraphx-driver-verify-reduce"></span><span class="sig-name descname"><span class="pre">-r</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--reduce</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-verify-r" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Reduce program and verify</p>
+</section>
+<section id="roctx">
+<h2>roctx<a class="headerlink" href="#roctx" title="Permalink to this headline"></a></h2>
+<p>Provides marker information for each operation, allowing MIGraphX to be used with <a class="reference external" href="https://rocmdocs.amd.com/en/latest/ROCm_Tools/ROCm-Tools.html">rocprof</a> for performance analysis.
+This allows user to get GPU-level kernel timing information.
+An example command line combined with rocprof for tracing purposes is given below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>/opt/rocm/bin/rocprof --hip-trace --roctx-trace --flush-rate 1ms --timestamp on -d &lt;OUTPUT_PATH&gt; --obj-tracking on /opt/rocm/bin/migraphx-driver roctx &lt;ONNX_FILE&gt; &lt;MIGRAPHX_OPTIONS&gt;
+</pre></div>
+</div>
+<p>After <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">rocprof</span></code> is run, the output directory will contain trace information for HIP, HCC and ROCTX in seperate <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">.txt</span></code> files.
+To understand the interactions between API calls, it is recommended to utilize <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">roctx.py</span></code> helper script as desribed in <span class="xref std std-ref">dev/tools:rocTX</span> section.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-arg-input">
+<span class="sig-name descname"><span class="pre">&lt;input</span></span><span class="sig-prename descclassname"> <span class="pre">file&gt;</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-arg-input" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>File to load</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-model">
+<span class="sig-name descname"><span class="pre">--model</span></span><span class="sig-prename descclassname"> <span class="pre">[resnet50|inceptionv3|alexnet]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-model" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-onnx">
+<span class="sig-name descname"><span class="pre">--onnx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-onnx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as onnx</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-tf">
+<span class="sig-name descname"><span class="pre">--tf</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-tf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as tensorflow</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-migraphx">
+<span class="sig-name descname"><span class="pre">--migraphx</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-migraphx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-migraphx-json">
+<span class="sig-name descname"><span class="pre">--migraphx-json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-migraphx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Load as MIGraphX JSON</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-batch">
+<span class="sig-name descname"><span class="pre">--batch</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span> <span class="pre">(Default:</span> <span class="pre">1)</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-batch" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Set batch size for model</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-nhwc">
+<span class="sig-name descname"><span class="pre">--nhwc</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-nhwc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nhwc</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-skip-unknown-operators">
+<span class="sig-name descname"><span class="pre">--skip-unknown-operators</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-skip-unknown-operators" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Skip unknown operators when parsing and continue to parse.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-nchw">
+<span class="sig-name descname"><span class="pre">--nchw</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-nchw" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Treat tensorflow format as nchw</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-trim">
+<span id="cmdoption-migraphx-driver-roctx-t"></span><span class="sig-name descname"><span class="pre">--trim</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-t</span></span><span class="sig-prename descclassname"> <span class="pre">[unsigned</span> <span class="pre">int]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-trim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Trim instructions from the end (Default: 0)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-input-dim">
+<span class="sig-name descname"><span class="pre">--input-dim</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-input-dim" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Dim of a parameter (format: “&#64;name d1 d2 dn”)</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-optimize">
+<span id="cmdoption-migraphx-driver-roctx-O"></span><span id="cmdoption-migraphx-driver-roctx-o"></span><span class="sig-name descname"><span class="pre">--optimize</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-O</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-optimize" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Optimize when reading</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-graphviz">
+<span id="cmdoption-migraphx-driver-roctx-g"></span><span class="sig-name descname"><span class="pre">--graphviz</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-graphviz" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out a graphviz representation.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-brief">
+<span class="sig-name descname"><span class="pre">--brief</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-brief" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Make the output brief.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-cpp">
+<span class="sig-name descname"><span class="pre">--cpp</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-cpp" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out the program as cpp program.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-json">
+<span class="sig-name descname"><span class="pre">--json</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-json" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program as json.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-text">
+<span class="sig-name descname"><span class="pre">--text</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-text" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in text format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-binary">
+<span class="sig-name descname"><span class="pre">--binary</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-binary" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Print out program in binary format.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-output">
+<span id="cmdoption-migraphx-driver-roctx-0"></span><span class="sig-name descname"><span class="pre">--output</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-o</span></span><span class="sig-prename descclassname"> <span class="pre">[std::string]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-output" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Output to file.</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-migraphx-driver-roctx-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-migraphx-driver-roctx-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="reference/cpp.html" class="btn btn-neutral float-left" title="C++ Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="contributor_guide.html" class="btn btn-neutral float-right" title="Contributor Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

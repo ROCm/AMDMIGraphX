@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>&lt;no title&gt; &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributor_guide.html">Contributor Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>&lt;no title&gt;</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/driver/compile.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-fill0">
+<span class="sig-name descname"><span class="pre">--fill0</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-fill0" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 0s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-fill1">
+<span class="sig-name descname"><span class="pre">--fill1</span></span><span class="sig-prename descclassname"> <span class="pre">[std::vector&lt;std::string&gt;]</span></span><a class="headerlink" href="#cmdoption-fill1" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Fill parameter with 1s</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-gpu">
+<span class="sig-name descname"><span class="pre">--gpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-gpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the gpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-cpu">
+<span class="sig-name descname"><span class="pre">--cpu</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-cpu" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the cpu</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-ref">
+<span class="sig-name descname"><span class="pre">--ref</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-ref" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Compile on the reference implementation</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-enable-offload-copy">
+<span class="sig-name descname"><span class="pre">--enable-offload-copy</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-enable-offload-copy" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Enable implicit offload copying</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-disable-fast-math">
+<span class="sig-name descname"><span class="pre">--disable-fast-math</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-disable-fast-math" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Disable fast math optimization</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-fp16">
+<span class="sig-name descname"><span class="pre">--fp16</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-fp16" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for fp16</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-int8">
+<span class="sig-name descname"><span class="pre">--int8</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-int8" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<p>Quantize for int8</p>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

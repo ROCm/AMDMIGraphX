@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Python Reference &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="C++ User Guide" href="../cpp_user_guide.html" />
+    <link rel="prev" title="Python User Guide" href="../py_user_guide.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../py_user_guide.html">Python User Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Python Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#shape">shape</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#argument">argument</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#target">target</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#program">program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parse-onnx">parse_onnx</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parse-tf">parse_tf</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load">load</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#save">save</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributor_guide.html">Contributor Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../py_user_guide.html">Python User Guide</a> &raquo;</li>
+      <li>Python Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/reference/py.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <span class="target" id="module-migraphx"></span><section id="python-reference">
+<h1>Python Reference<a class="headerlink" href="#python-reference" title="Permalink to this headline"></a></h1>
+<section id="shape">
+<h2>shape<a class="headerlink" href="#shape" title="Permalink to this headline"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="migraphx.shape">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lens</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">strides</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.shape" title="Permalink to this definition"></a></dt>
+<dd><p>Describes the shape of a tensor. This includes size, layout, and data type/</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.type">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">type</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.type" title="Permalink to this definition"></a></dt>
+<dd><p>An integer that represents the type</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.lens">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">lens</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.lens" title="Permalink to this definition"></a></dt>
+<dd><p>A list of the lengths of the shape</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.strides">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">strides</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.strides" title="Permalink to this definition"></a></dt>
+<dd><p>A list of the strides of the shape</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list[int]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.elements">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">elements</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.elements" title="Permalink to this definition"></a></dt>
+<dd><p>The number of elements in the shape</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.bytes">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">bytes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.bytes" title="Permalink to this definition"></a></dt>
+<dd><p>The number of bytes the shape uses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.type_size">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">type_size</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.type_size" title="Permalink to this definition"></a></dt>
+<dd><p>The number of bytes one element uses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.packed">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">packed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.packed" title="Permalink to this definition"></a></dt>
+<dd><p>Returns true if the shape is packed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.transposed">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">transposed</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.transposed" title="Permalink to this definition"></a></dt>
+<dd><p>Returns true if the shape is transposed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.broadcasted">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">broadcasted</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.broadcasted" title="Permalink to this definition"></a></dt>
+<dd><p>Returns true if the shape is broadcasted.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.standard">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">standard</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.standard" title="Permalink to this definition"></a></dt>
+<dd><p>Returns true if the shape is a standard shape. That is, the shape is both packed and not transposed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.scalar">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">scalar</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.scalar" title="Permalink to this definition"></a></dt>
+<dd><p>Returns true if all strides are equal to 0 (scalar tensor).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="argument">
+<h2>argument<a class="headerlink" href="#argument" title="Permalink to this headline"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="migraphx.argument">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">argument</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.argument" title="Permalink to this definition"></a></dt>
+<dd><p>Construct an argument from a python buffer. This can include numpy arrays.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.get_shape">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">get_shape</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.get_shape" title="Permalink to this definition"></a></dt>
+<dd><p>Returns the shape of the argument.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#migraphx.shape" title="migraphx.shape">shape</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.tolist">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">tolist</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.tolist" title="Permalink to this definition"></a></dt>
+<dd><p>Convert the elements of the argument to a python list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.generate_argument">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">generate_argument</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.generate_argument" title="Permalink to this definition"></a></dt>
+<dd><p>Generate an argument with random data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>s</strong> (<a class="reference internal" href="#migraphx.shape" title="migraphx.shape"><em>shape</em></a>) – Shape of argument to generate.</p></li>
+<li><p><strong>seed</strong> (<em>int</em>) – The seed used for random number generation</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#migraphx.argument" title="migraphx.argument">argument</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="target">
+<h2>target<a class="headerlink" href="#target" title="Permalink to this headline"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="migraphx.target">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">target</span></span><a class="headerlink" href="#migraphx.target" title="Permalink to this definition"></a></dt>
+<dd><p>This represents the compiliation target.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.get_target">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">get_target</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.get_target" title="Permalink to this definition"></a></dt>
+<dd><p>Constructs the target.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – The name of the target to construct. This can either be ‘gpu’ or ‘ref’.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#migraphx.target" title="migraphx.target">target</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="program">
+<h2>program<a class="headerlink" href="#program" title="Permalink to this headline"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="migraphx.program">
+<em class="property"><span class="pre">class</span> </em><span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">program</span></span><a class="headerlink" href="#migraphx.program" title="Permalink to this definition"></a></dt>
+<dd><p>Represents the computation graph to be compiled and run.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.clone">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">clone</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.clone" title="Permalink to this definition"></a></dt>
+<dd><p>Make a copy of the program</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#migraphx.program" title="migraphx.program">program</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.get_parameter_shapes">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">get_parameter_shapes</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.get_parameter_shapes" title="Permalink to this definition"></a></dt>
+<dd><p>Get the shapes of all the input parameters in the program.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict[str, <a class="reference internal" href="#migraphx.shape" title="migraphx.shape">shape</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">get_shape</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#id0" title="Permalink to this definition"></a></dt>
+<dd><p>Get the shape of the final output of the program.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#migraphx.shape" title="migraphx.shape">shape</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.compile">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">compile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offload_copy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fast_math</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.compile" title="Permalink to this definition"></a></dt>
+<dd><p>Compiles the program for the target and optimizes it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> (<a class="reference internal" href="#migraphx.target" title="migraphx.target"><em>target</em></a>) – This is the target to compile the program for.</p></li>
+<li><p><strong>offload_copy</strong> (<em>bool</em>) – For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.</p></li>
+<li><p><strong>fast_math</strong> (<em>bool</em>) – Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="migraphx.run">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.run" title="Permalink to this definition"></a></dt>
+<dd><p>Run the program.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>params</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#migraphx.argument" title="migraphx.argument"><em>argument</em></a><em>]</em>) – This is a map of the input parameters which will be used when running the program.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The result of the last instruction.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><a class="reference internal" href="#migraphx.argument" title="migraphx.argument">argument</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.quantize_fp16">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">quantize_fp16</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ins_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['all']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.quantize_fp16" title="Permalink to this definition"></a></dt>
+<dd><p>Quantize the program to use fp16.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prog</strong> (<a class="reference internal" href="#migraphx.program" title="migraphx.program"><em>program</em></a>) – Program to quantize.</p></li>
+<li><p><strong>ins_names</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – List of instructions to quantize.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.quantize_int8">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">quantize_int8</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prog</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calibration</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ins_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['dot',</span> <span class="pre">'convolution']</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.quantize_int8" title="Permalink to this definition"></a></dt>
+<dd><p>Quantize the program to use int8.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prog</strong> (<a class="reference internal" href="#migraphx.program" title="migraphx.program"><em>program</em></a>) – Program to quantize.</p></li>
+<li><p><strong>t</strong> (<a class="reference internal" href="#migraphx.target" title="migraphx.target"><em>target</em></a>) – Target that will be used to run the calibration data.</p></li>
+<li><p><strong>calibration</strong> (<em>list</em><em>[</em><em>dict</em><em>[</em><em>str</em><em>, </em><a class="reference internal" href="#migraphx.argument" title="migraphx.argument"><em>argument</em></a><em>]</em><em>]</em>) – Calibration data used to decide the parameters to the int8 optimization.</p></li>
+<li><p><strong>ins_names</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – List of instructions to quantize.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="parse-onnx">
+<h2>parse_onnx<a class="headerlink" href="#parse-onnx" title="Permalink to this headline"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.parse_onnx">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">parse_onnx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_dim_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_input_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_unknown_operators</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">false</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">print_program_on_error</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">false</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.parse_onnx" title="Permalink to this definition"></a></dt>
+<dd><p>Load and parse an onnx file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<em>str</em>) – Path to file.</p></li>
+<li><p><strong>default_dim_value</strong> (<em>str</em>) – default batch size to use (if not specified in onnx file).</p></li>
+<li><p><strong>map_input_dims</strong> (<em>str</em>) – Explicitly specify the dims of an input.</p></li>
+<li><p><strong>skip_unknown_operators</strong> (<em>str</em>) – Continue parsing onnx file if an unknown operator is found.</p></li>
+<li><p><strong>print_program_on_error</strong> (<em>str</em>) – Print program if an error occurs.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#migraphx.program" title="migraphx.program">program</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="parse-tf">
+<h2>parse_tf<a class="headerlink" href="#parse-tf" title="Permalink to this headline"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.parse_tf">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">parse_tf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_nhwc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.parse_tf" title="Permalink to this definition"></a></dt>
+<dd><p>Load and parse an tensorflow protobuf file file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<em>str</em>) – Path to file.</p></li>
+<li><p><strong>is_nhwc</strong> (<em>bool</em>) – Use nhwc as default format.</p></li>
+<li><p><strong>batch_size</strong> (<em>str</em>) – default batch size to use (if not specified in protobuf).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#migraphx.program" title="migraphx.program">program</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="load">
+<h2>load<a class="headerlink" href="#load" title="Permalink to this headline"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.load">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'msgpack'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.load" title="Permalink to this definition"></a></dt>
+<dd><p>Load a MIGraphX program</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<em>str</em>) – Path to file.</p></li>
+<li><p><strong>format</strong> (<em>str</em>) – Format of file. Valid options are msgpack or json.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p><a class="reference internal" href="#migraphx.program" title="migraphx.program">program</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="save">
+<h2>save<a class="headerlink" href="#save" title="Permalink to this headline"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="migraphx.save">
+<span class="sig-prename descclassname"><span class="pre">migraphx.</span></span><span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'msgpack'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#migraphx.save" title="Permalink to this definition"></a></dt>
+<dd><p>Save a MIGraphX program</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>p</strong> (<a class="reference internal" href="#migraphx.program" title="migraphx.program"><em>program</em></a>) – Program to save.</p></li>
+<li><p><strong>filename</strong> (<em>str</em>) – Path to file.</p></li>
+<li><p><strong>format</strong> (<em>str</em>) – Format of file. Valid options are msgpack or json.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../py_user_guide.html" class="btn btn-neutral float-left" title="Python User Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../cpp_user_guide.html" class="btn btn-neutral float-right" title="C++ User Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

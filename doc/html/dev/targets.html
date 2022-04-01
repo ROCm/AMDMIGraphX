@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Targets &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Quantization" href="quantization.html" />
+    <link rel="prev" title="Program" href="program.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../contributor_guide.html">Contributor Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../dev_intro.html">MIGraphX Fundamentals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data.html">Data types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operators.html">Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="program.html">Program</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Targets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#target">target</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gpu-target">gpu::target</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cpu-target">cpu::target</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="quantization.html">Quantization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pass.html">Passes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matchers.html">Matchers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tools.html">Tools</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../contributor_guide.html">Contributor Guide</a> &raquo;</li>
+      <li>Targets</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/dev/targets.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="targets">
+<h1>Targets<a class="headerlink" href="#targets" title="Permalink to this headline"></a></h1>
+<section id="target">
+<h2>target<a class="headerlink" href="#target" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal6targetE">
+<span id="_CPPv3N8migraphx8internal6targetE"></span><span id="_CPPv2N8migraphx8internal6targetE"></span><span id="migraphx::internal::target"></span><span class="target" id="structmigraphx_1_1internal_1_1target"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">target</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal6targetE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>An interface for a compilation target. </p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target4nameEv">
+<span id="_CPPv3NK8migraphx8internal6target4nameEv"></span><span id="_CPPv2NK8migraphx8internal6target4nameEv"></span><span id="migraphx::internal::target::nameC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1aee1c932a01b6923a9fd8e240988d913a"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">name</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target4nameEv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>A unique name used to identify the target. </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target10get_passesER7contextRK15compile_options">
+<span id="_CPPv3NK8migraphx8internal6target10get_passesER7contextRK15compile_options"></span><span id="_CPPv2NK8migraphx8internal6target10get_passesER7contextRK15compile_options"></span><span id="migraphx::internal::target::get_passes__contextR.compile_optionsCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1a6b7cefa3934fe26bee020d1eb261e998"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="pass.html#_CPPv4N8migraphx8internal4passE" title="migraphx::internal::pass"><span class="n"><span class="pre">pass</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_passes</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">ctx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">compile_options</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">options</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target10get_passesER7contextRK15compile_options" title="Permalink to this definition"></a><br /></dt>
+<dd><p>The transformation pass to be run during compilation. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ctx</strong> – This is the target-dependent context that is created by <code class="docutils literal notranslate"><span class="pre">get_context</span></code> </p></li>
+<li><p><strong>options</strong> – Compiling options passed in by the user </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>The passes to be ran </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target11get_contextEv">
+<span id="_CPPv3NK8migraphx8internal6target11get_contextEv"></span><span id="_CPPv2NK8migraphx8internal6target11get_contextEv"></span><span id="migraphx::internal::target::get_contextC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1a54b8dc7bbe69d5912a24b3ef78b26573"></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_context</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target11get_contextEv" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Construct a context for the target. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>The context to be used during compilation and execution. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target7copy_toERK8argument">
+<span id="_CPPv3NK8migraphx8internal6target7copy_toERK8argument"></span><span id="_CPPv2NK8migraphx8internal6target7copy_toERK8argument"></span><span id="migraphx::internal::target::copy_to__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1ad2a733cf7ceae39e0df9f4a675f2e195"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_to</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target7copy_toERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd><p>copy an argument to the current target. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>arg</strong> – Input argument to be copied to the target </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Argument in the target. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target9copy_fromERK8argument">
+<span id="_CPPv3NK8migraphx8internal6target9copy_fromERK8argument"></span><span id="_CPPv2NK8migraphx8internal6target9copy_fromERK8argument"></span><span id="migraphx::internal::target::copy_from__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1a55f3d244cab8dd98033ece8056be2163"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_from</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target9copy_fromERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd><p>copy an argument from the current target. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>arg</strong> – Input argument to be copied from the target </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Argument in the host. </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal6target8allocateERK5shape">
+<span id="_CPPv3NK8migraphx8internal6target8allocateERK5shape"></span><span id="_CPPv2NK8migraphx8internal6target8allocateERK5shape"></span><span id="migraphx::internal::target::allocate__shapeCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1target_1af2bee95e9c3f53557b44aac1700af9ae"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">s</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal6target8allocateERK5shape" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Allocate an argument based on the input shape. </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>s</strong> – Shape of the argument to be allocated in the target </p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Allocated argument in the target. </p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="gpu-target">
+<h2>gpu::target<a class="headerlink" href="#gpu-target" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal3gpu6targetE">
+<span id="_CPPv3N8migraphx8internal3gpu6targetE"></span><span id="_CPPv2N8migraphx8internal3gpu6targetE"></span><span id="migraphx::internal::gpu::target"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">gpu</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">target</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal3gpu6targetE" title="Permalink to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target4nameEv">
+<span id="_CPPv3NK8migraphx8internal3gpu6target4nameEv"></span><span id="_CPPv2NK8migraphx8internal3gpu6target4nameEv"></span><span id="migraphx::internal::gpu::target::nameC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1a3c47ee73d927d0b458a6c1afe8ee2da1"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">name</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target4nameEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target10get_passesERN8migraphx7contextERK15compile_options">
+<span id="_CPPv3NK8migraphx8internal3gpu6target10get_passesERN8migraphx7contextERK15compile_options"></span><span id="_CPPv2NK8migraphx8internal3gpu6target10get_passesERN8migraphx7contextERK15compile_options"></span><span id="migraphx::internal::gpu::target::get_passes__migraphx::contextR.compile_optionsCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1aa84c68f1d5f4775167b85d79e74fb23b"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="pass.html#_CPPv4N8migraphx8internal4passE" title="migraphx::internal::pass"><span class="n"><span class="pre">pass</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_passes</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">gctx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">compile_options</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">options</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target10get_passesERN8migraphx7contextERK15compile_options" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target11get_contextEv">
+<span id="_CPPv3NK8migraphx8internal3gpu6target11get_contextEv"></span><span id="_CPPv2NK8migraphx8internal3gpu6target11get_contextEv"></span><span id="migraphx::internal::gpu::target::get_contextC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1ad027aa7fbe9fedf93235d99662b8138f"></span><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_context</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target11get_contextEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target7copy_toERK8argument">
+<span id="_CPPv3NK8migraphx8internal3gpu6target7copy_toERK8argument"></span><span id="_CPPv2NK8migraphx8internal3gpu6target7copy_toERK8argument"></span><span id="migraphx::internal::gpu::target::copy_to__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1a02ed018d7f1f2725f85990b6b01e2171"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_to</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target7copy_toERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target9copy_fromERK8argument">
+<span id="_CPPv3NK8migraphx8internal3gpu6target9copy_fromERK8argument"></span><span id="_CPPv2NK8migraphx8internal3gpu6target9copy_fromERK8argument"></span><span id="migraphx::internal::gpu::target::copy_from__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1a8b7bc0067103f910442ccf003d3be899"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_from</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target9copy_fromERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3gpu6target8allocateERK5shape">
+<span id="_CPPv3NK8migraphx8internal3gpu6target8allocateERK5shape"></span><span id="_CPPv2NK8migraphx8internal3gpu6target8allocateERK5shape"></span><span id="migraphx::internal::gpu::target::allocate__shapeCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1gpu_1_1target_1ad0d5babb9556637e3fbbdda665d1e28e"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">s</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3gpu6target8allocateERK5shape" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="cpu-target">
+<h2>cpu::target<a class="headerlink" href="#cpu-target" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal3cpu6targetE">
+<span id="_CPPv3N8migraphx8internal3cpu6targetE"></span><span id="_CPPv2N8migraphx8internal3cpu6targetE"></span><span id="migraphx::internal::cpu::target"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">cpu</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">target</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal3cpu6targetE" title="Permalink to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target4nameEv">
+<span id="_CPPv3NK8migraphx8internal3cpu6target4nameEv"></span><span id="_CPPv2NK8migraphx8internal3cpu6target4nameEv"></span><span id="migraphx::internal::cpu::target::nameC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1ae13abab8d7274bf6d61d1c69b2cd4273"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">name</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target4nameEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target10get_passesERN8migraphx7contextERK15compile_options">
+<span id="_CPPv3NK8migraphx8internal3cpu6target10get_passesERN8migraphx7contextERK15compile_options"></span><span id="_CPPv2NK8migraphx8internal3cpu6target10get_passesERN8migraphx7contextERK15compile_options"></span><span id="migraphx::internal::cpu::target::get_passes__migraphx::contextR.compile_optionsCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1a6d7395a4987d51bc50b71179e8464f5a"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="pass.html#_CPPv4N8migraphx8internal4passE" title="migraphx::internal::pass"><span class="n"><span class="pre">pass</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_passes</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">gctx</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">compile_options</span></span><span class="p"><span class="pre">&amp;</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target10get_passesERN8migraphx7contextERK15compile_options" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target11get_contextEv">
+<span id="_CPPv3NK8migraphx8internal3cpu6target11get_contextEv"></span><span id="_CPPv2NK8migraphx8internal3cpu6target11get_contextEv"></span><span id="migraphx::internal::cpu::target::get_contextC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1a10c9b7b47bfcc819b02ad612c747b608"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_context</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target11get_contextEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target7copy_toERK8argument">
+<span id="_CPPv3NK8migraphx8internal3cpu6target7copy_toERK8argument"></span><span id="_CPPv2NK8migraphx8internal3cpu6target7copy_toERK8argument"></span><span id="migraphx::internal::cpu::target::copy_to__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1a03c75d3333e5b48f403e048fc5b88d74"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_to</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target7copy_toERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target9copy_fromERK8argument">
+<span id="_CPPv3NK8migraphx8internal3cpu6target9copy_fromERK8argument"></span><span id="_CPPv2NK8migraphx8internal3cpu6target9copy_fromERK8argument"></span><span id="migraphx::internal::cpu::target::copy_from__argumentCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1a7dd44c5fd3f9bcb00edac22a5903b50f"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">copy_from</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">arg</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target9copy_fromERK8argument" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal3cpu6target8allocateERK5shape">
+<span id="_CPPv3NK8migraphx8internal3cpu6target8allocateERK5shape"></span><span id="_CPPv2NK8migraphx8internal3cpu6target8allocateERK5shape"></span><span id="migraphx::internal::cpu::target::allocate__shapeCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1cpu_1_1target_1ab7f468203cee87f9f3e2a7f76e0c1d3d"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">allocate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">s</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal3cpu6target8allocateERK5shape" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="program.html" class="btn btn-neutral float-left" title="Program" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="quantization.html" class="btn btn-neutral float-right" title="Quantization" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

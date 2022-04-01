@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MIGraphX Fundamentals &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Data types" href="dev/data.html" />
+    <link rel="prev" title="Contributor Guide" href="contributor_guide.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="contributor_guide.html">Contributor Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">MIGraphX Fundamentals</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#location-of-the-examples">Location of the Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-two-literals">Adding Two Literals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-parameters">Using Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#handling-tensor-data">Handling Tensor Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#importing-from-onnx">Importing From ONNX</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dev/data.html">Data types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/operators.html">Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/program.html">Program</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/targets.html">Targets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/quantization.html">Quantization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/pass.html">Passes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/matchers.html">Matchers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/tools.html">Tools</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="contributor_guide.html">Contributor Guide</a> &raquo;</li>
+      <li>MIGraphX Fundamentals</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/dev_intro.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="migraphx-fundamentals">
+<h1>MIGraphX Fundamentals<a class="headerlink" href="#migraphx-fundamentals" title="Permalink to this headline"></a></h1>
+<p>MIGraphX provides an optimized execution engine for deep learning neural networks.
+We will cover some simple operations in the MIGraphX framework here.
+For a quick start guide to using MIGraphX, look in the examples directory: <code class="docutils literal notranslate"><span class="pre">https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx</span></code>.</p>
+<section id="location-of-the-examples">
+<h2>Location of the Examples<a class="headerlink" href="#location-of-the-examples" title="Permalink to this headline"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ref_dev_examples.cpp</span></code> can be found in the test directory (<code class="docutils literal notranslate"><span class="pre">/test</span></code>).
+The executable file <code class="docutils literal notranslate"><span class="pre">test_ref_dev_examples</span></code> based on this file will be created in the <code class="docutils literal notranslate"><span class="pre">bin/</span></code> of the build directory after running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">-j$(nproc)</span> <span class="pre">test_ref_dev_examples</span></code>.
+The executable will also be created when running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">-j$(nproc)</span> <span class="pre">check</span></code>, alongside with all the other tests.
+Directions for building MIGraphX from source can be found in the main README file: <code class="docutils literal notranslate"><span class="pre">https://github.com/ROCmSoftwarePlatform/AMDMIGraphX#readme</span></code>.</p>
+</section>
+<section id="adding-two-literals">
+<h2>Adding Two Literals<a class="headerlink" href="#adding-two-literals" title="Permalink to this headline"></a></h2>
+<p>A program is a collection of modules, which are collections of instructions to be executed when calling <a class="reference internal" href="reference/cpp.html#_CPPv4NK8migraphx7program4evalERK18program_parameters" title="migraphx::program::eval"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code></a>.
+Each instruction has an associated <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">operation</span></code> which represents the computation to be performed by the instruction.</p>
+<p>We start with a snippet of the simple <code class="docutils literal notranslate"><span class="pre">add_two_literals()</span></code> function:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// create the program and get a pointer to the main module</span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="k">auto</span><span class="o">*</span><span class="w"> </span><span class="n">mm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">get_main_module</span><span class="p">();</span><span class="w"></span>
+
+<span class="c1">// add two literals to the program</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">one</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
+<span class="k">auto</span><span class="w"> </span><span class="n">two</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+
+<span class="c1">// make the add operation between the two literals and add it to the program</span>
+<span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">make_op</span><span class="p">(</span><span class="s">&quot;add&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">one</span><span class="p">,</span><span class="w"> </span><span class="n">two</span><span class="p">);</span><span class="w"></span>
+
+<span class="c1">// compile the program on the reference device</span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">ref</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+
+<span class="c1">// evaulate the program and retreive the result</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">({}).</span><span class="n">back</span><span class="p">();</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;add_two_literals: 1 + 2 = &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>We start by creating a simple <code class="docutils literal notranslate"><span class="pre">migraphx::program</span></code> object and then getting a pointer to the main module of it.
+The program is a collection of <code class="docutils literal notranslate"><span class="pre">modules</span></code> that start executing from the main module, so instructions are added to the modules rather than directly onto the program object.
+We then use the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add_literal</span></code> function to add an instruction that stores the literal number <code class="docutils literal notranslate"><span class="pre">1</span></code> while returning an <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">instruction_ref</span></code>.
+The returned <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">instruction_ref</span></code> can be used in another instruction as an input.
+We use the same <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add_literal</span></code> function to add a <code class="docutils literal notranslate"><span class="pre">2</span></code> to the program.
+After creating the literals, we then create the instruction to add the numbers together.
+This is done by using the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add_instruction</span></code> function with the <code class="docutils literal notranslate"><span class="pre">&quot;add&quot;</span></code> <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">operation</span></code> created by <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">make_op</span></code> along with the previous <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add_literal</span></code> <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">instruction_ref</span></code> for the input arguments of the instruction.
+Finally, we can run this <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx7programE" title="migraphx::program"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code></a> by compiling it for the reference target (CPU) and then running it with <a class="reference internal" href="reference/cpp.html#_CPPv4NK8migraphx7program4evalERK18program_parameters" title="migraphx::program::eval"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code></a>
+The result is then retreived and printed to the console.</p>
+<p>We can compile the program for the GPU as well, but the file will have to be moved to the <code class="docutils literal notranslate"><span class="pre">test/gpu/</span></code> directory and the correct target must be included:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;migraphx/gpu/target.hpp&gt;</span><span class="cp"></span>
+</pre></div>
+</div>
+</section>
+<section id="using-parameters">
+<h2>Using Parameters<a class="headerlink" href="#using-parameters" title="Permalink to this headline"></a></h2>
+<p>The previous program will always produce the same value of adding <code class="docutils literal notranslate"><span class="pre">1</span></code> and <code class="docutils literal notranslate"><span class="pre">2</span></code>.
+In the next program we want to pass an input to a program and compute a value based on the input.
+We can modify the program to take an input parameter <code class="docutils literal notranslate"><span class="pre">x</span></code>, as seen in the <code class="docutils literal notranslate"><span class="pre">add_parameter()</span></code> function:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">migraphx</span><span class="o">::</span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="k">auto</span><span class="o">*</span><span class="w"> </span><span class="n">mm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">get_main_module</span><span class="p">();</span><span class="w"></span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="w"> </span><span class="n">s</span><span class="p">{</span><span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="o">::</span><span class="n">int32_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">}};</span><span class="w"></span>
+
+<span class="c1">// add a &quot;x&quot; parameter with the shape s</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">x</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">);</span><span class="w"></span>
+<span class="k">auto</span><span class="w"> </span><span class="n">two</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+
+<span class="c1">// add the &quot;add&quot; instruction between the &quot;x&quot; parameter and &quot;two&quot; to the module</span>
+<span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">make_op</span><span class="p">(</span><span class="s">&quot;add&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">two</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">ref</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This adds a parameter of type <code class="docutils literal notranslate"><span class="pre">int32</span></code>, and compiles it for the CPU.
+To run the program, we need to pass the parameter as a <code class="docutils literal notranslate"><span class="pre">parameter_map</span></code> when we call <a class="reference internal" href="reference/cpp.html#_CPPv4NK8migraphx7program4evalERK18program_parameters" title="migraphx::program::eval"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code></a>.
+We create the <code class="docutils literal notranslate"><span class="pre">parameter_map</span></code> by setting the <code class="docutils literal notranslate"><span class="pre">x</span></code> key to an <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx8argumentE" title="migraphx::argument"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code></a> object with an <code class="docutils literal notranslate"><span class="pre">int</span></code> data type:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// create a parameter_map object for passing a value to the &quot;x&quot; parameter</span>
+<span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">4</span><span class="p">};</span><span class="w"></span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">parameter_map</span><span class="w"> </span><span class="n">params</span><span class="p">;</span><span class="w"></span>
+<span class="n">params</span><span class="p">[</span><span class="s">&quot;x&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">migraphx</span><span class="o">::</span><span class="n">argument</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">data</span><span class="p">.</span><span class="n">data</span><span class="p">());</span><span class="w"></span>
+
+<span class="k">auto</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">params</span><span class="p">).</span><span class="n">back</span><span class="p">();</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;add_parameters: 4 + 2 = &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">;</span><span class="w"></span>
+<span class="n">EXPECT</span><span class="p">(</span><span class="n">result</span><span class="p">.</span><span class="n">at</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">6</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+<section id="handling-tensor-data">
+<h2>Handling Tensor Data<a class="headerlink" href="#handling-tensor-data" title="Permalink to this headline"></a></h2>
+<p>In the previous examples we have only been dealing with scalars, but the <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx5shapeE" title="migraphx::shape"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">shape</span></code></a> class can describe multi-dimensional tensors.
+For example, we can compute a simple convolution:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">migraphx</span><span class="o">::</span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="k">auto</span><span class="o">*</span><span class="w"> </span><span class="n">mm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">get_main_module</span><span class="p">();</span><span class="w"></span>
+
+<span class="c1">// create shape objects for the input tensor and weights</span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="w"> </span><span class="n">input_shape</span><span class="p">{</span><span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">}};</span><span class="w"></span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="w"> </span><span class="n">weights_shape</span><span class="p">{</span><span class="n">migraphx</span><span class="o">::</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">}};</span><span class="w"></span>
+
+<span class="c1">// create the parameters and add the &quot;convolution&quot; operation to the module</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">input</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;X&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">input_shape</span><span class="p">);</span><span class="w"></span>
+<span class="k">auto</span><span class="w"> </span><span class="n">weights</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;W&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">weights_shape</span><span class="p">);</span><span class="w"></span>
+<span class="n">mm</span><span class="o">-&gt;</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">make_op</span><span class="p">(</span><span class="s">&quot;convolution&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{{</span><span class="s">&quot;padding&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">}},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;stride&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">}}}),</span><span class="w"> </span><span class="n">input</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Here we create two parameters for both the <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code>.
+In the previous examples, we created simple literals, however, most programs will take data from allocated buffers (usually on the GPU).
+In this case, we can create <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx8argumentE" title="migraphx::argument"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code></a> objects directly from the pointers to the buffers:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// Compile the program</span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">ref</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+
+<span class="c1">// Allocated buffers by the user</span>
+<span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w"></span>
+
+<span class="c1">// Solution vector</span>
+<span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="w"> </span><span class="n">sol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w"></span>
+
+<span class="c1">// Create the arguments in a parameter_map</span>
+<span class="n">migraphx</span><span class="o">::</span><span class="n">parameter_map</span><span class="w"> </span><span class="n">params</span><span class="p">;</span><span class="w"></span>
+<span class="n">params</span><span class="p">[</span><span class="s">&quot;X&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">migraphx</span><span class="o">::</span><span class="n">argument</span><span class="p">(</span><span class="n">input_shape</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">.</span><span class="n">data</span><span class="p">());</span><span class="w"></span>
+<span class="n">params</span><span class="p">[</span><span class="s">&quot;W&quot;</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">migraphx</span><span class="o">::</span><span class="n">argument</span><span class="p">(</span><span class="n">weights_shape</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">.</span><span class="n">data</span><span class="p">());</span><span class="w"></span>
+
+<span class="c1">// Evaluate and confirm the result</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">(</span><span class="n">params</span><span class="p">).</span><span class="n">back</span><span class="p">();</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="w"> </span><span class="n">results_vector</span><span class="p">(</span><span class="mi">64</span><span class="p">);</span><span class="w"></span>
+<span class="n">result</span><span class="p">.</span><span class="n">visit</span><span class="p">([</span><span class="o">&amp;</span><span class="p">](</span><span class="k">auto</span><span class="w"> </span><span class="n">output</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">results_vector</span><span class="p">.</span><span class="n">assign</span><span class="p">(</span><span class="n">output</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">output</span><span class="p">.</span><span class="n">end</span><span class="p">());</span><span class="w"> </span><span class="p">});</span><span class="w"></span>
+
+<span class="n">EXPECT</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">verify_range</span><span class="p">(</span><span class="n">results_vector</span><span class="p">,</span><span class="w"> </span><span class="n">sol</span><span class="p">));</span><span class="w"></span>
+</pre></div>
+</div>
+<p>An <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx8argumentE" title="migraphx::argument"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code></a> can handle memory buffers from either the GPU or the CPU.
+By default when running the <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx7programE" title="migraphx::program"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code></a>, buffers are allocated on the corresponding target.
+When compiling for the CPU, the buffers by default will be allocated on the CPU.
+When compiling for the GPU, the buffers by default will be allocated on the GPU.
+With the option <code class="docutils literal notranslate"><span class="pre">offloaf_copy=true</span></code> set while compiling for the GPU, the buffers will be located on the CPU.</p>
+</section>
+<section id="importing-from-onnx">
+<h2>Importing From ONNX<a class="headerlink" href="#importing-from-onnx" title="Permalink to this headline"></a></h2>
+<p>A <a class="reference internal" href="reference/cpp.html#_CPPv4N8migraphx7programE" title="migraphx::program"><code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code></a> can be built directly from an onnx file using the MIGraphX ONNX parser.
+This makes it easier to use neural networks directly from other frameworks.
+In this case, there is an <code class="docutils literal notranslate"><span class="pre">parse_onnx</span></code> function:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">migraphx</span><span class="o">::</span><span class="n">parse_onnx</span><span class="p">(</span><span class="s">&quot;model.onnx&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">migraphx</span><span class="o">::</span><span class="n">gpu</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="contributor_guide.html" class="btn btn-neutral float-left" title="Contributor Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dev/data.html" class="btn btn-neutral float-right" title="Data types" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

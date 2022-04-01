@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Program &mdash; MIGraphX 2.1 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Targets" href="targets.html" />
+    <link rel="prev" title="Operators" href="operators.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../contributor_guide.html">Contributor Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../dev_intro.html">MIGraphX Fundamentals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data.html">Data types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operators.html">Operators</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Program</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#instruction">instruction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#instruction-ref">instruction_ref</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parse-onnx">parse_onnx</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#parse-tf">parse_tf</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#onnx-options">onnx_options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tf-options">tf_options</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="targets.html">Targets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quantization.html">Quantization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pass.html">Passes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="matchers.html">Matchers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tools.html">Tools</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../contributor_guide.html">Contributor Guide</a> &raquo;</li>
+      <li>Program</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/dev/program.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="program">
+<h1>Program<a class="headerlink" href="#program" title="Permalink to this headline"></a></h1>
+<section id="instruction">
+<h2>instruction<a class="headerlink" href="#instruction" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instructionE">
+<span id="_CPPv3N8migraphx8internal11instructionE"></span><span id="_CPPv2N8migraphx8internal11instructionE"></span><span id="migraphx::internal::instruction"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">instruction</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instructionE" title="Permalink to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction11instructionEv">
+<span id="_CPPv3N8migraphx8internal11instruction11instructionEv"></span><span id="_CPPv2N8migraphx8internal11instruction11instructionEv"></span><span id="migraphx::internal::instruction::instruction"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1ae3a3c7aa8f52fc7e928ad7a996451b1d"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">instruction</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction11instructionEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEE">
+<span id="_CPPv3N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEE"></span><span id="_CPPv2N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEE"></span><span id="migraphx::internal::instruction::instruction__operation.shape.std::vector:instruction_ref:"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a5863603719f2c8b0b1186e6ebafa6e1e"></span><span class="sig-name descname"><span class="n"><span class="pre">instruction</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">o</span></span>, <a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">r</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">args</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE">
+<span id="_CPPv3N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE"></span><span id="_CPPv2N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE"></span><span id="migraphx::internal::instruction::instruction__operation.shape.std::vector:instruction_ref:.std::vector:module_ref:"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1aa53c72cf15201f57852524065206e788"></span><span class="sig-name descname"><span class="n"><span class="pre">instruction</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">o</span></span>, <a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">r</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">args</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">module_ref</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">modules</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction11instructionE9operation5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction11instructionE7literal">
+<span id="_CPPv3N8migraphx8internal11instruction11instructionE7literal"></span><span id="_CPPv2N8migraphx8internal11instruction11instructionE7literal"></span><span id="migraphx::internal::instruction::instruction__literal"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a9c0d6298a0181ec6354eb3197d3cc019"></span><span class="sig-name descname"><span class="n"><span class="pre">instruction</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal7literalE" title="migraphx::internal::literal"><span class="n"><span class="pre">literal</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">l</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction11instructionE7literal" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction7replaceE9operation">
+<span id="_CPPv3N8migraphx8internal11instruction7replaceE9operation"></span><span id="_CPPv2N8migraphx8internal11instruction7replaceE9operation"></span><span id="migraphx::internal::instruction::replace__operation"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1af892c8f59d7b90ba2ff014ba2c8384e3"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">o</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction7replaceE9operation" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction15recompute_shapeEv">
+<span id="_CPPv3N8migraphx8internal11instruction15recompute_shapeEv"></span><span id="_CPPv2N8migraphx8internal11instruction15recompute_shapeEv"></span><span id="migraphx::internal::instruction::recompute_shape"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1af35c8961c3f84b74c77ce0d77ca31c40"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">recompute_shape</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction15recompute_shapeEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction15clear_argumentsEv">
+<span id="_CPPv3N8migraphx8internal11instruction15clear_argumentsEv"></span><span id="_CPPv2N8migraphx8internal11instruction15clear_argumentsEv"></span><span id="migraphx::internal::instruction::clear_arguments"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a2fee9494389316ee500f50650e70228d"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">clear_arguments</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction15clear_argumentsEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction5validE15instruction_refb">
+<span id="_CPPv3NK8migraphx8internal11instruction5validE15instruction_refb"></span><span id="_CPPv2NK8migraphx8internal11instruction5validE15instruction_refb"></span><span id="migraphx::internal::instruction::valid__instruction_ref.bC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a6d0179720a65aa92e1e156dd6cabbe6d"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">valid</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">start</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">check_order</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction5validE15instruction_refb" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction5validEv">
+<span id="_CPPv3NK8migraphx8internal11instruction5validEv"></span><span id="_CPPv2NK8migraphx8internal11instruction5validEv"></span><span id="migraphx::internal::instruction::validC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a868890b8ca50042d30b082fdb38e285e"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">valid</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction5validEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction9get_shapeEv">
+<span id="_CPPv3NK8migraphx8internal11instruction9get_shapeEv"></span><span id="_CPPv2NK8migraphx8internal11instruction9get_shapeEv"></span><span id="migraphx::internal::instruction::get_shapeC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a61c849385fd298ac7f3a104f0097e979"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_shape</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction9get_shapeEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction11get_literalEv">
+<span id="_CPPv3NK8migraphx8internal11instruction11get_literalEv"></span><span id="_CPPv2NK8migraphx8internal11instruction11get_literalEv"></span><span id="migraphx::internal::instruction::get_literalC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1abff64eb5ca7aee4ff0233d5c70b27553"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal7literalE" title="migraphx::internal::literal"><span class="n"><span class="pre">literal</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_literal</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction11get_literalEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction12get_operatorEv">
+<span id="_CPPv3NK8migraphx8internal11instruction12get_operatorEv"></span><span id="_CPPv2NK8migraphx8internal11instruction12get_operatorEv"></span><span id="migraphx::internal::instruction::get_operatorC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a18a068ee8e828bb9093700d2373e0cc4"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_operator</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction12get_operatorEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction4nameEv">
+<span id="_CPPv3NK8migraphx8internal11instruction4nameEv"></span><span id="_CPPv2NK8migraphx8internal11instruction4nameEv"></span><span id="migraphx::internal::instruction::nameC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1ae26335ac2637f83668f681fcc9831d53"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">name</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction4nameEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction6inputsEv">
+<span id="_CPPv3NK8migraphx8internal11instruction6inputsEv"></span><span id="_CPPv2NK8migraphx8internal11instruction6inputsEv"></span><span id="migraphx::internal::instruction::inputsC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a2cb9d4ab33b412548d3aa1995b91d865"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">inputs</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction6inputsEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction13module_inputsEv">
+<span id="_CPPv3NK8migraphx8internal11instruction13module_inputsEv"></span><span id="_CPPv2NK8migraphx8internal11instruction13module_inputsEv"></span><span id="migraphx::internal::instruction::module_inputsC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a800a145847252eb001c9d533fbfc8cc1"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">module_ref</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">module_inputs</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction13module_inputsEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction7outputsEv">
+<span id="_CPPv3NK8migraphx8internal11instruction7outputsEv"></span><span id="_CPPv2NK8migraphx8internal11instruction7outputsEv"></span><span id="migraphx::internal::instruction::outputsC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a98c521c5866eb3a8e7d0f960b1804bbc"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">outputs</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction7outputsEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction10add_outputE15instruction_ref">
+<span id="_CPPv3N8migraphx8internal11instruction10add_outputE15instruction_ref"></span><span id="_CPPv2N8migraphx8internal11instruction10add_outputE15instruction_ref"></span><span id="migraphx::internal::instruction::add_output__instruction_ref"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1af3d38d8ca36cfeedce70581be2d09aae"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">add_output</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction10add_outputE15instruction_ref" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I0EN8migraphx8internal11instruction13remove_outputEvRK1T">
+<span id="_CPPv3I0EN8migraphx8internal11instruction13remove_outputERK1T"></span><span id="_CPPv2I0EN8migraphx8internal11instruction13remove_outputERK1T"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">T</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="structmigraphx_1_1internal_1_1instruction_1af8eec1bc80b36dd657cdacdd94370ca0"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">remove_output</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I0EN8migraphx8internal11instruction13remove_outputEvRK1T" title="migraphx::internal::instruction::remove_output::T"><span class="n"><span class="pre">T</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">ins</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4I0EN8migraphx8internal11instruction13remove_outputEvRK1T" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction8can_evalEv">
+<span id="_CPPv3NK8migraphx8internal11instruction8can_evalEv"></span><span id="_CPPv2NK8migraphx8internal11instruction8can_evalEv"></span><span id="migraphx::internal::instruction::can_evalC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a2a9089c9488ccfa55cb3de675602a7a8"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">can_eval</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction8can_evalEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction4evalEb">
+<span id="_CPPv3NK8migraphx8internal11instruction4evalEb"></span><span id="_CPPv2NK8migraphx8internal11instruction4evalEb"></span><span id="migraphx::internal::instruction::eval__bC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a144bbde1f7b6d861359245785ea72c38"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">eval</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">check_eval</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">true</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction4evalEb" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction8finalizeER7context">
+<span id="_CPPv3N8migraphx8internal11instruction8finalizeER7context"></span><span id="_CPPv2N8migraphx8internal11instruction8finalizeER7context"></span><span id="migraphx::internal::instruction::finalize__contextR"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1ab6e972d598ad6e1be29378f3c663fc13"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">finalize</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">ctx</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction8finalizeER7context" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction14set_normalizedEb">
+<span id="_CPPv3N8migraphx8internal11instruction14set_normalizedEb"></span><span id="_CPPv2N8migraphx8internal11instruction14set_normalizedEb"></span><span id="migraphx::internal::instruction::set_normalized__b"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a6ffb574856e0f1d8ecd734cec873ccf5"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">set_normalized</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">value</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">true</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction14set_normalizedEb" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction13is_normalizedEv">
+<span id="_CPPv3NK8migraphx8internal11instruction13is_normalizedEv"></span><span id="_CPPv2NK8migraphx8internal11instruction13is_normalizedEv"></span><span id="migraphx::internal::instruction::is_normalizedC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a713d95560a2a9edaf397e93b9987fea3"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">is_normalized</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction13is_normalizedEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction18need_normalizationEv">
+<span id="_CPPv3NK8migraphx8internal11instruction18need_normalizationEv"></span><span id="_CPPv2NK8migraphx8internal11instruction18need_normalizationEv"></span><span id="migraphx::internal::instruction::need_normalizationC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a6efb6261a8a1a79b2929d9d9bd3404c2"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">need_normalization</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction18need_normalizationEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction19normalized_operatorEv">
+<span id="_CPPv3NK8migraphx8internal11instruction19normalized_operatorEv"></span><span id="_CPPv2NK8migraphx8internal11instruction19normalized_operatorEv"></span><span id="migraphx::internal::instruction::normalized_operatorC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1af63039ac35b6e650b8f80af55e50eb28"></span><a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">normalized_operator</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction19normalized_operatorEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal11instruction11debug_printEv">
+<span id="_CPPv3NK8migraphx8internal11instruction11debug_printEv"></span><span id="_CPPv2NK8migraphx8internal11instruction11debug_printEv"></span><span id="migraphx::internal::instruction::debug_printC"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1ab26441b991ae19f610f519595de65e1d"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">debug_print</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal11instruction11debug_printEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-static-functions">Public Static Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction12replace_refsE15instruction_refRKNSt13unordered_mapI15instruction_ref15instruction_refEERKNSt13unordered_mapI10module_ref10module_refEE">
+<span id="_CPPv3N8migraphx8internal11instruction12replace_refsE15instruction_refRKNSt13unordered_mapI15instruction_ref15instruction_refEERKNSt13unordered_mapI10module_ref10module_refEE"></span><span id="_CPPv2N8migraphx8internal11instruction12replace_refsE15instruction_refRKNSt13unordered_mapI15instruction_ref15instruction_refEERKNSt13unordered_mapI10module_ref10module_refEE"></span><span id="migraphx::internal::instruction::replace_refs__instruction_ref.std::unordered_map:instruction_ref.instruction_ref:CR.std::unordered_map:module_ref.module_ref:CR"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1abba7fa388adb0ab4ee368b1042afc874"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace_refs</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">map_insts</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">module_ref</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">module_ref</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">map_mods</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction12replace_refsE15instruction_refRKNSt13unordered_mapI15instruction_ref15instruction_refEERKNSt13unordered_mapI10module_ref10module_refEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction13backreferenceE15instruction_ref">
+<span id="_CPPv3N8migraphx8internal11instruction13backreferenceE15instruction_ref"></span><span id="_CPPv2N8migraphx8internal11instruction13backreferenceE15instruction_ref"></span><span id="migraphx::internal::instruction::backreference__instruction_ref"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a6493f628841205561e7acda426a48d6a"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">backreference</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ref</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction13backreferenceE15instruction_ref" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction16replace_argumentE15instruction_ref15instruction_ref15instruction_ref">
+<span id="_CPPv3N8migraphx8internal11instruction16replace_argumentE15instruction_ref15instruction_ref15instruction_ref"></span><span id="_CPPv2N8migraphx8internal11instruction16replace_argumentE15instruction_ref15instruction_ref15instruction_ref"></span><span id="migraphx::internal::instruction::replace_argument__instruction_ref.instruction_ref.instruction_ref"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a5963aeb4fa559151be651d2d2bd48e83"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace_argument</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">old</span></span>, <a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">new_ins</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction16replace_argumentE15instruction_ref15instruction_ref15instruction_ref" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction20replace_mod_argumentE15instruction_ref10module_ref10module_ref">
+<span id="_CPPv3N8migraphx8internal11instruction20replace_mod_argumentE15instruction_ref10module_ref10module_ref"></span><span id="_CPPv2N8migraphx8internal11instruction20replace_mod_argumentE15instruction_ref10module_ref10module_ref"></span><span id="migraphx::internal::instruction::replace_mod_argument__instruction_ref.module_ref.module_ref"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1aea8a9144b3b27d692a31b30dec596a1d"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace_mod_argument</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <span class="n"><span class="pre">module_ref</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">old</span></span>, <span class="n"><span class="pre">module_ref</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">new_mod</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction20replace_mod_argumentE15instruction_ref10module_ref10module_ref" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEE">
+<span id="_CPPv3N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEE"></span><span id="_CPPv2N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEE"></span><span id="migraphx::internal::instruction::replace__instruction_ref.operation.shapeCR.std::vector:instruction_ref:"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a5c5e9c71e27a4a28a887e7e7be2fa94c"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">o</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">r</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">args</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE">
+<span id="_CPPv3N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE"></span><span id="_CPPv2N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE"></span><span id="migraphx::internal::instruction::replace__instruction_ref.operation.shapeCR.std::vector:instruction_ref:.std::vector:module_ref:"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a829bce51b4a626a285df26e49c979de1"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">replace</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <a class="reference internal" href="operators.html#_CPPv4N8migraphx8internal9operationE" title="migraphx::internal::operation"><span class="n"><span class="pre">operation</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">o</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">r</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">args</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">module_ref</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">module_args</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction7replaceE15instruction_ref9operationRK5shapeNSt6vectorI15instruction_refEENSt6vectorI10module_refEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction16get_output_aliasE15instruction_refb">
+<span id="_CPPv3N8migraphx8internal11instruction16get_output_aliasE15instruction_refb"></span><span id="_CPPv2N8migraphx8internal11instruction16get_output_aliasE15instruction_refb"></span><span id="migraphx::internal::instruction::get_output_alias__instruction_ref.b"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1aa7c42b2b8f4a8330a549e348cb063848"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_output_alias</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">shallow</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction16get_output_aliasE15instruction_refb" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal11instruction5printERNSt7ostreamE15instruction_refRKNSt13unordered_mapI15instruction_refNSt6stringEEE">
+<span id="_CPPv3N8migraphx8internal11instruction5printERNSt7ostreamE15instruction_refRKNSt13unordered_mapI15instruction_refNSt6stringEEE"></span><span id="_CPPv2N8migraphx8internal11instruction5printERNSt7ostreamE15instruction_refRKNSt13unordered_mapI15instruction_refNSt6stringEEE"></span><span id="migraphx::internal::instruction::print__osR.instruction_ref.std::unordered_map:instruction_ref.ss:CR"></span><span class="target" id="structmigraphx_1_1internal_1_1instruction_1a2af5e0bad2c42f45bf23d0d6e670c3d2"></span><span class="k"><span class="pre">static</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">print</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">ostream</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">os</span></span>, <a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">names</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal11instruction5printERNSt7ostreamE15instruction_refRKNSt13unordered_mapI15instruction_refNSt6stringEEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-friends">Friends</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1a47f080bdde0400fbfd79fddb7518568d"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator==</span> <span class="pre">(const</span> <span class="pre">instruction</span> <span class="pre">&amp;i,</span> <span class="pre">instruction_ref</span> <span class="pre">ref)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1a935bdd9d96525c6bde37642ebdb82059"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator==</span> <span class="pre">(const</span> <span class="pre">instruction</span> <span class="pre">&amp;x,</span> <span class="pre">const</span> <span class="pre">instruction</span> <span class="pre">&amp;y)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1ae4840290c6e526a67f7d5fa49b55d546"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator!=</span> <span class="pre">(const</span> <span class="pre">instruction</span> <span class="pre">&amp;x,</span> <span class="pre">const</span> <span class="pre">instruction</span> <span class="pre">&amp;y)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1a0a532917de9d65592f2e2d9f9ae0b3c4"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator==</span> <span class="pre">(instruction_ref</span> <span class="pre">ref,</span> <span class="pre">const</span> <span class="pre">instruction</span> <span class="pre">&amp;i)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1a856c08205f38b70087f49020b159b6c8"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator!=</span> <span class="pre">(const</span> <span class="pre">instruction</span> <span class="pre">&amp;i,</span> <span class="pre">instruction_ref</span> <span class="pre">ref)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1instruction_1a16e8732f85adb71e06ef79cd58f4a12e"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator!=</span> <span class="pre">(instruction_ref</span> <span class="pre">ref,</span> <span class="pre">const</span> <span class="pre">instruction</span> <span class="pre">&amp;i)</span></span></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="instruction-ref">
+<h2>instruction_ref<a class="headerlink" href="#instruction-ref" title="Permalink to this headline"></a></h2>
+<dl class="cpp type">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal15instruction_refE">
+<span id="_CPPv3N8migraphx8internal15instruction_refE"></span><span id="_CPPv2N8migraphx8internal15instruction_refE"></span><span id="migraphx::internal::instruction_ref"></span><span class="k"><span class="pre">type</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">instruction_ref</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal15instruction_refE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>References an instruction in the program.</p>
+</dd></dl>
+
+</section>
+<section id="id1">
+<h2>program<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7programE">
+<span id="_CPPv3N8migraphx8internal7programE"></span><span id="_CPPv2N8migraphx8internal7programE"></span><span id="migraphx::internal::program"></span><span class="target" id="structmigraphx_1_1internal_1_1program"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">program</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal7programE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Stores the instruction stream. </p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program7programEv">
+<span id="_CPPv3N8migraphx8internal7program7programEv"></span><span id="_CPPv2N8migraphx8internal7program7programEv"></span><span id="migraphx::internal::program::program"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a9cd15c12f6cdf283d3bd2b398bb587f0"></span><span class="sig-name descname"><span class="n"><span class="pre">program</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program7programEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program7programERR7program">
+<span id="_CPPv3N8migraphx8internal7program7programERR7program"></span><span id="_CPPv2N8migraphx8internal7program7programERR7program"></span><span id="migraphx::internal::program::program__programRR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1aa183990770ddf88cb1a7ec836c3695bf"></span><span class="sig-name descname"><span class="n"><span class="pre">program</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal7program7programERR7program" title="migraphx::internal::program::program"><span class="n"><span class="pre">program</span></span></a><span class="p"><span class="pre">&amp;</span></span><span class="p"><span class="pre">&amp;</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">noexcept</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program7programERR7program" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program7programERK7program">
+<span id="_CPPv3N8migraphx8internal7program7programERK7program"></span><span id="_CPPv2N8migraphx8internal7program7programERK7program"></span><span id="migraphx::internal::program::program__programCR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a3f098aa248ef593aee8bb13a2445427d"></span><span class="sig-name descname"><span class="n"><span class="pre">program</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal7program7programERK7program" title="migraphx::internal::program::program"><span class="n"><span class="pre">program</span></span></a><span class="p"><span class="pre">&amp;</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program7programERK7program" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7programaSE7program">
+<span id="_CPPv3N8migraphx8internal7programaSE7program"></span><span id="_CPPv2N8migraphx8internal7programaSE7program"></span><span id="migraphx::internal::program::assign-operator__program"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a3b276e7f342e3ebab7e2436f9f615db6"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal7programE" title="migraphx::internal::program"><span class="n"><span class="pre">program</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="k"><span class="pre">operator</span></span><span class="o"><span class="pre">=</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal7programE" title="migraphx::internal::program"><span class="n"><span class="pre">program</span></span></a><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7programaSE7program" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7programD0Ev">
+<span id="_CPPv3N8migraphx8internal7programD0Ev"></span><span id="_CPPv2N8migraphx8internal7programD0Ev"></span><span id="migraphx::internal::program::~program"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a7866f8a6c1f9e53db264cfbde79ec29b"></span><span class="sig-name descname"><span class="n"><span class="pre">~program</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">noexcept</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal7programD0Ev" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program19get_parameter_namesEv">
+<span id="_CPPv3NK8migraphx8internal7program19get_parameter_namesEv"></span><span id="_CPPv2NK8migraphx8internal7program19get_parameter_namesEv"></span><span id="migraphx::internal::program::get_parameter_namesC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ac928d598cdb2d7aca3d8f7d74f67f370"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_parameter_names</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program19get_parameter_namesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program19get_parameter_shapeENSt6stringE">
+<span id="_CPPv3NK8migraphx8internal7program19get_parameter_shapeENSt6stringE"></span><span id="_CPPv2NK8migraphx8internal7program19get_parameter_shapeENSt6stringE"></span><span id="migraphx::internal::program::get_parameter_shape__ssC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ae64918dfc43b1a679d4f99428d1fd8f3"></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_parameter_shape</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program19get_parameter_shapeENSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program13get_parameterENSt6stringE">
+<span id="_CPPv3NK8migraphx8internal7program13get_parameterENSt6stringE"></span><span id="_CPPv2NK8migraphx8internal7program13get_parameterENSt6stringE"></span><span id="migraphx::internal::program::get_parameter__ssC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a08fe434e1bacd917f216a52b0d84c679"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_parameter</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program13get_parameterENSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program20get_parameter_shapesEv">
+<span id="_CPPv3NK8migraphx8internal7program20get_parameter_shapesEv"></span><span id="_CPPv2NK8migraphx8internal7program20get_parameter_shapesEv"></span><span id="migraphx::internal::program::get_parameter_shapesC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a864499d9b010abccd7dc8ee3102cbfe4"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_parameter_shapes</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program20get_parameter_shapesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program4evalE13parameter_map">
+<span id="_CPPv3NK8migraphx8internal7program4evalE13parameter_map"></span><span id="_CPPv2NK8migraphx8internal7program4evalE13parameter_map"></span><span id="migraphx::internal::program::eval__parameter_mapC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a6da73962ad9b1e962fff6329b2b32608"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal8argumentE" title="migraphx::internal::argument"><span class="n"><span class="pre">argument</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">eval</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">parameter_map</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">params</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program4evalE13parameter_map" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program4sizeEv">
+<span id="_CPPv3NK8migraphx8internal7program4sizeEv"></span><span id="_CPPv2NK8migraphx8internal7program4sizeEv"></span><span id="migraphx::internal::program::sizeC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1af43548a12d82597e9cee0aa21a8543b8"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">size</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program4sizeEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program17get_output_shapesEv">
+<span id="_CPPv3NK8migraphx8internal7program17get_output_shapesEv"></span><span id="_CPPv2NK8migraphx8internal7program17get_output_shapesEv"></span><span id="migraphx::internal::program::get_output_shapesC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ad5a26b6e8c4494f33ff3a349ce3ebe44"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="data.html#_CPPv4N8migraphx8internal5shapeE" title="migraphx::internal::shape"><span class="n"><span class="pre">shape</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_output_shapes</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program17get_output_shapesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11get_contextEv">
+<span id="_CPPv3NK8migraphx8internal7program11get_contextEv"></span><span id="_CPPv2NK8migraphx8internal7program11get_contextEv"></span><span id="migraphx::internal::program::get_contextC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a2d4b439ea0406ae41de6972d05be7614"></span><span class="n"><span class="pre">context</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_context</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11get_contextEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program8validateEv">
+<span id="_CPPv3NK8migraphx8internal7program8validateEv"></span><span id="_CPPv2NK8migraphx8internal7program8validateEv"></span><span id="migraphx::internal::program::validateC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ad9a56d25797f21953f0ef82513e75306"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">validate</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program8validateEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program7compileERK6target15compile_options">
+<span id="_CPPv3N8migraphx8internal7program7compileERK6target15compile_options"></span><span id="_CPPv2N8migraphx8internal7program7compileERK6target15compile_options"></span><span id="migraphx::internal::program::compile__targetCR.compile_options"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a6698a77d83aa57709eb91ba5f05ace1d"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">compile</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="targets.html#_CPPv4N8migraphx8internal6targetE" title="migraphx::internal::target"><span class="n"><span class="pre">target</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">t</span></span>, <span class="n"><span class="pre">compile_options</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">options</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">compile_options</span></span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program7compileERK6target15compile_options" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11is_compiledEv">
+<span id="_CPPv3NK8migraphx8internal7program11is_compiledEv"></span><span id="_CPPv2NK8migraphx8internal7program11is_compiledEv"></span><span id="migraphx::internal::program::is_compiledC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a95b51c22a2408fedff5edffa52fff544"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">is_compiled</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11is_compiledEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program8finalizeEv">
+<span id="_CPPv3N8migraphx8internal7program8finalizeEv"></span><span id="_CPPv2N8migraphx8internal7program8finalizeEv"></span><span id="migraphx::internal::program::finalize"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a73ae426a6ec5c091f10415d943bc8603"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">finalize</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program8finalizeEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11perf_reportERNSt7ostreamENSt6size_tE13parameter_mapNSt6size_tE">
+<span id="_CPPv3NK8migraphx8internal7program11perf_reportERNSt7ostreamENSt6size_tE13parameter_mapNSt6size_tE"></span><span id="_CPPv2NK8migraphx8internal7program11perf_reportERNSt7ostreamENSt6size_tE13parameter_mapNSt6size_tE"></span><span id="migraphx::internal::program::perf_report__osR.std::s.parameter_map.std::sC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a7f1dd6cf3d63c2e1425718fe691501f8"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">perf_report</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">ostream</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">os</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">n</span></span>, <span class="n"><span class="pre">parameter_map</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">params</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">batch</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11perf_reportERNSt7ostreamENSt6size_tE13parameter_mapNSt6size_tE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program4markERK13parameter_mapRR6marker">
+<span id="_CPPv3N8migraphx8internal7program4markERK13parameter_mapRR6marker"></span><span id="_CPPv2N8migraphx8internal7program4markERK13parameter_mapRR6marker"></span><span id="migraphx::internal::program::mark__parameter_mapCR.markerRR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a432e2f3f223b17d2f36ba9dba4e100e8"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">mark</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">parameter_map</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">params</span></span>, <span class="n"><span class="pre">marker</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">m</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program4markERK13parameter_mapRR6marker" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program8to_valueEv">
+<span id="_CPPv3NK8migraphx8internal7program8to_valueEv"></span><span id="_CPPv2NK8migraphx8internal7program8to_valueEv"></span><span id="migraphx::internal::program::to_valueC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1af48e5774c07a69a2aa169b47255c09f3"></span><span class="n"><span class="pre">value</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">to_value</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program8to_valueEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program10from_valueERK5value">
+<span id="_CPPv3N8migraphx8internal7program10from_valueERK5value"></span><span id="_CPPv2N8migraphx8internal7program10from_valueERK5value"></span><span id="migraphx::internal::program::from_value__valueCR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a434659d67be84626a8cf7f523331d1e6"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">from_value</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">value</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">v</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program10from_valueERK5value" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11debug_printEv">
+<span id="_CPPv3NK8migraphx8internal7program11debug_printEv"></span><span id="_CPPv2NK8migraphx8internal7program11debug_printEv"></span><span id="migraphx::internal::program::debug_printC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1aed7fbbfe9d9213e05890cff326e9bb3d"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">debug_print</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11debug_printEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11debug_printE15instruction_ref">
+<span id="_CPPv3NK8migraphx8internal7program11debug_printE15instruction_ref"></span><span id="_CPPv2NK8migraphx8internal7program11debug_printE15instruction_ref"></span><span id="migraphx::internal::program::debug_print__instruction_refC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ada1dcb98bb18f7c0f21c28e68091d408"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">debug_print</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">ins</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11debug_printE15instruction_ref" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program5printERNSt13unordered_mapI15instruction_refNSt6stringEEERKNSt8functionIFv15instruction_refNSt13unordered_mapI15instruction_refNSt6stringEEEEEE">
+<span id="_CPPv3NK8migraphx8internal7program5printERNSt13unordered_mapI15instruction_refNSt6stringEEERKNSt8functionIFv15instruction_refNSt13unordered_mapI15instruction_refNSt6stringEEEEEE"></span><span id="_CPPv2NK8migraphx8internal7program5printERNSt13unordered_mapI15instruction_refNSt6stringEEERKNSt8functionIFv15instruction_refNSt13unordered_mapI15instruction_refNSt6stringEEEEEE"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ac1e493f847eb4588b6af8dfcbffc228a"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">print</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">names</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">function</span></span><span class="p"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">void</span></span><span class="p"><span class="pre">(</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">)</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">print_func</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program5printERNSt13unordered_mapI15instruction_refNSt6stringEEERKNSt8functionIFv15instruction_refNSt13unordered_mapI15instruction_refNSt6stringEEEEEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11print_graphERNSt7ostreamEb">
+<span id="_CPPv3NK8migraphx8internal7program11print_graphERNSt7ostreamEb"></span><span id="_CPPv2NK8migraphx8internal7program11print_graphERNSt7ostreamEb"></span><span id="migraphx::internal::program::print_graph__osR.bC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1acb0480a035c77cd7f74d4f23446b84e3"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">print_graph</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">ostream</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">os</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">brief</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11print_graphERNSt7ostreamEb" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program9print_cppERNSt7ostreamE">
+<span id="_CPPv3NK8migraphx8internal7program9print_cppERNSt7ostreamE"></span><span id="_CPPv2NK8migraphx8internal7program9print_cppERNSt7ostreamE"></span><span id="migraphx::internal::program::print_cpp__osRC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1add4ba88780ed866fd0bf109420208299"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">print_cpp</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">ostream</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">os</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program9print_cppERNSt7ostreamE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program7dry_runE13parameter_map">
+<span id="_CPPv3NK8migraphx8internal7program7dry_runE13parameter_map"></span><span id="_CPPv2NK8migraphx8internal7program7dry_runE13parameter_map"></span><span id="migraphx::internal::program::dry_run__parameter_mapC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ad559c884019ce68fe27fb729738d47d2"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">dry_run</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">parameter_map</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">params</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program7dry_runE13parameter_map" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program8annotateERNSt7ostreamERKNSt8functionIFv15instruction_refEEE">
+<span id="_CPPv3NK8migraphx8internal7program8annotateERNSt7ostreamERKNSt8functionIFv15instruction_refEEE"></span><span id="_CPPv2NK8migraphx8internal7program8annotateERNSt7ostreamERKNSt8functionIFv15instruction_refEEE"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ab166b7a7675cef8fdba987f663ca40e7"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">annotate</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">ostream</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">os</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">function</span></span><span class="p"><span class="pre">&lt;</span></span><span class="kt"><span class="pre">void</span></span><span class="p"><span class="pre">(</span></span><a class="reference internal" href="#_CPPv4N8migraphx8internal15instruction_refE" title="migraphx::internal::instruction_ref"><span class="n"><span class="pre">instruction_ref</span></span></a><span class="p"><span class="pre">)</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">a</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program8annotateERNSt7ostreamERKNSt8functionIFv15instruction_refEEE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program4sortEv">
+<span id="_CPPv3N8migraphx8internal7program4sortEv"></span><span id="_CPPv2N8migraphx8internal7program4sortEv"></span><span id="migraphx::internal::program::sort"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a2d4163e017569bd3090a97935d69b91e"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal7programE" title="migraphx::internal::program"><span class="n"><span class="pre">program</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="sig-name descname"><span class="n"><span class="pre">sort</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program4sortEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program13create_moduleERKNSt6stringE">
+<span id="_CPPv3N8migraphx8internal7program13create_moduleERKNSt6stringE"></span><span id="_CPPv2N8migraphx8internal7program13create_moduleERKNSt6stringE"></span><span id="migraphx::internal::program::create_module__ssCR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a48ac961398b9a36a3d33a5ab57ff2d26"></span><span class="n"><span class="pre">module</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">create_module</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program13create_moduleERKNSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program10get_moduleERKNSt6stringE">
+<span id="_CPPv3N8migraphx8internal7program10get_moduleERKNSt6stringE"></span><span id="_CPPv2N8migraphx8internal7program10get_moduleERKNSt6stringE"></span><span id="migraphx::internal::program::get_module__ssCR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a376cbfa5f88df0aee80a088525e91371"></span><span class="n"><span class="pre">module</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_module</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program10get_moduleERKNSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program10get_moduleERKNSt6stringE">
+<span id="_CPPv3NK8migraphx8internal7program10get_moduleERKNSt6stringE"></span><span id="_CPPv2NK8migraphx8internal7program10get_moduleERKNSt6stringE"></span><span id="migraphx::internal::program::get_module__ssCRC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a5118ca53d98a88a4181c3b29ce836ee9"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">module</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_module</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program10get_moduleERKNSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program15get_main_moduleEv">
+<span id="_CPPv3N8migraphx8internal7program15get_main_moduleEv"></span><span id="_CPPv2N8migraphx8internal7program15get_main_moduleEv"></span><span id="migraphx::internal::program::get_main_module"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a11c02c9e7b137df3d409fdcbfae7a7a2"></span><span class="n"><span class="pre">module</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_main_module</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program15get_main_moduleEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program15get_main_moduleEv">
+<span id="_CPPv3NK8migraphx8internal7program15get_main_moduleEv"></span><span id="_CPPv2NK8migraphx8internal7program15get_main_moduleEv"></span><span id="migraphx::internal::program::get_main_moduleC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ac524a550e16cd116f8a1fa0c5b6886e7"></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">module</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">get_main_module</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program15get_main_moduleEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK8migraphx8internal7program11get_modulesEv">
+<span id="_CPPv3NK8migraphx8internal7program11get_modulesEv"></span><span id="_CPPv2NK8migraphx8internal7program11get_modulesEv"></span><span id="migraphx::internal::program::get_modulesC"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1ad514b886d96069008db7b8db0ec6f5d1"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">module</span></span><span class="p"><span class="pre">*</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_modules</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK8migraphx8internal7program11get_modulesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program11get_modulesEv">
+<span id="_CPPv3N8migraphx8internal7program11get_modulesEv"></span><span id="_CPPv2N8migraphx8internal7program11get_modulesEv"></span><span id="migraphx::internal::program::get_modules"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a660c5fb31cd3da4588ee0e813779d02a"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">module</span></span><span class="p"><span class="pre">*</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_modules</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program11get_modulesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program13remove_moduleERKNSt6stringE">
+<span id="_CPPv3N8migraphx8internal7program13remove_moduleERKNSt6stringE"></span><span id="_CPPv2N8migraphx8internal7program13remove_moduleERKNSt6stringE"></span><span id="migraphx::internal::program::remove_module__ssCR"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a1fc29c1be748403f08d5d72054c6048e"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">remove_module</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program13remove_moduleERKNSt6stringE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal7program21remove_unused_modulesEv">
+<span id="_CPPv3N8migraphx8internal7program21remove_unused_modulesEv"></span><span id="_CPPv2N8migraphx8internal7program21remove_unused_modulesEv"></span><span id="migraphx::internal::program::remove_unused_modules"></span><span class="target" id="structmigraphx_1_1internal_1_1program_1a6097d3e7d5aa7cbd32e0f61713c9edf0"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">remove_unused_modules</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal7program21remove_unused_modulesEv" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-friends">Friends</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1program_1ab073b77280800346e92e04bd9fd123f3"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">std::ostream</span> <span class="pre">&amp;</span> <span class="pre">operator&lt;&lt;</span> <span class="pre">(std::ostream</span> <span class="pre">&amp;os,</span> <span class="pre">const</span> <span class="pre">program</span> <span class="pre">&amp;p)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1program_1ace5a43c105bd2dd9ad21453e4657bac9"></span><span class="sig-name descname"><span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator==</span> <span class="pre">(const</span> <span class="pre">program</span> <span class="pre">&amp;x,</span> <span class="pre">const</span> <span class="pre">program</span> <span class="pre">&amp;y)</span></span></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp">
+<span class="target" id="structmigraphx_1_1internal_1_1program_1adb2a4209206db1ae6aeca00724bd6eaa"></span><span class="sig-name descname"><span class="pre">inline</span> <span class="pre">friend</span> <span class="pre">friend</span> <span class="pre">bool</span> <span class="pre">operator!=</span> <span class="pre">(const</span> <span class="pre">program</span> <span class="pre">&amp;x,</span> <span class="pre">const</span> <span class="pre">program</span> <span class="pre">&amp;y)</span></span></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="parse-onnx">
+<h2>parse_onnx<a class="headerlink" href="#parse-onnx" title="Permalink to this headline"></a></h2>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10parse_onnxERKNSt6stringERK12onnx_options">
+<span id="_CPPv3N8migraphx8internal10parse_onnxERKNSt6stringERK12onnx_options"></span><span id="_CPPv2N8migraphx8internal10parse_onnxERKNSt6stringERK12onnx_options"></span><span id="migraphx::internal::parse_onnx__ssCR.onnx_optionsCR"></span><span class="target" id="namespacemigraphx_1_1internal_1a8e88259ac1569937b0d120ec1e15c369"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal7programE" title="migraphx::internal::program"><span class="n"><span class="pre">program</span></span></a><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">parse_onnx</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal12onnx_optionsE" title="migraphx::internal::onnx_options"><span class="n"><span class="pre">onnx_options</span></span></a><span class="p"><span class="pre">&amp;</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal12onnx_optionsE" title="migraphx::internal::onnx_options"><span class="n"><span class="pre">onnx_options</span></span></a><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal10parse_onnxERKNSt6stringERK12onnx_options" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Create a program from an onnx file. </p>
+</dd></dl>
+
+</section>
+<section id="parse-tf">
+<h2>parse_tf<a class="headerlink" href="#parse-tf" title="Permalink to this headline"></a></h2>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal8parse_tfERKNSt6stringERK10tf_options">
+<span id="_CPPv3N8migraphx8internal8parse_tfERKNSt6stringERK10tf_options"></span><span id="_CPPv2N8migraphx8internal8parse_tfERKNSt6stringERK10tf_options"></span><span id="migraphx::internal::parse_tf__ssCR.tf_optionsCR"></span><span class="target" id="namespacemigraphx_1_1internal_1a6c286a1b083be2cbab419f54196f2bda"></span><a class="reference internal" href="#_CPPv4N8migraphx8internal7programE" title="migraphx::internal::program"><span class="n"><span class="pre">program</span></span></a><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">parse_tf</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">name</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal10tf_optionsE" title="migraphx::internal::tf_options"><span class="n"><span class="pre">tf_options</span></span></a><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">options</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N8migraphx8internal10tf_optionsE" title="migraphx::internal::tf_options"><span class="n"><span class="pre">tf_options</span></span></a><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N8migraphx8internal8parse_tfERKNSt6stringERK10tf_options" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Create a program from a tf pb file (default is nhwc format) </p>
+</dd></dl>
+
+</section>
+<section id="onnx-options">
+<h2>onnx_options<a class="headerlink" href="#onnx-options" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_optionsE">
+<span id="_CPPv3N8migraphx8internal12onnx_optionsE"></span><span id="_CPPv2N8migraphx8internal12onnx_optionsE"></span><span id="migraphx::internal::onnx_options"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">onnx_options</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_optionsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>struct to pass in onnx options to parser </p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_options17default_dim_valueE">
+<span id="_CPPv3N8migraphx8internal12onnx_options17default_dim_valueE"></span><span id="_CPPv2N8migraphx8internal12onnx_options17default_dim_valueE"></span><span id="migraphx::internal::onnx_options::default_dim_value__std::s"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options_1a578fa95120997b49ac5bcd978780ae70"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">default_dim_value</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_options17default_dim_valueE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>default batch size to use (if not specified in onnx file) </p>
+</dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_options14map_input_dimsE">
+<span id="_CPPv3N8migraphx8internal12onnx_options14map_input_dimsE"></span><span id="_CPPv2N8migraphx8internal12onnx_options14map_input_dimsE"></span><span id="migraphx::internal::onnx_options::map_input_dims__std::unordered_map:ss.std::vector:std::s::"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options_1a5ad21183afe3f80f83dda923ba2decbe"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">map_input_dims</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_options14map_input_dimsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Explicitly specify the dims of an input. </p>
+</dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_options22skip_unknown_operatorsE">
+<span id="_CPPv3N8migraphx8internal12onnx_options22skip_unknown_operatorsE"></span><span id="_CPPv2N8migraphx8internal12onnx_options22skip_unknown_operatorsE"></span><span id="migraphx::internal::onnx_options::skip_unknown_operators__b"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options_1afc797dec1bcaa0ace80a8bcc782a27c2"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">skip_unknown_operators</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_options22skip_unknown_operatorsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Continue parsing onnx file if an unknown operator is found. </p>
+</dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_options22print_program_on_errorE">
+<span id="_CPPv3N8migraphx8internal12onnx_options22print_program_on_errorE"></span><span id="_CPPv2N8migraphx8internal12onnx_options22print_program_on_errorE"></span><span id="migraphx::internal::onnx_options::print_program_on_error__b"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options_1a2a0e836d9a7e35c199676715cd945eff"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">print_program_on_error</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_options22print_program_on_errorE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Print program if an error occurs. </p>
+</dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal12onnx_options19max_loop_iterationsE">
+<span id="_CPPv3N8migraphx8internal12onnx_options19max_loop_iterationsE"></span><span id="_CPPv2N8migraphx8internal12onnx_options19max_loop_iterationsE"></span><span id="migraphx::internal::onnx_options::max_loop_iterations__int64_t"></span><span class="target" id="structmigraphx_1_1internal_1_1onnx__options_1aef6255dd2e607d572600d1d716d7939d"></span><span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">max_loop_iterations</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">10</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal12onnx_options19max_loop_iterationsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Max iter num for the loop operator. </p>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="tf-options">
+<h2>tf_options<a class="headerlink" href="#tf-options" title="Permalink to this headline"></a></h2>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10tf_optionsE">
+<span id="_CPPv3N8migraphx8internal10tf_optionsE"></span><span id="_CPPv2N8migraphx8internal10tf_optionsE"></span><span id="migraphx::internal::tf_options"></span><span class="target" id="structmigraphx_1_1internal_1_1tf__options"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">migraphx</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">internal</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">tf_options</span></span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal10tf_optionsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>struct to pass in tf options to parser </p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10tf_options7is_nhwcE">
+<span id="_CPPv3N8migraphx8internal10tf_options7is_nhwcE"></span><span id="_CPPv2N8migraphx8internal10tf_options7is_nhwcE"></span><span id="migraphx::internal::tf_options::is_nhwc__b"></span><span class="target" id="structmigraphx_1_1internal_1_1tf__options_1a5915de345e1f5d71af0e0d8dc58fae83"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">is_nhwc</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal10tf_options7is_nhwcE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10tf_options10batch_sizeE">
+<span id="_CPPv3N8migraphx8internal10tf_options10batch_sizeE"></span><span id="_CPPv2N8migraphx8internal10tf_options10batch_sizeE"></span><span id="migraphx::internal::tf_options::batch_size__unsigned-i"></span><span class="target" id="structmigraphx_1_1internal_1_1tf__options_1ae005bd6cc52561ac265a7af79156b3fd"></span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">batch_size</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal10tf_options10batch_sizeE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10tf_options14map_input_dimsE">
+<span id="_CPPv3N8migraphx8internal10tf_options14map_input_dimsE"></span><span id="_CPPv2N8migraphx8internal10tf_options14map_input_dimsE"></span><span id="migraphx::internal::tf_options::map_input_dims__std::unordered_map:ss.std::vector:std::s::"></span><span class="target" id="structmigraphx_1_1internal_1_1tf__options_1a7b77102437f90202d67cc0de9a213d0d"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">unordered_map</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">size_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">map_input_dims</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal10tf_options14map_input_dimsE" title="Permalink to this definition"></a><br /></dt>
+<dd><p>Explicitly specify the dims of an input. </p>
+</dd></dl>
+
+<dl class="cpp var">
+<dt class="sig sig-object cpp" id="_CPPv4N8migraphx8internal10tf_options17output_node_namesE">
+<span id="_CPPv3N8migraphx8internal10tf_options17output_node_namesE"></span><span id="_CPPv2N8migraphx8internal10tf_options17output_node_namesE"></span><span id="migraphx::internal::tf_options::output_node_names__std::vector:ss:"></span><span class="target" id="structmigraphx_1_1internal_1_1tf__options_1aa1242dbc9b9468737d63feecb8932884"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">output_node_names</span></span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><a class="headerlink" href="#_CPPv4N8migraphx8internal10tf_options17output_node_namesE" title="Permalink to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="operators.html" class="btn btn-neutral float-left" title="Operators" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="targets.html" class="btn btn-neutral float-right" title="Targets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

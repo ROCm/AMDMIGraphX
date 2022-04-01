@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview &mdash; MIGraphX 2.2 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Data types" href="dev/data.html" />
+    <link rel="prev" title="Developer Guide" href="developer_guide.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> MIGraphX
+          </a>
+              <div class="version">
+                2.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="py_user_guide.html">Python User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cpp_user_guide.html">C++ User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="driver.html">MIGraphX Driver</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="developer_guide.html">Developer Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Overview</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#building-a-program">Building a program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-parameters">Adding parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tensor-data">Tensor data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#importing-from-onnx">Importing from onnx</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dev/data.html">Data types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/operators.html">Operators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/program.html">Program</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/targets.html">Targets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/quantization.html">Quantization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/pass.html">Passes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/matchers.html">Matchers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dev/tools.html">Tools</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MIGraphX</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="developer_guide.html">Developer Guide</a> &raquo;</li>
+      <li>Overview</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/overview.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this headline"></a></h1>
+<p>MIGraphX provides an optimized execution engine for deep learning neural networks.</p>
+<section id="building-a-program">
+<h2>Building a program<a class="headerlink" href="#building-a-program" title="Permalink to this headline"></a></h2>
+<p>A program consists of a set of instructions to be executed when calling <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code>. Each instruction has an associated <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">operation</span></code> which represents the computation to be performed by the instruction.</p>
+<p>We can start by building a simple program to add two numbers together:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">one</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">two</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">add</span><span class="p">{},</span><span class="w"> </span><span class="n">one</span><span class="p">,</span><span class="w"> </span><span class="n">two</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add_literal</span></code> function will add an instruction to the program to store a literal number. The <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">instruction_ref</span></code> is a reference to the instruction in the program, which can be used to compose the output of the instruction with another instruction.</p>
+<p>After creating the literals, we then create the instruction to add the numbers together. This is done by using the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">add{}</span></code> operation class along with the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">instruction_ref</span></code> for the input arguments of the instruction.</p>
+<p>Finally, we can run this <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code> by compiling it for the cpu and then running it with <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code>:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">cpu</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+<span class="n">argument</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">({});</span><span class="w"></span>
+</pre></div>
+</div>
+<p>The easiest way to see the result is to print it:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Which will print <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p>
+<p>We can also compile the program for the gpu as well.</p>
+</section>
+<section id="adding-parameters">
+<h2>Adding parameters<a class="headerlink" href="#adding-parameters" title="Permalink to this headline"></a></h2>
+<p>Of course, this program will always produce the same value which is quite uninteresting. Instead, we want to pass an input to a program and compute a value based on the input. This can be done with a parameter. For example, we can modify the program to take an input <code class="docutils literal notranslate"><span class="pre">x</span></code>:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="n">shape</span><span class="o">::</span><span class="n">int64_type</span><span class="p">});</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">two</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_literal</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">add</span><span class="p">{},</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">two</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">cpu</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This adds a parameter of type <code class="docutils literal notranslate"><span class="pre">int64</span></code>, and compiles it for the <code class="docutils literal notranslate"><span class="pre">cpu</span></code>. To run the program, we need to pass the parameter to it when we call <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">eval</span></code>:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">argument</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">({</span><span class="w"></span>
+<span class="w">    </span><span class="p">{</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">literal</span><span class="p">{</span><span class="mi">1</span><span class="p">}.</span><span class="n">get_argument</span><span class="p">()}</span><span class="w"></span>
+<span class="p">});</span><span class="w"></span>
+<span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">result</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+</div>
+<p>This will print <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p>
+<p>A parameter is given as an <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code>. In this case, the simplest way of creating an <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code> is from a <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">literal</span></code>.</p>
+</section>
+<section id="tensor-data">
+<h2>Tensor data<a class="headerlink" href="#tensor-data" title="Permalink to this headline"></a></h2>
+<p>In this example we are just creating numbers, but the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">shape</span></code> class can describe multi-dimensional tensors. For example, we can build a simple network with convolution and relu:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="p">;</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">shape</span><span class="p">{</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">}});</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">weights</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_parameter</span><span class="p">(</span><span class="s">&quot;w&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">shape</span><span class="p">{</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">}});</span><span class="w"></span>
+<span class="n">instruction_ref</span><span class="w"> </span><span class="n">conv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">convolution</span><span class="p">{},</span><span class="w"> </span><span class="n">input</span><span class="p">,</span><span class="w"> </span><span class="n">weights</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">add_instruction</span><span class="p">(</span><span class="n">activation</span><span class="p">{</span><span class="s">&quot;relu&quot;</span><span class="p">},</span><span class="w"> </span><span class="n">conv</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+</div>
+<p>Here we create two parameters for both the <code class="docutils literal notranslate"><span class="pre">input</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code>. In the previous examples, we just created simple literals, however, most programs will take data from already allocated buffers(usually on the GPU). In this case, we can create <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code> objects directly from the pointers to the buffers:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// Compile the program</span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">gpu</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+<span class="c1">// Allocated buffers by the user</span>
+<span class="kt">float</span><span class="o">*</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w"></span>
+<span class="kt">float</span><span class="o">*</span><span class="w"> </span><span class="n">weights</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span><span class="w"></span>
+<span class="c1">// Create the arguments</span>
+<span class="n">argument</span><span class="w"> </span><span class="n">input_arg</span><span class="p">{</span><span class="n">shape</span><span class="p">{</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">}},</span><span class="w"> </span><span class="n">input</span><span class="p">};</span><span class="w"></span>
+<span class="n">argument</span><span class="w"> </span><span class="n">weights_arg</span><span class="p">{</span><span class="n">shape</span><span class="p">{</span><span class="n">shape</span><span class="o">::</span><span class="n">float_type</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="p">}},</span><span class="w"> </span><span class="n">weights</span><span class="p">};</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">eval</span><span class="p">({{</span><span class="s">&quot;x&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">input_arg</span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="s">&quot;w&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">weights_arg</span><span class="p">}})</span><span class="w"></span>
+</pre></div>
+</div>
+<p>An <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">argument</span></code> can handle memory buffers from either the GPU or the CPU, but when running the <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code>, buffers should be allocated for the corresponding target. That is, when compiling for the CPU, the buffers should be allocated on the CPU, and when compiling for the GPU the buffers should be allocated on the GPU.</p>
+</section>
+<section id="importing-from-onnx">
+<h2>Importing from onnx<a class="headerlink" href="#importing-from-onnx" title="Permalink to this headline"></a></h2>
+<p>A <code class="xref cpp cpp-any docutils literal notranslate"><span class="pre">program</span></code> can be built directly from an onnx file, which makes it easier to use neural networks directly from other frameworks. In this case, there is an <code class="docutils literal notranslate"><span class="pre">parse_onnx</span></code> function:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">program</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">parse_onnx</span><span class="p">(</span><span class="s">&quot;model.onnx&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="n">p</span><span class="p">.</span><span class="n">compile</span><span class="p">(</span><span class="n">gpu</span><span class="o">::</span><span class="n">target</span><span class="p">{});</span><span class="w"></span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="developer_guide.html" class="btn btn-neutral float-left" title="Developer Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dev/data.html" class="btn btn-neutral float-right" title="Data types" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2022, AMD.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

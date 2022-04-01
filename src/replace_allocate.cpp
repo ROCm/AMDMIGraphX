@@ -16,9 +16,10 @@ void replace_allocate::apply(module& p) const
         if(ins->get_operator().name() != "allocate")
             continue;
         auto op = ins->get_operator();
-        auto v = op.to_value();
+        auto v  = op.to_value();
         assert(v.contains("tag"));
-        auto alloc_ins = p.insert_instruction(ins, make_op(model.name(), {{"shape", to_value(ins->get_shape())}, v.at("tag")}));
+        auto alloc_ins = p.insert_instruction(
+            ins, make_op(model.name(), {{"shape", to_value(ins->get_shape())}, v.at("tag")}));
         p.replace_instruction(ins, alloc_ins);
     }
 }

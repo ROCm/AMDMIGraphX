@@ -273,7 +273,8 @@ struct miopen_apply
         // if(offload_copy)
         // {
         //     auto result = mod->insert_instruction(
-        //         ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+        //         ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag",
+        //         std::move(tag)}}));
         //     return result;
         // }
 
@@ -298,8 +299,8 @@ struct miopen_apply
         {
             return mod->add_parameter("output", s);
         }
-        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}, 
-        {"tag", std::move(tag)}}));
+        return mod->insert_instruction(
+            ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
 
     void add_convolution_op()

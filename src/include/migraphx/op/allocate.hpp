@@ -23,8 +23,7 @@ struct allocate
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"),
-                    f(self.tag, "tag"));
+        return pack(f(self.s, "shape"), f(self.tag, "tag"));
     }
     std::string name() const { return "allocate"; }
     shape compute_shape(std::vector<shape>) const { return s; }

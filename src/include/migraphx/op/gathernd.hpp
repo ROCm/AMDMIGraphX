@@ -27,6 +27,12 @@ struct gathernd
         auto r                 = inputs.front().lens().size();
         auto q                 = inputs.back().lens().size();
         auto k                 = inputs.back().lens().back();
+        if(k > r - batch_dims)
+        {
+            MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
+                           " cannot be used to access data of rank " +
+                           std::to_string(r - batch_dims));
+        }
         auto indices_lens_iter = inputs.back().lens().begin();
         auto output_lens_size  = q + r - k - batch_dims - 1;
         std::vector<std::size_t> output_lens(output_lens_size);
@@ -36,12 +42,6 @@ struct gathernd
             auto data_lens = inputs.front().lens();
             std::copy(
                 data_lens.begin() + batch_dims + k, data_lens.end(), output_lens.begin() + q - 1);
-        }
-        else if(k > r - batch_dims)
-        {
-            MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
-                           " cannot be used to access data of rank " +
-                           std::to_string(r - batch_dims));
         }
         shape output_shape{inputs.front().type(), output_lens};
         return output_shape;

@@ -47,18 +47,18 @@ constexpr T as_float(T x)
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 // Template with two overloads for math functions, one for half2 type and one for more generic
-// <half, N> vectorization where N is 4 or another even number. 
+// <half, N> vectorization where N is 4 or another even number.
 
-//NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                                 \
-    template <class... Ts>                                                                       \
-    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)                           \
-    MIGRAPHX_RETURNS(migraphx::vec<migraphx::half, 2>{fname(x, xs...)});                          \
-    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))>                \
-    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                           \
-    {                                                                                            \
-        return vec_packed_transform<2>(x, xs...)(                                                \
-            [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); });        \
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
+    template <class... Ts>                                                                \
+    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)                    \
+        MIGRAPHX_RETURNS(migraphx::vec<migraphx::half, 2>{fname(x, xs...)});              \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))>         \
+    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                    \
+    {                                                                                     \
+        return vec_packed_transform<2>(x, xs...)(                                         \
+            [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
     }
 
 // NOLINTNEXTLINE
@@ -139,7 +139,7 @@ MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
 // packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
 // Most but not all of these math ops have operators of the same names.  Ones not yet implemented
-// at this time are: exp2, exp10, log2, log10, isinf 
+// at this time are: exp2, exp10, log2, log10, isinf
 MIGRAPHX_DEVICE_MATH_HALF2(abs, ::__habs2)
 MIGRAPHX_DEVICE_MATH_HALF2(ceil, ::h2ceil)
 MIGRAPHX_DEVICE_MATH_HALF2(floor, ::h2floor)

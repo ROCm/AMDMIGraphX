@@ -4,7 +4,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// math op on half-precision float with tensor size that's divisible by 2, 
+// math op on half-precision float with tensor size that's divisible by 2,
 // but not divisible by 4
 struct test_sqrt_half2 : verify_program<test_sqrt_half2>
 {

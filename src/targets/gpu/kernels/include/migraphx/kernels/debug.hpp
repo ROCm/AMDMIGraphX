@@ -42,18 +42,30 @@ struct print_buffer
             pos++;
         }
     }
-    constexpr void append(int i)
+    template<class T, class = decltype(T{} % 10, -T{})>
+    constexpr void append(T i)
     {
         if(i < 0)
         {
             append('-');
             i = -i;
         }
-        while(i > 0)
+        char c = (i % 10) + '0';
+        if (i > 0)
+            append(i / 10);
+        append(c);
+    }
+
+    constexpr void append(const char * str)
+    {
+        if (str == nullptr)
+            return;
+        int i = 512;
+        while(*str != 0 and i > 0)
         {
-            char c = (i % 10) + '0';
-            append(c);
-            i /= 10;
+            append(*str);
+            str++;
+            i--;
         }
     }
 
@@ -82,6 +94,27 @@ struct source_location
     const char* function = __builtin_FUNCTION();
 };
 
+template<class T>
+struct source_location_capture
+{
+    T x;
+    source_location loc;
+    template<class U, class = decltype(T(U{}))>
+    constexpr source_location_capture(U px, source_location ploc = source_location{})
+    : x(px), loc(ploc)
+    {}
+    
+    constexpr operator source_location() const
+    {
+        return loc;
+    }
+
+    constexpr operator T() const
+    {
+        return x;
+    }
+};
+
 // noreturn cannot be used on this function because abort in hip is broken
 template <class T1, class T2, class T3, class T4>
 MIGRAPHX_HIP_NORETURN inline __host__ __device__ void
@@ -93,11 +126,10 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
     abort();
 }
 
-template <class T1, class T2, class T3, class T4>
-MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const T1& message,
-                                                                  const source_location& loc)
+template <class... Ts>
+MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_location& loc, Ts... xs)
 {
-    debug::print(loc.file, ":", loc.line, ": ", loc.function, ": ", message, "\n");
+    debug::print(loc.file, ":", loc.line, ": ", loc.function, ": error: ", xs..., "\n");
     abort();
 }
 
@@ -112,18 +144,17 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const T1& mess
     MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #ifdef MIGRAPHX_DEBUG
-#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(loc) \
-    , source_location loc = source_location {}
-#define MIGRAPHX_ASSERT2(cond, msg, loc) MIGRAPHX_ASSERT_FAIL(cond, msg, loc)
+#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) source_location_capture<T> 
+#define MIGRAPHX_WARN(cond, loc, ...) MIGRAPHX_ASSERT_FAIL(cond, loc, __VA_ARGS__)
 #define MIGRAPHX_ASSERT MIGRAPHX_CHECK
 #define MIGRAPHX_ASSUME MIGRAPHX_CHECK
 #define MIGRAPHX_UNREACHABLE() MIGRAPHX_ASSERT(false)
 #else
-#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(loc)
+#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) T
 #define MIGRAPHX_ASSUME __builtin_assume
 #define MIGRAPHX_UNREACHABLE __builtin_unreachable
 #define MIGRAPHX_ASSERT(cond)
-#define MIGRAPHX_ASSERT2(...)
+#define MIGRAPHX_WARN(...)
 #endif
 
 } // namespace migraphx

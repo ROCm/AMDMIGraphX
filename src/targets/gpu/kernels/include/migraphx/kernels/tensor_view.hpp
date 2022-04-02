@@ -29,11 +29,21 @@ struct tensor_view
     constexpr Shape get_shape() const { return Shape{}; }
     constexpr auto size() const { return get_shape().elements(); }
 
-    template <class U>
-    constexpr T& operator[](U i) const
+    struct index_to_offset
     {
-        MIGRAPHX_ASSERT(get_shape().index(i) < get_shape().element_space());
-        return x[get_shape().index(i)];
+        index_int offset;
+        template<class U>
+        constexpr index_to_offset(U i)
+        : offset(Shape{}.index(i))
+        {}
+    };
+
+    constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const
+    {
+        index_to_offset ito = i;
+        MIGRAPHX_WARN(ito.offset < get_shape().element_space(), i, "Out of bounds access at offset: ", ito.offset);
+        // MIGRAPHX_ASSERT(ito.offset < get_shape().element_space());
+        return x[ito.offset];
     }
 
     constexpr T* data() const { return x; }

@@ -30,7 +30,7 @@ __global__ void kernel(void* input_p, void* output_p)
 {
     make_tensors()(input_p, output_p)([](auto input, auto output) {
 
-        simple_reduce(${reduction}, ${init}, input, output, ${read}, ${write});
+        simple_reduce<reduce::${algo}>(${reduction}, ${init}, input, output, ${read}, ${write});
     });
 }
     
@@ -68,20 +68,33 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = get_reduce_elements(inputs);
-        auto block_size      = compute_block_size(reduce_elements, 256);
-        options.set_launch_params(
-            v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+        auto algo = v.get("algo", "block");
+        if (algo == "block")
+        {
+            auto block_size      = compute_block_size(reduce_elements, 256);
+            options.set_launch_params(
+                v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
+        }
+        else if (algo == "lane")
+        {
+            options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 256));
+        }
+        else
+        {
+            MIGRAPHX_THROW("Unknown reduce algo: " + algo);
+        }
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
-        options.params         = "-Wno-float-equal";
         std::string identity   = "[](auto x) { return x; }";
         auto src               = interpolate_string(simple_reduce_kernel,
                                       {{"reduction", v.at("reduction").to<std::string>()},
                                        {"init", v.get("init", std::string{"0"})},
                                        {"read", v.get("read", identity)},
                                        {"write", v.get("write", identity)},
+                                       {"algo", algo},
                                        {"preamble", v.get("preamble", std::string{})}});
+        options.params         += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }
 

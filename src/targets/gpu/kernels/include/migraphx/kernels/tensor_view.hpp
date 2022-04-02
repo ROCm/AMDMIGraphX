@@ -32,16 +32,19 @@ struct tensor_view
     struct index_to_offset
     {
         index_int offset;
-        template<class U>
-        constexpr index_to_offset(U i)
-        : offset(Shape{}.index(i))
-        {}
+        template <class U>
+        constexpr index_to_offset(U i) : offset(Shape{}.index(i))
+        {
+        }
     };
 
     constexpr T& operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_to_offset) i) const
     {
         index_to_offset ito = i;
-        MIGRAPHX_WARN(ito.offset < get_shape().element_space(), i, "Out of bounds access at offset: ", ito.offset);
+        MIGRAPHX_WARN(ito.offset < get_shape().element_space(),
+                      i,
+                      "Out of bounds access at offset: ",
+                      ito.offset);
         // MIGRAPHX_ASSERT(ito.offset < get_shape().element_space());
         return x[ito.offset];
     }

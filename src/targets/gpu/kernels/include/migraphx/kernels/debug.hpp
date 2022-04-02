@@ -44,14 +44,14 @@ struct print_buffer
     }
     constexpr void append(int i)
     {
-        if (i < 0)
+        if(i < 0)
         {
             append('-');
             i = -i;
         }
         while(i > 0)
         {
-            char c = (i%10) + '0';
+            char c = (i % 10) + '0';
             append(c);
             i /= 10;
         }
@@ -77,8 +77,8 @@ __host__ __device__ void print(const Ts&... xs)
 
 struct source_location
 {
-    int line = __builtin_LINE();
-    const char* file = __builtin_FILE();
+    int line             = __builtin_LINE();
+    const char* file     = __builtin_FILE();
     const char* function = __builtin_FUNCTION();
 };
 
@@ -94,24 +94,26 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 }
 
 template <class T1, class T2, class T3, class T4>
-MIGRAPHX_HIP_NORETURN inline __host__ __device__ void
-assert_fail(const T1& message, const source_location& loc)
+MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const T1& message,
+                                                                  const source_location& loc)
 {
     debug::print(loc.file, ":", loc.line, ": ", loc.function, ": ", message, "\n");
     abort();
 }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_ASSERT_FAIL(cond, ...)                                \
+#define MIGRAPHX_ASSERT_FAIL(cond, ...)                     \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
         assert_fail(private_migraphx_xs...);                \
     }(__VA_ARGS__))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_CHECK(cond) MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+#define MIGRAPHX_CHECK(cond) \
+    MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #ifdef MIGRAPHX_DEBUG
-#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(loc) , source_location loc = source_location{}
+#define MIGRAPHX_CAPTURE_SOURCE_LOCATION(loc) \
+    , source_location loc = source_location {}
 #define MIGRAPHX_ASSERT2(cond, msg, loc) MIGRAPHX_ASSERT_FAIL(cond, msg, loc)
 #define MIGRAPHX_ASSERT MIGRAPHX_CHECK
 #define MIGRAPHX_ASSUME MIGRAPHX_CHECK

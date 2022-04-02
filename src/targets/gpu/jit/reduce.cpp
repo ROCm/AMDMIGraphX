@@ -68,14 +68,14 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = get_reduce_elements(inputs);
-        auto algo = v.get("algo", "block");
-        if (algo == "block")
+        auto algo            = v.get("algo", "block");
+        if(algo == "block")
         {
-            auto block_size      = compute_block_size(reduce_elements, 256);
+            auto block_size = compute_block_size(reduce_elements, 256);
             options.set_launch_params(
                 v, compute_global_for(ctx, inputs.back().elements() * block_size, 256), block_size);
         }
-        else if (algo == "lane")
+        else if(algo == "lane")
         {
             options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 256));
         }
@@ -94,7 +94,7 @@ struct reduce_compiler : compiler<reduce_compiler>
                                        {"write", v.get("write", identity)},
                                        {"algo", algo},
                                        {"preamble", v.get("preamble", std::string{})}});
-        options.params         += "-Wno-float-equal";
+        options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }
 

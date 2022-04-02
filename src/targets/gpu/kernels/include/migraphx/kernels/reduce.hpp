@@ -136,7 +136,8 @@ constexpr auto reduce_slice(Input input, T i)
                                     });
     ;
     constexpr auto s = make_shape(lens, get_shape_c<Input>{}.strides);
-    MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <= input.get_shape().element_space());
+    MIGRAPHX_ASSERT((input.get_shape().index(i) + s.element_space()) <=
+                    input.get_shape().element_space());
     return make_tensor_view(&input[i], s);
 }
 
@@ -144,21 +145,23 @@ namespace reduce {
 
 struct block
 {
-    template<class Slicer>
+    template <class Slicer>
     struct reducer
     {
         index idx;
         Slicer slicer;
-        template<class Op, class T, class Read>
+        template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
             return [=](auto x, auto... xs) {
                 // TODO: assert all elements are the same
-                return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) { return read(slicer(x)[j], slicer(xs)[j]...); });
+                return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
+                    return read(slicer(x)[j], slicer(xs)[j]...);
+                });
             };
         }
 
-        template<class F>
+        template <class F>
         __device__ void outer(F f) const
         {
             if(idx.local == 0)
@@ -166,40 +169,38 @@ struct block
         }
     };
 
-    template<class Slicer>
+    template <class Slicer>
     static __device__ auto make(index idx, Slicer slicer)
     {
         return reducer<Slicer>{idx, slicer};
     }
 
-    template<class Output, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
-            f(out_idx, make(idx, [&](auto input) {
-                return reduce_slice<Output>(input, out_idx);
-            }));
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
     }
 };
 
 struct lane
 {
-    template<class Slicer>
+    template <class Slicer>
     struct reducer
     {
         index idx;
         Slicer slicer;
-        template<class Op, class T, class Read>
+        template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
             return [=](auto x, auto... xs) {
                 using type = typename decltype(x)::type;
-                type r = init;
-                for(index_int j = 0;j < x.get_shape().elements();j++)
+                type r     = init;
+                for(index_int j = 0; j < x.get_shape().elements(); j++)
                 {
                     r = op(r, read(slicer(x)[j], slicer(xs)[j]...));
                 }
@@ -207,44 +208,46 @@ struct lane
             };
         }
 
-        template<class F>
+        template <class F>
         __device__ void outer(F f) const
         {
             f();
         }
     };
 
-    template<class Slicer>
+    template <class Slicer>
     static __device__ auto make(index idx, Slicer slicer)
     {
         return reducer<Slicer>{idx, slicer};
     }
 
-    template<class Output, class F>
+    template <class Output, class F>
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         idx.global_stride(nelements, [&](auto i) {
             const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
-            f(out_idx, make(idx, [&](auto input) {
-                return reduce_slice<Output>(input, out_idx);
-            }));
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
     }
 };
 
 } // namespace reduce
 
-template <class Algo, class Op, class T, class Input, class Output, class ReadInput, class WriteOuput>
+template <class Algo,
+          class Op,
+          class T,
+          class Input,
+          class Output,
+          class ReadInput,
+          class WriteOuput>
 __device__ void
 simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOuput write)
 {
     Algo::template run<Output>([&](auto out_idx, auto r) {
         auto x = r.reduce(op, init, read)(input);
-        r.outer([&] {
-            output[out_idx] = write(x);
-        });
+        r.outer([&] { output[out_idx] = write(x); });
     });
 }
 

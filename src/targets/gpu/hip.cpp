@@ -60,7 +60,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
     void* result = nullptr;
-    auto status = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
+    auto status  = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
     if(status != hipSuccess)
     {
         if(host)

@@ -211,7 +211,7 @@ program
     
     Create and add a module of provided name into the program.
 
-    :param str name : name of the new module  
+    :param str name : name of the new module.
     :rtype module
 
 .. py:method:: run(params)

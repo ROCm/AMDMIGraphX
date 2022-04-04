@@ -11,10 +11,12 @@ def test_add_op():
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    params["x"] = migraphx.generate_argument(param_shape)    
+    params["x"] = migraphx.generate_argument(param_shape)
     params["y"] = migraphx.generate_argument(param_shape)
     output = p.run(params)[-1].tolist()
-    assert output == [a+b for a, b in zip(params["x"].tolist(), params["y"].tolist())]
+    assert output == [
+        a + b for a, b in zip(params["x"].tolist(), params["y"].tolist())
+    ]
 
 
 def test_if_then_else():
@@ -44,7 +46,7 @@ def test_if_then_else():
 
     params = {}
     params["x"] = migraphx.generate_argument(param_shape)
-    params["y"] = migraphx.generate_argument(param_shape) 
+    params["y"] = migraphx.generate_argument(param_shape)
 
     def run_prog(cond):
         p = create_program()
@@ -53,8 +55,9 @@ def test_if_then_else():
         output = p.run(params)[-1]
         return output.tolist()
 
-    assert run_prog(True)  == params["x"].tolist()
-    assert run_prog(False) ==  params["y"].tolist()
+    assert run_prog(True) == params["x"].tolist()
+    assert run_prog(False) == params["y"].tolist()
+
 
 if __name__ == "__main__":
     test_add_op()

@@ -12,31 +12,31 @@ shape
 
 .. py:method:: type()
 
-    An integer that represents the type
+    An integer that represents the type.
 
     :rtype: int
 
 .. py:method:: lens()
 
-    A list of the lengths of the shape
+    A list of the lengths of the shape.
 
     :rtype: list[int]
 
 .. py:method:: strides()
 
-    A list of the strides of the shape
+    A list of the strides of the shape.
 
     :rtype: list[int]
 
 .. py:method:: elements()
 
-    The number of elements in the shape
+    The number of elements in the shape.
 
     :rtype: int
 
 .. py:method:: bytes()
 
-    The number of bytes the shape uses
+    The number of bytes the shape uses.
 
     :rtype: int
 
@@ -108,7 +108,7 @@ argument
 
 .. py:function:: fill_argument(s, value)
 
-    Fill argument of shape s with value
+    Fill argument of shape s with value.
 
     :param shape s: Shape of argument to fill
     :param int value: Value to fill in the argument
@@ -135,11 +135,11 @@ module
 ------
 .. py:method:: print()
 
-    This prints the contents of the module as list of instructions
+    Prints the contents of the module as list of instructions.
 
 .. py:method:: add_instruction(op, args, mod_args=[])
     
-    Adds instruction into the module
+    Adds instruction into the module.
 
     :param operation op: 'migraphx::op' to be added as instruction
     :param list[instruction] args: list of inputs to the op 
@@ -148,7 +148,7 @@ module
 
 .. py:method:: add_parameter(name, shape)
     
-    Adds a parameter to the module with provided name and shape
+    Adds a parameter to the module with provided name and shape.
 
     :param str name: name of the parameter
     :param shape shape: shape of the parameter
@@ -156,7 +156,7 @@ module
 
 .. py:method:: add_return(args)
 
-    Adds a return instruction into the module
+    Adds a return instruction into the module.
 
     :param list[instruction] args: instruction arguments which need to be returned from the module
     :rtype instruction
@@ -171,13 +171,13 @@ program
 
 .. py:method:: clone()
 
-    Make a copy of the program
+    Make a copy of the program.
 
     :rtype: program
 
 .. py:method:: get_parameter_names()
  
-    Get all the input arguments' or parameters' names to the program as a list
+    Get all the input arguments' or parameters' names to the program as a list.
 
     :rtype list[str]
 
@@ -203,13 +203,13 @@ program
 
 .. py:method:: get_main_module()
     
-    Get main module of the program
+    Get main module of the program.
 
     :rtype module
 
 .. py:method:: create_module(name)
     
-    Create and add a module of provided name into the program
+    Create and add a module of provided name into the program.
 
     :param str name : name of the new module  
     :rtype module
@@ -253,7 +253,7 @@ op
 --
 .. py::class:: op(name, kwargs)
 
-    Construct an operation with name and arguments
+    Construct an operation with name and arguments.
     
     :param str name : name of the operation, must be supported by MIGraphX
     :param dict[str, any] kwargs: arguments to the operation  
@@ -295,7 +295,7 @@ load
 
 .. py:function:: load(filename, format='msgpack')
 
-    Load a MIGraphX program
+    Load a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
@@ -307,7 +307,7 @@ save
 
 .. py:function:: save(p, filename, format='msgpack')
 
-    Save a MIGraphX program
+    Save a MIGraphX program.
 
     :param program p: Program to save.
     :param str filename: Path to file.

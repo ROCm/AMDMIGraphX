@@ -425,6 +425,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+    m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,
           py::arg("prog"),

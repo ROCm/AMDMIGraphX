@@ -1,9 +1,4 @@
-import sys
 import migraphx
-try:
-    import numpy as np
-except:
-    sys.exit()
 
 
 def test_add_op():
@@ -16,10 +11,10 @@ def test_add_op():
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    params["x"] = np.random.rand(3, 3).astype(np.float32)
-    params["y"] = np.random.rand(3, 3).astype(np.float32)
-    output = p.run(params)[-1]
-    assert (np.array_equal(output, params["x"] + params["y"]))
+    params["x"] = migraphx.generate_argument(param_shape)    
+    params["y"] = migraphx.generate_argument(param_shape)
+    output = p.run(params)[-1].tolist()
+    assert output == [a+b for a, b in zip(params["x"].tolist(), params["y"].tolist())]
 
 
 def test_if_then_else():
@@ -48,20 +43,18 @@ def test_if_then_else():
         return p
 
     params = {}
-    params["x"] = np.arange(9).reshape(param_shape.lens()).astype(np.float32)
-    params["y"] = 2 * np.arange(9).reshape(param_shape.lens()).astype(
-        np.float32)
+    params["x"] = migraphx.generate_argument(param_shape)
+    params["y"] = migraphx.generate_argument(param_shape) 
 
     def run_prog(cond):
         p = create_program()
         p.compile(migraphx.get_target("ref"))
-        params["cond"] = np.array([cond]).reshape(()).astype(np.bool)
+        params["cond"] = migraphx.fill_argument(cond_shape, cond)
         output = p.run(params)[-1]
-        return output
+        return output.tolist()
 
-    assert (np.array_equal(run_prog(1), params["x"]))
-    assert (np.array_equal(run_prog(0), params["y"]))
-
+    assert run_prog(True)  == params["x"].tolist()
+    assert run_prog(False) ==  params["y"].tolist()
 
 if __name__ == "__main__":
     test_add_op()

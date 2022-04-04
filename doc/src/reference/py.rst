@@ -106,6 +106,14 @@ argument
 
     :rtype: argument
 
+.. py:function:: fill_argument(s, value)
+
+    Fill argument of shape s with value
+
+    :param shape s: Shape of argument to fill
+    :param int value: Value to fill in the argument
+
+    :rtype argument
 
 target
 ------

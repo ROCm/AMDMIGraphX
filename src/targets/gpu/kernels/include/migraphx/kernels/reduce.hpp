@@ -143,6 +143,16 @@ constexpr auto reduce_slice(Input input, T i)
 
 namespace reduce {
 
+template <class Slicer, class F>
+constexpr auto sliced(Slicer slicer, F f)
+{
+    return [=](auto x, auto... xs) {
+        // TODO: assert all elements are the same
+        return f(slicer(x), slicer(xs)...);
+    };
+}
+
+
 struct block
 {
     template <class Slicer>
@@ -153,12 +163,11 @@ struct block
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return [=](auto x, auto... xs) {
-                // TODO: assert all elements are the same
+            return sliced(slicer, [=](auto x, auto... xs) {
                 return block_reduce(idx, op, init, x.get_shape().elements(), [&](auto j) {
-                    return read(slicer(x)[j], slicer(xs)[j]...);
+                    return read(x[j], xs[j]...);
                 });
-            };
+            });
         }
 
         template <class F>
@@ -197,15 +206,15 @@ struct lane
         template <class Op, class T, class Read>
         __device__ auto reduce(Op op, T init, Read read) const
         {
-            return [=](auto x, auto... xs) {
+            return sliced(slicer, [=](auto x, auto... xs) {
                 using type = typename decltype(x)::type;
                 type r     = init;
                 for(index_int j = 0; j < x.get_shape().elements(); j++)
                 {
-                    r = op(r, read(slicer(x)[j], slicer(xs)[j]...));
+                    r = op(r, read(x[j], xs[j]...));
                 }
                 return r;
-            };
+            });
         }
 
         template <class F>

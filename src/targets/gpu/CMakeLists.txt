@@ -119,6 +119,7 @@ target_link_libraries(kernel_file_check compile_for_gpu)
 
 rocm_clang_tidy_check(kernel_file_check)
 
+file(GLOB JIT_GPU_SRCS ${CONFIGURE_DEPENDS} ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -131,9 +132,7 @@ add_library(migraphx_gpu
     compile_ops.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
-    compile_pointwise.cpp
-    compile_roialign.cpp
-    compile_scatternd.cpp
+    compiler.cpp
     concat.cpp
     convert.cpp
     convolution.cpp
@@ -171,6 +170,7 @@ add_library(migraphx_gpu
     target.cpp
     topk.cpp
     write_literals.cpp
+    ${JIT_GPU_SRCS}
 )
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 
@@ -331,6 +331,12 @@ target_compile_definitions(migraphx_gpu PRIVATE
     "-DMIGRAPHX_EXTRACT_KERNEL=${MIGRAPHX_EXTRACT_KERNEL}"
     "-DMIGRAPHX_USE_HIPRTC=0"
 )
+if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
+execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
+target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
+endif()
+
 endif()
 
 # Check miopen find mode api

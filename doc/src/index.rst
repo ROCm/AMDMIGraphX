@@ -13,7 +13,7 @@ Welcome to AMD MIGraphX's documentation!
    py_user_guide
    cpp_user_guide
    driver
-   developer_guide
+   contributor_guide
 
 
 Indices and tables

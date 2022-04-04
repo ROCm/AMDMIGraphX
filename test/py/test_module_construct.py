@@ -53,10 +53,10 @@ def test_if_then_else():
         p.compile(migraphx.get_target("ref"))
         params["cond"] = migraphx.fill_argument(cond_shape, cond)
         output = p.run(params)[-1]
-        return output.tolist()
+        return output
 
-    assert run_prog(True) == params["x"].tolist()
-    assert run_prog(False) == params["y"].tolist()
+    assert run_prog(True) == params["x"]
+    assert run_prog(False) == params["y"]
 
 
 if __name__ == "__main__":

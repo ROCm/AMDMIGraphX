@@ -358,16 +358,17 @@ void triadd_layernorm(hipStream_t stream,
     auto batch_item_num = in_s.lens().back();
     if(type == shape::half_type and (batch_item_num % 2) == 0)
     {
-        auto block_size = compute_block_size(batch_item_num, 1024);
+        auto block_size       = compute_block_size(batch_item_num, 1024);
         int block_num         = in_s.elements() / batch_item_num;
         int shared_size       = batch_item_num * 2 * in_s.type_size();
-        auto half2_block_size      = block_size / 4;
+        auto half2_block_size = block_size / 4;
         triadd_layernorm_half2<<<block_num, half2_block_size, shared_size, stream>>>(
             arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num, half2_block_size);
 
         // auto half_block_size      = block_size / 2;
         // triadd_layernorm_half2<<<block_num, half_block_size, shared_size, stream>>>(
-        //     arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num, half_block_size);
+        //     arg1.data(), arg2.data(), arg3.data(), result.data(), batch_item_num,
+        //     half_block_size);
     }
     else
     {
@@ -427,10 +428,10 @@ void layernorm(hipStream_t stream, const argument& result, const argument& arg1)
     auto batch_item_num = in_s.lens().back();
     if(type == shape::half_type and (batch_item_num % 2) == 0)
     {
-        auto block_size = compute_block_size(batch_item_num, 1024);
+        auto block_size       = compute_block_size(batch_item_num, 1024);
         int block_num         = in_s.elements() / batch_item_num;
         int shared_size       = batch_item_num * 2 * in_s.type_size();
-        auto half2_block_size      = block_size / 4;
+        auto half2_block_size = block_size / 4;
         layernorm_half2<<<block_num, half2_block_size, shared_size, stream>>>(
             arg1.data(), result.data(), batch_item_num, half2_block_size);
 

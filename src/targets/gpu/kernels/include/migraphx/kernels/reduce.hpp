@@ -152,7 +152,6 @@ constexpr auto sliced(Slicer slicer, F f)
     };
 }
 
-
 struct block
 {
     template <class Slicer>

@@ -51,7 +51,7 @@ struct print_buffer
             i = -i;
         }
         char c = (i % 10) + '0';
-        if(i > 0)
+        if(i > 9)
             append(i / 10);
         append(c);
     }

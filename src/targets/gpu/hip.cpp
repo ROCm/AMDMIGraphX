@@ -27,6 +27,15 @@ using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
+bool is_device_ptr(const void* ptr)
+{
+    hipPointerAttribute_t attr;
+    auto status = hipPointerGetAttributes(&attr, ptr);
+    if(status != hipSuccess)
+        return false;
+    return attr.memoryType == hipMemoryTypeDevice;
+}
+
 std::size_t get_available_gpu_memory()
 {
     size_t free;
@@ -50,7 +59,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
 {
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
-    void* result;
+    void* result = nullptr;
     auto status = host ? hipHostMalloc(&result, sz) : hipMalloc(&result, sz);
     if(status != hipSuccess)
     {
@@ -59,6 +68,7 @@ hip_ptr allocate_gpu(std::size_t sz, bool host = false)
         else
             return allocate_gpu(sz, true);
     }
+    assert(result != nullptr);
     return hip_ptr{result};
 }
 
@@ -75,6 +85,8 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
 {
     gpu_sync();
     std::vector<T> result(sz);
+    assert(not is_device_ptr(result.data()));
+    assert(is_device_ptr(x));
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT
@@ -85,6 +97,8 @@ hip_ptr write_to_gpu(const void* x, std::size_t sz, bool host = false)
 {
     gpu_sync();
     auto result = allocate_gpu(sz, host);
+    assert(is_device_ptr(result.get()));
+    assert(not is_device_ptr(x));
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy to gpu failed: " + hip_error(status));

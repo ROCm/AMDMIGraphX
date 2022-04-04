@@ -102,7 +102,7 @@ argument
     Generate an argument with random data.
 
     :param shape s: Shape of argument to generate.
-    :param int seed: The seed used for random number generation
+    :param int seed: The seed used for random number generation.
 
     :rtype: argument
 
@@ -110,8 +110,8 @@ argument
 
     Fill argument of shape s with value.
 
-    :param shape s: Shape of argument to fill
-    :param int value: Value to fill in the argument
+    :param shape s: Shape of argument to fill.
+    :param int value: Value to fill in the argument.
 
     :rtype argument
 
@@ -141,24 +141,24 @@ module
     
     Adds instruction into the module.
 
-    :param operation op: 'migraphx::op' to be added as instruction
-    :param list[instruction] args: list of inputs to the op 
-    :param list[module] mod_args: optional list of module arguments to the operator
+    :param operation op: 'migraphx::op' to be added as instruction.
+    :param list[instruction] args: list of inputs to the op.
+    :param list[module] mod_args: optional list of module arguments to the operator.
     :rtype instruction
 
 .. py:method:: add_parameter(name, shape)
     
     Adds a parameter to the module with provided name and shape.
 
-    :param str name: name of the parameter
-    :param shape shape: shape of the parameter
+    :param str name: name of the parameter.
+    :param shape shape: shape of the parameter.
     :rtype instruction
 
 .. py:method:: add_return(args)
 
     Adds a return instruction into the module.
 
-    :param list[instruction] args: instruction arguments which need to be returned from the module
+    :param list[instruction] args: instruction arguments which need to be returned from the module.
     :rtype instruction
 
 
@@ -255,8 +255,8 @@ op
 
     Construct an operation with name and arguments.
     
-    :param str name : name of the operation, must be supported by MIGraphX
-    :param dict[str, any] kwargs: arguments to the operation  
+    :param str name : name of the operation, must be supported by MIGraphX.
+    :param dict[str, any] kwargs: arguments to the operation.
     :rtype operation
 
 
@@ -273,7 +273,7 @@ parse_onnx
     :param str map_input_dims: Explicitly specify the dims of an input.
     :param str skip_unknown_operators: Continue parsing onnx file if an unknown operator is found.
     :param str print_program_on_error: Print program if an error occurs.
-    :param int max_loop_iterations: Maximum iteration number for the loop operator
+    :param int max_loop_iterations: Maximum iteration number for the loop operator.
     :rtype: program
 
 parse_tf
@@ -286,8 +286,8 @@ parse_tf
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.
     :param str batch_size: default batch size to use (if not specified in protobuf).
-    :param dict[str, list[int]] map_input_dims: Optional arg to explictly specify dimensions of the inputs
-    :param list[str] output_names:  Optional argument specify names of the output nodes
+    :param dict[str, list[int]] map_input_dims: Optional arg to explictly specify dimensions of the inputs.
+    :param list[str] output_names:  Optional argument specify names of the output nodes.
     :rtype: program
 
 load

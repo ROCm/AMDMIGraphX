@@ -32,18 +32,22 @@ struct allocation_model
 
 #else
 
-/*
- * Type-erased interface for:
- *
- * struct allocation_model
- * {
- *      std::string name() const;
- *      std::string copy() const;
- *      operation allocate(const shape& s) const;
- *      operation preallocate(const shape& s,std::string id) const;
- * };
- *
- */
+#ifdef TYPE_ERASED_DECLARATION
+
+// Type-erased interface for:
+struct allocation_model
+{
+    //
+    std::string name() const;
+    //
+    std::string copy() const;
+    //
+    operation allocate(const shape& s) const;
+    //
+    operation preallocate(const shape& s, std::string id) const;
+};
+
+#else
 
 struct allocation_model
 {
@@ -260,6 +264,7 @@ inline const ValueType& any_cast(const allocation_model& x)
         throw std::bad_cast();
     return *y;
 }
+#endif
 
 #endif
 

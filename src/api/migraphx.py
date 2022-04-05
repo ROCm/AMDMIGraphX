@@ -403,6 +403,7 @@ api.add_function('migraphx_quantize_int8',
 @auto_handle(ref=True)
 def context(h):
     h.method('finish', const=True)
+    h.method('get_queue', returns='void*', fname='get_queue().unsafe_get')
 
 
 @api.interface('migraphx_experimental_custom_op',

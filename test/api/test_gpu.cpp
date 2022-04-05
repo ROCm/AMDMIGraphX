@@ -1,4 +1,5 @@
 #include <numeric>
+#include <hip/hip_runtime_api.h>
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
@@ -38,9 +39,11 @@ TEST_CASE(load_and_run_ctx)
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
     auto ctx = p.experimental_get_context();
+    EXPECT(reinterpret_cast<hipStream_t>(ctx.get_queue()) != nullptr);
     p.eval(pp);
     ctx.finish();
 }
+
 
 TEST_CASE(if_pl_test)
 {

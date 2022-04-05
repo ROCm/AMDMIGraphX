@@ -192,14 +192,16 @@ struct find_mul_add
 struct find_gelu
 {
     // compile option fast_math controls whether to use math shortcuts like this
-    bool fast_math = true;
+    bool fast_math = false;
 
     auto matcher() const { return match::gelu_tanh(); }
 
     // apply the gelu_erf formula: return x * 0.5 * (1 + ::erf(x * M_SQRT1_2));
     //  = x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2)) after match/transform
-    void apply(module& p, match::matcher_result r) const
+    void apply(module& m, match::matcher_result r) const
     {
+        if(!fast_math)
+            return;
         auto ins   = r.result;
         auto x_ins = r.instructions["x"];
 
@@ -207,18 +209,18 @@ struct find_gelu
         migraphx::shape scalar_shape{x_type};
 
         // create a scalar literal that casts the constant M_SQRT1_2 to the type of x
-        auto sq12inst = p.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2}));
+        auto sq12inst = m.add_literal(migraphx::literal(scalar_shape, {M_SQRT1_2}));
 
         // use insert_common_op() instead of insert_instruction() to automatically match sizes
         // (broadcast) between tensor x and the literal scalar v2
-        auto xsq_ins = insert_common_op(p, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
-        auto erf_ins = p.insert_instruction(ins, make_op("erf"), xsq_ins);
+        auto xsq_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {x_ins, sq12inst});
+        auto erf_ins = m.insert_instruction(ins, make_op("erf"), xsq_ins);
 
-        auto point_5    = p.add_literal(migraphx::literal(scalar_shape, {0.5}));
-        auto mul_p5_ins = insert_common_op(p, ins, migraphx::make_op("mul"), {point_5, erf_ins});
-        auto add_p5_ins = insert_common_op(p, ins, migraphx::make_op("add"), {point_5, mul_p5_ins});
+        auto point_5    = m.add_literal(migraphx::literal(scalar_shape, {0.5}));
+        auto mul_p5_ins = insert_common_op(m, ins, migraphx::make_op("mul"), {point_5, erf_ins});
+        auto add_p5_ins = insert_common_op(m, ins, migraphx::make_op("add"), {point_5, mul_p5_ins});
 
-        p.replace_instruction(ins, make_op("mul"), add_p5_ins, x_ins);
+        m.replace_instruction(ins, make_op("mul"), add_p5_ins, x_ins);
     }
 };
 

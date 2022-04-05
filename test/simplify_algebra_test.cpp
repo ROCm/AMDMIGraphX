@@ -8,10 +8,16 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <algorithm>
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, bool fast_math = false)
+void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+}
+
+void run_pass(migraphx::module& m, bool fast_math)
 {
     migraphx::run_passes(
         m, {migraphx::simplify_algebra{fast_math}, migraphx::dead_code_elimination{}});
@@ -787,29 +793,108 @@ TEST_CASE(simplify_gelu_fast_math)
         auto point_5 = m1.add_literal(0.5F);
         migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
         run_pass(m1, true);
+
+        // In case simplify_algebra pass chain ever changes, we don't
+        // require a perfect match.  Simply
+        // check that tanh is gone and erf has been added.
+        EXPECT(
+            std::none_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "tanh"; }) and
+            std::any_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "erf"; }));
     }
-    migraphx::module m2;
+}
+
+TEST_CASE(simplify_gelu_no_fast_math)
+{
+    // When fast_math set false, matcher does not replace the formula
+    migraphx::module m1;
     {
-        // This module replicates the substitution in simplify_algebra
-        // original formula:  x * 0.5 * (1 + ::erf(x * M_SQRT1_2))
-        // refactored as:
-        // x * (0.5 + 0.5 * ::erf(x * M_SQRT1_2))
+        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
+        // 3))))
         std::vector<size_t> input_lens = {1};
-        auto x_ins      = m2.add_parameter("x", {migraphx::shape::float_type, input_lens});
-        auto sq12inst   = m2.add_literal(static_cast<float>(M_SQRT1_2));
-        auto xsq_ins    = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x_ins, sq12inst});
-        auto erf_ins    = m2.add_instruction(migraphx::make_op("erf"), xsq_ins);
-        auto point_5    = m2.add_literal(0.5F);
-        auto p5_erf_ins = migraphx::add_common_op(m2, migraphx::make_op("mul"), {point_5, erf_ins});
-        auto p5_add_ins =
-            migraphx::add_common_op(m2, migraphx::make_op("add"), {point_5, p5_erf_ins});
-        m2.add_instruction(migraphx::make_op("mul"), p5_add_ins, x_ins);
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
+
+        auto v2      = m1.add_literal(0.044715F);
+        auto three   = m1.add_literal(3.F);
+        auto pow_ins = migraphx::add_common_op(m1, migraphx::make_op("pow"), {x, three});
+
+        auto mul1_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {pow_ins, v2});
+
+        auto addx_ins = m1.add_instruction(migraphx::make_op("add"), x, mul1_ins);
+
+        // multiply 1.77245385
+        auto sqrt_2_ov_pi = m1.add_literal(static_cast<float>(sqrt(M_2_PI)));
+        auto mul2_ins =
+            migraphx::add_common_op(m1, migraphx::make_op("mul"), {addx_ins, sqrt_2_ov_pi});
+
+        // tanh
+        auto tanh_ins = m1.add_instruction(migraphx::make_op("tanh"), mul2_ins);
+
+        auto one = m1.add_literal(1.F);
+        // second addition
+        auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
+
+        // multiply x
+        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
+
+        // multiply 0.5
+        auto point_5 = m1.add_literal(0.5F);
+        migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
+        run_pass(m1, false);
+
+        // In case simplify_algebra pass chain ever changes, we don't
+        // require a perfect match.  Simply
+        // check that tanh instruction_ref is still there and erf has not been added.
+        EXPECT(
+            std::any_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "tanh"; }) and
+            std::none_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "erf"; }));
     }
-    // TODO:  This only succeeds if the arguments in binary ops such as add and mul come in
-    // identical order; in addition, the result after run_pass is the result of multiple passes, not
-    // of find_gelu alone.  Result is that test cases are very fragile if you change anything in
-    // simplify_algebra at all.
-    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_gelu_def_fast_math)
+{
+    // Tests that fast_math defaults to false when not given
+    migraphx::module m1;
+    {
+        // Formula used in gelu.cpp:   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * pow(x,
+        // 3))))
+        std::vector<size_t> input_lens = {1};
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, input_lens});
+
+        auto v2      = m1.add_literal(0.044715F);
+        auto three   = m1.add_literal(3.F);
+        auto pow_ins = migraphx::add_common_op(m1, migraphx::make_op("pow"), {x, three});
+
+        auto mul1_ins = migraphx::add_common_op(m1, migraphx::make_op("mul"), {pow_ins, v2});
+
+        auto addx_ins = m1.add_instruction(migraphx::make_op("add"), x, mul1_ins);
+
+        // multiply 1.77245385
+        auto sqrt_2_ov_pi = m1.add_literal(static_cast<float>(sqrt(M_2_PI)));
+        auto mul2_ins =
+            migraphx::add_common_op(m1, migraphx::make_op("mul"), {addx_ins, sqrt_2_ov_pi});
+
+        // tanh
+        auto tanh_ins = m1.add_instruction(migraphx::make_op("tanh"), mul2_ins);
+
+        auto one = m1.add_literal(1.F);
+        // second addition
+        auto add2_ins = migraphx::add_common_op(m1, migraphx::make_op("add"), {tanh_ins, one});
+
+        // multiply x
+        auto mulx_ins = m1.add_instruction(migraphx::make_op("mul"), x, add2_ins);
+
+        // multiply 0.5
+        auto point_5 = m1.add_literal(0.5F);
+        migraphx::add_common_op(m1, migraphx::make_op("mul"), {mulx_ins, point_5});
+        run_pass(m1);
+
+        // In case simplify_algebra pass chain ever changes, we don't
+        // require a perfect match.  Simply
+        // check that tanh instruction_ref is still there and erf has not been added.
+        EXPECT(
+            std::any_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "tanh"; }) and
+            std::none_of(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "erf"; }));
+    }
 }
 
 TEST_CASE(simplify_rsqrt_multi_use)

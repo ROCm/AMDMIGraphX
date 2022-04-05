@@ -141,7 +141,7 @@ module
     
     Adds instruction into the module.
 
-    :param operation op: 'migraphx::op' to be added as instruction.
+    :param operation op: 'migraphx.op' to be added as instruction.
     :param list[instruction] args: list of inputs to the op.
     :param list[module] mod_args: optional list of module arguments to the operator.
     :rtype instruction
@@ -226,7 +226,7 @@ program
 
 .. py:method:: sort()
 
-    Sort the modules of the program such that instructions appear in correct occurrence.
+    Sort the modules of the program such that instructions appear in topologically sorted order.
 
 .. py:function:: quantize_fp16(prog, ins_names=["all"])
 

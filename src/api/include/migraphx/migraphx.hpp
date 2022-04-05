@@ -778,8 +778,8 @@ struct context
 
     void finish() const { call(&migraphx_context_finish, ctx); }
 
-    void* get_queue() 
-    { 
+    void* get_queue()
+    {
         void* out;
         call(&migraphx_context_get_queue, &out, ctx);
         return out;

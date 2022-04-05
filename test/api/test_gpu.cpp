@@ -44,7 +44,6 @@ TEST_CASE(load_and_run_ctx)
     ctx.finish();
 }
 
-
 TEST_CASE(if_pl_test)
 {
     auto run_prog = [&](auto cond) {

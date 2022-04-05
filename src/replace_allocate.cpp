@@ -9,8 +9,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
-
 std::unordered_map<instruction_ref, std::string> create_output_names(module& mod)
 {
     std::unordered_map<instruction_ref, std::string> prog_output_names{};
@@ -21,9 +19,9 @@ std::unordered_map<instruction_ref, std::string> create_output_names(module& mod
         std::vector<instruction_ref> outputs_alias(prog_outputs.size());
 
         std::transform(prog_outputs.begin(),
-                        prog_outputs.end(),
-                        outputs_alias.begin(),
-                        [](const auto& i) { return instruction::get_output_alias(i); });
+                       prog_outputs.end(),
+                       outputs_alias.begin(),
+                       [](const auto& i) { return instruction::get_output_alias(i); });
 
         std::size_t index = 0;
         for(auto ins : outputs_alias)
@@ -37,7 +35,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(module& mod
 void replace_allocate::apply(module& p) const
 {
     auto prog_output_names = create_output_names(p);
-    auto last = std::prev(p.end());
+    auto last              = std::prev(p.end());
     bool main_offload_copy = p.name() == "main" ? this->offload_copy : false;
     for(auto ins : iterator_for(p))
     {
@@ -47,11 +45,12 @@ void replace_allocate::apply(module& p) const
         auto v  = op.to_value();
         assert(v.contains("tag"));
         auto tag = v.at("tag");
-        auto s = ins->get_shape();
+        auto s   = ins->get_shape();
 
         auto ins_alias = instruction::get_output_alias(ins->outputs().front());
         instruction_ref out_param;
-        if(not main_offload_copy and last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
+        if(not main_offload_copy and last->name() == "@return" and tag.empty() and
+           prog_output_names.count(ins_alias) > 0)
         {
             out_param = p.add_parameter(prog_output_names[ins_alias], s);
             p.replace_instruction(ins, out_param);
@@ -64,9 +63,8 @@ void replace_allocate::apply(module& p) const
             continue;
         }
 
-        
-        auto alloc_ins = p.insert_instruction(
-            ins, make_op(model.name(), {{"shape", to_value(s)}, tag}));
+        auto alloc_ins =
+            p.insert_instruction(ins, make_op(model.name(), {{"shape", to_value(s)}, tag}));
         p.replace_instruction(ins, alloc_ins);
     }
 }

@@ -58,7 +58,7 @@ static std::size_t get_reduce_elements(const std::vector<instruction_ref>& input
 }
 
 static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& input_lens,
-                                              const std::vector<std::size_t>& output_lens)
+                                                const std::vector<std::size_t>& output_lens)
 {
     std::vector<std::size_t> reduce_lens;
     std::transform(output_lens.begin(),
@@ -76,13 +76,17 @@ static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& 
 
 static std::string get_reduce_algo(const std::vector<shape>& inputs)
 {
-    auto rlens = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
+    auto rlens      = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
     const auto init = std::numeric_limits<std::size_t>::max();
     // The minimum stride
-    auto min_stride = std::inner_product(rlens.begin(), rlens.end(), inputs.front().strides().begin(), init,
+    auto min_stride = std::inner_product(
+        rlens.begin(),
+        rlens.end(),
+        inputs.front().strides().begin(),
+        init,
         [](auto x, auto y) { return std::min(x, y); },
         [](auto len, auto stride) { return len == 1 ? init : stride; });
-    if (min_stride > 2)
+    if(min_stride > 2)
         return "lane";
     return "block";
 }

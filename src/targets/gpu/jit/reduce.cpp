@@ -57,6 +57,36 @@ static std::size_t get_reduce_elements(const std::vector<instruction_ref>& input
     return get_reduce_elements(to_shapes(inputs));
 }
 
+static std::vector<std::size_t> get_reduce_lens(const std::vector<std::size_t>& input_lens,
+                                              const std::vector<std::size_t>& output_lens)
+{
+    std::vector<std::size_t> reduce_lens;
+    std::transform(output_lens.begin(),
+                   output_lens.end(),
+                   input_lens.begin(),
+                   std::back_inserter(reduce_lens),
+                   [](auto x, auto y) -> std::size_t {
+                       if(x == y)
+                           return 1;
+                       else
+                           return y;
+                   });
+    return reduce_lens;
+}
+
+static std::string get_reduce_algo(const std::vector<shape>& inputs)
+{
+    auto rlens = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
+    const auto init = std::numeric_limits<std::size_t>::max();
+    // The minimum stride
+    auto min_stride = std::inner_product(rlens.begin(), rlens.end(), inputs.front().strides().begin(), init,
+        [](auto x, auto y) { return std::min(x, y); },
+        [](auto len, auto stride) { return len == 1 ? init : stride; });
+    if (min_stride > 2)
+        return "lane";
+    return "block";
+}
+
 struct reduce_compiler : compiler<reduce_compiler>
 {
     std::vector<std::string> names() const
@@ -68,7 +98,7 @@ struct reduce_compiler : compiler<reduce_compiler>
     {
         hip_compile_options options;
         auto reduce_elements = get_reduce_elements(inputs);
-        auto algo            = v.get("algo", "block");
+        auto algo            = v.get("algo", get_reduce_algo(inputs));
         if(algo == "block")
         {
             auto block_size = compute_block_size(reduce_elements, 256);

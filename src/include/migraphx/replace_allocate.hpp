@@ -12,6 +12,7 @@ struct module;
 struct replace_allocate
 {
     allocation_model model;
+    bool offload_copy = false;
     std::string name() const { return "replace_allocate"; }
     void apply(module& p) const;
 };

@@ -290,15 +290,15 @@ struct miopen_apply
 
         // return mod->insert_instruction(
         //     ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
-        auto ins_alias = instruction::get_output_alias(ins);
-        if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
-        {
-            return mod->add_parameter(prog_output_names[ins_alias], s);
-        }
-        else if(ins == last and tag.empty())
-        {
-            return mod->add_parameter("output", s);
-        }
+        // auto ins_alias = instruction::get_output_alias(ins);
+        // if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
+        // {
+        //     return mod->add_parameter(prog_output_names[ins_alias], s);
+        // }
+        // else if(ins == last and tag.empty())
+        // {
+        //     return mod->add_parameter("output", s);
+        // }
         return mod->insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }

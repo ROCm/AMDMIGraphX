@@ -17,25 +17,28 @@ struct tracer
     bool enabled() const { return !dump_dir.empty(); }
 
     template <class... Ts>
-    void operator()(const std::string& program_name, const Ts&... xs) 
+    void operator()(const std::string& program_name, const Ts&... xs)
     {
-        if(this->enabled()) {
+        if(this->enabled())
+        {
             fs::path dir_path = fs::current_path() / this->dump_dir;
-            if(not fs::exists(dir_path)) {
+            if(not fs::exists(dir_path))
+            {
                 fs::create_directories(dir_path);
-            } 
-            fs::path ir_file_path = dir_path / (std::to_string(this->counter++)+"_"+program_name+".mxr");
+            }
+            fs::path ir_file_path =
+                dir_path / (std::to_string(this->counter++) + "_" + program_name + ".mxr");
             std::ofstream ofs(ir_file_path);
-            swallow{ofs<<xs...};
-            ofs<<std::endl;
+            swallow{ofs << xs...};
+            ofs << std::endl;
             ofs.close();
         }
     }
     std::string dump_dir;
+
     private:
     uint counter;
 };
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

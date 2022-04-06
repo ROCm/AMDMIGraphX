@@ -83,7 +83,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{mod.name()+"_passes"};
+        trace = tracer{mod.name() + "_passes"};
     for(const auto& p : passes)
     {
         module_pm{&mod, nullptr, &trace}.run_pass(p);
@@ -101,9 +101,10 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         auto mods = prog.get_modules();
         for(const auto& mod : reverse(mods))
         {
-            if(!module_tracer_map.count(mod->name())) {
+            if(!module_tracer_map.count(mod->name()))
+            {
                 module_tracer_map[mod->name()] = module_trace;
-                module_tracer_map[mod->name()].dump_dir += "/"+mod->name();
+                module_tracer_map[mod->name()].dump_dir += "/" + mod->name();
             }
             if(mod->bypass())
                 continue;

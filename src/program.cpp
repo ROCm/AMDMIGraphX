@@ -144,7 +144,7 @@ void program::compile(const target& t, compile_options options, std::string ir_d
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        options.trace = tracer{t.name()+"_"+ir_dump_path};
+        options.trace = tracer{t.name() + "_" + ir_dump_path};
 
     options.trace("input_program", *this);
 

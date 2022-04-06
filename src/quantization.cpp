@@ -90,7 +90,7 @@ void quantize_int8(program& prog,
 
     // use the calibration data to compute the quantization scale
     auto capture_prog = prog;
-    capture_prog.compile(t);
+    capture_prog.compile(t, compile_options{}, "quantization");
 
     // use all calibration data to run the program to calculate the
     // quantization scale and shift

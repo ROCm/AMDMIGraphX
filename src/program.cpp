@@ -138,16 +138,15 @@ instruction_ref program::validate() const
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(const target& t, compile_options options)
+void program::compile(const target& t, compile_options options, std::string ir_dump_path)
 {
     assert(not this->is_compiled());
     this->impl->target_name = t.name();
     this->impl->ctx         = t.get_context();
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        options.trace = tracer{std::cout};
+        options.trace = tracer{t.name()+"_"+ir_dump_path};
 
-    options.trace(*this);
-    options.trace();
+    options.trace("input_program", *this);
 
     auto&& passes = t.get_passes(this->impl->ctx, options);
     run_passes(*this, passes, options.trace);

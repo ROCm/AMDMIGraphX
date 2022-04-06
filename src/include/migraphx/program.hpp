@@ -61,7 +61,7 @@ struct program
 
     instruction_ref validate() const;
 
-    void compile(const target& t, compile_options options = compile_options{});
+    void compile(const target& t, compile_options options = compile_options{}, std::string ir_dump_path="passes");
 
     bool is_compiled() const;
 

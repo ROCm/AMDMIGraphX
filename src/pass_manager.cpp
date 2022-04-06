@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <unordered_map>
 #include <utility>
 
 namespace migraphx {
@@ -17,13 +18,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
 
-void validate_pass(module& mod, const pass& p, tracer trace)
+void validate_pass(module& mod, const pass& p)
 {
     (void)mod;
     (void)p;
-    (void)trace;
 #ifndef NDEBUG
-    trace("Validate ...");
+    std::cout << "Validate..." << std::endl;
     auto invalid = mod.validate();
     if(invalid != mod.end())
     {
@@ -31,14 +31,13 @@ void validate_pass(module& mod, const pass& p, tracer trace)
         MIGRAPHX_THROW(p.name() + " pass produces invalid program at instruction " +
                        std::to_string(index) + ": " + invalid->name());
     }
-    trace();
 #endif
 }
-void run_pass(program& prog, const pass& p, tracer trace)
+
+void run_pass(program& prog, const pass& p, tracer& trace)
 {
-    trace("Pass: ", p.name());
     p.apply(prog);
-    trace(prog);
+    trace(p.name(), prog);
 }
 
 struct module_pm : module_pass_manager
@@ -72,11 +71,10 @@ struct module_pm : module_pass_manager
     virtual void run_pass(const pass& p) override
     {
         assert(mod);
-        trace("Module: ", mod->name(), ", Pass: ", p.name());
         assert(mod->validate() == mod->end());
         p.apply(*this);
-        trace(*mod);
-        validate_pass(*mod, p, *t);
+        trace(p.name(), *mod);
+        validate_pass(*mod, p);
     }
 };
 
@@ -85,7 +83,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
+        trace = tracer{mod.name()+"_passes"};
     for(const auto& p : passes)
     {
         module_pm{&mod, nullptr, &trace}.run_pass(p);
@@ -94,16 +92,22 @@ void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 
 void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
-    if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
+    if(enabled(MIGRAPHX_TRACE_PASSES{}) and not trace.enabled())
+        trace = tracer{"passes"};
+    auto module_trace = trace;
+    std::unordered_map<std::string, tracer> module_tracer_map;
     for(const auto& p : passes)
     {
         auto mods = prog.get_modules();
         for(const auto& mod : reverse(mods))
         {
+            if(!module_tracer_map.count(mod->name())) {
+                module_tracer_map[mod->name()] = module_trace;
+                module_tracer_map[mod->name()].dump_dir += "/"+mod->name();
+            }
             if(mod->bypass())
                 continue;
-            module_pm{mod, &prog, &trace}.run_pass(p);
+            module_pm{mod, &prog, &module_tracer_map[mod->name()]}.run_pass(p);
         }
         run_pass(prog, p, trace);
     }

@@ -201,10 +201,7 @@ rocm_install_targets(
 )
 
 
-check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
-if(HAS_LIB_STD_FILESYSTEM)
 target_link_libraries(migraphx PRIVATE -lstdc++fs)
-endif()
 
 target_link_libraries(migraphx PRIVATE -ldl)
 

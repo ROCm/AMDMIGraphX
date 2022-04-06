@@ -14,7 +14,7 @@ struct lowering
 {
     context* ctx;
     bool offload_copy;
-    std::string name() const { return "gpu::lowering"; }
+    std::string name() const { return "lowering"; }
     void apply(module& m) const;
 };
 

@@ -82,7 +82,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
-    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+    if(enabled(MIGRAPHX_TRACE_PASSES{}) and not trace.enabled())
         trace = tracer{mod.name() + "_passes"};
     for(const auto& p : passes)
     {

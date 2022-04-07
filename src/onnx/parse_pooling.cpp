@@ -29,16 +29,15 @@ struct parse_pooling : op_parser<parse_pooling>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        std::vector<std::string> valid_modes = {"max", "average", "lpnorm"};
-        std::string mode                     = opd.op_name;
-        if(std::find(valid_modes.begin(), valid_modes.end(), mode) == valid_modes.end())
-        {
-            MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
-        }
         const std::unordered_map<std::string, op::pooling_mode> mode_map = {
             {"max", op::pooling_mode::max},
             {"average", op::pooling_mode::average},
             {"lpnorm", op::pooling_mode::lpnorm}};
+        std::string mode = opd.op_name;
+        if(mode_map.find(mode) == mode_map.end())
+        {
+            MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
+        }
         operation op = make_op("pooling", {{"mode", mode_map.at(mode)}});
         value values = op.to_value();
         auto l0      = args[0];

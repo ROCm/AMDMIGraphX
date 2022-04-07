@@ -17,12 +17,12 @@ void verify_program(const std::string& name,
                     double tolerance               = 100);
 void verify_instructions(const program& prog,
                          const target& t,
-                         compile_options options = compile_options{},
+                         const compile_options& options = compile_options{},
                          precision quantize      = precision::fp32,
                          double tolerance        = 80);
 void verify_reduced_program(const program& p,
                             const target& t,
-                            compile_options options     = compile_options{},
+                            const compile_options& options     = compile_options{},
                             precision quantize          = precision::fp32,
                             const parameter_map& inputs = {},
                             double tolerance            = 80);

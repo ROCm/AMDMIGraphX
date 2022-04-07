@@ -67,7 +67,7 @@ void verify_program(const std::string& name,
 
 void verify_instructions(const program& prog,
                          const target& t,
-                         compile_options options,
+                         const compile_options& options,
                          precision quantize,
                          double tolerance)
 {
@@ -114,7 +114,7 @@ void verify_instructions(const program& prog,
 void verify_reduced(program p,
                     int n,
                     const target& t,
-                    compile_options options,
+                    const compile_options& options,
                     precision quantize,
                     const parameter_map& inputs,
                     double tolerance)
@@ -129,7 +129,7 @@ void verify_reduced(program p,
 
 void verify_reduced_program(const program& p,
                             const target& t,
-                            compile_options options,
+                            const compile_options& options,
                             precision quantize,
                             const parameter_map& inputs,
                             double tolerance)

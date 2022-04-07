@@ -138,7 +138,7 @@ instruction_ref program::validate() const
 
 bool program::is_compiled() const { return not this->impl->target_name.empty(); }
 
-void program::compile(const target& t, compile_options options, std::string ir_dump_path)
+void program::compile(const target& t, compile_options options, const std::string& ir_dump_path)
 {
     assert(not this->is_compiled());
     this->impl->target_name = t.name();

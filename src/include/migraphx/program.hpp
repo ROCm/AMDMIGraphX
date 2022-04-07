@@ -63,7 +63,7 @@ struct program
 
     void compile(const target& t,
                  compile_options options  = compile_options{},
-                 std::string ir_dump_path = "passes");
+                 const std::string& ir_dump_path = "passes");
 
     bool is_compiled() const;
 

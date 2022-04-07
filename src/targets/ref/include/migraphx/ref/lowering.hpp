@@ -10,7 +10,7 @@ namespace ref {
 
 struct lowering
 {
-    std::string name() const { return "lowering"; }
+    std::string name() const { return "ref::lowering"; }
     void apply(module& m) const;
 };
 

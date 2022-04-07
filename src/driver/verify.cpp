@@ -50,7 +50,7 @@ std::vector<argument> run_target(program p,
 void verify_program(const std::string& name,
                     const program& p,
                     const target& t,
-                    compile_options options,
+                    const compile_options& options,
                     precision quantize,
                     const parameter_map& inputs,
                     double tolerance)

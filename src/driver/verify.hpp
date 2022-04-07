@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 void verify_program(const std::string& name,
                     const program& p,
                     const target& t,
-                    compile_options options     = compile_options{},
+                    const compile_options& options     = compile_options{},
                     precision quantize          = precision::fp32,
                     const parameter_map& inputs = {},
                     double tolerance            = 100);

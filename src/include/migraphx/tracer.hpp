@@ -12,7 +12,7 @@ struct tracer
 {
     tracer() {}
 
-    tracer(std::string dump_directory) : dump_dir(dump_directory), counter(0) {}
+    tracer(std::string dump_directory) : dump_dir(std::move(dump_directory)), counter(0) {}
 
     bool enabled() const { return !dump_dir.empty(); }
 

@@ -179,6 +179,7 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
         auto sx   = get_shape(x);
         auto lens = sx.lens();
         assert(lens.back() % N == 0);
+        assert(sx.strides().back() == 1);
         lens.back() /= N;
         shape vec_sx{sx.type(), lens};
         hip_visit_all_impl(vec_sx,

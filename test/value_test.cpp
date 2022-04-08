@@ -540,6 +540,14 @@ TEST_CASE(value_construct_object_string_mixed_value)
     EXPECT(v.at("two").get_int64() == 2);
 }
 
+template <class Expression>
+auto compare_predicate(const Expression& e)
+{
+    bool result = e.value();
+    return test::make_predicate(test::as_string(e) + " => " + test::as_string(result),
+                                [=] { return result; });
+}
+
 TEST_CASE(value_compare)
 {
     EXPECT(migraphx::value(1) == migraphx::value(1));
@@ -553,6 +561,46 @@ TEST_CASE(value_compare)
     EXPECT(migraphx::value(2) > migraphx::value(1));
     EXPECT(migraphx::value(2) >= migraphx::value(1));
     EXPECT(migraphx::value(1) >= migraphx::value(1));
+    EXPECT(migraphx::value(1) != migraphx::value("1"));
+    EXPECT(migraphx::value(1) != migraphx::value());
+}
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_VALUE_TEST_COMPARE(...) compare_predicate(TEST_CAPTURE(__VA_ARGS__))
+
+// NOLINTNEXTLINE
+#define EXPECT_TOTALLY_ORDERED_IMPL(_, x, y)     \
+    EXPECT(_(x <= y) or _(x >= y));              \
+    EXPECT(_(x < y) or _(x > y) or _(x == y));   \
+    EXPECT((_(x < y) or _(x > y)) == _(x != y)); \
+    EXPECT(_(x < y) == _(y > x));                \
+    EXPECT(_(x <= y) == _(y >= x));              \
+    EXPECT(_(x < y) != _(x >= y));               \
+    EXPECT(_(x > y) != _(x <= y));               \
+    EXPECT(_(x == y) != _(x != y))
+
+// NOLINTNEXTLINE
+#define EXPECT_TOTALLY_ORDERED(x, y)                                \
+    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, x, y); \
+    EXPECT_TOTALLY_ORDERED_IMPL(MIGRAPHX_VALUE_TEST_COMPARE, y, x)
+
+// NOLINTNEXTLINE(readability-function-size)
+TEST_CASE(value_compare_ordered)
+{
+    EXPECT_TOTALLY_ORDERED(migraphx::value(), migraphx::value());
+    EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value(1));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value(2));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key", 1), migraphx::value("key", 1));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key1", 1), migraphx::value("key2", 2));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key", 1), migraphx::value("key", 2));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key1", 1), migraphx::value("key2", 2));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key", 1), migraphx::value("key", "2"));
+    EXPECT_TOTALLY_ORDERED(migraphx::value("key1", 1), migraphx::value("key2", "2"));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(std::int64_t{1}), migraphx::value(std::uint64_t{1}));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(std::int64_t{1}), migraphx::value(std::uint64_t{2}));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(std::int64_t{2}), migraphx::value(std::uint64_t{1}));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value("1"));
+    EXPECT_TOTALLY_ORDERED(migraphx::value(1), migraphx::value());
 }
 
 TEST_CASE(value_to_from_string)

@@ -1,23 +1,24 @@
+import sys
 import migraphx
+try:
+    import numpy as np
+except:
+    sys.exit()
+
 
 
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
     param_shape = migraphx.shape(lens=[3, 3], type="float")
-    x = mm.add_parameter("x", param_shape)
-    y = mm.add_parameter("y", param_shape)
+    x = mm.add_literal(param_shape, np.ones((3, 3), dtype='float32'))
+    y = mm.add_literal(param_shape, np.ones((3, 3), dtype='float32'))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
-    params["x"] = migraphx.generate_argument(param_shape)
-    params["y"] = migraphx.generate_argument(param_shape)
     output = p.run(params)[-1].tolist()
-    assert output == [
-        a + b for a, b in zip(params["x"].tolist(), params["y"].tolist())
-    ]
-
+    assert output == list(2 * np.ones((9), dtype='float32'))
 
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")

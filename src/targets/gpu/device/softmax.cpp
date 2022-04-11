@@ -35,8 +35,8 @@ struct half2_max
 
 // in_data is in shared memory
 template <class Op>
-__device__ __half2
-block_reduce_half2(__half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+__device__ __half2 block_reduce_half2(
+    __half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     __syncthreads();
     for(index_int s = block_size; s > 0; s >>= 1)
@@ -92,8 +92,8 @@ softmax_kernel_half2(void* data_in, index_int batch_item_num, index_int block_si
 
 // in_data is in shared memory
 template <class Op>
-__device__ __half
-block_reduce_half(__half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+__device__ __half block_reduce_half(
+    __half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     __syncthreads();
     for(index_int s = block_size / 2; s > 0; s >>= 1)
@@ -125,14 +125,16 @@ softmax_kernel_half(void* data_in, index_int batch_item_num, index_int block_siz
         in_data_reduce[i] = d;
     }
 
-    auto batch_max = block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, max{});
+    auto batch_max =
+        block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, max{});
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         in_data[i]        = __float2half(::exp(__half2float(in_data[i]) - __half2float(batch_max)));
         in_data_reduce[i] = in_data[i];
     }
 
-    auto batch_sum = block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, sum{});
+    auto batch_sum =
+        block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, sum{});
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         output[i + start] = __float2half(__half2float(in_data[i]) / __half2float(batch_sum));

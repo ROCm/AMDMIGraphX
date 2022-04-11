@@ -122,11 +122,13 @@ struct find_nop_reshapes
         auto ins = mr.result;
         // // output of reshape and contiguous is standard, so no need to add another contiguous
         // // if the output is used an a ret value
-        // if(ins->name() == "contiguous" and ins->name() != "contiguous" and ins->name() != "reshape")
+        // if(ins->name() == "contiguous" and ins->name() != "contiguous" and ins->name() !=
+        // "reshape")
         // {
         //     auto& outputs = ins->outputs();
         //     if(std::any_of(
-        //            outputs.begin(), outputs.end(), [&](auto o) { return o->name() == "@return"; }))
+        //            outputs.begin(), outputs.end(), [&](auto o) { return o->name() == "@return";
+        //            }))
         //     {
         //         return;
         //     }

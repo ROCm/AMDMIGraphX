@@ -230,6 +230,9 @@ def module(h):
                         module_refs='std::vector<migraphx::module*>'),
              fname='add_instruction',
              returns='migraphx::instruction_ref')
+    h.method('add_literal',
+             api.params(l='migraphx::literal'),
+             returns='migraphx::instruction_ref')
     h.method('add_parameter',
              api.params(name='const char*', shape='const migraphx::shape&'),
              returns='migraphx::instruction_ref')

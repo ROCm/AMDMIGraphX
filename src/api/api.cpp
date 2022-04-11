@@ -1143,6 +1143,20 @@ migraphx_module_add_instruction_with_mod_args(migraphx_instruction_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_module_add_literal(migraphx_instruction_t* out,
+                                                       migraphx_module_t module,
+                                                       migraphx_literal_t l)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(module == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter module: Null pointer");
+        if(l == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter l: Null pointer");
+        *out = allocate<migraphx_instruction_t>((module->object).add_literal((l->object)));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_module_add_parameter(migraphx_instruction_t* out,
                                                          migraphx_module_t module,
                                                          const char* name,

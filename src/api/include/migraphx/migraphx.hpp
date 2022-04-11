@@ -794,6 +794,19 @@ struct module
         return instruction(op_ins, own{});
     }
 
+    instruction add_literal(literal l)
+    {
+        migraphx_instruction_t literal_ins;
+        call(&migraphx_module_add_literal, &literal_ins, mm, l.get_handle_ptr());
+        return instruction(literal_ins, own{});
+    }
+
+    template <class... Ts>
+    instruction add_literal(Ts&&... xs)
+    {
+        return add_literal(literal{std::forward<Ts>(xs)...});
+    }
+
     instruction add_parameter(const std::string& name, shape s)
     {
         migraphx_instruction_t param_ins;

@@ -762,7 +762,8 @@ struct module
         return instruction(op_ins, own{});
     }
 
-    instruction add_literal(const migraphx::shape& s, const char* buffer) {
+    instruction add_literal(const migraphx::shape& s, const char* buffer)
+    {
         migraphx_instruction_t literal_ins;
         call(&migraphx_module_add_literal, &literal_ins, mm, s.get_handle_ptr(), buffer);
         return instruction(literal_ins, own{});

@@ -47,25 +47,25 @@ void auto_contiguous::apply(module& p) const
         }
     }
 
-    // if ops used as output param are alias 0, add a contiguous for the output
-    // so return outputs with standard shape
-    if(last->name() == "@return")
-    {
-        auto inputs = last->inputs();
-        for(auto ins : inputs)
-        {
-            if(ins->name() == "contiguous")
-                continue;
+    // // if ops used as output param are alias 0, add a contiguous for the output
+    // // so return outputs with standard shape
+    // if(last->name() == "@return")
+    // {
+    //     auto inputs = last->inputs();
+    //     for(auto ins : inputs)
+    //     {
+    //         if(ins->name() == "contiguous")
+    //             continue;
 
-            auto ins_alias = ins->get_operator().output_alias({});
-            if(ins_alias == 0 and ins->get_shape().element_space() !=
-                                      ins->inputs().front()->get_shape().element_space())
-            {
-                auto cont_ins = p.insert_instruction(last, make_op("contiguous"), ins);
-                p.replace_instruction(ins, cont_ins);
-            }
-        }
-    }
+    //         auto ins_alias = ins->get_operator().output_alias({});
+    //         if(ins_alias == 0 and ins->get_shape().element_space() !=
+    //                                   ins->inputs().front()->get_shape().element_space())
+    //         {
+    //             auto cont_ins = p.insert_instruction(last, make_op("contiguous"), ins);
+    //             p.replace_instruction(ins, cont_ins);
+    //         }
+    //     }
+    // }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

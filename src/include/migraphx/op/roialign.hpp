@@ -43,7 +43,7 @@ struct roialign
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
         auto x_lens   = inputs.at(0).lens();
         auto roi_lens = inputs.at(1).lens();
         auto bi_lens  = inputs.at(2).lens();

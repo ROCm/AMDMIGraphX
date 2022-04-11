@@ -8,18 +8,16 @@ TEST_CASE(add_op)
     migraphx::program p;
     migraphx::module m = p.get_main_module();
     migraphx::shape param_shape{migraphx_shape_float_type, {3, 3}};
-    auto x      = m.add_parameter("x", param_shape);
-    auto y      = m.add_parameter("y", param_shape);
+    std::vector<float> x_values(9, 1);
+    auto x = m.add_literal(param_shape, reinterpret_cast<char*>(x_values.data()));
+    std::vector<float> y_values(9, -1);
+    auto y      = m.add_literal(param_shape, reinterpret_cast<char*>(y_values.data()));
     auto add_op = migraphx::operation("add");
     auto r      = m.add_instruction(add_op, {x, y});
     m.add_return({r});
     // run on ref target
     p.compile(migraphx::target("ref"));
     migraphx::program_parameters pp;
-    std::vector<float> x_data(9, 1);
-    std::vector<float> y_data(9, -1);
-    pp.add("x", migraphx::argument(param_shape, x_data.data()));
-    pp.add("y", migraphx::argument(param_shape, y_data.data()));
     auto outputs = p.eval(pp);
     auto output  = outputs[0];
     std::vector<float> expected(9, 0);

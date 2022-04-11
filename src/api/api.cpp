@@ -397,11 +397,23 @@ struct migraphx_shapes
     std::vector<migraphx::shape> object;
 };
 
+extern "C" struct migraphx_literal;
+struct migraphx_literal
+{
+    template <class... Ts>
+    migraphx_literal(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::literal object;
+};
+
 extern "C" struct migraphx_instruction;
 struct migraphx_instruction
 {
     template <class... Ts>
-    migraphx_instruction(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instruction(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     migraphx::instruction_ref object;
@@ -411,7 +423,8 @@ extern "C" struct migraphx_instructions;
 struct migraphx_instructions
 {
     template <class... Ts>
-    migraphx_instructions(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_instructions(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::instruction_ref> object;
@@ -421,7 +434,8 @@ extern "C" struct migraphx_modules;
 struct migraphx_modules
 {
     template <class... Ts>
-    migraphx_modules(Ts&&... xs) : object(std::forward<Ts>(xs)...)
+    migraphx_modules(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
     {
     }
     std::vector<migraphx::module*> object;
@@ -944,6 +958,66 @@ migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_
         if(shapes == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shapes: Null pointer");
         *out = object_cast<const_migraphx_shape_t>(&((shapes->object).at((idx))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_literal_destroy(migraphx_literal_t literal)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((literal)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_literal_assign_to(migraphx_literal_t output,
+                                                      const_migraphx_literal_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_literal_create(migraphx_literal_t* literal,
+                                                   const_migraphx_shape_t shape,
+                                                   const char* buffer)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(shape == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter shape: Null pointer");
+        *literal =
+            object_cast<migraphx_literal_t>(allocate<migraphx::literal>((shape->object), (buffer)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_literal_shape(const_migraphx_shape_t* out,
+                                                  const_migraphx_literal_t literal)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(literal == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter literal: Null pointer");
+        *out = object_cast<const_migraphx_shape_t>(&((literal->object).get_shape()));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_literal_data(const char** out, const_migraphx_literal_t literal)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(literal == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter literal: Null pointer");
+        *out = (literal->object).data();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_literal_equal(bool* out, const_migraphx_literal_t literal, const_migraphx_literal_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(literal == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter literal: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = migraphx::equal((literal->object), (x->object));
     });
     return api_error_result;
 }

@@ -64,6 +64,9 @@ typedef const struct migraphx_arguments* const_migraphx_arguments_t;
 typedef struct migraphx_shapes* migraphx_shapes_t;
 typedef const struct migraphx_shapes* const_migraphx_shapes_t;
 
+typedef struct migraphx_literal* migraphx_literal_t;
+typedef const struct migraphx_literal* const_migraphx_literal_t;
+
 typedef struct migraphx_instruction* migraphx_instruction_t;
 typedef const struct migraphx_instruction* const_migraphx_instruction_t;
 
@@ -220,6 +223,23 @@ migraphx_status migraphx_shapes_size(size_t* out, migraphx_shapes_t shapes);
 
 migraphx_status
 migraphx_shapes_get(const_migraphx_shape_t* out, migraphx_shapes_t shapes, size_t idx);
+
+migraphx_status migraphx_literal_destroy(migraphx_literal_t literal);
+
+migraphx_status migraphx_literal_assign_to(migraphx_literal_t output,
+                                           const_migraphx_literal_t input);
+
+migraphx_status migraphx_literal_create(migraphx_literal_t* literal,
+                                        const_migraphx_shape_t shape,
+                                        const char* buffer);
+
+migraphx_status migraphx_literal_shape(const_migraphx_shape_t* out,
+                                       const_migraphx_literal_t literal);
+
+migraphx_status migraphx_literal_data(const char** out, const_migraphx_literal_t literal);
+
+migraphx_status
+migraphx_literal_equal(bool* out, const_migraphx_literal_t literal, const_migraphx_literal_t x);
 
 migraphx_status migraphx_instruction_destroy(migraphx_instruction_t instruction);
 

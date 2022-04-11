@@ -178,6 +178,24 @@ def shapes(h):
              returns='const migraphx::shape&')
 
 
+@api.handle('migraphx_literal', 'migraphx::literal')
+def literal(h):
+    h.constructor(
+        'create',
+        api.params(shape='const migraphx::shape&', buffer='const char*'))
+    h.method('shape',
+             fname='get_shape',
+             cpp_name='get_shape',
+             returns='const migraphx::shape&',
+             const=True)
+    h.method('data', cpp_name='data', returns='const char*', const=True)
+    h.method('equal',
+             api.params(x='const migraphx::literal&'),
+             invoke='migraphx::equal($@)',
+             returns='bool',
+             const=True)
+
+
 @api.handle('migraphx_instruction', 'migraphx::instruction_ref')
 def instruction(h):
     pass

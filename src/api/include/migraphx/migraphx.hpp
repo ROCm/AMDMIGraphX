@@ -521,6 +521,43 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
     friend bool operator!=(const argument& px, const argument& py) { return !(px == py); }
 };
 
+struct literal : MIGRAPHX_HANDLE_BASE(literal)
+{
+    literal() {}
+
+    literal(migraphx_literal* p, borrow) { this->set_handle(p, borrow{}); }
+
+    literal(migraphx_literal* p, own) { this->set_handle(p, own{}); }
+
+    literal(shape pshape, const char* pbuffer)
+    {
+        this->make_handle(&migraphx_literal_create, pshape.get_handle_ptr(), pbuffer);
+    }
+
+    shape get_shape() const
+    {
+        const_migraphx_shape_t pout;
+        call(&migraphx_literal_shape, &pout, this->get_handle_ptr());
+        return {pout};
+    }
+
+    const char* data() const
+    {
+        const char* pout;
+        call(&migraphx_literal_data, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator==(const literal& px, const literal& py)
+    {
+        bool pout;
+        call(&migraphx_literal_equal, &pout, px.get_handle_ptr(), py.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const literal& px, const literal& py) { return !(px == py); }
+};
+
 /// A target for compilation
 struct target : MIGRAPHX_HANDLE_BASE(target)
 {

@@ -6,7 +6,6 @@ except:
     sys.exit()
 
 
-
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
@@ -19,6 +18,7 @@ def test_add_op():
     params = {}
     output = p.run(params)[-1].tolist()
     assert output == list(2 * np.ones((9), dtype='float32'))
+
 
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")

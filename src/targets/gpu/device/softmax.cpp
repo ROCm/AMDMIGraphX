@@ -35,8 +35,8 @@ struct half2_max
 
 // in_data is in shared memory
 template <class Op>
-__device__ __half2
-block_reduce(__half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+__device__ __half2 block_reduce_half2(
+    __half2* buffer, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     __syncthreads();
     for(index_int s = block_size; s > 0; s >>= 1)
@@ -55,7 +55,7 @@ block_reduce(__half2* buffer, index_int batch_item_num, index_int tid, index_int
 }
 
 __global__ void
-softmax_kernel(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
+softmax_kernel_half2(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
 {
     __half2* input  = reinterpret_cast<__half2*>(data_in);
     __half2* output = reinterpret_cast<__half2*>(data_out);
@@ -73,7 +73,7 @@ softmax_kernel(void* data_in, index_int batch_item_num, index_int block_size, vo
     }
 
     auto batch_max =
-        block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_max{});
+        block_reduce_half2(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_max{});
 
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
@@ -82,7 +82,7 @@ softmax_kernel(void* data_in, index_int batch_item_num, index_int block_size, vo
     }
 
     auto batch_sum =
-        block_reduce(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
+        block_reduce_half2(in_data_reduce, batch_item_num, threadIdx.x, block_size, half2_sum{});
 
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
@@ -92,8 +92,8 @@ softmax_kernel(void* data_in, index_int batch_item_num, index_int block_size, vo
 
 // in_data is in shared memory
 template <class Op>
-__device__ __half
-block_reduce2(__half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
+__device__ __half block_reduce_half(
+    __half* data, index_int batch_item_num, index_int tid, index_int block_size, Op op)
 {
     __syncthreads();
     for(index_int s = block_size / 2; s > 0; s >>= 1)
@@ -109,7 +109,7 @@ block_reduce2(__half* data, index_int batch_item_num, index_int tid, index_int b
 }
 
 __global__ void
-softmax_kernel2(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
+softmax_kernel_half(void* data_in, index_int batch_item_num, index_int block_size, void* data_out)
 {
     __half* input  = reinterpret_cast<__half*>(data_in);
     __half* output = reinterpret_cast<__half*>(data_out);
@@ -125,14 +125,16 @@ softmax_kernel2(void* data_in, index_int batch_item_num, index_int block_size, v
         in_data_reduce[i] = d;
     }
 
-    auto batch_max = block_reduce2(in_data_reduce, batch_item_num, threadIdx.x, block_size, max{});
+    auto batch_max =
+        block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, max{});
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         in_data[i]        = __float2half(::exp(__half2float(in_data[i]) - __half2float(batch_max)));
         in_data_reduce[i] = in_data[i];
     }
 
-    auto batch_sum = block_reduce2(in_data_reduce, batch_item_num, threadIdx.x, block_size, sum{});
+    auto batch_sum =
+        block_reduce_half(in_data_reduce, batch_item_num, threadIdx.x, block_size, sum{});
     for(int i = threadIdx.x; i < batch_item_num; i += block_size)
     {
         output[i + start] = __float2half(__half2float(in_data[i]) / __half2float(batch_sum));
@@ -161,7 +163,7 @@ void softmax(hipStream_t stream, const argument& result, const argument& arg, in
                 int block_num         = batch_shape.elements();
                 int shared_size       = batch_item_num * 2 * result.get_shape().type_size();
                 half2_block_size      = half2_block_size / 4;
-                softmax_kernel<<<block_num, half2_block_size, shared_size, stream>>>(
+                softmax_kernel_half2<<<block_num, half2_block_size, shared_size, stream>>>(
                     arg.data(), batch_item_num, half2_block_size, result.data());
             }
             else

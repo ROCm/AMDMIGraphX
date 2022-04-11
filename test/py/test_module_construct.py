@@ -4,6 +4,7 @@ try:
 except:
     sys.exit()
 
+
 def create_buffer(t, data, shape):
     a = array.array(t, data)
     if sys.version_info >= (3, 0):
@@ -13,12 +14,13 @@ def create_buffer(t, data, shape):
         m = memoryview(a.tostring())
         return m
 
+
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
     param_shape = migraphx.shape(lens=[3, 3], type="float")
     # test add_literal with python array
-    x = mm.add_literal(param_shape, create_buffer('f', [1.0]*9, (3, 3)))
+    x = mm.add_literal(param_shape, create_buffer('f', [1.0] * 9, (3, 3)))
     # test add_literal with numpy array
     y = mm.add_literal(param_shape, np.ones((3, 3), dtype='float32'))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])

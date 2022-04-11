@@ -39,7 +39,7 @@ TEST_CASE(load_and_run_ctx)
         pp.add(name, migraphx::argument::generate(param_shapes[name]));
     }
     auto ctx = p.experimental_get_context();
-    EXPECT(reinterpret_cast<hipStream_t>(ctx.get_queue()) != nullptr);
+    EXPECT(ctx.get_queue<hipStream_t>() != nullptr);
     p.eval(pp);
     ctx.finish();
 }

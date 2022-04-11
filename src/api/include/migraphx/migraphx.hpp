@@ -777,12 +777,12 @@ struct context
     migraphx_context_t ctx;
 
     void finish() const { call(&migraphx_context_finish, ctx); }
-    template<class T>
+    template <class T>
     void* get_queue()
     {
         void* out;
         call(&migraphx_context_get_queue, &out, ctx);
-        //TODO: check type here 
+        // TODO: check type here
         return reinterpret_cast<T>(out);
     }
 };

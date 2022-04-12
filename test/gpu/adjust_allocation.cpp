@@ -21,14 +21,15 @@
 void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
-    migraphx::run_passes(*p.get_main_module(),
-                         {migraphx::auto_contiguous{},
-                          migraphx::gpu::lowering{&ctx, offload_copy},
-                          migraphx::dead_code_elimination{},
-                          migraphx::eliminate_contiguous{"gpu::contiguous"},
-                          migraphx::dead_code_elimination{},
-                          migraphx::replace_allocate{migraphx::gpu::gpu_allocation_model{}, offload_copy},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        *p.get_main_module(),
+        {migraphx::auto_contiguous{},
+         migraphx::gpu::lowering{&ctx, offload_copy},
+         migraphx::dead_code_elimination{},
+         migraphx::eliminate_contiguous{"gpu::contiguous"},
+         migraphx::dead_code_elimination{},
+         migraphx::replace_allocate{migraphx::gpu::gpu_allocation_model{}, offload_copy},
+         migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(tanh_shape)

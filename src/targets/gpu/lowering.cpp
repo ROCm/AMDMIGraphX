@@ -281,14 +281,13 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-                std::cout << "HERE" << std::endl;
+        std::cout << "HERE" << std::endl;
 
         // Instruction's output is an input of the ret instruction
         if(offload_copy)
         {
             auto result = mod->insert_instruction(
-                ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag",
-                std::move(tag)}}));
+                ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
             return result;
         }
 
@@ -502,8 +501,8 @@ struct miopen_apply
                 }
                 else
                 {
-                    output = mod->insert_instruction(
-                        ins, make_op("allocate", {{"shape", to_value(s)}}));
+                    output =
+                        mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
                 }
                 inputs.push_back(output);
             }
@@ -539,8 +538,7 @@ struct miopen_apply
             const auto* sub_mod = mod_args.front();
             auto cond_out       = mod->insert_instruction(
                 ins,
-                make_op("allocate",
-                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+                make_op("allocate", {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
             // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);
             inputs.push_back(output);

@@ -6,6 +6,7 @@
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/replace_allocate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/add.hpp>
@@ -25,6 +26,8 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
                           migraphx::gpu::lowering{&ctx, offload_copy},
                           migraphx::dead_code_elimination{},
                           migraphx::eliminate_contiguous{"gpu::contiguous"},
+                          migraphx::dead_code_elimination{},
+                          migraphx::replace_allocate{migraphx::gpu::gpu_allocation_model{}, offload_copy},
                           migraphx::dead_code_elimination{}});
 }
 

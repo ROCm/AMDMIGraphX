@@ -35,7 +35,7 @@ std::unordered_map<instruction_ref, std::string> create_output_names(module& mod
 void replace_allocate::apply(module& p) const
 {
     auto prog_output_names = create_output_names(p);
-    auto last              = std::prev(p.end());
+    auto last              = instruction::get_output_alias(std::prev(p.end()));
     bool main_offload_copy = p.name() == "main" ? this->offload_copy : false;
     for(auto ins : iterator_for(p))
     {
@@ -44,7 +44,7 @@ void replace_allocate::apply(module& p) const
         auto op = ins->get_operator();
         auto v  = op.to_value();
         assert(v.contains("tag"));
-        auto tag = v.at("tag");
+        auto tag = v.at("tag").get_string();
         auto s   = ins->get_shape();
 
         auto ins_alias = instruction::get_output_alias(ins->outputs().front());
@@ -56,7 +56,7 @@ void replace_allocate::apply(module& p) const
             p.replace_instruction(ins, out_param);
             continue;
         }
-        else if(not main_offload_copy and ins->outputs().front() == last and tag.empty())
+        else if(not main_offload_copy and ins_alias == last and tag.empty())
         {
             out_param = p.add_parameter("output", s);
             p.replace_instruction(ins, out_param);
@@ -64,7 +64,7 @@ void replace_allocate::apply(module& p) const
         }
 
         auto alloc_ins =
-            p.insert_instruction(ins, make_op(model.name(), {{"shape", to_value(s)}, tag}));
+            p.insert_instruction(ins, make_op(model.name(), {{"shape", to_value(s)}, v.at("tag")}));
         p.replace_instruction(ins, alloc_ins);
     }
 }

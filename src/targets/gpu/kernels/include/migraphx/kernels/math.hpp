@@ -61,14 +61,6 @@ constexpr T as_float(T x)
             [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
     }
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_HALF_VEC(name)                                  \
-    template <class... Ts, MIGRAPHX_REQUIRES(is_any_vec<Ts...>())>           \
-    auto __device__ name(Ts... xs)                                           \
-    {                                                                        \
-        return vec_transform(xs...)([](auto... ys) { return name(ys...); }); \
-    }
-
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
 MIGRAPHX_DEVICE_MATH(acos, ::acos)
 MIGRAPHX_DEVICE_MATH(acosh, ::acosh)

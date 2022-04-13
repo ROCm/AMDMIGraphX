@@ -12,7 +12,12 @@ struct tracer
 {
     tracer() {}
 
-    tracer(std::string dump_directory) : dump_dir(std::move(dump_directory)), counter(0) {}
+    tracer(const std::string& dump_directory) : dump_dir(dump_directory), counter(0), dir_path(fs::current_path() / dump_directory) { 
+        if(fs::exists(dir_path)) {
+                fs::remove_all(dir_path);
+        }
+        fs::create_directories(dir_path);
+    }
 
     bool enabled() const { return !dump_dir.empty(); }
 
@@ -21,13 +26,8 @@ struct tracer
     {
         if(this->enabled())
         {
-            fs::path dir_path = fs::current_path() / this->dump_dir;
-            if(not fs::exists(dir_path))
-            {
-                fs::create_directories(dir_path);
-            }
             fs::path ir_file_path =
-                dir_path / (std::to_string(this->counter++) + "_" + program_name + ".mxr");
+                this->dir_path / (std::to_string(this->counter++) + "_" + program_name + ".mxr");
             std::ofstream ofs(ir_file_path);
             swallow{ofs << xs...};
             ofs << std::endl;
@@ -38,6 +38,7 @@ struct tracer
 
     private:
     uint counter;
+    fs::path dir_path;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

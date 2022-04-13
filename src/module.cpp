@@ -171,9 +171,12 @@ void module::assign(const module& m)
     }
 }
 
-template<class Range>
-static std::vector<instruction_ref> insert_generic_instructions(module& m,
-    instruction_ref ins, Range&& instructions, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+template <class Range>
+static std::vector<instruction_ref>
+insert_generic_instructions(module& m,
+                            instruction_ref ins,
+                            Range&& instructions,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     assert(m.contains(ins));
     std::vector<instruction_ref> mod_outputs;
@@ -360,17 +363,25 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, const std::vector<instruction_ref>& instructions, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref>
+module::insert_instructions(instruction_ref ins,
+                            const std::vector<instruction_ref>& instructions,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
 }
 
-std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref> module::insert_instructions(
+    instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
 }
 
-std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, instruction_ref start, instruction_ref last, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref>
+module::insert_instructions(instruction_ref ins,
+                            instruction_ref start,
+                            instruction_ref last,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     auto r = range(start, last);
     return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));

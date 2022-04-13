@@ -96,24 +96,34 @@ struct module
     instruction_ref move_instruction(instruction_ref src, instruction_ref dst);
     instruction_ref move_instructions(instruction_ref src, instruction_ref dst);
 
-
-    template<class... Ts>
+    template <class... Ts>
     std::vector<instruction_ref> add_instructions(Ts&&... xs)
     {
         return this->insert_instructions(this->end(), static_cast<Ts&&>(xs)...);
     }
 
-    template<class... Ts>
-    std::vector<instruction_ref> add_instructions(std::initializer_list<instruction_ref> instructions, Ts&&... xs)
+    template <class... Ts>
+    std::vector<instruction_ref>
+    add_instructions(std::initializer_list<instruction_ref> instructions, Ts&&... xs)
     {
         return this->insert_instructions(this->end(), instructions, static_cast<Ts&&>(xs)...);
     }
 
-    std::vector<instruction_ref> insert_instructions(instruction_ref ins, const std::vector<instruction_ref>& instructions, std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        const std::vector<instruction_ref>& instructions,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
-    std::vector<instruction_ref> insert_instructions(instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        module_ref m,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
-    std::vector<instruction_ref> insert_instructions(instruction_ref ins, instruction_ref start, instruction_ref last, std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+    std::vector<instruction_ref>
+    insert_instructions(instruction_ref ins,
+                        instruction_ref start,
+                        instruction_ref last,
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)

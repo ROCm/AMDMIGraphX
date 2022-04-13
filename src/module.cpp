@@ -178,10 +178,12 @@ insert_generic_instructions(module& m,
                             Range&& instructions,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
-    assert(m.contains(ins));
+    assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
-    for(auto sins : instructions)
+    instruction_ref last;
+    for(instruction_ref sins : instructions)
     {
+        last = sins;
         if(contains(map_ins, sins))
             continue;
         instruction_ref copy_ins;
@@ -220,8 +222,8 @@ insert_generic_instructions(module& m,
         }
         map_ins[sins] = copy_ins;
     }
-    if(mod_outputs.empty())
-        mod_outputs = {map_ins.at(*std::prev(instructions.end()))};
+    if(mod_outputs.empty() and instructions.begin() != instructions.end())
+        mod_outputs = {map_ins.at(last)};
     return mod_outputs;
 }
 
@@ -361,6 +363,28 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     for(auto ins : src->inputs())
         this->move_instruction(ins, src);
     return src;
+}
+
+std::vector<instruction_ref>
+module::add_instructions(const std::vector<instruction_ref>& instructions,
+                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    return this->insert_instructions(this->end(), instructions, std::move(map_ins));
+}
+
+std::vector<instruction_ref>
+module::add_instructions(module_ref m,
+                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    return this->insert_instructions(this->end(), m, std::move(map_ins));
+}
+
+std::vector<instruction_ref>
+module::add_instructions(instruction_ref start,
+                    instruction_ref last,
+                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    return this->insert_instructions(this->end(), start, last, std::move(map_ins));
 }
 
 std::vector<instruction_ref>

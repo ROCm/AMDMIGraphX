@@ -33,7 +33,6 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/mlir_conv.hpp>
 #include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>

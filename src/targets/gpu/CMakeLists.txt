@@ -154,7 +154,6 @@ add_library(migraphx_gpu
     lrn.cpp
     leaky_relu.cpp
     mlir.cpp
-    mlir_conv.cpp
     multinomial.cpp
     nonzero.cpp
     pack_args.cpp

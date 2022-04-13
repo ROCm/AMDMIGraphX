@@ -171,6 +171,57 @@ void module::assign(const module& m)
     }
 }
 
+template<class Range>
+static std::vector<instruction_ref> insert_generic_instructions(module& m,
+    instruction_ref ins, Range&& instructions, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    assert(m.contains(ins));
+    std::vector<instruction_ref> mod_outputs;
+    for(auto sins : instructions)
+    {
+        if(contains(map_ins, sins))
+            continue;
+        instruction_ref copy_ins;
+        if(sins->name() == "@literal")
+        {
+            auto l   = sins->get_literal();
+            copy_ins = m.add_literal(l);
+        }
+        else if(sins->name() == "@param")
+        {
+            auto&& name = any_cast<builtin::param>(sins->get_operator()).parameter;
+            auto s      = sins->get_shape();
+            copy_ins    = m.add_parameter(name, s);
+        }
+        else if(sins->name() == "@outline")
+        {
+            auto s   = sins->get_shape();
+            copy_ins = m.add_outline(s);
+        }
+        else
+        {
+            auto mod_args = sins->module_inputs();
+            auto inputs   = sins->inputs();
+            std::vector<instruction_ref> copy_inputs(inputs.size());
+            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
+                return contains(map_ins, i) ? map_ins[i] : i;
+            });
+
+            if(sins->name() == "@return")
+            {
+                mod_outputs = copy_inputs;
+                break;
+            }
+
+            copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+        }
+        map_ins[sins] = copy_ins;
+    }
+    if(mod_outputs.empty())
+        mod_outputs = {map_ins.at(*std::prev(instructions.end()))};
+    return mod_outputs;
+}
+
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
 {
     return insert_instruction(impl->instructions.end(), op, std::move(args));
@@ -309,53 +360,20 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
     return src;
 }
 
-std::vector<instruction_ref> module::insert_module_instructions(
-    instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, const std::vector<instruction_ref>& instructions, std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
-    std::vector<instruction_ref> mod_outputs;
-    for(auto sins : iterator_for(*m))
-    {
-        if(contains(map_ins, sins))
-            continue;
-        instruction_ref copy_ins;
-        if(sins->name() == "@literal")
-        {
-            auto l   = sins->get_literal();
-            copy_ins = this->add_literal(l);
-        }
-        else if(sins->name() == "@param")
-        {
-            auto&& name = any_cast<builtin::param>(sins->get_operator()).parameter;
-            auto s      = sins->get_shape();
-            copy_ins    = this->add_parameter(name, s);
-        }
-        else if(sins->name() == "@outline")
-        {
-            auto s   = sins->get_shape();
-            copy_ins = this->add_outline(s);
-        }
-        else
-        {
-            auto mod_args = sins->module_inputs();
-            auto inputs   = sins->inputs();
-            std::vector<instruction_ref> copy_inputs(inputs.size());
-            std::transform(inputs.begin(), inputs.end(), copy_inputs.begin(), [&](auto i) {
-                return contains(map_ins, i) ? map_ins[i] : i;
-            });
+    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
+}
 
-            if(sins->name() == "@return")
-            {
-                mod_outputs = copy_inputs;
-                break;
-            }
+std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
+}
 
-            copy_ins = this->insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
-        }
-        map_ins[sins] = copy_ins;
-    }
-    if(mod_outputs.empty())
-        mod_outputs = {map_ins.at(std::prev(m->end()))};
-    return mod_outputs;
+std::vector<instruction_ref> module::insert_instructions(instruction_ref ins, instruction_ref start, instruction_ref last, std::unordered_map<instruction_ref, instruction_ref> map_ins)
+{
+    auto r = range(start, last);
+    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));
 }
 
 instruction_ref module::add_literal(literal l)

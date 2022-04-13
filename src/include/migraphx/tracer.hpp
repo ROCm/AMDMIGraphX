@@ -12,9 +12,12 @@ struct tracer
 {
     tracer() {}
 
-    tracer(const std::string& dump_directory) : dump_dir(dump_directory), counter(0), dir_path(fs::current_path() / dump_directory) { 
-        if(fs::exists(dir_path)) {
-                fs::remove_all(dir_path);
+    tracer(const std::string& dump_directory)
+        : dump_dir(dump_directory), counter(0), dir_path(fs::current_path() / dump_directory)
+    {
+        if(fs::exists(dir_path))
+        {
+            fs::remove_all(dir_path);
         }
         fs::create_directories(dir_path);
     }

@@ -48,7 +48,7 @@ MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(>=)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(==)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(!=)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(&)
-MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP (^)
+MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(^)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(|)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(&&)
 MIGRAPHX_INTEGRAL_CONSTANT_BINARY_OP(||)
@@ -69,6 +69,12 @@ using index_constant = integral_constant<index_int, N>;
 
 template <auto V>
 static constexpr auto _c = integral_constant<decltype(V), V>{}; // NOLINT
+
+template <class F>
+constexpr auto return_c(F f)
+{
+    return _c<f()>;
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_INTEGRAL_CONSTANT_HPP

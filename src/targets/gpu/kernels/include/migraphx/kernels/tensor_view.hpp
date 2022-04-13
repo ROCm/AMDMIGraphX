@@ -3,16 +3,30 @@
 
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/debug.hpp>
+#include <migraphx/kernels/iota_iterator.hpp>
 
 namespace migraphx {
+
+template <class T>
+struct tensor_view_iterator_read
+{
+    T* view;
+    constexpr auto& operator()(std::size_t n) const
+    {
+        MIGRAPHX_ASSERT(view != nullptr);
+        return (*view)[n];
+    }
+};
 
 template <class T, class Shape>
 struct tensor_view
 {
-    using type = T;
+    using type       = T;
+    using shape_type = Shape;
+    using iterator   = basic_iota_iterator<tensor_view_iterator_read<const tensor_view>, index_int>;
 
     constexpr Shape get_shape() const { return Shape{}; }
-    constexpr index_int size() const { return get_shape().elements(); }
+    constexpr auto size() const { return get_shape().elements(); }
 
     template <class U>
     constexpr T& operator[](U i) const
@@ -23,8 +37,8 @@ struct tensor_view
 
     constexpr T* data() const { return x; }
 
-    constexpr T* begin() const { return data(); }
-    constexpr T* end() const { return data() + size(); }
+    constexpr auto begin() const { return iterator{0, {this}}; }
+    constexpr auto end() const { return iterator{this->size(), {this}}; }
 
     template <class U>
     constexpr tensor_view<U, Shape> with(U* y) const

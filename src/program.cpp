@@ -353,13 +353,20 @@ std::vector<argument> program::eval(parameter_map params) const
 
     if(trace_level > 0)
     {
+        std::unordered_map<instruction_ref, std::string> ins_out;
+        // get instruction names
+        this->print([&](auto x, auto ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
+        });
+
         return generic_eval(*this,
                             ctx,
                             std::move(params),
                             with_check_context([&](auto& ins, auto f, auto&& check_context) {
                                 ctx.finish();
-                                std::cout << "Run instruction: ";
-                                this->debug_print(ins);
+                                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                                 timer t{};
                                 auto result = check_context(f);
                                 double t1   = t.record<milliseconds>();
@@ -742,6 +749,14 @@ void program::print(
     }
 }
 
+void program::print(
+    const std::function<void(instruction_ref ins,
+                             std::unordered_map<instruction_ref, std::string>)>& print_func) const
+{
+    std::unordered_map<instruction_ref, std::string> names;
+    this->print(names, print_func);
+}
+
 void program::print_graph(std::ostream& os, bool brief) const
 {
     const auto* mm = this->get_main_module();
@@ -809,11 +824,12 @@ void generic_get_unused_modules(Map& m, const std::vector<T*>& mods, OutputItera
     std::transform(mods.begin(), mods.end(), std::inserter(used, used.end()), [](auto&& mod) {
         return mod->name();
     });
-    transform_if(m.begin(),
-                 m.end(),
-                 out,
-                 [&](auto&& pp) { return not contains(used, pp.first); },
-                 [](auto&& pp) { return &pp.second; });
+    transform_if(
+        m.begin(),
+        m.end(),
+        out,
+        [&](auto&& pp) { return not contains(used, pp.first); },
+        [](auto&& pp) { return &pp.second; });
 }
 
 std::vector<const module*> program::get_modules() const

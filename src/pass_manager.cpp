@@ -94,7 +94,6 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}) and not trace.enabled())
         trace = tracer{"passes"};
-    auto module_trace = trace;
     std::unordered_map<std::string, tracer> module_tracer_map;
     for(const auto& p : passes)
     {
@@ -103,11 +102,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         {
             if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
             {
-                module_tracer_map[mod->name()] = module_trace;
-                if(trace.enabled())
-                {
-                    module_tracer_map[mod->name()].dump_dir += "/" + mod->name();
-                }
+                module_tracer_map[mod->name()] = tracer{trace.enabled() ? trace.dump_dir +"/"+mod->name():""};
             }
             if(mod->bypass())
                 continue;

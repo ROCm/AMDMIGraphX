@@ -367,22 +367,21 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
-                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return this->insert_instructions(this->end(), instructions, std::move(map_ins));
 }
 
 std::vector<instruction_ref>
-module::add_instructions(module_ref m,
-                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+module::add_instructions(module_ref m, std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return this->insert_instructions(this->end(), m, std::move(map_ins));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(instruction_ref start,
-                    instruction_ref last,
-                    std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         instruction_ref last,
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
 {
     return this->insert_instructions(this->end(), start, last, std::move(map_ins));
 }

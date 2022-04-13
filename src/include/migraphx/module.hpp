@@ -98,17 +98,16 @@ struct module
 
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
     add_instructions(module_ref m,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
     add_instructions(instruction_ref start,
-                        instruction_ref last,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
-
+                     instruction_ref last,
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,

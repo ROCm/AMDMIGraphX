@@ -290,8 +290,10 @@ TEST_CASE(insert_instructions)
 
     m1.add_instructions(&m2, {{x2, x1}});
 
-    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt";}) == 2);
-    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param";}) == 1);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
     EXPECT(contains(m1.get_parameter_shapes(), "x1"));
     EXPECT(not contains(m1.get_parameter_shapes(), "x1"));
 }

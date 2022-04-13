@@ -295,7 +295,7 @@ TEST_CASE(insert_instructions)
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
            1);
     EXPECT(contains(m1.get_parameter_shapes(), "x1"));
-    EXPECT(not contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
 }
 
 struct check_for_pass_op

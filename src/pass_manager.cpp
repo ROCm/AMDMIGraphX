@@ -104,7 +104,9 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             if(module_tracer_map.find(mod->name()) == module_tracer_map.end())
             {
                 module_tracer_map[mod->name()] = module_trace;
-                module_tracer_map[mod->name()].dump_dir += "/" + mod->name();
+                if(trace.enabled()) {
+                    module_tracer_map[mod->name()].dump_dir += "/" + mod->name();
+                }
             }
             if(mod->bypass())
                 continue;

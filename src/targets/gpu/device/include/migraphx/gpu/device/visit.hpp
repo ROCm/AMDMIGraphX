@@ -178,10 +178,15 @@ auto hip_vec_visit_all(T&& x, Ts&&... xs)
     return [&](auto f) {
         auto sx   = get_shape(x);
         auto lens = sx.lens();
+        assert(lens.back() % N == 0);
+        assert(sx.strides().back() == 1);
         lens.back() /= N;
-        shape ssx{sx.type(), lens};
-        hip_visit_all_impl(
-            ssx, make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }), f, x, xs...);
+        shape vec_sx{sx.type(), lens};
+        hip_visit_all_impl(vec_sx,
+                           make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }),
+                           f,
+                           x,
+                           xs...);
     };
 }
 

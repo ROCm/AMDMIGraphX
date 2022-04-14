@@ -4346,6 +4346,142 @@ def resize_upsample_pc_test():
 
 
 @onnx_test
+def reversesequence_4D_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=1,
+        sequence_lens=[2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_batch_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    seq_lens = np.array([1, 2, 3, 4])
+    seq_lens_tensor = helper.make_tensor(
+        name="sequence_lens",
+        data_type=TensorProto.INT64,
+        dims=seq_lens.shape,
+        vals=seq_lens.astype(np.int64),
+    )
+    arg_seq_lens = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=['arg_seq_lens'],
+        value=seq_lens_tensor,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x', 'arg_seq_lens'],
+        outputs=['y'],
+        time_axis=1,
+        batch_axis=0,
+    )
+    return ([arg_seq_lens, node], [x], [y])
+
+
+@onnx_test
+def reversesequence_batch_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4, 2])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=2,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_rank_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_sequence_lens_shape_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        sequence_lens=[4, 3, 2],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_same_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x', 'sequence_lens'],
+        outputs=['y'],
+        time_axis=1,
+        batch_axis=1,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_time_axis_err_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4, 2, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4, 2, 3])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x', 'sequence_lens'],
+        outputs=['y'],
+        time_axis=3,
+        batch_axis=0,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
+def reversesequence_time_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node(
+        'ReverseSequence',
+        inputs=['x'],
+        outputs=['y'],
+        time_axis=0,
+        batch_axis=1,
+        sequence_lens=[4, 3, 2, 1],
+    )
+    return ([node], [x], [y])
+
+
+@onnx_test
 def roialign_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10, 4, 7, 8])
     roi = helper.make_tensor_value_info('rois', TensorProto.FLOAT, [8, 4])

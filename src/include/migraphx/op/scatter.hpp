@@ -8,6 +8,7 @@
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/op/name.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <cmath>
 #include <utility>
@@ -16,7 +17,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter
+// The scatter operator fetches a subset of data given by an index array and then performs a
+// reduction operation (add, multiply, or just set the data) on each element returned.  We implement
+// it as a separate derived struct for each of the three reduction methods.  The related operator
+// scatterND is a generalization that works on a set of 3 tensors of different ranks.  The
+// complementary operations are gather/gatherND.
+//
+// This is a template for deriving child structs from.  Each child needs to define
+// only a reduction() method.  Names are automatically handled by the op_name template.
+
+template <class Derived>
+struct scatter : op_name<Derived>
 {
     int64_t axis = 0;
 
@@ -33,29 +44,44 @@ struct scatter
         return {{"normalize_axes", normalize}};
     }
 
-    std::string name() const { return "scatter"; }
-
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(3).standard();
-        return inputs.front();
+        // If non-packed, this converts to a packed output while preserving permutation of tensor
+        return inputs.front().with_lens(inputs.front().lens());
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        // max dimension in axis
+        auto& self = static_cast<const Derived&>(*this);
+
+        // max dimension in each axis
         auto axis_dim_size = output_shape.lens()[axis];
+        // cast all arguments as correct type
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
+            // copy all of data to output
             std::copy(data.begin(), data.end(), output.begin());
             args[1].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
+                // iterate through items in shape
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx  = idx;
-                    auto index    = indices[ind_s.index(idx)];
+                    auto out_idx = idx;
+
+                    // Overloaded tensor_view::() invokes indexing logic of
+                    // std::size_t shape::index(std::size_t i) const
+                    // which handles nonstandard shapes correctly
+                    auto index = indices(idx.begin(), idx.end());
+
+                    // normalize negative indexes (may be redundant after using
+                    // normalize_compute_shape())
                     index         = (index < 0) ? index + axis_dim_size : index;
                     out_idx[axis] = index;
-                    output[output_shape.index(out_idx)] = update[ind_s.index(idx)];
+
+                    // look up the appropriate locations in output, using idx and out_idx.
+                    // call reduction() method of derived struct to copy and reduce that element
+                    self.reduction()(output(out_idx.begin(), out_idx.end()),
+                                     update(idx.begin(), idx.end()));
                 });
             });
         });

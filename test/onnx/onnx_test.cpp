@@ -4360,7 +4360,8 @@ TEST_CASE(round_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(scatter_test)
+// the ScatterElements op has 3 reduction modes, which map to separate reference ops
+migraphx::program create_scatter_program(const std::string& scatter_mode, int axis)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -4369,10 +4370,30 @@ TEST_CASE(scatter_test)
         mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3, 4, 5}});
     auto l2 =
         mm->add_parameter("update", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    int axis = -2;
-    auto r   = mm->add_instruction(migraphx::make_op("scatter", {{"axis", axis}}), l0, l1, l2);
+    auto r = mm->add_instruction(migraphx::make_op(scatter_mode, {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatter_test.onnx");
+    return p;
+}
+
+TEST_CASE(scatter_add_test)
+{
+    migraphx::program p = create_scatter_program("scatter_add", -2);
+    auto prog           = migraphx::parse_onnx("scatter_add_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(scatter_mul_test)
+{
+    migraphx::program p = create_scatter_program("scatter_mul", -2);
+    auto prog           = migraphx::parse_onnx("scatter_mul_test.onnx");
+
+    EXPECT(p == prog);
+}
+TEST_CASE(scatter_none_test)
+{
+    migraphx::program p = create_scatter_program("scatter_none", -2);
+    auto prog           = migraphx::parse_onnx("scatter_none_test.onnx");
 
     EXPECT(p == prog);
 }

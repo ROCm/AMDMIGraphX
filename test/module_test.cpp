@@ -277,7 +277,7 @@ TEST_CASE(parameter_name_order)
     EXPECT(param_names == names1);
 }
 
-TEST_CASE(insert_instructions)
+TEST_CASE(insert_instructions_module)
 {
     migraphx::shape s{migraphx::shape::int32_type, {1}};
     migraphx::module m1("m1");
@@ -289,6 +289,50 @@ TEST_CASE(insert_instructions)
     m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
     m1.add_instructions(&m2, {{x2, x1}});
+
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(insert_instructions_range)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
+    m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+
+    migraphx::module m2("m2");
+    auto x2 = m2.add_parameter("x2", s);
+    auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.add_instructions(sqrt2, m2.end(), {{x2, x1}});
+    EXPECT(std::any_of(m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
+           2);
+    EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "@param"; }) ==
+           1);
+    EXPECT(contains(m1.get_parameter_shapes(), "x1"));
+    EXPECT(not contains(m1.get_parameter_shapes(), "x2"));
+}
+
+TEST_CASE(insert_instructions_vector)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {1}};
+    migraphx::module m1("m1");
+    auto x1 = m1.add_parameter("x1", s);
+    m1.add_instruction(migraphx::make_op("sqrt"), {x1});
+
+    migraphx::module m2("m2");
+    auto x2 = m2.add_parameter("x2", s);
+    auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
+
+    m1.add_instructions({sqrt2}, {{x2, x1}});
+    EXPECT(std::any_of(m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);

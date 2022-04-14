@@ -94,7 +94,6 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-easily-swappable-parameters
-        -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-signed-char-misuse
         # Disable the aliased reserved identifiers

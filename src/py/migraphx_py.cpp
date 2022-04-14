@@ -3,8 +3,11 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <migraphx/program.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
@@ -95,7 +98,6 @@ migraphx::value to_value(py::kwargs kwargs)
         auto&& val = arg.second;
         visit_py(val, [&](auto py_val) { v[key] = py_val; });
     }
-
     return v;
 }
 } // namespace migraphx
@@ -256,13 +258,38 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::module>(m, "module")
+    py::class_<migraphx::instruction_ref>(m, "instruction_ref");
+
+    py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
-        .def("__eq__", std::equal_to<migraphx::module>{})
-        .def("__ne__", std::not_equal_to<migraphx::module>{})
+        .def(
+            "add_instruction",
+            [](migraphx::module& mm,
+               const migraphx::operation& op,
+               std::vector<migraphx::instruction_ref>& args,
+               std::vector<migraphx::module*>& mod_args) {
+                return mm.add_instruction(op, args, mod_args);
+            },
+            py::arg("op"),
+            py::arg("args"),
+            py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def(
+            "add_parameter",
+            [](migraphx::module& mm, const std::string& name, const migraphx::shape shape) {
+                return mm.add_parameter(name, shape);
+            },
+            py::arg("name"),
+            py::arg("shape"))
+        .def(
+            "add_return",
+            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
+                return mm.add_return(args);
+            },
+            py::arg("args"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); });
 
     py::class_<migraphx::program>(m, "program")
+        .def(py::init([]() { return migraphx::program(); }))
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
         .def("get_parameter_shapes", &migraphx::program::get_parameter_shapes)
         .def("get_output_shapes", &migraphx::program::get_output_shapes)
@@ -277,11 +304,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("t"),
             py::arg("offload_copy") = true,
             py::arg("fast_math")    = true)
-        .def("get_main_module",
-             [](migraphx::program& p) {
-                 auto* mm = p.get_main_module();
-                 return *mm;
-             })
+        .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
+        .def(
+            "create_module",
+            [](migraphx::program& p, const std::string& name) { return p.create_module(name); },
+            py::arg("name"))
         .def("run",
              [](migraphx::program& p, py::dict params) {
                  migraphx::parameter_map pm;
@@ -399,6 +426,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def("get_target", &migraphx::make_target);
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+    m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,
           py::arg("prog"),

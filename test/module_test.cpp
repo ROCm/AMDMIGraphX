@@ -306,11 +306,12 @@ TEST_CASE(insert_instructions_range)
     m1.add_instruction(migraphx::make_op("sqrt"), {x1});
 
     migraphx::module m2("m2");
-    auto x2 = m2.add_parameter("x2", s);
+    auto x2    = m2.add_parameter("x2", s);
     auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
     m1.add_instructions(sqrt2, m2.end(), {{x2, x1}});
-    EXPECT(std::any_of(m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+    EXPECT(std::any_of(
+        m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);
@@ -328,11 +329,12 @@ TEST_CASE(insert_instructions_vector)
     m1.add_instruction(migraphx::make_op("sqrt"), {x1});
 
     migraphx::module m2("m2");
-    auto x2 = m2.add_parameter("x2", s);
+    auto x2    = m2.add_parameter("x2", s);
     auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
     m1.add_instructions({sqrt2}, {{x2, x1}});
-    EXPECT(std::any_of(m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
+    EXPECT(std::any_of(
+        m1.begin(), m2.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);

@@ -287,7 +287,8 @@ struct miopen_apply
         // if(offload_copy)
         // {
         //     auto result = mod->insert_instruction(
-        //         ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
+        //         ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag",
+        //         std::move(tag)}}));
         //     return result;
         // }
 
@@ -497,7 +498,7 @@ struct miopen_apply
             //     inputs.push_back(insert_allocation(ins, s));
             // }
             // output = insert_allocation(ins, ins->get_shape().sub_shapes().front());
-            
+
             // bool ins_output_allocated = false;
             // for(auto& pn : name_shapes)
             // {
@@ -516,7 +517,8 @@ struct miopen_apply
             //                             std::cout << "HERE2" << std::endl;
             //         // output               = insert_allocation(ins, s);
             //         output =
-            //             mod->insert_instruction(ins, make_op("hip::allocate", {{"shape", to_value(s)}}));
+            //             mod->insert_instruction(ins, make_op("hip::allocate", {{"shape",
+            //             to_value(s)}}));
             //     }
             //     inputs.push_back(output);
             // }
@@ -524,7 +526,7 @@ struct miopen_apply
             // mod->debug_print(inputs);
             auto ret = mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
             // mod->debug_print(ret);
-            return ret; 
+            return ret;
         });
     }
 
@@ -555,7 +557,8 @@ struct miopen_apply
             const auto* sub_mod = mod_args.front();
             auto cond_out       = mod->insert_instruction(
                 ins,
-                make_op("hip::allocate", {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
+                make_op("hip::allocate",
+                        {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
             // add cond and mod outputs to the argument list
             inputs.push_back(cond_out);
             inputs.push_back(output);

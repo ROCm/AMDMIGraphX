@@ -172,6 +172,12 @@ constexpr auto max(const T& a, const T& b)
     return where(a < b, b, a);
 }
 
+template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto min(const T& a, const T& b)
+{
+    return where(a < b, a, b);
+}
+
 template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
 constexpr auto max(const T& a, const U& b)
 {

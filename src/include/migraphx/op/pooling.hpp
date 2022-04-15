@@ -93,51 +93,6 @@ struct pooling
         return stride.size();
     }
 
-    // type erasure for pooling methods
-    struct abstract_pool
-    {
-        virtual double init() const = 0;
-
-        virtual double operator()(double x, double y) const = 0;
-
-        virtual double final(double, std::size_t) const = 0;
-
-        virtual ~abstract_pool() = default;
-    };
-
-    // InitType to avoid virtual function template issue
-    template <class PoolType, class InitType>
-    struct wrapper_pool : abstract_pool
-    {
-        PoolType p_method;
-
-        explicit wrapper_pool(PoolType&& x) : p_method(std::move(x)) {}
-
-        double init() const override { return p_method.template init<InitType>(); };
-
-        double operator()(double x, double y) const override { return p_method.operator()(x, y); };
-
-        double final(double x, std::size_t y) const override { return p_method.final(x, y); };
-    };
-
-    // for taking ownership of the pooling structs
-    struct alloc_pool
-    {
-        std::unique_ptr<abstract_pool> ap_ptr;
-
-        template <class PoolType, class InitType>
-        explicit alloc_pool(PoolType t, InitType)
-            : ap_ptr(std::make_unique<wrapper_pool<PoolType, InitType>>(std::move(t)))
-        {
-        }
-
-        double init() const { return ap_ptr->init(); };
-
-        double operator()(double x, double y) const { return ap_ptr->operator()(x, y); };
-
-        double final(double x, std::size_t y) const { return ap_ptr->final(x, y); };
-    };
-
     struct lpnorm_pool
     {
         int p = 0;
@@ -184,7 +139,7 @@ struct pooling
     };
 
     template <class Type, class Out, class In, class Op>
-    void calc_pooling(const shape& output_shape, Out& output, const In& input, const Op& op) const
+    void calc_pooling(const shape& output_shape, Out& output, const In& input, Op op) const
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
@@ -206,7 +161,7 @@ struct pooling
 
             shape win_shape{output_shape.type(), win_size};
             auto pool_size    = win_shape.elements();
-            double output_val = op.init();
+            double output_val = op.template init<Type>();
             shape_for_each(win_shape, [&](auto idx_w) {
                 auto idx = idx_o;
                 std::transform(idx_w.begin(),
@@ -229,21 +184,18 @@ struct pooling
         argument result{output_shape};
         visit_all(result, args[0])([&](auto output, auto input) {
             using type = typename decltype(output)::value_type;
-            std::unique_ptr<alloc_pool> ap;
-            type tmp; // for deducing type only
             switch(mode)
             {
             case migraphx::op::pooling_mode::average:
-                ap = std::make_unique<alloc_pool>(avg_pool{}, tmp);
+                calc_pooling<type>(output_shape, output, input, avg_pool{});
                 break;
             case migraphx::op::pooling_mode::max:
-                ap = std::make_unique<alloc_pool>(max_pool{}, tmp);
+                calc_pooling<type>(output_shape, output, input, max_pool{});
                 break;
             case migraphx::op::pooling_mode::lpnorm:
-                ap = std::make_unique<alloc_pool>(lpnorm_pool{lp_order}, tmp);
+                calc_pooling<type>(output_shape, output, input, lpnorm_pool{lp_order});
                 break;
             }
-            calc_pooling<type>(output_shape, output, input, *ap);
         });
 
         return result;

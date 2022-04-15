@@ -34,7 +34,7 @@ struct parse_pooling : op_parser<parse_pooling>
             {"average", op::pooling_mode::average},
             {"lpnorm", op::pooling_mode::lpnorm}};
         std::string mode = opd.op_name;
-        if(mode_map.find(mode) == mode_map.end())
+        if(not contains(mode_map, mode))
         {
             MIGRAPHX_THROW("onnx pooling mode must be [\"max\", \"average\", \"lpnorm\"]");
         }

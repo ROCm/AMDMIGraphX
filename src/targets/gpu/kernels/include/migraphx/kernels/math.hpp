@@ -50,6 +50,21 @@ constexpr T as_float(T x)
     auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
+// Template with two overloads for math functions, one for half2 type and one for more generic
+// <half, N> vectorization where N is 4 or another even number.
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
+    template <class... Ts>                                                                \
+    auto __device__ name(migraphx::vec<migraphx::half, 2> x, Ts... xs)                    \
+        MIGRAPHX_RETURNS(migraphx::vec<migraphx::half, 2>{fname(x, xs...)});              \
+    template <class... Ts, index_int N, MIGRAPHX_REQUIRES(N % 2 == 0 && (N > 2))>         \
+    auto __device__ name(migraphx::vec<migraphx::half, N> x, Ts... xs)                    \
+    {                                                                                     \
+        return vec_packed_transform<2>(x, xs...)(                                         \
+            [](auto... ys) -> migraphx::vec<migraphx::half, 2> { return fname(ys...); }); \
+    }
+
 MIGRAPHX_DEVICE_MATH(abs, ::abs)
 MIGRAPHX_DEVICE_MATH(acos, ::acos)
 MIGRAPHX_DEVICE_MATH(acosh, ::acosh)
@@ -116,6 +131,27 @@ MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 
+// Map math functions to hip half2 functions
+// The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
+// packed into a 32-bit number.  See include/hip/amd_detail/hip_fp16_math_fwd.h for the HIP names
+// Most but not all of these math ops have operators of the same names.  Ones not yet implemented
+// at this time are: exp2, exp10, log2, log10, isinf
+MIGRAPHX_DEVICE_MATH_HALF2(abs, ::__habs2)
+MIGRAPHX_DEVICE_MATH_HALF2(ceil, ::h2ceil)
+MIGRAPHX_DEVICE_MATH_HALF2(floor, ::h2floor)
+MIGRAPHX_DEVICE_MATH_HALF2(sin, ::h2sin)
+MIGRAPHX_DEVICE_MATH_HALF2(cos, ::h2cos)
+MIGRAPHX_DEVICE_MATH_HALF2(exp, ::h2exp)
+MIGRAPHX_DEVICE_MATH_HALF2(exp2, ::h2exp2)
+MIGRAPHX_DEVICE_MATH_HALF2(exp10, ::h2exp10)
+MIGRAPHX_DEVICE_MATH_HALF2(log2, ::h2log2)
+MIGRAPHX_DEVICE_MATH_HALF2(log, ::h2log)
+MIGRAPHX_DEVICE_MATH_HALF2(log10, ::h2log10)
+MIGRAPHX_DEVICE_MATH_HALF2(rsqrt, ::h2rsqrt)
+MIGRAPHX_DEVICE_MATH_HALF2(sqrt, ::h2sqrt)
+MIGRAPHX_DEVICE_MATH_HALF2(isinf, ::__hisinf2)
+MIGRAPHX_DEVICE_MATH_HALF2(isnan, ::__hisnan2)
+
 template <class T, class U>
 constexpr auto where(bool cond, const T& a, const U& b)
 {
@@ -134,6 +170,12 @@ template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)
 {
     return where(a < b, b, a);
+}
+
+template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto min(const T& a, const T& b)
+{
+    return where(a < b, a, b);
 }
 
 template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>

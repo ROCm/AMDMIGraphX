@@ -108,6 +108,8 @@ struct program
 
     std::vector<const module*> get_modules() const;
     std::vector<module*> get_modules();
+    
+    std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
     void remove_module(const std::string& name);
     void remove_unused_modules();

@@ -846,6 +846,23 @@ std::vector<module*> program::get_modules()
     return result;
 }
 
+template<class Module, class Map>
+void generic_insert_module_tree(Module* pm, Map& m)
+{
+    for(auto* sm:pm->get_sub_modules(true))
+    {
+        m.insert(std::make_pair(sm, pm));
+        generic_insert_module_tree(sm, m);
+    }
+}
+
+std::unordered_multimap<module_ref, module_ref> get_module_tree()
+{
+    std::unordered_multimap<module_ref, module_ref> result;
+    generic_insert_module_tree(this->get_main_module(), result);
+    return result;
+}
+
 template <class Map, class T>
 bool is_unused_module(Map& m, const std::vector<T*>& mods, const std::string& name)
 {

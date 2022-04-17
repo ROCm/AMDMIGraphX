@@ -846,10 +846,10 @@ std::vector<module*> program::get_modules()
     return result;
 }
 
-template<class Module, class Map>
+template <class Module, class Map>
 void generic_insert_module_tree(Module* pm, Map& m)
 {
-    for(auto* sm:pm->get_sub_modules(true))
+    for(auto* sm : pm->get_sub_modules(true))
     {
         m.insert(std::make_pair(sm, pm));
         generic_insert_module_tree(sm, m);

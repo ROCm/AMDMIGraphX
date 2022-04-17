@@ -797,7 +797,7 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     {
         const auto& mod_args = ins->module_inputs();
         vec_modules.insert(vec_modules.end(), mod_args.begin(), mod_args.end());
-        if (not shallow)
+        if(not shallow)
         {
             for(const auto& smod : mod_args)
             {

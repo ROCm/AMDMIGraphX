@@ -7,6 +7,7 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>

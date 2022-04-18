@@ -777,8 +777,9 @@ struct context
     migraphx_context_t ctx;
 
     void finish() const { call(&migraphx_context_finish, ctx); }
+
     template <class T>
-    T* get_queue()
+    T get_queue()
     {
         void* out;
         call(&migraphx_context_get_queue, &out, ctx);

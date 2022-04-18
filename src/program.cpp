@@ -836,6 +836,7 @@ std::vector<const module*> program::get_modules() const
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
+    assert(impl->modules.size() == result.size());
     return result;
 }
 
@@ -843,6 +844,7 @@ std::vector<module*> program::get_modules()
 {
     auto result = generic_get_modules(this->get_main_module());
     generic_get_unused_modules(impl->modules, result, std::back_inserter(result));
+    assert(impl->modules.size() == result.size());
     return result;
 }
 
@@ -856,7 +858,7 @@ void generic_insert_module_tree(Module* pm, Map& m)
     }
 }
 
-std::unordered_multimap<module_ref, module_ref> get_module_tree()
+std::unordered_multimap<module_ref, module_ref> program::get_module_tree()
 {
     std::unordered_multimap<module_ref, module_ref> result;
     generic_insert_module_tree(this->get_main_module(), result);

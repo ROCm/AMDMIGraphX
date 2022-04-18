@@ -193,6 +193,12 @@ bool equal(R1&& r1, R2&& r2)
     return std::equal(r1.begin(), r1.end(), r2.begin(), r2.end());
 }
 
+template <class Range>
+auto distance(Range&& r)
+{
+    return std::distance(r.begin(), r.end());
+}
+
 template <class R>
 using range_value = std::decay_t<decltype(*std::declval<R>().begin())>;
 

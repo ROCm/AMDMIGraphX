@@ -1,5 +1,6 @@
 import migraphx, array, sys
 
+
 def create_buffer(t, data, shape):
     a = array.array(t, data)
     if sys.version_info >= (3, 0):

@@ -1,9 +1,4 @@
 import migraphx, array, sys
-try:
-    import numpy as np
-except:
-    sys.exit()
-
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)

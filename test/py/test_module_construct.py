@@ -28,6 +28,7 @@ def test_add_op():
     output = p.run(params)[-1].tolist()
     assert output == list([3.0] * 9)
 
+
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")
     cond_shape = migraphx.shape(type="bool", lens=[1], strides=[0])

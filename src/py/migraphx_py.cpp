@@ -277,7 +277,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             "add_literal",
             [](migraphx::module& mm, py::buffer data) {
                 py::buffer_info info = data.request();
-                auto literal_shape = to_shape(info);
+                auto literal_shape   = to_shape(info);
                 return mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
             },
             py::arg("data"))

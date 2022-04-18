@@ -762,7 +762,7 @@ struct module
         return instruction(op_ins, own{});
     }
 
-    template<typename T>
+    template <typename T>
     instruction add_literal(const migraphx::shape& s, T* buffer)
     {
         migraphx_instruction_t literal_ins;

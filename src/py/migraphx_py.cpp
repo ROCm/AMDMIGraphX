@@ -275,11 +275,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("mod_args") = std::vector<migraphx::module*>{})
         .def(
             "add_literal",
-            [](migraphx::module& mm, const migraphx::shape& s, py::buffer data) {
+            [](migraphx::module& mm, py::buffer data) {
                 py::buffer_info info = data.request();
-                return mm.add_literal(s, reinterpret_cast<char*>(info.ptr));
+                auto literal_shape = to_shape(info);
+                return mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
             },
-            py::arg("s"),
             py::arg("data"))
         .def(
             "add_parameter",

@@ -9,11 +9,9 @@ TEST_CASE(add_op)
     migraphx::module m = p.get_main_module();
     migraphx::shape param_shape{migraphx_shape_float_type, {3, 3}};
     std::vector<float> x_values(9, 1);
-    // cppcheck-suppress invalidPointerCast
-    auto x = m.add_literal(param_shape, reinterpret_cast<char*>(x_values.data()));
+    auto x = m.add_literal(param_shape, x_values.data());
     std::vector<float> y_values(9, -1);
-    // cppcheck-suppress invalidPointerCast
-    auto y      = m.add_literal(param_shape, reinterpret_cast<char*>(y_values.data()));
+    auto y      = m.add_literal(param_shape, y_values.data());
     auto add_op = migraphx::operation("add");
     auto r      = m.add_instruction(add_op, {x, y});
     m.add_return({r});

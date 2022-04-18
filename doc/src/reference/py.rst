@@ -146,11 +146,10 @@ module
     :param list[module] mod_args: optional list of module arguments to the operator.
     :rtype instruction
 
-.. py:method:: add_literal(s, data)
+.. py:method:: add_literal(data)
 
     Adds constant or literal data of provided shape into the module from python array or numpy array.    
 
-    :param shape s: shape of the literal
     :param py::buffer data: Python array or numpy array 
     :rtype instruction 
 

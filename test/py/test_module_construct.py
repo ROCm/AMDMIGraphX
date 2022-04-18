@@ -19,17 +19,14 @@ def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
     param_shape = migraphx.shape(lens=[3, 3], type="float")
-    # test add_literal with python array
-    x = mm.add_literal(param_shape, create_buffer('f', [1.0] * 9, (3, 3)))
-    # test add_literal with numpy array
-    y = mm.add_literal(param_shape, np.ones((3, 3), dtype='float32'))
+    x = mm.add_literal(create_buffer('f', [1.0] * 9, (3, 3)))
+    y = mm.add_literal(create_buffer('f', [2.0] * 9, (3, 3)))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])
     mm.add_return([add_op])
     p.compile(migraphx.get_target("ref"))
     params = {}
     output = p.run(params)[-1].tolist()
-    assert output == list(2 * np.ones((9), dtype='float32'))
-
+    assert output == list([3.0] * 9)
 
 def test_if_then_else():
     param_shape = migraphx.shape(lens=[3, 3], type="float")

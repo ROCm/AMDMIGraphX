@@ -1,4 +1,4 @@
-import migraphx, sys, array
+import migraphx, sys
 try:
     import numpy as np
 except:
@@ -8,7 +8,6 @@ except:
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
-    param_shape = migraphx.shape(lens=[3, 3], type="float")
     x = mm.add_literal(np.ones((3, 3), dtype='float32'))
     y = mm.add_literal(2 * np.ones((3, 3), dtype='float32'))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])

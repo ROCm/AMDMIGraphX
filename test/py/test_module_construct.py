@@ -14,7 +14,6 @@ def create_buffer(t, data, shape):
 def test_add_op():
     p = migraphx.program()
     mm = p.get_main_module()
-    param_shape = migraphx.shape(lens=[3, 3], type="float")
     x = mm.add_literal(create_buffer('f', [1.0] * 9, (3, 3)))
     y = mm.add_literal(create_buffer('f', [2.0] * 9, (3, 3)))
     add_op = mm.add_instruction(migraphx.op("add"), [x, y])

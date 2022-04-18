@@ -43,14 +43,12 @@ void run_pass(program& prog, const pass& p, tracer trace)
 
 struct module_pm : module_pass_manager
 {
-    module* mod = nullptr;
-    tracer* t = nullptr;
+    module* mod           = nullptr;
+    tracer* t             = nullptr;
     module* common_parent = nullptr;
-    program* prog = nullptr;
+    program* prog         = nullptr;
 
-    module_pm(module* pmod = nullptr, tracer* pt = nullptr)
-    : mod(pmod), t(pt)
-    {}
+    module_pm(module* pmod = nullptr, tracer* pt = nullptr) : mod(pmod), t(pt) {}
 
     template <class... Ts>
     void trace(Ts&&... xs) const
@@ -69,10 +67,7 @@ struct module_pm : module_pass_manager
         assert(prog);
         return prog->create_module(name);
     }
-    virtual module* get_common_parent() override
-    {
-        return common_parent;
-    }
+    virtual module* get_common_parent() override { return common_parent; }
     virtual void run_pass(const pass& p) override
     {
         assert(mod);
@@ -109,7 +104,7 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
             if(mod->bypass())
                 continue;
             module_pm mpm{mod, &trace};
-            mpm.prog = &prog;
+            mpm.prog     = &prog;
             auto parents = range(tree.equal_range(mod));
             // Assume only one parent for now
             assert(distance(parents) < 2);

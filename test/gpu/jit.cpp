@@ -301,12 +301,12 @@ TEST_CASE(compile_math)
         // clang-format on
     };
     std::vector<std::string> data_types;
-    for(auto&& t:migraphx::shape::types())
+    for(auto&& t : migraphx::shape::types())
     {
-        if (contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if (t == migraphx::shape::half_type)
+        if(t == migraphx::shape::half_type)
             name = "migraphx::" + name;
         data_types.push_back(name);
         auto vec_sizes = {2, 4, 6};
@@ -321,10 +321,10 @@ TEST_CASE(compile_math)
     options.inputs = {input};
     options.output = input;
     migraphx::par_for(math_invoke.size() * data_types.size(), 1, [&](auto i) {
-        const auto& t = data_types[i % data_types.size()];
+        const auto& t      = data_types[i % data_types.size()];
         const auto& invoke = math_invoke[i / data_types.size()];
         auto src = migraphx::interpolate_string(math_template, {{"type", t}, {"invoke", invoke}});
-        auto co = migraphx::gpu::compile_hip_code_object(src, options);
+        auto co  = migraphx::gpu::compile_hip_code_object(src, options);
         (void)co;
     });
 }

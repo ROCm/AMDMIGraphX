@@ -114,7 +114,7 @@ __device__ auto preload(index idx, Ts... xs)
     constexpr auto size      = decltype(compute_preload_size<type>(make_shape_type(xs)...)){};
     const index_int max_size = 512 * sizeof(type);
     return [=](auto f) {
-        if constexpr(size > 0 and size < max_size)
+        if constexpr(size > 0 and size < max_size and false)
         {
             __shared__ type buffer[size];
             preload_copy(idx, f, buffer, xs...);

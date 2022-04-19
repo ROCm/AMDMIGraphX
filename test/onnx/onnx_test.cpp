@@ -1704,6 +1704,23 @@ TEST_CASE(globalavgpool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globallppool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    auto lens  = input->get_shape().lens();
+    op.lengths = {lens[2], lens[3]};
+    op.padding = {0, 0, 0, 0};
+    mm->add_instruction(op, input);
+
+    auto prog = optimize_onnx("globallppool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
@@ -2594,6 +2611,38 @@ TEST_CASE(lpnormalization_axis_error_test)
 TEST_CASE(lpnormalization_p_error_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("lpnormalization_p_error_test.onnx"); }));
+}
+
+TEST_CASE(lppool_l1_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                           {"padding", {0, 0}},
+                                           {"stride", {1}},
+                                           {"lengths", {3}},
+                                           {"lp_order", 1}}),
+                        l0);
+    auto prog = optimize_onnx("lppool_l1_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(lppool_l2_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                           {"padding", {0, 0}},
+                                           {"stride", {1}},
+                                           {"lengths", {3}},
+                                           {"lp_order", 2}}),
+                        l0);
+    auto prog = optimize_onnx("lppool_l2_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(lrn_test)

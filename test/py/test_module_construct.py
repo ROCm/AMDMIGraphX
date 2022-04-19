@@ -5,7 +5,7 @@ def create_buffer(t, data, shape):
     a = array.array(t, data)
     m = memoryview(a.tobytes())
     return m.cast(t, shape)
-    
+
 
 def test_add_op():
     p = migraphx.program()

@@ -1,10 +1,9 @@
-#include "migraphx/gpu/device/launch.hpp"
-#include <hip/amd_detail/amd_device_functions.h>
-#include <hip/amd_detail/amd_hip_runtime.h>
+#include <migraphx/gpu/device/launch.hpp>
 #include <migraphx/gpu/device/mul_add.hpp>
 #include <migraphx/gpu/device/nary.hpp>
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
+#include <hip/math_functions.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

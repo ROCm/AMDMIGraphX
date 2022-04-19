@@ -3,13 +3,9 @@ import migraphx, array, sys
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)
-    if sys.version_info >= (3, 0):
-        m = memoryview(a.tobytes())
-        return m.cast(t, shape)
-    else:
-        m = memoryview(a.tostring())
-        return m
-
+    m = memoryview(a.tobytes())
+    return m.cast(t, shape)
+    
 
 def test_add_op():
     p = migraphx.program()
@@ -65,5 +61,6 @@ def test_if_then_else():
 
 
 if __name__ == "__main__":
-    test_add_op()
+    if sys.version_info >= (3, 0):
+        test_add_op()
     test_if_then_else()

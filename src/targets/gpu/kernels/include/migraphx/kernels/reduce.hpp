@@ -235,7 +235,7 @@ struct lane
         auto idx                 = make_index();
         constexpr auto nelements = get_shape_c<Output>{}.elements();
         idx.global_stride(nelements, [&](auto i) {
-            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
+            const auto out_idx = get_shape_c<Output>{}.multi(i);
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
     }

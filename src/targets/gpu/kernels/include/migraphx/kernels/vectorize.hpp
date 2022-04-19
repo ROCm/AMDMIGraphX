@@ -110,14 +110,14 @@ template <class... Shapes>
 constexpr index_int find_vector_axis_c(Shapes... ss)
 {
     // const bool all_broadcasted = (ss.broadcasted() and ...);
-    index_int axis             = 0;
-    bool b                     = false;
+    index_int axis = 0;
+    bool b         = false;
     by([&](auto s) {
         if(b)
             return;
         // Skip broadcasted shapes if there are shapes not broadcasted
         // if(not all_broadcasted and s.broadcasted())
-            // return;
+        // return;
         axis = find_vector_axis_c(s);
         if(s.strides[axis] == 1)
             b = true;
@@ -154,7 +154,7 @@ constexpr auto find_vectorize_size(P pred)
 {
     // if constexpr(decltype(pred(_c<4>)){})
     //     return _c<4>;
-    // else 
+    // else
     if constexpr(decltype(pred(_c<2>)){})
         return _c<2>;
     else

@@ -45,7 +45,6 @@ struct tensor_view
                       i,
                       "Out of bounds access at offset: ",
                       ito.offset);
-        // MIGRAPHX_ASSERT(ito.offset < get_shape().element_space());
         return x[ito.offset];
     }
 

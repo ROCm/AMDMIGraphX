@@ -140,12 +140,14 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
     MIGRAPHX_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
 #ifdef MIGRAPHX_DEBUG
+// NOLINTNEXTLINE
 #define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) source_location_capture<T>
 #define MIGRAPHX_WARN(cond, loc, ...) MIGRAPHX_ASSERT_FAIL(cond, loc, __VA_ARGS__)
 #define MIGRAPHX_ASSERT MIGRAPHX_CHECK
 #define MIGRAPHX_ASSUME MIGRAPHX_CHECK
 #define MIGRAPHX_UNREACHABLE() MIGRAPHX_ASSERT(false)
 #else
+// NOLINTNEXTLINE
 #define MIGRAPHX_CAPTURE_SOURCE_LOCATION(T) T
 #define MIGRAPHX_ASSUME __builtin_assume
 #define MIGRAPHX_UNREACHABLE __builtin_unreachable

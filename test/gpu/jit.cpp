@@ -270,6 +270,7 @@ TEST_CASE(compile_pointwise)
 TEST_CASE(compile_math)
 {
     std::vector<std::string> math_invoke = {
+        // clang-format off
         "abs(x)",
         "acos(x)",
         "acosh(x)",
@@ -297,6 +298,7 @@ TEST_CASE(compile_math)
         "tan(x)",
         "tanh(x)",
         "where(true, x, x)",
+        // clang-format on
     };
     std::vector<std::string> data_types;
     for(auto&& t:migraphx::shape::types())

@@ -43,12 +43,12 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 {
     std::vector<std::string> names() const { return {"pointwise"}; }
 
-    static std::size_t oversubscribe(bool preloading)
+    static std::size_t oversubscribe_if(bool b)
     {
-        if(preloading)
-            return 1;
-        else
+        if(b)
             return 256;
+        else
+            return 1;
     }
     static std::size_t find_fast_axis(const std::vector<shape>& inputs)
     {
@@ -134,7 +134,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.set_launch_params(v,
                                   compute_global_for(ctx,
                                                      options.output.elements() / vec_size,
-                                                     oversubscribe(is_preloading)));
+                                                     oversubscribe_if(not is_preloading)));
         auto src = interpolate_string(pointwise_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},

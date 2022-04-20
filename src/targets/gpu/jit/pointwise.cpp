@@ -45,7 +45,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
 
     static std::size_t oversubscribe(bool preloading)
     {
-        if (preloading)
+        if(preloading)
             return 1;
         else
             return 256;
@@ -53,32 +53,38 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     static std::size_t find_fast_axis(const std::vector<shape>& inputs)
     {
         auto permutation = find_permutation(inputs);
-        auto it = std::max_element(permutation.begin(), permutation.end());
+        auto it          = std::max_element(permutation.begin(), permutation.end());
         return it - permutation.begin();
     }
     static std::vector<bool> preload(std::size_t axis, const std::vector<shape>& inputs)
     {
         const std::size_t max_lds_bytes = 4096;
         std::vector<bool> result;
-        std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& input) {
-            return input.strides()[axis] == 0;
-        });
-        auto bytes = std::inner_product(inputs.begin(), inputs.end(), result.begin(), std::size_t{0}, std::plus<>{}, [](const shape& s, bool b) -> std::size_t {
-            if (b)
-                return s.bytes();
-            return 0;
-        });
-        if (bytes < max_lds_bytes)
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       std::back_inserter(result),
+                       [&](const shape& input) { return input.strides()[axis] == 0; });
+        auto bytes = std::inner_product(inputs.begin(),
+                                        inputs.end(),
+                                        result.begin(),
+                                        std::size_t{0},
+                                        std::plus<>{},
+                                        [](const shape& s, bool b) -> std::size_t {
+                                            if(b)
+                                                return s.bytes();
+                                            return 0;
+                                        });
+        if(bytes < max_lds_bytes)
             return result;
         // TODO: Try to partially preload items
         std::fill(result.begin(), result.end(), false);
-        return result;    
+        return result;
     }
     static std::string preload_str(const std::vector<bool>& bs)
     {
         std::vector<std::string> bool_strs;
         std::transform(bs.begin(), std::prev(bs.end()), std::back_inserter(bool_strs), [](bool b) {
-            if (b)
+            if(b)
                 return "true";
             return "false";
         });
@@ -116,17 +122,19 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs            = inputs;
-        options.output            = inputs.back();
-        options.virtual_inputs    = reduce_dims(inputs);
-        options.params            = "-Wno-float-equal";
-        auto axis = find_fast_axis(options.virtual_inputs);
-        auto vec_size = vectorize_elements(axis, options.virtual_inputs);
-        auto preloads = preload(axis, options.virtual_inputs);
-        auto is_preloading = std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
-        options.set_launch_params(
-            v,
-            compute_global_for(ctx, options.output.elements() / vec_size, oversubscribe(is_preloading)));
+        options.inputs         = inputs;
+        options.output         = inputs.back();
+        options.virtual_inputs = reduce_dims(inputs);
+        options.params         = "-Wno-float-equal";
+        auto axis              = find_fast_axis(options.virtual_inputs);
+        auto vec_size          = vectorize_elements(axis, options.virtual_inputs);
+        auto preloads          = preload(axis, options.virtual_inputs);
+        auto is_preloading =
+            std::accumulate(preloads.begin(), preloads.end(), false, std::logical_or<>{});
+        options.set_launch_params(v,
+                                  compute_global_for(ctx,
+                                                     options.output.elements() / vec_size,
+                                                     oversubscribe(is_preloading)));
         auto src = interpolate_string(pointwise_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},

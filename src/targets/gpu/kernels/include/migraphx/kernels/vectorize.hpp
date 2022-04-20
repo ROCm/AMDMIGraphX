@@ -218,7 +218,7 @@ inline __device__ __host__ auto auto_vectorize()
     return [](auto... xs) { return [=](auto f) { auto_vectorize_impl(f, xs...); }; };
 }
 
-template<index_int N, index_int Axis, class T>
+template <index_int N, index_int Axis, class T>
 __device__ __host__ auto vectorize_tensor(T x)
 {
     constexpr auto shape = get_shape_c<T>{};
@@ -228,10 +228,11 @@ __device__ __host__ auto vectorize_tensor(T x)
         return as_vec<N>(x, _c<Axis>);
 }
 
-template<index_int N, index_int Axis>
+template <index_int N, index_int Axis>
 __device__ __host__ auto vectorize()
 {
-    return [](auto... xs) { return [=](auto f) {
+    return [](auto... xs) {
+        return [=](auto f) {
             if constexpr(N < 2)
             {
                 f(xs...);

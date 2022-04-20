@@ -51,7 +51,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     }
     static auto vectorize_elements(const std::vector<shape>& inputs)
     {
-        std::size_t n = 1;
+        std::size_t n    = 1;
         std::size_t axis = 0;
         return std::make_pair(n, axis);
     }
@@ -72,14 +72,15 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
-        options.params         = "-Wno-float-equal";
-        auto[vec_size, vec_axis] = vectorize_elements(options.virtual_inputs);
+        options.inputs            = inputs;
+        options.output            = inputs.back();
+        options.virtual_inputs    = reduce_dims(inputs);
+        options.params            = "-Wno-float-equal";
+        auto [vec_size, vec_axis] = vectorize_elements(options.virtual_inputs);
         options.set_launch_params(
-            v, compute_global_for(ctx, options.output.elements() / vec_size, oversubscribe(inputs)));
-        auto src               = interpolate_string(pointwise_kernel,
+            v,
+            compute_global_for(ctx, options.output.elements() / vec_size, oversubscribe(inputs)));
+        auto src = interpolate_string(pointwise_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"lambda", v.at("lambda").to<std::string>()},

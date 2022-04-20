@@ -28,7 +28,8 @@ ${preamble}
 extern "C" {
 __global__ void kernel(${params}) 
 {
-    pointwise(${lambda}, ${args});
+    pointwise(vectorize<${vec_size}, ${vec_axis}>())(${lambda}, ${args});
+    // pointwise(transform_args())(${lambda}, ${args});
 }
     
 }
@@ -48,33 +49,42 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
             return 256;
     }
-    static std::size_t vectorize_elements(const std::vector<shape>& inputs)
+    static auto vectorize_elements(const std::vector<shape>& inputs)
     {
-        std::size_t n = inputs.front().elements();
-        if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
-               return s.packed() or s.broadcasted();
-           }))
-        {
-            if((n % 4) == 0)
-                return n / 4;
-            else if((n % 2) == 0)
-                return n / 2;
-        }
-        return n;
+        std::size_t n = 1;
+        std::size_t axis = 0;
+        return std::make_pair(n, axis);
     }
+    // static std::size_t vectorize_elements(const std::vector<shape>& inputs)
+    // {
+    //     std::size_t n = inputs.front().elements();
+    //     if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
+    //            return s.packed() or s.broadcasted();
+    //        }))
+    //     {
+    //         if((n % 4) == 0)
+    //             return n / 4;
+    //         else if((n % 2) == 0)
+    //             return n / 2;
+    //     }
+    //     return n;
+    // }
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.set_launch_params(
-            v, compute_global_for(ctx, vectorize_elements(inputs), oversubscribe(inputs)));
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(inputs);
         options.params         = "-Wno-float-equal";
+        auto[vec_size, vec_axis] = vectorize_elements(options.virtual_inputs);
+        options.set_launch_params(
+            v, compute_global_for(ctx, options.output.elements() / vec_size, oversubscribe(inputs)));
         auto src               = interpolate_string(pointwise_kernel,
                                       {{"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"lambda", v.at("lambda").to<std::string>()},
+                                       {"vec_size", std::to_string(vec_size)},
+                                       {"vec_axis", std::to_string(vec_axis)},
                                        {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);
     }

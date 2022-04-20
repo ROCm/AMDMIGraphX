@@ -73,7 +73,7 @@ __device__ auto preload_copy(index idx, F f, __shared__ T* buffer, Ts... xs)
             {
                 if constexpr(decltype(tensor_vec_size(x)){} == 0)
                 {
-                    auto v = vectorize(x);
+                    auto v = auto_vectorize(x);
                     auto b = as_vec(tensor_vec_size(v), buffer + offset);
                     idx.local_stride(v.get_shape().element_space(),
                                      [&](auto i) { b[i] = v.data()[i]; });

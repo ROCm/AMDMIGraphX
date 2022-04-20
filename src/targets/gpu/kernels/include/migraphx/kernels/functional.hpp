@@ -203,12 +203,17 @@ inline constexpr auto rotate_last()
     };
 }
 
+inline constexpr auto transform_args()
+{
+    return [=](auto... xs) {
+        return [=](auto f) { return f(xs...); };
+    };
+}
+
 template <class F>
 constexpr auto transform_args(F f)
 {
-    return [=](auto... xs) {
-        return [=](auto g) { return f(xs...)([&](auto... ys) { return g(ys...); }); };
-    };
+    return f;
 }
 
 template <class F, class... Fs>

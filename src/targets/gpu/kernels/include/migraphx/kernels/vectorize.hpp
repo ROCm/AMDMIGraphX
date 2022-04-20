@@ -161,7 +161,7 @@ constexpr auto find_vectorize_size(P pred)
 }
 
 template <class T>
-__host__ __device__ auto vectorize(T x)
+__host__ __device__ auto auto_vectorize(T x)
 {
     if constexpr(tensor_vec_size<T>() == 0)
     {
@@ -216,6 +216,32 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
 inline __device__ __host__ auto auto_vectorize()
 {
     return [](auto... xs) { return [=](auto f) { auto_vectorize_impl(f, xs...); }; };
+}
+
+template<index_int N, index_int Axis, class T>
+__device__ __host__ auto vectorize_tensor(T x)
+{
+    constexpr auto shape = get_shape_c<T>{};
+    if constexpr(shape.strides[Axis] == 0)
+        return tensor_step<N>(x, _c<Axis>);
+    else
+        return as_vec<N>(x, _c<Axis>);
+}
+
+template<index_int N, index_int Axis>
+__device__ __host__ auto vectorize()
+{
+    return [](auto... xs) { return [=](auto f) {
+            if constexpr(N < 2)
+            {
+                f(xs...);
+            }
+            else
+            {
+                f(vectorize_tensor<N, Axis>(xs)...);
+            }
+        };
+    };
 }
 
 } // namespace migraphx

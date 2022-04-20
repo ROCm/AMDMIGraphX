@@ -466,8 +466,8 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs.at(1));
             auto synced_max_iter =
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
-            inputs.at(0) = synced_max_iter;
-            inputs.at(1) = cpu_cond;
+            inputs.at(0)     = synced_max_iter;
+            inputs.at(1)     = cpu_cond;
             auto copy_inputs = inputs;
             std::transform(
                 copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
@@ -479,7 +479,7 @@ struct miopen_apply
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
-            auto cond_out = mod->insert_instruction(
+            auto cond_out       = mod->insert_instruction(
                 ins,
                 make_op("hip::allocate",
                         {{"shape", to_value(sub_mod->get_output_shapes().front())}}));

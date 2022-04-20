@@ -28,8 +28,8 @@ ${preamble}
 extern "C" {
 __global__ void kernel(${params}) 
 {
-    pointwise(vectorize<${vec_size}, ${vec_axis}>())(${lambda}, ${args});
-    // pointwise(transform_args())(${lambda}, ${args});
+    auto idx = make_index();
+    pointwise(idx, auto_preload(idx), vectorize<${vec_size}, ${vec_axis}>())(${lambda}, ${args});
 }
     
 }
@@ -49,26 +49,45 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
             return 256;
     }
+    static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
+    {
+        // If all inputs is half then only use half2
+        if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.type() == shape::half_type; }))
+            return {2};
+        return {4, 2};
+
+    }
     static auto vectorize_elements(const std::vector<shape>& inputs)
     {
         std::size_t n    = 1;
-        std::size_t axis = 0;
+        std::size_t rank = inputs.front().lens().size();
+        std::size_t axis = rank;
+        for(const auto& input:inputs)
+        {
+            if (input.broadcasted())
+                continue;
+            axis = std::distance(input.strides().begin(), std::find(input.strides().begin(), input.strides().end(), 1));
+            break;
+        }
+        if (axis >= rank)
+            return std::make_pair(n, axis);
+        auto sizes = vector_sizes(inputs);
+        std::vector<std::size_t> max_vec_size;
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(max_vec_size), [&](const auto& input) -> std::size_t {
+            auto stride = input.strides()[axis];
+            auto len = input.lens()[axis];
+            if (stride != 0 and stride != 1)
+                return 1;
+            auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto i) {
+                return (len % i) == 0;
+            });
+            if (it != sizes.end())
+                return *it;
+            return 1;
+        });
+        n = *std::min_element(max_vec_size.begin(), max_vec_size.end());
         return std::make_pair(n, axis);
     }
-    // static std::size_t vectorize_elements(const std::vector<shape>& inputs)
-    // {
-    //     std::size_t n = inputs.front().elements();
-    //     if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
-    //            return s.packed() or s.broadcasted();
-    //        }))
-    //     {
-    //         if((n % 4) == 0)
-    //             return n / 4;
-    //         else if((n % 2) == 0)
-    //             return n / 2;
-    //     }
-    //     return n;
-    // }
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;

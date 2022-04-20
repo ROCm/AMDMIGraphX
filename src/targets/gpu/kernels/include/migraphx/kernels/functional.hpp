@@ -3,6 +3,14 @@
 
 #include <migraphx/kernels/array.hpp>
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_RETURNS(...) \
+    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_LIFT(...) \
+    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
+
 namespace migraphx {
 
 struct swallow
@@ -161,6 +169,24 @@ constexpr auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
+template<class G, class F>
+constexpr auto join(G g, F f) 
+{
+    return f([=](auto... xs) {
+        return g(xs...);
+    });
+}
+
+template<class G, class F, class... Fs>
+constexpr auto join(G g, F f, Fs... fs) 
+{
+    return f([=](auto... xs) {
+        return join([=](auto... ys) {
+            return g(xs..., ys...);
+        }, fs...);
+    });
+}
+
 template <class Compare, class P1, class P2>
 constexpr auto pack_compare(Compare compare, P1 p1, P2 p2)
 {
@@ -203,11 +229,9 @@ inline constexpr auto rotate_last()
     };
 }
 
-inline constexpr auto transform_args()
-{
-    return [=](auto... xs) { return [=](auto f) { return f(xs...); }; };
-}
-
+// An arg transformation takes the arguments and then a function to take the new arguments:
+//     transform(xs...)([](auto... ys) { ... })
+// The transform_args function takes a list of transformations and continually applies them
 template <class F>
 constexpr auto transform_args(F f)
 {
@@ -217,16 +241,21 @@ constexpr auto transform_args(F f)
 template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
-    return [=](auto... xs) { return transform_args(f)(xs...)(transform_args(fs...)); };
+    return [=](auto... xs) {
+        return [=] (auto g) {
+            return f(xs...)([=](auto... ys) {
+                return transform_args(fs...)(ys...)(g);
+            });
+        };
+    };
 }
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_RETURNS(...) \
-    ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+// identity transform
+inline constexpr auto transform_args()
+{
+    return [=](auto... xs) { return [=](auto f) { return f(xs...); }; };
+}
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_LIFT(...) \
-    [](auto&&... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(static_cast<decltype(xs)>(xs)...))
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

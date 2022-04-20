@@ -131,9 +131,7 @@ __device__ auto auto_preload(index idx)
 {
     return [=](auto out, auto... xs) {
         return [=](auto f) {
-            preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) {
-                f(out, ys...);
-            });
+            preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) { f(out, ys...); });
         };
     };
 }
@@ -144,13 +142,12 @@ __device__ auto preload_copy(index idx, T x)
     return [=](auto f) {
         if constexpr(B)
         {
-            using type = typename T::type;
+            using type          = typename T::type;
             constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
             auto v = auto_vectorize(x);
             auto b = as_vec(tensor_vec_size(v), buffer);
-            idx.local_stride(v.get_shape().element_space(),
-                             [&](auto i) { b[i] = v.data()[i]; });
+            idx.local_stride(v.get_shape().element_space(), [&](auto i) { b[i] = v.data()[i]; });
             return f(x.with(buffer));
         }
         else
@@ -163,11 +160,7 @@ __device__ auto preload_copy(index idx, T x)
 template <bool... Bs>
 __device__ auto auto_preload(index idx)
 {
-    return [=](auto... xs) {
-        return [=](auto f) {
-            join(f, preload_copy<Bs>(idx, xs)...);
-        };
-    };
+    return [=](auto... xs) { return [=](auto f) { join(f, preload_copy<Bs>(idx, xs)...); }; };
 }
 
 } // namespace migraphx

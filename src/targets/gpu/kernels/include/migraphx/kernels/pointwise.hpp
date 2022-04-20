@@ -47,9 +47,7 @@ __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
         auto t = transform_args(make_tensors(), rotate_last(), transforms...);
-        t(ps...)([&](auto... xs) {
-            pointwise_tensor(idx, f, xs...);
-        });
+        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
     };
 }
 

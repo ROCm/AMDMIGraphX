@@ -52,39 +52,43 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     static std::vector<std::size_t> vector_sizes(const std::vector<shape>& inputs)
     {
         // If all inputs is half then only use half2
-        if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) { return s.type() == shape::half_type; }))
+        if(std::all_of(inputs.begin(), inputs.end(), [](const auto& s) {
+               return s.type() == shape::half_type;
+           }))
             return {2};
         return {4, 2};
-
     }
     static auto vectorize_elements(const std::vector<shape>& inputs)
     {
         std::size_t n    = 1;
         std::size_t rank = inputs.front().lens().size();
         std::size_t axis = rank;
-        for(const auto& input:inputs)
+        for(const auto& input : inputs)
         {
-            if (input.broadcasted())
+            if(input.broadcasted())
                 continue;
-            axis = std::distance(input.strides().begin(), std::find(input.strides().begin(), input.strides().end(), 1));
+            axis = std::distance(input.strides().begin(),
+                                 std::find(input.strides().begin(), input.strides().end(), 1));
             break;
         }
-        if (axis >= rank)
+        if(axis >= rank)
             return std::make_pair(n, axis);
         auto sizes = vector_sizes(inputs);
         std::vector<std::size_t> max_vec_size;
-        std::transform(inputs.begin(), inputs.end(), std::back_inserter(max_vec_size), [&](const auto& input) -> std::size_t {
-            auto stride = input.strides()[axis];
-            auto len = input.lens()[axis];
-            if (stride != 0 and stride != 1)
-                return 1;
-            auto it = std::find_if(sizes.begin(), sizes.end(), [&](auto i) {
-                return (len % i) == 0;
-            });
-            if (it != sizes.end())
-                return *it;
-            return 1;
-        });
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       std::back_inserter(max_vec_size),
+                       [&](const auto& input) -> std::size_t {
+                           auto stride = input.strides()[axis];
+                           auto len    = input.lens()[axis];
+                           if(stride != 0 and stride != 1)
+                               return 1;
+                           auto it = std::find_if(
+                               sizes.begin(), sizes.end(), [&](auto i) { return (len % i) == 0; });
+                           if(it != sizes.end())
+                               return *it;
+                           return 1;
+                       });
         n = *std::min_element(max_vec_size.begin(), max_vec_size.end());
         return std::make_pair(n, axis);
     }

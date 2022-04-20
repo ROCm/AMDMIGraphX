@@ -249,14 +249,13 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
-        for(const auto& src:srcs)
+        for(const auto& src : srcs)
         {
-            if (src.path.extension() != ".cpp")
+            if(src.path.extension() != ".cpp")
                 continue;
             std::cout << std::string(src.content.first, src.len()) << std::endl;
         }
     }
-
 
     if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
     {

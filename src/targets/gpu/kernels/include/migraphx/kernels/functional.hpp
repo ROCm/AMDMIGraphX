@@ -169,22 +169,16 @@ constexpr auto pack(Ts... xs)
     return [=](auto f) { return f(xs...); };
 }
 
-template<class G, class F>
-constexpr auto join(G g, F f) 
+template <class G, class F>
+constexpr auto join(G g, F f)
 {
-    return f([=](auto... xs) {
-        return g(xs...);
-    });
+    return f([=](auto... xs) { return g(xs...); });
 }
 
-template<class G, class F, class... Fs>
-constexpr auto join(G g, F f, Fs... fs) 
+template <class G, class F, class... Fs>
+constexpr auto join(G g, F f, Fs... fs)
 {
-    return f([=](auto... xs) {
-        return join([=](auto... ys) {
-            return g(xs..., ys...);
-        }, fs...);
-    });
+    return f([=](auto... xs) { return join([=](auto... ys) { return g(xs..., ys...); }, fs...); });
 }
 
 template <class Compare, class P1, class P2>
@@ -242,10 +236,8 @@ template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
     return [=](auto... xs) {
-        return [=] (auto g) {
-            return f(xs...)([=](auto... ys) {
-                return transform_args(fs...)(ys...)(g);
-            });
+        return [=](auto g) {
+            return f(xs...)([=](auto... ys) { return transform_args(fs...)(ys...)(g); });
         };
     };
 }
@@ -255,7 +247,6 @@ inline constexpr auto transform_args()
 {
     return [=](auto... xs) { return [=](auto f) { return f(xs...); }; };
 }
-
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

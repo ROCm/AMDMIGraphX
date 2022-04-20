@@ -211,14 +211,12 @@ constexpr auto arg(IntegralConstant ic)
     return arg_c<ic>();
 }
 
-inline constexpr auto rotate_last()
+template<class F>
+constexpr auto make_transform(F f)
 {
-    return [](auto... xs) {
-        return [=](auto&& f) {
-            return sequence_c<sizeof...(xs)>([&](auto... is) {
-                constexpr auto size = sizeof...(is);
-                return f(arg_c<(is + size - 1) % size>()(xs...)...);
-            });
+    return [=](auto... xs) {
+        return [=](auto g) {
+            return f(g, xs...);
         };
     };
 }
@@ -235,18 +233,30 @@ constexpr auto transform_args(F f)
 template <class F, class... Fs>
 constexpr auto transform_args(F f, Fs... fs)
 {
-    return [=](auto... xs) {
-        return [=](auto g) {
-            return f(xs...)([=](auto... ys) { return transform_args(fs...)(ys...)(g); });
-        };
-    };
+    return make_transform([=](auto g, auto... xs) {
+        return f(xs...)([=](auto... ys) { return transform_args(fs...)(ys...)(g); });
+    });
 }
 
 // identity transform
 inline constexpr auto transform_args()
 {
-    return [=](auto... xs) { return [=](auto f) { return f(xs...); }; };
+    return make_transform([](auto f, auto... xs) {
+        return f(xs...);
+    });
 }
+
+// Rotate the first argument to the last argument
+inline constexpr auto rotate_last()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<sizeof...(xs)>([&](auto... is) {
+            constexpr auto size = sizeof...(is);
+            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+        });
+    });
+}
+
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

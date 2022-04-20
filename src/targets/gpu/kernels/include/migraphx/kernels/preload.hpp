@@ -129,11 +129,9 @@ __device__ auto preload(index idx, Ts... xs)
 
 __device__ auto auto_preload(index idx)
 {
-    return [=](auto out, auto... xs) {
-        return [=](auto f) {
-            preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) { f(out, ys...); });
-        };
-    };
+    return make_transform([=](auto f, auto out, auto... xs) {
+        preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) { f(out, ys...); });
+    });
 }
 
 template <bool B, class T>
@@ -160,7 +158,13 @@ __device__ auto preload_copy(index idx, T x)
 template <bool... Bs>
 __device__ auto auto_preload(index idx)
 {
-    return [=](auto... xs) { return [=](auto f) { join(f, preload_copy<Bs>(idx, xs)...); }; };
+    return make_transform([=](auto f, auto... xs) {
+        auto invoke = [=](auto... ys) {
+            __syncthreads();
+            f(ys...);
+        };
+        join(invoke, preload_copy<Bs>(idx, xs)...); 
+    });
 }
 
 } // namespace migraphx

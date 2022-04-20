@@ -215,7 +215,7 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
 
 inline __device__ __host__ auto auto_vectorize()
 {
-    return [](auto... xs) { return [=](auto f) { auto_vectorize_impl(f, xs...); }; };
+    return make_transform([](auto f, auto... xs) { auto_vectorize_impl(f, xs...); });
 }
 
 template <index_int N, index_int Axis, class T>
@@ -231,18 +231,16 @@ __device__ __host__ auto vectorize_tensor(T x)
 template <index_int N, index_int Axis>
 __device__ __host__ auto vectorize()
 {
-    return [](auto... xs) {
-        return [=](auto f) {
-            if constexpr(N < 2)
-            {
-                f(xs...);
-            }
-            else
-            {
-                f(vectorize_tensor<N, Axis>(xs)...);
-            }
-        };
-    };
+    return make_transform([](auto f, auto... xs) {
+        if constexpr(N < 2)
+        {
+            f(xs...);
+        }
+        else
+        {
+            f(vectorize_tensor<N, Axis>(xs)...);
+        }
+    });
 }
 
 } // namespace migraphx

@@ -468,11 +468,9 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
             inputs.at(0) = synced_max_iter;
             inputs.at(1) = cpu_cond;
-            // mod->debug_print(inputs);
             auto copy_inputs = inputs;
             std::transform(
                 copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
-                    // return insert_allocation(ins, in->get_shape());
                     return mod->insert_instruction(
                         ins, make_op("hip::allocate", {{"shape", to_value(in->get_shape())}}));
                 });
@@ -481,7 +479,6 @@ struct miopen_apply
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
-            // auto cond_out = insert_allocation(ins, sub_mod->get_output_shapes().front());
             auto cond_out = mod->insert_instruction(
                 ins,
                 make_op("hip::allocate",

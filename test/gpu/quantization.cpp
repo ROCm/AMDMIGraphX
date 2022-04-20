@@ -85,8 +85,6 @@ TEST_CASE(int8_quantization)
         migraphx::target ref_t = migraphx::ref::target{};
         run_prog(p, ref_t, m, ref_result);
 
-        std::cout << "HERE" << std::endl;
-
         std::vector<float> gpu_result;
         migraphx::target gpu_t = migraphx::gpu::target{};
         run_prog(p, gpu_t, m, gpu_result);

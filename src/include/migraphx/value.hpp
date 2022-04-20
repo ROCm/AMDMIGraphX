@@ -362,7 +362,7 @@ struct value
         v(this->get_##vt());                             \
         return;                                          \
     }
-            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE)
+            MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_CASE_VALUE)
             MIGRAPHX_VALUE_GENERATE_CASE(array, )
             MIGRAPHX_VALUE_GENERATE_CASE(object, )
         }
@@ -434,6 +434,8 @@ struct value
 
     void debug_print(bool show_type = false) const;
 
+    type_t get_type() const;
+
     private:
     template <class T>
     std::vector<value> from_values(const T& r)
@@ -443,7 +445,6 @@ struct value
             r.begin(), r.end(), std::back_inserter(v), [&](auto&& e) { return value(e); });
         return v;
     }
-    type_t get_type() const;
     std::shared_ptr<value_base_impl> x;
     std::string key;
 };

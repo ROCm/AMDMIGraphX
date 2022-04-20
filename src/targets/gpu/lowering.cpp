@@ -181,16 +181,11 @@ struct miopen_apply
         add_extend_op("pad");
         add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
-        add_extend_op("reduce_max");
-        add_extend_op("reduce_mean");
-        add_extend_op("reduce_min");
-        add_extend_op("reduce_prod");
-        add_extend_op("reduce_sum");
         add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
-        add_extend_op("scatter");
+        add_extend_op("scatter_none");
         add_extend_op("softmax");
         add_extend_op("topk");
 
@@ -362,6 +357,9 @@ struct miopen_apply
             return mod->replace_instruction(ins, conv, args[0], args[1], workspace, output);
         });
     }
+
+    // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
+    // the fields Since it doesn't have fields its default constructed
 
     void add_generic_op(const std::string& name) { add_generic_op(name, "gpu::" + name); }
 

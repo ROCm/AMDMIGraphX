@@ -73,12 +73,19 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
     abort();
 }
 
-#ifdef MIGRAPHX_DEBUG
-#define MIGRAPHX_ASSERT(cond)                               \
+// NOLINTNEXTLINE
+#define MIGRAPHX_CHECK(cond)                                \
     ((cond) ? void(0) : [](auto&&... private_migraphx_xs) { \
         assert_fail(private_migraphx_xs...);                \
     }(#cond, __FILE__, MIGRAPHX_STRINGIZE(__LINE__), __PRETTY_FUNCTION__))
+
+#ifdef MIGRAPHX_DEBUG
+#define MIGRAPHX_ASSERT MIGRAPHX_CHECK
+#define MIGRAPHX_ASSUME MIGRAPHX_CHECK
+#define MIGRAPHX_UNREACHABLE() MIGRAPHX_ASSERT(false)
 #else
+#define MIGRAPHX_ASSUME __builtin_assume
+#define MIGRAPHX_UNREACHABLE __builtin_unreachable
 #define MIGRAPHX_ASSERT(cond)
 #endif
 

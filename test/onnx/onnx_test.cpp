@@ -4239,26 +4239,22 @@ TEST_CASE(reversesequence_batch_test)
     int batch_size = sx.lens()[batch_axis];
     int time_size  = sx.lens()[time_axis];
 
-    auto ret = mm->add_instruction(
-        migraphx::make_op(
-            "slice",
-            {{"axes", {batch_axis, time_axis}}, {"starts", {0, 0}}, {"ends", {1, time_size}}}),
-        input);
+    auto add_slice =
+        [&mm, &input, batch_axis, time_axis](int b_start, int b_end, int t_start, int t_end) {
+            return mm->add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", {batch_axis, time_axis}},
+                                                          {"starts", {b_start, t_start}},
+                                                          {"ends", {b_end, t_end}}}),
+                                       input);
+        };
+    auto ret = add_slice(0, 1, 0, time_size);
     for(int b = 1; b < batch_size; ++b)
     {
-        auto s0 = mm->add_instruction(migraphx::make_op("slice",
-                                                        {{"axes", {batch_axis, time_axis}},
-                                                         {"starts", {b, 0}},
-                                                         {"ends", {b + 1, sequence_lens[b]}}}),
-                                      input);
+        auto s0 = add_slice(b, b + 1, 0, sequence_lens[b]);
         s0      = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {time_axis}}}), s0);
         if(sequence_lens[b] < time_size)
         {
-            auto s1 = mm->add_instruction(migraphx::make_op("slice",
-                                                            {{"axes", {batch_axis, time_axis}},
-                                                             {"starts", {b, sequence_lens[b]}},
-                                                             {"ends", {b + 1, time_size}}}),
-                                          input);
+            auto s1 = add_slice(b, b + 1, sequence_lens[b], time_size);
             s0 = mm->add_instruction(migraphx::make_op("concat", {{"axis", time_axis}}), s0, s1);
         }
         ret = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
@@ -4310,22 +4306,23 @@ TEST_CASE(reversesequence_time_test)
     int time_size                      = sx.lens()[time_axis];
     std::vector<int64_t> sequence_lens = {4, 3, 2, 1};
 
+    auto add_slice =
+        [&mm, &input, batch_axis, time_axis](int b_start, int b_end, int t_start, int t_end) {
+            return mm->add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", {batch_axis, time_axis}},
+                                                          {"starts", {b_start, t_start}},
+                                                          {"ends", {b_end, t_end}}}),
+                                       input);
+        };
+
     migraphx::instruction_ref ret;
     for(int b = 0; b < batch_size - 1; ++b)
     {
-        auto s0 = mm->add_instruction(migraphx::make_op("slice",
-                                                        {{"axes", {batch_axis, time_axis}},
-                                                         {"starts", {b, 0}},
-                                                         {"ends", {b + 1, sequence_lens[b]}}}),
-                                      input);
+        auto s0 = add_slice(b, b + 1, 0, sequence_lens[b]);
         s0      = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {time_axis}}}), s0);
         if(sequence_lens[b] < time_size)
         {
-            auto s1 = mm->add_instruction(migraphx::make_op("slice",
-                                                            {{"axes", {batch_axis, time_axis}},
-                                                             {"starts", {b, sequence_lens[b]}},
-                                                             {"ends", {b + 1, time_size}}}),
-                                          input);
+            auto s1 = add_slice(b, b + 1, sequence_lens[b], time_size);
             s0 = mm->add_instruction(migraphx::make_op("concat", {{"axis", time_axis}}), s0, s1);
         }
         if(b == 0)
@@ -4337,11 +4334,7 @@ TEST_CASE(reversesequence_time_test)
             ret = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
         }
     }
-    auto s0 = mm->add_instruction(migraphx::make_op("slice",
-                                                    {{"axes", {batch_axis, time_axis}},
-                                                     {"starts", {batch_size - 1, 0}},
-                                                     {"ends", {batch_size, time_size}}}),
-                                  input);
+    auto s0 = add_slice(batch_size - 1, batch_size, 0, time_size);
     ret     = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
     mm->add_return({ret});
 

@@ -32,7 +32,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
         }
         if(batch_axis != 0 and batch_axis != 1)
         {
-            MIGRAPHX_THROW("PARSE_REVERSESEQUENCE: batch axis not 0 or 1");
+            MIGRAPHX_THROW("REVERSESEQUENCE: batch axis not 0 or 1");
         }
 
         int time_axis = 0;
@@ -61,8 +61,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
         if(args.size() == 2)
         {
             migraphx::argument seq_lens_arg = args.back()->eval();
-            check_arg_empty(seq_lens_arg,
-                            "PARSE_REVERSESEQUENCE: cannot handle variable sequence_lens");
+            check_arg_empty(seq_lens_arg, "REVERSESEQUENCE: cannot handle variable sequence_lens");
             seq_lens_arg.visit([&](auto s) { sequence_lens.assign(s.begin(), s.end()); });
         }
         else if(contains(info.attributes, "sequence_lens"))
@@ -73,7 +72,7 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
         auto batch_size = input_lens[batch_axis];
         auto time_size  = input_lens[time_axis];
 
-        // this condition may still work even if the inputted shape was incorrect
+        // this condition may still work if sequence_len's shape was incorrect
         if(sequence_lens.size() != batch_size)
         {
             MIGRAPHX_THROW("REVERSESEQUENCE: sequence_lens has incorrect shape");
@@ -81,36 +80,32 @@ struct parse_reversesequence : op_parser<parse_reversesequence>
 
         instruction_ref ret;
 
+        auto add_slice = [&info, &input, batch_axis, time_axis](int b, int t_start, int t_end) {
+            return info.add_instruction(make_op("slice",
+                                                {{"axes", {batch_axis, time_axis}},
+                                                 {"starts", {b, t_start}},
+                                                 {"ends", {b + 1, t_end}}}),
+                                        input);
+        };
+
         for(int b = 0; b < batch_size; ++b)
         {
             instruction_ref s0;
             if(sequence_lens[b] > 1)
             {
-                s0 = info.add_instruction(make_op("slice",
-                                                  {{"axes", {batch_axis, time_axis}},
-                                                   {"starts", {b, 0}},
-                                                   {"ends", {b + 1, sequence_lens[b]}}}),
-                                          input);
+                s0 = add_slice(b, 0, sequence_lens[b]);
                 s0 = info.add_instruction(make_op("reverse", {{"axes", {time_axis}}}), s0);
 
                 // if reversed less than whole batch, concat rest of batch
                 if(sequence_lens[b] < time_size)
                 {
-                    auto s1 = info.add_instruction(make_op("slice",
-                                                           {{"axes", {batch_axis, time_axis}},
-                                                            {"starts", {b, sequence_lens[b]}},
-                                                            {"ends", {b + 1, time_size}}}),
-                                                   input);
+                    auto s1 = add_slice(b, sequence_lens[b], time_size);
                     s0 = info.add_instruction(make_op("concat", {{"axis", time_axis}}), s0, s1);
                 }
             }
             else
             { // cases where nothing changes
-                s0 = info.add_instruction(make_op("slice",
-                                                  {{"axes", {batch_axis, time_axis}},
-                                                   {"starts", {b, 0}},
-                                                   {"ends", {b + 1, time_size}}}),
-                                          input);
+                s0 = add_slice(b, 0, time_size);
             }
             if(b == 0)
             {

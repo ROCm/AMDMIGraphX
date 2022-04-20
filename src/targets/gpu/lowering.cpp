@@ -281,38 +281,6 @@ struct miopen_apply
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
     {
-        // std::cout << "HERE" << std::endl;
-        // std::cout.flush();
-        // Instruction's output is an input of the ret instruction
-        // if(offload_copy)
-        // {
-        //     auto result = mod->insert_instruction(
-        //         ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag",
-        //         std::move(tag)}}));
-        //     return result;
-        // }
-
-        // auto ins_alias = instruction::get_output_alias(ins);
-        // if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
-        // {
-        //     return mod->add_parameter(prog_output_names[ins_alias], s);
-        // }
-        // else if(ins == last and tag.empty())
-        // {
-        //     return mod->add_parameter("output", s);
-        // }
-
-        // return mod->insert_instruction(
-        //     ins, make_op("hip::allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
-        // auto ins_alias = instruction::get_output_alias(ins);
-        // if(last->name() == "@return" and tag.empty() and prog_output_names.count(ins_alias) > 0)
-        // {
-        //     return mod->add_parameter(prog_output_names[ins_alias], s);
-        // }
-        // else if(ins == last and tag.empty())
-        // {
-        //     return mod->add_parameter("output", s);
-        // }
         return mod->insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));
     }
@@ -482,51 +450,7 @@ struct miopen_apply
             auto sync_cond = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_cond);
             inputs.front() = sync_cond;
 
-            std::vector<module_ref> mod_args = ins->module_inputs();
-            // std::map<std::string, shape> name_shapes;
-            // for(const auto& smod : mod_args)
-            // {
-            //     auto ps = smod->get_parameter_shapes();
-            //     name_shapes.insert(ps.begin(), ps.end());
-            //     auto shapes = smod->get_output_shapes();
-            //     for(auto s : shapes)
-            //         inputs.push_back(insert_allocation(ins, s));
-            // }
-            // instruction_ref output{};
-            // for(auto s : ins->get_shape().sub_shapes())
-            // {
-            //     inputs.push_back(insert_allocation(ins, s));
-            // }
-            // output = insert_allocation(ins, ins->get_shape().sub_shapes().front());
-
-            // bool ins_output_allocated = false;
-            // for(auto& pn : name_shapes)
-            // {
-            //     const auto& s = pn.second;
-            //     std::cout << s << std::endl;
-            //     std::cout << ins->get_shape() << std::endl;
-            //     std::cout.flush();
-            //     instruction_ref output{};
-            //     if(s == ins->get_shape() and not ins_output_allocated)
-            //     {
-            //         output               = insert_allocation(ins, s);
-            //         ins_output_allocated = true;
-            //     }
-            //     else
-            //     {
-            //                             std::cout << "HERE2" << std::endl;
-            //         // output               = insert_allocation(ins, s);
-            //         output =
-            //             mod->insert_instruction(ins, make_op("hip::allocate", {{"shape",
-            //             to_value(s)}}));
-            //     }
-            //     inputs.push_back(output);
-            // }
-
-            // mod->debug_print(inputs);
-            auto ret = mod->replace_instruction(ins, ins->get_operator(), inputs, mod_args);
-            // mod->debug_print(ret);
-            return ret;
+            return mod->replace_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
         });
     }
 

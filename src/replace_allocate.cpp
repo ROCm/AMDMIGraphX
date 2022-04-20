@@ -64,31 +64,6 @@ void insert_if_allocations(instruction_ref ins, module& mod, const std::string& 
     mod.replace_instruction(ins, ins->get_operator(), inputs, mod_args);
 }
 
-void insert_loop_allocations(instruction_ref ins, module& mod, const std::string& model_name)
-{
-    std::vector<instruction_ref> inputs      = ins->inputs();
-    std::vector<instruction_ref> copy_inputs = inputs;
-    std::transform(
-        copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
-            // return insert_allocation(ins, in->get_shape());
-            return mod.insert_instruction(
-                ins, make_op(model_name, {{"shape", to_value(in->get_shape())}}));
-        });
-    auto mod_args = ins->module_inputs();
-    auto output =
-        mod.insert_instruction(ins, make_op(model_name, {{"shape", to_value(ins->get_shape())}}));
-
-    const auto* sub_mod = mod_args.front();
-    // auto cond_out = insert_allocation(ins, sub_mod->get_output_shapes().front());
-    auto cond_out = mod.insert_instruction(
-        ins, make_op(model_name, {{"shape", to_value(sub_mod->get_output_shapes().front())}}));
-    // add cond and mod outputs to the argument list
-    inputs.push_back(cond_out);
-    inputs.push_back(output);
-    mod.replace_instruction(
-        ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
-}
-
 void replace_allocate::apply(module& p) const
 {
     auto prog_output_names = create_output_names(p);
@@ -101,12 +76,6 @@ void replace_allocate::apply(module& p) const
             insert_if_allocations(ins, p, model.name());
             continue;
         }
-        // if(ins->get_operator().name() == "gpu::loop")
-        // {
-        //     insert_loop_allocations(ins, p, model.name());
-        //     continue;
-        // }
-
         if(ins->get_operator().name() != "allocate")
             continue;
         auto op = ins->get_operator();

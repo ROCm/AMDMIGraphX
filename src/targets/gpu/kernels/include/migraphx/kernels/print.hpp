@@ -140,6 +140,10 @@ struct basic_printer
     {
         return print_ulong(value);
     }
+    __host__ __device__ const basic_printer& operator<<(migraphx::half value) const
+    {
+        return print_double(value);
+    }
     __host__ __device__ const basic_printer& operator<<(float value) const
     {
         return print_double(value);

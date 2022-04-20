@@ -483,15 +483,15 @@ struct miopen_apply
             inputs.front() = sync_cond;
 
             std::vector<module_ref> mod_args = ins->module_inputs();
-            std::map<std::string, shape> name_shapes;
-            for(const auto& smod : mod_args)
-            {
-                auto ps = smod->get_parameter_shapes();
-                name_shapes.insert(ps.begin(), ps.end());
-                auto shapes = smod->get_output_shapes();
-                for(auto s : shapes)
-                    inputs.push_back(insert_allocation(ins, s));
-            }
+            // std::map<std::string, shape> name_shapes;
+            // for(const auto& smod : mod_args)
+            // {
+            //     auto ps = smod->get_parameter_shapes();
+            //     name_shapes.insert(ps.begin(), ps.end());
+            //     auto shapes = smod->get_output_shapes();
+            //     for(auto s : shapes)
+            //         inputs.push_back(insert_allocation(ins, s));
+            // }
             // instruction_ref output{};
             // for(auto s : ins->get_shape().sub_shapes())
             // {
@@ -544,9 +544,11 @@ struct miopen_apply
                 mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_max_iter, cpu_cond);
             inputs.at(0)     = synced_max_iter;
             inputs.at(1)     = cpu_cond;
+            // mod->debug_print(inputs);
             auto copy_inputs = inputs;
             std::transform(
                 copy_inputs.begin(), copy_inputs.end(), std::back_inserter(inputs), [&](auto in) {
+                    // return insert_allocation(ins, in->get_shape());
                     return mod->insert_instruction(
                         ins, make_op("hip::allocate", {{"shape", to_value(in->get_shape())}}));
                 });
@@ -555,6 +557,7 @@ struct miopen_apply
             auto output   = insert_allocation(ins, ins->get_shape());
 
             const auto* sub_mod = mod_args.front();
+            // auto cond_out = insert_allocation(ins, sub_mod->get_output_shapes().front());
             auto cond_out       = mod->insert_instruction(
                 ins,
                 make_op("hip::allocate",

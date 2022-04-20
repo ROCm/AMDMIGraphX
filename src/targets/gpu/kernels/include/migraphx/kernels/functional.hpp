@@ -211,14 +211,10 @@ constexpr auto arg(IntegralConstant ic)
     return arg_c<ic>();
 }
 
-template<class F>
+template <class F>
 constexpr auto make_transform(F f)
 {
-    return [=](auto... xs) {
-        return [=](auto g) {
-            return f(g, xs...);
-        };
-    };
+    return [=](auto... xs) { return [=](auto g) { return f(g, xs...); }; };
 }
 
 // An arg transformation takes the arguments and then a function to take the new arguments:
@@ -241,9 +237,7 @@ constexpr auto transform_args(F f, Fs... fs)
 // identity transform
 inline constexpr auto transform_args()
 {
-    return make_transform([](auto f, auto... xs) {
-        return f(xs...);
-    });
+    return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
 
 // Rotate the first argument to the last argument
@@ -256,7 +250,6 @@ inline constexpr auto rotate_last()
         });
     });
 }
-
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_FUNCTIONAL_HPP

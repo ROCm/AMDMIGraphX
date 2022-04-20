@@ -163,7 +163,7 @@ __device__ auto auto_preload(index idx)
             __syncthreads();
             f(ys...);
         };
-        join(invoke, preload_copy<Bs>(idx, xs)...); 
+        join(invoke, preload_copy<Bs>(idx, xs)...);
     });
 }
 

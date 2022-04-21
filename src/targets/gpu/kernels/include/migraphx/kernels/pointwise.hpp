@@ -51,15 +51,5 @@ __device__ auto pointwise(index idx, Transforms... transforms)
     };
 }
 
-// template <class F, class... Ts>
-// __device__ void pointwise(F f, Ts*... ps)
-// {
-//     auto t = transform_args(make_tensors(), rotate_last(), auto_vectorize());
-//     t(ps...)([&](auto... xs) {
-//         auto idx = make_index();
-//         pointwise_tensor(idx, f, xs...);
-//     });
-// }
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_POINTWISE_HPP

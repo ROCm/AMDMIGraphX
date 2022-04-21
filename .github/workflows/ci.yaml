@@ -16,13 +16,10 @@ jobs:
     steps:
     - name: Free space
       run: |
-              ls -l /usr/share
-              ls -l /usr/local
-              ls -l /usr/local/share
               df -h
-              sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia*
-              df -h
+              sudo rm -rf /usr/local/android /usr/share/dotnet /usr/local/share/boost /opt/ghc /usr/local/share/chrom* /usr/share/swift /usr/local/julia* /usr/local/lib/android
               du -h /usr/local
+              df -h
 
     - uses: actions/checkout@v2
 

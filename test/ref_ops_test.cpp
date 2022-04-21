@@ -1674,6 +1674,28 @@ TEST_CASE(globalavgpool_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(globallppool_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
+    auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    auto lens   = s.lens();
+    op.lengths  = {lens[2], lens[3]};
+    op.lp_order = 2;
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.5477225575051662, 1.307669683062202, 0.9327379053088815};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
@@ -2502,6 +2524,63 @@ TEST_CASE(logsoftmax_test_axis_3)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify_range(results_vector, s));
+}
+
+TEST_CASE(lppool_test)
+{
+    // L1 norm test
+    {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+        op.lengths  = {2};
+        op.padding  = {0};
+        op.stride   = {1};
+        op.lp_order = 1;
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = mm->add_literal(migraphx::literal{s, data});
+        mm->add_instruction(op, l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.5, 0.6, 0.5, 1.3, 1.4, 1.0, 0.8, 0.8, 0.7};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    // L2 norm test
+    {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+        op.lengths  = {2};
+        op.padding  = {0};
+        op.stride   = {1};
+        op.lp_order = 2;
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = mm->add_literal(migraphx::literal{s, data});
+        mm->add_instruction(op, l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.36055512754639896,
+                                0.447213595499958,
+                                0.4123105625617661,
+                                0.9433981132056605,
+                                1.0295630140987,
+                                0.9055385138137417,
+                                0.7071067811865475,
+                                0.7071067811865475,
+                                0.6082762530298219};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
 }
 
 TEST_CASE(lrn_test)

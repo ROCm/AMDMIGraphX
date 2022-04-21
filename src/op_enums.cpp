@@ -15,7 +15,7 @@ std::ostream& operator<<(std::ostream& os, pooling_mode v)
 {
     // the strings for the enum are the same as the values used for onnx parsing
     // but this enum is not onnx-specific:  strings must be converted when parsing tf
-    static const std::vector<std::string> pooling_mode_str = {"average", "max"};
+    static const std::vector<std::string> pooling_mode_str = {"average", "max", "lpnorm"};
     os << pooling_mode_str[static_cast<std::underlying_type<pooling_mode>::type>(v)];
     return os;
 }

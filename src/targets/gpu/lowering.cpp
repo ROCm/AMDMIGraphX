@@ -251,7 +251,8 @@ struct miopen_apply
             ins->module_inputs());
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "") const
+    instruction_ref
+    insert_allocation(instruction_ref ins, const shape& s, std::string tag = "") const
     {
         return mod->insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));

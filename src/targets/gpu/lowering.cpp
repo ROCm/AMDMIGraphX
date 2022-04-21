@@ -58,7 +58,6 @@ struct miopen_apply
     const lowering* pass = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
-    std::unordered_map<instruction_ref, std::string> prog_output_names{};
     bool offload_copy   = false;
     bool int8_x4_format = true;
     bool compute_fp32   = false;
@@ -75,27 +74,6 @@ struct miopen_apply
         assert(x == i->get_shape());
         (void)x;
         (void)i;
-    }
-
-    void create_output_names()
-    {
-        this->last = instruction::get_output_alias(std::prev(mod->end()));
-        if(this->last->name() == "@return")
-        {
-            const auto& prog_outputs = last->inputs();
-            std::vector<instruction_ref> outputs_alias(prog_outputs.size());
-
-            std::transform(prog_outputs.begin(),
-                           prog_outputs.end(),
-                           outputs_alias.begin(),
-                           [](const auto& i) { return instruction::get_output_alias(i); });
-
-            std::size_t index = 0;
-            for(auto ins : outputs_alias)
-            {
-                prog_output_names[ins] = mod->name() + ":#output_" + std::to_string(index++);
-            }
-        }
     }
 
     const std::unordered_set<std::string>& get_rocblas_fp32_archs()
@@ -120,7 +98,6 @@ struct miopen_apply
 #endif
 
         offload_copy = (mod->name() == "main") ? pass->offload_copy : false;
-        create_output_names();
 
         add_generic_op("acos");
         add_generic_op("acosh");
@@ -274,7 +251,7 @@ struct miopen_apply
             ins->module_inputs());
     }
 
-    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "")
+    instruction_ref insert_allocation(instruction_ref ins, const shape& s, std::string tag = "") const
     {
         return mod->insert_instruction(
             ins, make_op("allocate", {{"shape", to_value(s)}, {"tag", std::move(tag)}}));

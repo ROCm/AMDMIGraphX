@@ -338,7 +338,6 @@ struct cpu_apply
 
     void init()
     {
-        create_output_names();
         extend_dnnl_algos("dnnl::binary",
                           {
                               {"add", "binary_add"},

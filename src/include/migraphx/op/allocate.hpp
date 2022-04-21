@@ -26,8 +26,8 @@ struct allocate
         return pack(f(self.s, "shape"), f(self.tag, "tag"));
     }
     std::string name() const { return "allocate"; }
-    shape compute_shape(std::vector<shape>) const { return s; }
-    argument compute(const shape& output_shape, std::vector<argument>) const
+    shape compute_shape(const std::vector<shape>&) const { return s; }
+    argument compute(const shape& output_shape, const std::vector<argument>&) const
     {
         return {output_shape};
     }

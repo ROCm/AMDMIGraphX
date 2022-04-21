@@ -178,7 +178,7 @@ struct miopen_apply
         add_quant_convolution_op();
     }
 
-    void copy_params()
+    void copy_params() const
     {
         if(not offload_copy)
             return;
@@ -238,7 +238,7 @@ struct miopen_apply
         copy_params();
     }
 
-    instruction_ref insert_precompile_op(instruction_ref ins)
+    instruction_ref insert_precompile_op(instruction_ref ins) const
     {
         auto output                       = insert_allocation(ins, ins->get_shape());
         std::vector<instruction_ref> refs = ins->inputs();

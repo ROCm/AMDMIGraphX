@@ -127,7 +127,7 @@ __device__ auto preload(index idx, Ts... xs)
     };
 }
 
-__device__ auto auto_preload(index idx)
+inline __device__ auto auto_preload(index idx)
 {
     return make_transform([=](auto f, auto out, auto... xs) {
         preload<typename decltype(out)::type>(idx, xs...)([&](auto... ys) { f(out, ys...); });

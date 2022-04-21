@@ -28,7 +28,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         {
             params += " " + src.path.filename().string();
             if(out.empty())
-                out = src.path.stem().string() + ".o";
+                out = src.path.stem().string() + out_ext;
         }
     }
 

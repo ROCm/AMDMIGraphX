@@ -169,9 +169,10 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, const W&
             roi_size[ii] = roi_ends[ii] - roi_starts[ii];
             roi_size[ii] = migraphx::max(roi_size[ii], 1.0f);
 
-            bin_size[ii] = roi_size[ii] / out_dims[ii];
-            bin_grid_size[ii] =
-                (s.sampling_ratio > 0) ? s.sampling_ratio : migraphx::ceil(roi_size[ii] / out_dims[ii]);
+            bin_size[ii]      = roi_size[ii] / out_dims[ii];
+            bin_grid_size[ii] = (s.sampling_ratio > 0)
+                                    ? s.sampling_ratio
+                                    : migraphx::ceil(roi_size[ii] / out_dims[ii]);
         }
 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);

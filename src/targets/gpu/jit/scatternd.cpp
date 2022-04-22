@@ -19,7 +19,6 @@ namespace gpu {
 // NOLINTNEXTLINE
 static const char* const scatternd_kernel = R"__migraphx__(
 #include <migraphx/kernels/scatternd.hpp>
-#include <migraphx/kernels/basic_ops.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>

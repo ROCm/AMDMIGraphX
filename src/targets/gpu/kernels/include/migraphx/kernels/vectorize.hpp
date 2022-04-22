@@ -62,7 +62,7 @@ inline __device__ __host__ uint8_t* remove_bool(bool* x) { return reinterpret_ca
 template <index_int N, class T, class Axis>
 __device__ __host__ auto as_vec(T x, Axis axis)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
         return x;
     else
         return make_tensor_view(as_vec<N>(remove_bool(x.data())),
@@ -72,7 +72,7 @@ __device__ __host__ auto as_vec(T x, Axis axis)
 template <index_int N, class T, class Axis>
 constexpr auto tensor_step(T x, Axis axis)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
     {
         return x;
     }

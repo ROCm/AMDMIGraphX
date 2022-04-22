@@ -4480,7 +4480,7 @@ def reversesequence_same_axis_err_test():
 
     node = onnx.helper.make_node(
         'ReverseSequence',
-        inputs=['x', 'sequence_lens'],
+        inputs=['x'],
         outputs=['y'],
         time_axis=1,
         batch_axis=1,
@@ -4496,7 +4496,7 @@ def reversesequence_time_axis_err_test():
 
     node = onnx.helper.make_node(
         'ReverseSequence',
-        inputs=['x', 'sequence_lens'],
+        inputs=['x'],
         outputs=['y'],
         time_axis=3,
         batch_axis=0,

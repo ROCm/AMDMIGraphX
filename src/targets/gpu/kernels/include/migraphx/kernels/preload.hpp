@@ -143,10 +143,9 @@ __device__ auto preload_copy(index idx, T x)
             using type          = typename T::type;
             constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
-            constexpr auto n =
-            find_vectorize_size([&](auto i) { return (size % i) == 0; });
-            auto input = as_vec<n>(x.data());
-            auto b = as_vec<n>(buffer);
+            constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
+            auto input       = as_vec<n>(x.data());
+            auto b           = as_vec<n>(buffer);
             idx.local_stride(size / n, [&](auto i) { b[i] = input[i]; });
             return f(x.with(buffer));
         }

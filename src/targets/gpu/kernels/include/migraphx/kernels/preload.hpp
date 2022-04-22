@@ -143,6 +143,7 @@ __device__ auto preload_copy(index idx, T x)
             using type          = typename T::type;
             constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
+            // TODO: Always vecotrize when size > 4, and then use a second loop for remainder
             constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
             auto input       = as_vec<n>(remove_bool(x.data()));
             auto b           = as_vec<n>(remove_bool(buffer));

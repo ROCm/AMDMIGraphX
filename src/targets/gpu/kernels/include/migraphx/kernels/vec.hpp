@@ -63,7 +63,7 @@ constexpr auto common_vec_size()
 template <index_int N, class T>
 __device__ __host__ auto as_vec(T* x)
 {
-    if constexpr(N == 0)
+    if constexpr(N < 2)
         return x;
     else
         return reinterpret_cast<vec<T, N>*>(x);

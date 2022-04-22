@@ -157,7 +157,7 @@ constexpr auto find_vectorize_size(P pred)
     else if constexpr(decltype(pred(_c<2>)){})
         return _c<2>;
     else
-        return _c<0>;
+        return _c<1>;
 }
 
 template <class T>
@@ -194,7 +194,7 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
                 {
                     MIGRAPHX_ASSERT(s.strides[axis] == 0 or s.strides[axis] == 1);
                     MIGRAPHX_ASSERT(s.lens[axis] > 0);
-                    MIGRAPHX_ASSERT(n == 0 or s.lens[axis] % n == 0);
+                    MIGRAPHX_ASSERT(n == 1 or s.lens[axis] % n == 0);
                     if constexpr(s.strides[axis] == 0)
                         return tensor_step<n>(x, axis);
                     else

@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_C_API_MIGRAPHX_H
 
 #include <stdlib.h>
+#include <cstdint>
 
 // Add new types here
 // clang-format off

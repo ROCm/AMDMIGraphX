@@ -832,6 +832,90 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     }
 };
 
+struct value : MIGRAPHX_HANDLE_BASE(value)
+{
+
+    value() { this->make_handle(&migraphx_value_create); }
+
+    value(migraphx_value* p, own) { this->set_handle(p, own{}); }
+
+    value(migraphx_value* p, borrow) { this->set_handle(p, borrow{}); }
+
+    bool is_null() const
+    {
+        bool result;
+        call(&migraphx_value_is_null, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::string get_key() const
+    {
+        std::array<char, 1024> str_array;
+        call(&migraphx_value_get_key, str_array.data(), 1024, this->get_handle_ptr());
+        return {str_array.data()};
+    }
+
+    value(std::string i) { this->make_handle(&migraphx_value_create_string, i.data()); }
+
+    value(const std::string& pkey, std::string i)
+    {
+        this->make_handle(&migraphx_value_create_string_with_key, pkey.data(), i.data());
+    }
+
+    bool is_string() const
+    {
+        bool result;
+        call(&migraphx_value_is_string, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    std::string get_string() const
+    {
+        std::array<char, 1024> str_array;
+        call(&migraphx_value_get_string, str_array.data(), 1024, this->get_handle_ptr());
+        return {str_array.data()};
+    }
+
+    // TODO(umang): need to return pointer to make it consistent across all data types, or make all
+    // data type return value instead of pointers
+    // TODO(umang): need to check if size of 1024 holds for serialization
+    std::string if_string() const
+    {
+        std::array<char, 1024> str_array;
+        call(&migraphx_value_if_string, str_array.data(), 1024, this->get_handle_ptr());
+        return {str_array.data()};
+    }
+
+#define MIGRAPHX_VISIT_VALUE_TYPES(m) \
+    m(int64, std::int64_t) m(uint64, std::uint64_t) m(float, double) m(bool, bool)
+
+#define MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS(vt, cpp_type)                       \
+    value(cpp_type i) { this->make_handle(&migraphx_value_create_##vt, i); }       \
+    value(const std::string& pkey, cpp_type i)                                     \
+    {                                                                              \
+        this->make_handle(&migraphx_value_create_##vt##_with_key, pkey.data(), i); \
+    }                                                                              \
+    bool is_##vt() const                                                           \
+    {                                                                              \
+        bool result;                                                               \
+        call(&migraphx_value_is_##vt, &result, this->get_handle_ptr());            \
+        return result;                                                             \
+    }                                                                              \
+    cpp_type get_##vt() const                                                      \
+    {                                                                              \
+        cpp_type get_value;                                                        \
+        call(&migraphx_value_get_##vt, &get_value, this->get_handle_ptr());        \
+        return get_value;                                                          \
+    }                                                                              \
+    const cpp_type* if_##vt() const                                                \
+    {                                                                              \
+        const cpp_type* ret_value = nullptr;                                       \
+        call(&migraphx_value_if_##vt, &ret_value, this->get_handle_ptr());         \
+        return ret_value;                                                          \
+    }
+
+    MIGRAPHX_VISIT_VALUE_TYPES(MIGRAPHX_VALUE_GENERATE_DEFINE_METHODS)
+};
 /// A program represents the all computation graphs to be compiled and executed
 struct program : MIGRAPHX_HANDLE_BASE(program)
 {

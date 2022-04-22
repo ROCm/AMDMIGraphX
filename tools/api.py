@@ -918,7 +918,10 @@ def vector_c_wrap(p: Parameter) -> None:
 
 @cwrap('std::string')
 def string_c_wrap(p: Parameter) -> None:
-    t = Type('char*')
+    if p.type.is_const and not p.returns:
+        t = Type('const char*')
+    else:
+        t = Type('char*')
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())
@@ -936,6 +939,11 @@ def string_c_wrap(p: Parameter) -> None:
     p.virtual_read = ['${name}.c_str()']
     if p.type.is_reference():
         p.write = ['*${name} = ${result}.c_str()']
+    elif p.type.is_pointer():
+        p.write = [
+            'auto* it = std::copy_n(${result}->begin(), std::min(${result}->size(), ${name}_size - 1), ${name});'
+            '*it = \'\\0\''
+        ]
     else:
         p.write = [
             'auto* it = std::copy_n(${result}.begin(), std::min(${result}.size(), ${name}_size - 1), ${name});'

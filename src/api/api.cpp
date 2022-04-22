@@ -441,6 +441,17 @@ struct migraphx_module
     migraphx::module object;
 };
 
+extern "C" struct migraphx_value;
+struct migraphx_value
+{
+    template <class... Ts>
+    migraphx_value(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::value object;
+};
+
 extern "C" struct migraphx_program;
 struct migraphx_program
 {
@@ -1012,7 +1023,7 @@ migraphx_modules_create(migraphx_modules_t* modules, migraphx_module_t* ptr, siz
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module, char* name)
+extern "C" migraphx_status migraphx_module_create(migraphx_module_t* module, const char* name)
 {
     auto api_error_result = migraphx::try_([&] {
         if(name == nullptr)
@@ -1114,6 +1125,289 @@ extern "C" migraphx_status migraphx_module_add_return(migraphx_instruction_t* ou
         if(args == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter args: Null pointer");
         *out = allocate<migraphx_instruction_t>((module->object).add_return((args->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_destroy(migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((value)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_assign_to(migraphx_value_t output,
+                                                    const_migraphx_value_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create(migraphx_value_t* value)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>()); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_null(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_null();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_get_key(char* out, size_t out_size, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        auto&& api_result = (value->object).get_key();
+        auto* it = std::copy_n(api_result.begin(), std::min(api_result.size(), out_size - 1), out);
+        *it      = '\0';
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create_int64(migraphx_value_t* value, int64_t i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_create_int64_with_key(migraphx_value_t* value, const char* pkey, int64_t i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_if_int64(const int64_t** out,
+                                                   const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).if_int64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_int64(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_int64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_get_int64(int64_t* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).get_int64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create_uint64(migraphx_value_t* value, uint64_t i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_create_uint64_with_key(migraphx_value_t* value, const char* pkey, uint64_t i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_if_uint64(const uint64_t** out,
+                                                    const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).if_uint64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_uint64(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_uint64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_get_uint64(uint64_t* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).get_uint64();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create_float(migraphx_value_t* value, double i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_create_float_with_key(migraphx_value_t* value, const char* pkey, double i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_if_float(const double** out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).if_float();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_float(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_float();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_get_float(double* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).get_float();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create_string(migraphx_value_t* value, const char* i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_create_string_with_key(migraphx_value_t* value, const char* pkey, const char* i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_if_string(char* out, size_t out_size, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        auto&& api_result = (value->object).if_string();
+        auto* it =
+            std::copy_n(api_result->begin(), std::min(api_result->size(), out_size - 1), out);
+        *it = '\0';
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_string(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_string();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_get_string(char* out, size_t out_size, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        auto&& api_result = (value->object).get_string();
+        auto* it = std::copy_n(api_result.begin(), std::min(api_result.size(), out_size - 1), out);
+        *it      = '\0';
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_create_bool(migraphx_value_t* value, bool i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_value_create_bool_with_key(migraphx_value_t* value, const char* pkey, bool i)
+{
+    auto api_error_result = migraphx::try_(
+        [&] { *value = object_cast<migraphx_value_t>(allocate<migraphx::value>((pkey), (i))); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_if_bool(const bool** out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).if_bool();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_is_bool(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).is_bool();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_value_get_bool(bool* out, const_migraphx_value_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(value == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter value: Null pointer");
+        *out = (value->object).get_bool();
     });
     return api_error_result;
 }

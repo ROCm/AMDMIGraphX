@@ -102,11 +102,10 @@ void replace_allocate::apply(module& p) const
         }
         instruction_ref alloc_ins;
         if(model_name == "cpu::allocate")
-            alloc_ins =
-            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
+            alloc_ins = p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
         else
-            alloc_ins =
-            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")}));
+            alloc_ins = p.insert_instruction(
+                ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")}));
         p.replace_instruction(ins, alloc_ins);
     }
 }

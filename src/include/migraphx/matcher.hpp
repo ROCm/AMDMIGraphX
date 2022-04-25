@@ -156,6 +156,19 @@ struct id_matcher
     }
 };
 
+// Forward declare class and constructors
+template <class M>
+struct basic_matcher;
+
+template <class M>
+basic_matcher<M> make_basic_matcher(M m);
+
+template <class F>
+basic_matcher<function_matcher<F>> make_basic_fun_matcher(F f);
+
+template <class P>
+basic_matcher<predicate_matcher<P>> make_basic_pred_matcher(P p);
+
 /// The basic matcher provides the all_of composability of the matcher
 template <class M>
 struct basic_matcher
@@ -167,7 +180,7 @@ struct basic_matcher
     {
         // Copy m because we cant capture `this` by value
         auto mm = m;
-        return make_bf_matcher([=](matcher_context& ctx,
+        return make_basic_fun_matcher([=](matcher_context& ctx,
                                    instruction_ref ins) -> optional<instruction_ref> {
             auto result = mm.match(ctx, ins);
             if(result)
@@ -531,6 +544,16 @@ auto skip_output(Ms... ms)
                 return nullopt;
             })(start);
     });
+}
+
+inline auto var(std::string s)
+{
+    return make_basic_fun_matcher(
+        [=, s = std::move(s)](const matcher_context& ctx, instruction_ref) -> optional<instruction_ref> {
+            if (ctx.instructions.count(s) == 0)
+                return nullopt;
+            return ctx.instructions.at(s);
+        });
 }
 
 inline auto name(std::string s)

@@ -69,11 +69,12 @@ void replace_allocate::apply(module& p) const
     auto prog_output_names = create_output_names(p);
     auto last              = instruction::get_output_alias(std::prev(p.end()));
     bool main_offload_copy = p.name() == "main" ? this->offload_copy : false;
+    std::string model_name = model.name();
     for(auto ins : iterator_for(p))
     {
         if(ins->get_operator().name() == "if")
         {
-            insert_if_allocations(ins, p, model.name());
+            insert_if_allocations(ins, p, model_name);
             continue;
         }
         if(ins->get_operator().name() != "allocate")
@@ -99,9 +100,13 @@ void replace_allocate::apply(module& p) const
             p.replace_instruction(ins, out_param);
             continue;
         }
-
-        auto alloc_ins =
-            p.insert_instruction(ins, make_op(model.name(), {{"shape", to_value(s)}, v.at("tag")}));
+        instruction_ref alloc_ins;
+        if(model_name == "cpu::allocate")
+            alloc_ins =
+            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
+        else
+            alloc_ins =
+            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")}));
         p.replace_instruction(ins, alloc_ins);
     }
 }

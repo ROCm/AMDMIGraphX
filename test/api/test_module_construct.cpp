@@ -3,7 +3,7 @@
 #include <migraphx/migraphx.hpp>
 #include "test.hpp"
 
-TEST_CASE(add_op)
+TEST_CASE(add_literals)
 {
     migraphx::program p;
     migraphx::module m = p.get_main_module();

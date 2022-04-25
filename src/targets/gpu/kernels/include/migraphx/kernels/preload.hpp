@@ -4,6 +4,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
 

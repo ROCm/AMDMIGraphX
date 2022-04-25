@@ -181,7 +181,7 @@ struct basic_matcher
         // Copy m because we cant capture `this` by value
         auto mm = m;
         return make_basic_fun_matcher([=](matcher_context& ctx,
-                                   instruction_ref ins) -> optional<instruction_ref> {
+                                          instruction_ref ins) -> optional<instruction_ref> {
             auto result = mm.match(ctx, ins);
             if(result)
             {
@@ -549,8 +549,9 @@ auto skip_output(Ms... ms)
 inline auto var(std::string s)
 {
     return make_basic_fun_matcher(
-        [=, s = std::move(s)](const matcher_context& ctx, instruction_ref) -> optional<instruction_ref> {
-            if (ctx.instructions.count(s) == 0)
+        [=, s = std::move(s)](const matcher_context& ctx,
+                              instruction_ref) -> optional<instruction_ref> {
+            if(ctx.instructions.count(s) == 0)
                 return nullopt;
             return ctx.instructions.at(s);
         });

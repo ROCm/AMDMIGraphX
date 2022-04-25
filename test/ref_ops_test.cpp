@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include <limits>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/batch_norm_inference.hpp>
@@ -369,7 +370,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"average"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -391,7 +392,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 4}};
-        auto op    = migraphx::op::pooling{"average"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2};
         op.padding = {1};
         op.stride  = {2};
@@ -438,7 +439,7 @@ TEST_CASE(avgpool_test)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{"average"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {1, 1, 1};
@@ -1657,7 +1658,7 @@ TEST_CASE(globalavgpool_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"average"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::average};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -1673,12 +1674,34 @@ TEST_CASE(globalavgpool_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
+TEST_CASE(globallppool_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
+    auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    auto lens   = s.lens();
+    op.lengths  = {lens[2], lens[3]};
+    op.lp_order = 2;
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::ref::target{});
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector(3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.5477225575051662, 1.307669683062202, 0.9327379053088815};
+    EXPECT(migraphx::verify_range(results_vector, gold));
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 2, 2}};
-    auto op    = migraphx::op::pooling{"max"};
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
     auto lens  = s.lens();
     op.lengths = {lens[2], lens[3]};
 
@@ -1943,6 +1966,45 @@ TEST_CASE(if_pl_test)
         std::vector<float> gold_ret = {6.0f, 5.0f, 4.0f, 3.0f, 2.0f};
         auto ret                    = run_prog(false);
         EXPECT(gold_ret == ret);
+    }
+}
+
+TEST_CASE(isnan_test)
+{
+    // float test
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+        auto nan_val             = std::numeric_limits<float>::quiet_NaN();
+        std::vector<float> data0 = {1.2, 5.2, nan_val, nan_val, 0., 100.};
+        auto l1                  = mm->add_literal(migraphx::literal{s, data0});
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, correct));
+    }
+
+    // half test
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+        auto nan_val = std::numeric_limits<migraphx::half>::quiet_NaN();
+        migraphx::half a{1.2};
+        migraphx::half b{5.2};
+        std::vector<migraphx::half> data0 = {a, b, nan_val, nan_val, b, a};
+        auto l1                           = mm->add_literal(migraphx::literal{s, data0});
+        mm->add_instruction(migraphx::make_op("isnan"), l1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify_range(results_vector, correct));
     }
 }
 
@@ -2464,6 +2526,63 @@ TEST_CASE(logsoftmax_test_axis_3)
     EXPECT(migraphx::verify_range(results_vector, s));
 }
 
+TEST_CASE(lppool_test)
+{
+    // L1 norm test
+    {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+        op.lengths  = {2};
+        op.padding  = {0};
+        op.stride   = {1};
+        op.lp_order = 1;
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = mm->add_literal(migraphx::literal{s, data});
+        mm->add_instruction(op, l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.5, 0.6, 0.5, 1.3, 1.4, 1.0, 0.8, 0.8, 0.7};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    // L2 norm test
+    {
+        migraphx::program p;
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
+        auto op     = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+        op.lengths  = {2};
+        op.padding  = {0};
+        op.stride   = {1};
+        op.lp_order = 2;
+
+        std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9, 0.1, 0.1, 0.7, 0.1, 0.6};
+        auto l0 = mm->add_literal(migraphx::literal{s, data});
+        mm->add_instruction(op, l0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0.36055512754639896,
+                                0.447213595499958,
+                                0.4123105625617661,
+                                0.9433981132056605,
+                                1.0295630140987,
+                                0.9055385138137417,
+                                0.7071067811865475,
+                                0.7071067811865475,
+                                0.6082762530298219};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
 TEST_CASE(lrn_test)
 {
     migraphx::program p;
@@ -2542,11 +2661,12 @@ TEST_CASE(maxpool_test)
                             0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
     migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 6, 6}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
-    mm->add_instruction(
-        migraphx::make_op(
-            "pooling",
-            {{"mode", "max"}, {"padding", {0, 0}}, {"stride", {2, 2}}, {"lengths", {3, 2}}}),
-        al);
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {0, 0}},
+                                           {"stride", {2, 2}},
+                                           {"lengths", {3, 2}}}),
+                        al);
     p.compile(migraphx::ref::target{});
     auto result = p.eval({}).back();
     std::vector<float> results_vector(36);
@@ -2561,7 +2681,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {1, 3, 4}};
-        auto op    = migraphx::op::pooling{"max"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {1};
@@ -2583,7 +2703,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op    = migraphx::op::pooling{"max"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
         op.lengths = {2};
         op.padding = {0};
         op.stride  = {2};
@@ -2607,7 +2727,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm     = p.get_main_module();
         auto s       = migraphx::shape{migraphx::shape::float_type, {2, 2, 5}};
-        auto op      = migraphx::op::pooling{"max"};
+        auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::max};
         op.lengths   = {2};
         op.padding   = {0};
         op.stride    = {2};
@@ -2643,7 +2763,7 @@ TEST_CASE(maxpool_test_1D_3D)
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto s     = migraphx::shape{migraphx::shape::float_type, {2, 2, 3, 3, 3}};
-        auto op    = migraphx::op::pooling{"max"};
+        auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::max};
         op.lengths = {2, 2, 2};
         op.padding = {0, 0, 0};
         op.stride  = {2, 2, 2};
@@ -3997,9 +4117,10 @@ TEST_CASE(roialign_out_of_bound_test)
 
 TEST_CASE(roialign_test)
 {
-    auto create_program = [](const std::string& trans_mode   = "half_pixel",
-                             const std::string& pooling_mode = "avg",
-                             int64_t sampling_ratio          = 2) {
+    auto create_program = [](const std::string& trans_mode = "half_pixel",
+                             const migraphx::op::pooling_mode pooling_mode =
+                                 migraphx::op::pooling_mode::average,
+                             int64_t sampling_ratio = 2) {
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape x_s{migraphx::shape::float_type, {1, 1, 10, 10}};
@@ -4085,7 +4206,7 @@ TEST_CASE(roialign_test)
     }
 
     {
-        auto p = create_program("output_half_pixel", "max", 0);
+        auto p = create_program("output_half_pixel", migraphx::op::pooling_mode::max, 0);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -4137,25 +4258,49 @@ TEST_CASE(rsqrt_test)
     EXPECT(migraphx::verify_range(results_vector, gold));
 }
 
-TEST_CASE(scatter_test)
+// reduction_mode: "scatter_none", "scatter_add", "scatter_mul"
+migraphx::program create_scatter_program(const std::string& reduction_mode, int axis)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> vd(sd.elements(), 0.0f);
+
+    migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+    std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+
+    migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    // scatter_none, formerly the scatter op
+    auto r = mm->add_instruction(migraphx::make_op(reduction_mode, {{"axis", axis}}), ld, li, lu);
+    mm->add_return({r});
+    return p;
+}
+
+TEST_CASE(scatter_ax0_test)
+{
+    // this tests what used to be the only scatter op, now changed to 3 sub-ops
+    // which have their own test case
+    {
+        migraphx::program p = create_scatter_program("scatter_none", 0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
+TEST_CASE(scatter_ax_neg_test)
 {
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
-        std::vector<float> vd(sd.elements(), 0.0f);
+        migraphx::program p = create_scatter_program("scatter_none", -2);
 
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-
-        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
-        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
-
-        auto ld = mm->add_literal(migraphx::literal{sd, vd});
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 0}}), ld, li, lu);
-        mm->add_return({r});
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
@@ -4163,54 +4308,485 @@ TEST_CASE(scatter_test)
         std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
+}
 
+TEST_CASE(scatter_ax1_test)
+{
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
-        std::vector<float> vd(sd.elements(), 0.0f);
-
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, -1, 0, 2, -2};
-
-        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
-        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
-
-        auto ld = mm->add_literal(migraphx::literal{sd, vd});
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", -2}}), ld, li, lu);
-        mm->add_return({r});
-        p.compile(migraphx::ref::target{});
-        auto result = p.eval({}).back();
-        std::vector<float> results_vector;
-        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-        EXPECT(migraphx::verify_range(results_vector, gold));
-    }
-
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
-        std::vector<float> vd(sd.elements(), 0.0f);
-
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-
-        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
-        std::vector<float> vu = {1.0, 1.1, 1.2, 2.0, 2.1, 2.2};
-
-        auto ld = mm->add_literal(migraphx::literal{sd, vd});
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto lu = mm->add_literal(migraphx::literal{su, vu});
-        auto r  = mm->add_instruction(migraphx::make_op("scatter", {{"axis", 1}}), ld, li, lu);
-        mm->add_return({r});
+        migraphx::program p = create_scatter_program("scatter_none", 1);
         p.compile(migraphx::ref::target{});
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
+// similar to create_scatter_program but with different tensor values
+// reduction_mode: "scatter_none", "scatter_add", "scatter_mul"
+migraphx::program create_scatter_program2(const std::string& reduction_mode, int axis)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {1, 5}};
+    std::vector<float> vd({1., 2., 3., 4., 5.});
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 2}};
+    std::vector<int> vi = {1, 3};
+
+    migraphx::shape su{migraphx::shape::float_type, {1, 2}};
+    std::vector<float> vu = {1.1, 2.1};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto r  = mm->add_instruction(migraphx::make_op(reduction_mode, {{"axis", axis}}), ld, li, lu);
+    mm->add_return({r});
+    return p;
+}
+TEST_CASE(scatter_reduction1_test)
+{
+    {
+        // Test sub-ops for the three reduction values scatter_none, scatter_add, scatter_mul
+        migraphx::program p = create_scatter_program2("scatter_none", 1);
+
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_none = {1.0, 1.1, 3.0, 2.1, 5.0};
+        EXPECT(migraphx::verify_range(results_vector, gold_none));
+    }
+}
+
+TEST_CASE(scatter_reduction2_test)
+{
+    {
+        migraphx::program p = create_scatter_program2("scatter_mul", 1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_mul = {1.0, 2.2, 3.0, 8.4, 5.0};
+
+        EXPECT(migraphx::verify_range(results_vector, gold_mul));
+    }
+}
+TEST_CASE(scatter_reduction3_test)
+{
+    {
+        migraphx::program p = create_scatter_program2("scatter_add", 1);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_add = {1.0, 3.1, 3.0, 6.1, 5.0};
+
+        EXPECT(migraphx::verify_range(results_vector, gold_add));
+    }
+}
+
+TEST_CASE(scatter_reduction_3x3_test)
+{
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        std::vector<float> vd(sd.elements(), 3.0f);
+
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+
+        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+        std::vector<float> vu = {1.0, 1.1, 1.2, 7.0, 7.1, 7.2};
+
+        auto ld = mm->add_literal(migraphx::literal{sd, vd});
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto lu = mm->add_literal(migraphx::literal{su, vu});
+        auto r  = mm->add_instruction(migraphx::make_op("scatter_add", {{"axis", 1}}), ld, li, lu);
+        mm->add_return({r});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_a2 = {4.1, 4.0, 4.2, 10.0, 10.2, 10.1, 3.0, 3.0, 3.0};
+
+        EXPECT(migraphx::verify_range(results_vector, gold_a2));
+    }
+}
+
+// create a test scatter program with a 3x3 tensor;
+//  su and si are transposed from previous case
+migraphx::program create_scatter_program_3x3(const std::string& reduction_mode, int axis)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> vd(sd.elements(), 3.0f);
+
+    migraphx::shape si{migraphx::shape::int32_type, {3, 2}};
+    std::vector<int> vi = {1, 0, 0, 2, 2, 1};
+
+    migraphx::shape su{migraphx::shape::float_type, {3, 2}};
+    std::vector<float> vu = {1.0, 7.0, 1.1, 7.1, 1.2, 7.2};
+
+    auto ld = mm->add_literal(migraphx::literal{sd, vd});
+    auto li = mm->add_literal(migraphx::literal{si, vi});
+    auto lu = mm->add_literal(migraphx::literal{su, vu});
+    auto r  = mm->add_instruction(migraphx::make_op(reduction_mode, {{"axis", axis}}), ld, li, lu);
+    mm->add_return({r});
+    return p;
+}
+
+TEST_CASE(scatter_reduction_3x3_xpose1_test)
+{
+    // test on vertical (0) axis. su and si are transposed from previous case
+    {
+        migraphx::program p = create_scatter_program_3x3("scatter_none", 0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_none2 = {1.1, 7.0, 3.0, 1.0, 7.2, 3.0, 1.2, 7.1, 3.0};
+        EXPECT(migraphx::verify_range(results_vector, gold_none2));
+    }
+}
+
+TEST_CASE(scatter_reduction_3x3_xpose2_test)
+{
+    // test on vertical (0) axis.
+    {
+        migraphx::program p = create_scatter_program_3x3("scatter_add", 0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_a3 = {4.1, 10.0, 3.0, 4.0, 10.2, 3.0, 4.2, 10.1, 3.0};
+
+        EXPECT(migraphx::verify_range(results_vector, gold_a3));
+    }
+}
+
+TEST_CASE(scatter_reduction_3x3_xpose3_test)
+{
+    {
+        migraphx::program p = create_scatter_program_3x3("scatter_mul", 0);
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold_mul2 = {3.3, 21.0, 3.0, 3.0, 21.6, 3.0, 3.6, 21.3, 3.0};
+
+        EXPECT(migraphx::verify_range(results_vector, gold_mul2));
+    }
+}
+
+TEST_CASE(scatternd_shapes_test)
+{
+    {
+        // broadcasted input
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
+        std::vector<float> upd_vec{9, 10, 11, 12};
+
+        auto data    = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8}}}),
+                                        mm->add_literal(migraphx::literal{0.0f}));
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{0, 11, 0, 10, 9, 0, 0, 12};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // non-standard shape input
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2}};
+        migraphx::shape is{itype, {2, 2}};
+        migraphx::shape us{dtype, {2}};
+
+        std::vector<float> data_vec{1, 2, 3, 4};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1};
+        std::vector<float> upd_vec{5, 6};
+
+        auto data = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto td =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), data);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), td, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{5, 6, 2, 4};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // non-standard updates shape
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2, 2}};
+        migraphx::shape is{itype, {2, 1, 3}};
+        migraphx::shape us{dtype, {1, 2}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1, 1, 1};
+        std::vector<float> upd_vec{9, 10};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto tu =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), updates);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, tu);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{9, 2, 3, 4, 5, 6, 7, 10};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
+TEST_CASE(scatternd_test)
+{
+    {
+        // r=1, q=2, k=1
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
+        std::vector<float> upd_vec{9, 10, 11, 12};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{1, 11, 3, 10, 9, 6, 7, 12};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // r=2, q=2, k=2
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2}};
+        migraphx::shape is{itype, {2, 2}};
+        migraphx::shape us{dtype, {2}};
+
+        std::vector<float> data_vec{1, 2, 3, 4};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1};
+        std::vector<float> upd_vec{5, 6};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{5, 6, 3, 4};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // r=3, q=3, k=3
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2, 2}};
+        migraphx::shape is{itype, {2, 1, 3}};
+        migraphx::shape us{dtype, {2, 1}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{0, 0, 0, 1, 1, 1};
+        std::vector<float> upd_vec{9, 10};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{9, 2, 3, 4, 5, 6, 7, 10};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // r=3, q=2, k=1
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {4, 4, 4}};
+        migraphx::shape is{itype, {2, 1}};
+        migraphx::shape us{dtype, {2, 4, 4}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
+                                    1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1,
+                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8,
+                                    8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{0, 2};
+        std::vector<float> upd_vec{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8,
+                                   1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 1, 2, 3, 4, 5, 6,
+                                7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+                                4, 4, 4, 4, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // r=5, q=1, k=1
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {2, 2, 2, 2, 2}};
+        migraphx::shape is{itype, {1}};
+        migraphx::shape us{dtype, {2, 2, 2, 2}};
+
+        std::vector<float> data_vec(32, 1);
+        std::vector<int64_t> ind_vec{1};
+        std::vector<float> upd_vec(16, 0);
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold(32, 0);
+        std::copy(data_vec.begin(), data_vec.begin() + 16, gold.begin());
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+}
+
+TEST_CASE(scatternd_reduction_test)
+{
+    {
+        // reduction = add
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {8, 1}};
+        migraphx::shape us{dtype, {8}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{4, 3, 1, 7, 4, 3, 1, 7};
+        std::vector<float> upd_vec{9, 10, 11, 12, -8, -9, -10, -11};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_add"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{1, 3, 3, 5, 6, 6, 7, 9};
+
+        EXPECT(migraphx::verify_range(results_vector, gold));
+    }
+
+    {
+        // reduction = mul
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+
+        std::vector<float> data_vec{1, 2, 3, 4, 5, 6, 7, 8};
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
+        std::vector<float> upd_vec{9, 10, 11, 12};
+
+        auto data    = mm->add_literal(migraphx::literal{ds, data_vec});
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_literal(migraphx::literal{us, upd_vec});
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_mul"), data, indices, updates);
+        mm->add_return({scatternd});
+        p.compile(migraphx::ref::target{});
+        auto result = p.eval({}).back();
+        std::vector<float> results_vector;
+        result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+        std::vector<float> gold{1, 22, 3, 40, 45, 6, 7, 96};
+
         EXPECT(migraphx::verify_range(results_vector, gold));
     }
 }

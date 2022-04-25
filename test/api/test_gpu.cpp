@@ -25,6 +25,23 @@ TEST_CASE(load_and_run)
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
+TEST_CASE(load_and_run_ctx)
+{
+    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    migraphx::compile_options options;
+    options.set_offload_copy();
+    p.compile(migraphx::target("gpu"), options);
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    auto ctx = p.experimental_get_context();
+    p.eval(pp);
+    ctx.finish();
+}
+
 TEST_CASE(if_pl_test)
 {
     auto run_prog = [&](auto cond) {

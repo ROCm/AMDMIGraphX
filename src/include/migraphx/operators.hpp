@@ -41,6 +41,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
+#include <migraphx/op/isnan.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
@@ -85,7 +86,12 @@
 #include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
-#include <migraphx/op/scatter.hpp>
+#include <migraphx/op/scatter_add.hpp>
+#include <migraphx/op/scatter_mul.hpp>
+#include <migraphx/op/scatter_none.hpp>
+#include <migraphx/op/scatternd_add.hpp>
+#include <migraphx/op/scatternd_none.hpp>
+#include <migraphx/op/scatternd_mul.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>

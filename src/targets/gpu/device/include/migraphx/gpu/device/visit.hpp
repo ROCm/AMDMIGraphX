@@ -14,28 +14,23 @@ constexpr void visit_tensor_size(index_int n, F f)
 {
     switch(n)
     {
-    case 1:
-    {
+    case 1: {
         f(std::integral_constant<index_int, 1>{});
         break;
     }
-    case 2:
-    {
+    case 2: {
         f(std::integral_constant<index_int, 2>{});
         break;
     }
-    case 3:
-    {
+    case 3: {
         f(std::integral_constant<index_int, 3>{});
         break;
     }
-    case 4:
-    {
+    case 4: {
         f(std::integral_constant<index_int, 4>{});
         break;
     }
-    case 5:
-    {
+    case 5: {
         f(std::integral_constant<index_int, 5>{});
         break;
     }
@@ -181,7 +176,13 @@ template <index_int N, class T, class... Ts>
 auto hip_vec_visit_all(T&& x, Ts&&... xs)
 {
     return [&](auto f) {
-        hip_visit_all_impl(get_shape(x),
+        auto sx   = get_shape(x);
+        auto lens = sx.lens();
+        assert(lens.back() % N == 0);
+        assert(sx.strides().back() == 1);
+        lens.back() /= N;
+        shape vec_sx{sx.type(), lens};
+        hip_visit_all_impl(vec_sx,
                            make_hip_convert([](auto* p) { return as_vec<N>(device_cast(p)); }),
                            f,
                            x,

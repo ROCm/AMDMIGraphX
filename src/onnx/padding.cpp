@@ -3,6 +3,7 @@
 #include <migraphx/pad_calc.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,7 +95,7 @@ void tune_padding_size(const value& v,
                        std::vector<int64_t>& s_start)
 {
     // maxpooling or count_include_pad is 1, no change is required.
-    if(v.at("mode").to<std::string>() == "max" or count_include_pad == 1)
+    if(v.at("mode").to<op::pooling_mode>() == op::pooling_mode::max or count_include_pad == 1)
     {
         return;
     }

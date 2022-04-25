@@ -35,7 +35,7 @@ struct shape
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t)
-// clang-format on
+    // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
@@ -188,8 +188,7 @@ struct shape
     {
         switch(t)
         {
-        case tuple_type:
-        {
+        case tuple_type: {
             tv();
             return;
         }
@@ -226,11 +225,11 @@ struct shape
 
     const std::vector<shape>& sub_shapes() const;
 
+    std::size_t element_space() const;
+
     private:
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
-
-    std::size_t element_space() const;
 };
 
 void migraphx_to_value(value& v, const shape& s);

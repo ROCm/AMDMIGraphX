@@ -85,6 +85,12 @@ void replace_allocate::apply(module& p) const
         auto tag = v.at("tag").get_string();
         auto s   = ins->get_shape();
 
+        if(model_name == "cpu::allocate")
+        {
+            p.replace_instruction(ins, p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}})));
+            continue;
+        }
+
         auto ins_alias = instruction::get_output_alias(ins->outputs().front());
         instruction_ref out_param;
         if(not main_offload_copy and last->name() == "@return" and tag.empty() and
@@ -99,14 +105,9 @@ void replace_allocate::apply(module& p) const
             out_param = p.add_parameter("output", s);
             p.replace_instruction(ins, out_param);
             continue;
-        }
-        instruction_ref alloc_ins;
-        if(model_name == "cpu::allocate")
-            alloc_ins = p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}}));
-        else
-            alloc_ins = p.insert_instruction(
-                ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")}));
-        p.replace_instruction(ins, alloc_ins);
+        }        
+        p.replace_instruction(ins, p.insert_instruction(
+                ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
     }
 }
 

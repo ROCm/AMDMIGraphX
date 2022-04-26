@@ -433,6 +433,8 @@ migraphx_status migraphx_quantize_int8(migraphx_program_t prog,
 
 migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 
+migraphx_status migraphx_context_get_queue(void** out, migraphx_context_t context);
+
 migraphx_status
 migraphx_experimental_custom_op_destroy(migraphx_experimental_custom_op_t experimental_custom_op);
 

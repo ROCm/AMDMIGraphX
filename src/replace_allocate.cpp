@@ -87,7 +87,8 @@ void replace_allocate::apply(module& p) const
 
         if(model_name == "cpu::allocate")
         {
-            p.replace_instruction(ins, p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}})));
+            p.replace_instruction(
+                ins, p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}})));
             continue;
         }
 
@@ -105,9 +106,10 @@ void replace_allocate::apply(module& p) const
             out_param = p.add_parameter("output", s);
             p.replace_instruction(ins, out_param);
             continue;
-        }        
-        p.replace_instruction(ins, p.insert_instruction(
-                ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
+        }
+        p.replace_instruction(
+            ins,
+            p.insert_instruction(ins, make_op(model_name, {{"shape", to_value(s)}, v.at("tag")})));
     }
 }
 

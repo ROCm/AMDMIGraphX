@@ -252,7 +252,31 @@ struct any_matcher : any_matcher_base
 
 struct matcher_result
 {
-    std::unordered_map<std::string, instruction_ref> instructions;
+    struct instruction_container
+    {
+        instruction_container() = default;
+        instruction_container(std::unordered_map<std::string, instruction_ref> x)
+        : ins_map(std::move(x))
+        {}
+
+        instruction_ref operator[](const std::string& name) const
+        {
+            auto it = ins_map.find(name);
+            if (it == ins_map.end())
+                MIGRAPHX_THROW("Accessing name that wasn't bound in matcher: " + name);
+            return it->second;
+        }
+
+        bool has_instructions_in(const module& mod) const
+        {
+            return std::all_of(ins_map.begin(), ins_map.end(), [&](auto&& p) {
+                return mod.has_instruction(p.second);
+            });
+        }
+    private:
+        std::unordered_map<std::string, instruction_ref> ins_map;
+    };
+    instruction_container instructions;
     instruction_ref result;
 };
 
@@ -268,6 +292,7 @@ matcher_result match_instruction(module& mod, instruction_ref ins, M&& m)
     {
         result.result       = ins;
         result.instructions = ctx.instructions;
+        assert(result.instructions.has_instructions_in(mod));
     }
     else
     {

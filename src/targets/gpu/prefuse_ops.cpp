@@ -12,8 +12,13 @@ struct find_layernorm
 
     void apply(module& m, match::matcher_result r) const
     {
+        std::cout << "find_layernorm: " << std::endl;
         auto ins   = r.result;
+        assert(m.has_instruction(ins));
+        assert(r.instructions.count("x") == 0);
         auto x_ins = r.instructions["x"];
+        assert(m.has_instruction(x_ins));
+
 
         if(not x_ins->get_shape().standard())
             x_ins = m.insert_instruction(ins, make_op("contiguous"), x_ins);
@@ -25,6 +30,8 @@ struct find_layernorm
 
         auto a = m.insert_instruction(
             ins, make_op("hip::allocate", {{"shape", to_value(x_ins->get_shape())}}));
+        m.debug_print(a);
+        m.debug_print();
         m.replace_instruction(ins, make_op("gpu::layernorm"), x_ins, a);
     }
 };
@@ -44,6 +51,7 @@ struct find_triaddlayernorm
 
     void apply(module& m, match::matcher_result r) const
     {
+        std::cout << "find_triaddlayernorm: " << std::endl;
         auto ins   = r.result;
         auto x_ins = r.instructions["z1"];
         auto y_ins = r.instructions["z2"];
@@ -60,17 +68,19 @@ struct find_triaddlayernorm
         if(relements > 1024 or (relements % 4 != 0 and relements > 256))
             return;
 
-        std::cout << x_ins->get_shape() << std::endl;
-        std::cout << to_value(x_ins->get_shape()) << std::endl;
         auto a = m.insert_instruction(
             ins, make_op("hip::allocate", {{"shape", to_value(x_ins->get_shape())}}));
+        m.debug_print(a);
+        m.debug_print();
         m.replace_instruction(ins, make_op("gpu::triadd_layernorm"), x_ins, y_ins, z_ins, a);
     }
 };
 
 void prefuse_ops::apply(module& m) const
 {
+    std::cout << "****************************** prefuse_ops: " << std::endl;
     match::find_matches(m, find_triaddlayernorm{}, find_layernorm{});
+    std::cout << "******************************" << std::endl;
 }
 
 } // namespace gpu

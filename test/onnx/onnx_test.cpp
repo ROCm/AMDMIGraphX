@@ -1704,6 +1704,23 @@ TEST_CASE(globalavgpool_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(globallppool_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto op    = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    auto lens  = input->get_shape().lens();
+    op.lengths = {lens[2], lens[3]};
+    op.padding = {0, 0, 0, 0};
+    mm->add_instruction(op, input);
+
+    auto prog = optimize_onnx("globallppool_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(globalmaxpool_test)
 {
     migraphx::program p;
@@ -2594,6 +2611,38 @@ TEST_CASE(lpnormalization_axis_error_test)
 TEST_CASE(lpnormalization_p_error_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("lpnormalization_p_error_test.onnx"); }));
+}
+
+TEST_CASE(lppool_l1_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                           {"padding", {0, 0}},
+                                           {"stride", {1}},
+                                           {"lengths", {3}},
+                                           {"lp_order", 1}}),
+                        l0);
+    auto prog = optimize_onnx("lppool_l1_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(lppool_l2_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                           {"padding", {0, 0}},
+                                           {"stride", {1}},
+                                           {"lengths", {3}},
+                                           {"lp_order", 2}}),
+                        l0);
+    auto prog = optimize_onnx("lppool_l2_test.onnx");
+    EXPECT(p == prog);
 }
 
 TEST_CASE(lrn_test)
@@ -4170,6 +4219,126 @@ TEST_CASE(resize_upsample_pf_test)
 
     auto prog = migraphx::parse_onnx("resize_upsample_pf_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reversesequence_batch_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    int batch_axis = 0;
+    int time_axis  = 1;
+
+    migraphx::shape sx{migraphx::shape::float_type, {4, 4}};
+    auto input = mm->add_parameter("x", sx);
+
+    std::vector<int64_t> sequence_lens = {1, 2, 3, 4};
+    mm->add_literal({{migraphx::shape::int64_type, {4}}, sequence_lens});
+
+    int batch_size = sx.lens()[batch_axis];
+    int time_size  = sx.lens()[time_axis];
+
+    auto add_slice =
+        [&mm, &input, batch_axis, time_axis](int b_start, int b_end, int t_start, int t_end) {
+            return mm->add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", {batch_axis, time_axis}},
+                                                          {"starts", {b_start, t_start}},
+                                                          {"ends", {b_end, t_end}}}),
+                                       input);
+        };
+    auto ret = add_slice(0, 1, 0, time_size);
+    for(int b = 1; b < batch_size; ++b)
+    {
+        auto s0 = add_slice(b, b + 1, 0, sequence_lens[b]);
+        s0      = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {time_axis}}}), s0);
+        if(sequence_lens[b] < time_size)
+        {
+            auto s1 = add_slice(b, b + 1, sequence_lens[b], time_size);
+            s0 = mm->add_instruction(migraphx::make_op("concat", {{"axis", time_axis}}), s0, s1);
+        }
+        ret = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
+    }
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("reversesequence_batch_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reversesequence_batch_axis_err_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reversesequence_batch_axis_err_test.onnx"); }));
+}
+
+TEST_CASE(reversesequence_rank_err_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reversesequence_rank_err_test.onnx"); }));
+}
+
+TEST_CASE(reversesequence_sequence_lens_shape_err_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("reversesequence_sequence_lens_shape_err_test.onnx"); }));
+}
+
+TEST_CASE(reversesequence_same_axis_err_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reversesequence_same_axis_err_test.onnx"); }));
+}
+
+TEST_CASE(reversesequence_time_axis_err_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("reversesequence_time_axis_err_test.onnx"); }));
+}
+
+TEST_CASE(reversesequence_time_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    int batch_axis = 1;
+    int time_axis  = 0;
+
+    migraphx::shape sx{migraphx::shape::float_type, {4, 4}};
+    auto input = mm->add_parameter("x", sx);
+
+    int batch_size                     = sx.lens()[batch_axis];
+    int time_size                      = sx.lens()[time_axis];
+    std::vector<int64_t> sequence_lens = {4, 3, 2, 1};
+
+    auto add_slice =
+        [&mm, &input, batch_axis, time_axis](int b_start, int b_end, int t_start, int t_end) {
+            return mm->add_instruction(migraphx::make_op("slice",
+                                                         {{"axes", {batch_axis, time_axis}},
+                                                          {"starts", {b_start, t_start}},
+                                                          {"ends", {b_end, t_end}}}),
+                                       input);
+        };
+
+    migraphx::instruction_ref ret;
+    for(int b = 0; b < batch_size - 1; ++b)
+    {
+        auto s0 = add_slice(b, b + 1, 0, sequence_lens[b]);
+        s0      = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {time_axis}}}), s0);
+        if(sequence_lens[b] < time_size)
+        {
+            auto s1 = add_slice(b, b + 1, sequence_lens[b], time_size);
+            s0 = mm->add_instruction(migraphx::make_op("concat", {{"axis", time_axis}}), s0, s1);
+        }
+        if(b == 0)
+        {
+            ret = s0;
+        }
+        else
+        {
+            ret = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
+        }
+    }
+    auto s0 = add_slice(batch_size - 1, batch_size, 0, time_size);
+    ret     = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("reversesequence_time_test.onnx");
     EXPECT(p == prog);
 }
 

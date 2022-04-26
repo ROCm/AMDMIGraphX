@@ -13,12 +13,11 @@ struct find_layernorm
     void apply(module& m, match::matcher_result r) const
     {
         std::cout << "find_layernorm: " << std::endl;
-        auto ins   = r.result;
+        auto ins = r.result;
         assert(m.has_instruction(ins));
         assert(r.instructions.count("x") == 0);
         auto x_ins = r.instructions["x"];
         assert(m.has_instruction(x_ins));
-
 
         if(not x_ins->get_shape().standard())
             x_ins = m.insert_instruction(ins, make_op("contiguous"), x_ins);

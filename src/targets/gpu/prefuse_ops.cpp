@@ -45,7 +45,8 @@ struct find_triaddlayernorm
             match::name("add")(match::none_of(match::is_constant()),
                                match::args(match::any().bind("z1"), match::any().bind("z2")));
         auto add2 = match::name("add")(match::either_arg(0, 1)(add1, match::any().bind("z3")));
-        return match::layernorm()(match::var("x")(add2));
+        // return match::layernorm()(match::var("x")(add2));
+        return match::layernorm()(add2);
     }
 
     void apply(module& m, match::matcher_result r) const
@@ -78,7 +79,8 @@ struct find_triaddlayernorm
 void prefuse_ops::apply(module& m) const
 {
     std::cout << "****************************** prefuse_ops: " << std::endl;
-    match::find_matches(m, find_triaddlayernorm{}, find_layernorm{});
+    // match::find_matches(m, find_triaddlayernorm{}, find_layernorm{});
+    match::find_matches(m, find_layernorm{});
     std::cout << "******************************" << std::endl;
 }
 

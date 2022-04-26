@@ -256,13 +256,14 @@ struct matcher_result
     {
         instruction_container() = default;
         instruction_container(std::unordered_map<std::string, instruction_ref> x)
-        : ins_map(std::move(x))
-        {}
+            : ins_map(std::move(x))
+        {
+        }
 
         instruction_ref operator[](const std::string& name) const
         {
             auto it = ins_map.find(name);
-            if (it == ins_map.end())
+            if(it == ins_map.end())
                 MIGRAPHX_THROW("Accessing name that wasn't bound in matcher: " + name);
             return it->second;
         }
@@ -273,7 +274,8 @@ struct matcher_result
                 return mod.has_instruction(p.second);
             });
         }
-    private:
+
+        private:
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
     instruction_container instructions;

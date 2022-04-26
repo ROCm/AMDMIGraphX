@@ -13,7 +13,7 @@ struct find_layernorm
     void apply(module& m, match::matcher_result r) const
     {
         std::cout << "find_layernorm: " << std::endl;
-        auto ins = r.result;
+        auto ins   = r.result;
         auto x_ins = r.instructions["x"];
 
         if(not x_ins->get_shape().standard())
